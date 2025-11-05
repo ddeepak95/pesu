@@ -6,8 +6,7 @@ export default function Home() {
     <div className={styles.page}>
       <main className={styles.main}>
         <App />
-
-              </main>
+      </main>
     </div>
   );
 }

@@ -32,8 +32,9 @@ import {
   
     return (
       <div className="controls">
+
         <button
-          className={isConnected ? "disconnect-btn" : "connect-btn"}
+          className={"border border-white text-white px-4 py-2 rounded-md cursor-pointer"}
           onClick={handleClick}
           disabled={
             !client || ["connecting", "disconnecting"].includes(transportState)
