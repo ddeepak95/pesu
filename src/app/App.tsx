@@ -11,8 +11,10 @@ function AppContent() {
   return (
     <div className="w-full">
       <div className="flex flex-col items-center justify-center gap-4 w-full">
-      <ConversationSettings />
-        <div className="w-full text-center"><ConnectButton /></div>
+        <ConversationSettings />
+        <div className="w-full text-center">
+          <ConnectButton />
+        </div>
 
         <PipecatClientAudio />
         <VoiceVisualizer participantType="bot" barColor="white" />
@@ -25,7 +27,10 @@ function AppContent() {
 export default function App() {
   return (
     <div className="w-full">
-      <ConversationProvider defaultTopic="" defaultLanguage="en">
+      <ConversationProvider
+        defaultTopic="General conversation"
+        defaultLanguage="ta"
+      >
         <PipecatProvider>
           <AppContent />
         </PipecatProvider>
