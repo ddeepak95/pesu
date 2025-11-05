@@ -9,16 +9,20 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@pipecat-ai/client-js": "^1.4.1",
+    "@pipecat-ai/client-react": "^1.1.0",
+    "@pipecat-ai/daily-transport": "^1.4.1",
+    "@pipecat-ai/voice-ui-kit": "^0.4.2",
+    "next": "16.0.1",
     "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "next": "16.0.1"
+    "react-dom": "19.2.0"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.0.1"
+    "eslint-config-next": "16.0.1",
+    "typescript": "^5"
   }
 }
