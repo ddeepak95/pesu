@@ -2,11 +2,15 @@
 import { PipecatClientAudio } from "@pipecat-ai/client-react";
 import { PipecatProvider } from "@/providers/PipecatProvider";
 import { ConnectButton } from "@/components/ConnectButton";
-import { VoiceVisualizer } from "@pipecat-ai/voice-ui-kit";
-import { TranscriptOverlay } from "@pipecat-ai/voice-ui-kit";
+import {
+  VoiceVisualizer,
+  TranscriptOverlay,
+  ConversationProvider as PipecatConversationProvider,
+} from "@pipecat-ai/voice-ui-kit";
 import { ConversationProvider } from "@/contexts/ConversationContext";
 import { ConversationSettings } from "@/components/ConversationSettings";
-
+import { Conversation } from "@/components/Conversation";
+import { EventStreamExample } from "@/components/Events";
 function AppContent() {
   return (
     <div className="w-full">
@@ -19,6 +23,8 @@ function AppContent() {
         <PipecatClientAudio />
         <VoiceVisualizer participantType="bot" barColor="white" />
         <TranscriptOverlay participant="remote" />
+        <Conversation />
+        <EventStreamExample />
       </div>
     </div>
   );
@@ -32,7 +38,9 @@ export default function App() {
         defaultLanguage="ta"
       >
         <PipecatProvider>
-          <AppContent />
+          <PipecatConversationProvider>
+            <AppContent />
+          </PipecatConversationProvider>
         </PipecatProvider>
       </ConversationProvider>
     </div>
