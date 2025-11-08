@@ -5,8 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import { Question, RubricItem } from "@/types/assignment";
+import { supportedLanguages } from "@/utils/supportedLanguages";
 
 interface AssignmentFormProps {
   mode: "create" | "edit";
@@ -14,10 +22,12 @@ interface AssignmentFormProps {
   assignmentId?: string;
   initialTitle?: string;
   initialQuestions?: Question[];
+  initialLanguage?: string;
   onSubmit: (data: {
     title: string;
     questions: Question[];
     totalPoints: number;
+    preferredLanguage: string;
   }) => Promise<void>;
 }
 
@@ -38,11 +48,13 @@ export default function AssignmentForm({
       supporting_content: "",
     },
   ],
+  initialLanguage = "en",
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
+  const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -207,6 +219,7 @@ export default function AssignmentForm({
         title: title.trim(),
         questions: cleanedQuestions,
         totalPoints,
+        preferredLanguage,
       });
 
       // Navigate based on mode
@@ -235,6 +248,27 @@ export default function AssignmentForm({
           disabled={loading}
           placeholder="Enter assignment title"
         />
+      </div>
+
+      {/* Preferred Language */}
+      <div className="space-y-2">
+        <Label htmlFor="preferredLanguage">Preferred Language</Label>
+        <Select
+          value={preferredLanguage}
+          onValueChange={setPreferredLanguage}
+          disabled={loading}
+        >
+          <SelectTrigger id="preferredLanguage">
+            <SelectValue placeholder="Select a language" />
+          </SelectTrigger>
+          <SelectContent>
+            {supportedLanguages.map((lang) => (
+              <SelectItem key={lang.code} value={lang.code}>
+                {lang.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Questions */}

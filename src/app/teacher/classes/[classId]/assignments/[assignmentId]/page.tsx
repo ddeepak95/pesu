@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getAssignmentById, deleteAssignment } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Teacher/Assignments/QuestionView";
+import { supportedLanguages } from "@/utils/supportedLanguages";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -101,9 +102,15 @@ export default function AssignmentDetailPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
-              <p className="text-muted-foreground mt-1">
-                {assignmentData.total_points} points total
-              </p>
+              <div className="flex items-center gap-4 mt-1 text-muted-foreground">
+                <p>
+                  {assignmentData.total_points} points total
+                </p>
+                <span>•</span>
+                <p>
+                  Language: {supportedLanguages.find(lang => lang.code === assignmentData.preferred_language)?.name || assignmentData.preferred_language}
+                </p>
+              </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

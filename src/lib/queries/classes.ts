@@ -45,7 +45,8 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
  */
 export async function createClass(
   name: string,
-  userId: string
+  userId: string,
+  preferredLanguage: string = "en"
 ): Promise<Class> {
   const supabase = createClient();
   const classId = generateClassId();
@@ -57,6 +58,7 @@ export async function createClass(
       class_id: classId,
       created_by: userId,
       status: "active",
+      preferred_language: preferredLanguage,
     })
     .select()
     .single();
@@ -70,18 +72,28 @@ export async function createClass(
 }
 
 /**
- * Update a class name
+ * Update a class name and/or preferred language
  */
 export async function updateClass(
   classId: string,
   name: string,
-  userId: string
+  userId: string,
+  preferredLanguage?: string
 ): Promise<Class> {
   const supabase = createClient();
 
+  const updateData: { name: string; updated_at: string; preferred_language?: string } = {
+    name,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (preferredLanguage !== undefined) {
+    updateData.preferred_language = preferredLanguage;
+  }
+
   const { data, error } = await supabase
     .from("classes")
-    .update({ name, updated_at: new Date().toISOString() })
+    .update(updateData)
     .eq("id", classId)
     .eq("created_by", userId) // Ensure user owns the class
     .select()

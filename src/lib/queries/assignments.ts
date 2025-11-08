@@ -78,6 +78,7 @@ export async function createAssignment(
       supporting_content: string;
     }[];
     total_points: number;
+    preferred_language: string;
   },
   userId: string
 ): Promise<Assignment> {
@@ -94,6 +95,7 @@ export async function createAssignment(
       total_points: assignment.total_points,
       created_by: userId,
       status: "active",
+      preferred_language: assignment.preferred_language,
     })
     .select()
     .single();
@@ -122,6 +124,7 @@ export async function updateAssignment(
       supporting_content: string;
     }[];
     total_points: number;
+    preferred_language: string;
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -132,6 +135,7 @@ export async function updateAssignment(
       title: assignment.title,
       questions: assignment.questions,
       total_points: assignment.total_points,
+      preferred_language: assignment.preferred_language,
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)

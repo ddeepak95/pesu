@@ -15,15 +15,17 @@ export default function CreateAssignmentPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [classDbId, setClassDbId] = useState<string | null>(null);
+  const [classLanguage, setClassLanguage] = useState<string>("en");
   const [loadingClass, setLoadingClass] = useState(true);
 
-  // Fetch the class to get the database ID
+  // Fetch the class to get the database ID and preferred language
   useEffect(() => {
     const fetchClass = async () => {
       try {
         const classData = await getClassByClassId(classId);
         if (classData) {
           setClassDbId(classData.id);
+          setClassLanguage(classData.preferred_language);
         } else {
           setError("Class not found");
         }
@@ -44,6 +46,7 @@ export default function CreateAssignmentPage() {
     title: string;
     questions: { order: number; prompt: string; total_points: number; rubric: { item: string; points: number }[]; supporting_content: string }[];
     totalPoints: number;
+    preferredLanguage: string;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -59,6 +62,7 @@ export default function CreateAssignmentPage() {
         title: data.title,
         questions: data.questions,
         total_points: data.totalPoints,
+        preferred_language: data.preferredLanguage,
       },
       user.id
     );
@@ -91,6 +95,7 @@ export default function CreateAssignmentPage() {
         <AssignmentForm
           mode="create"
           classId={classId}
+          initialLanguage={classLanguage}
           onSubmit={handleSubmit}
         />
       </div>

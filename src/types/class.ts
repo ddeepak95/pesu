@@ -6,6 +6,7 @@ export interface Class {
   created_at: string;
   updated_at: string;
   status: "active" | "deleted";
+  preferred_language: string;
 }
 
 export interface ClassTeacher {
