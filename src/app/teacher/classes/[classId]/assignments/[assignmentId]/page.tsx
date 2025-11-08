@@ -53,10 +53,7 @@ export default function AssignmentDetailPage() {
   }, [assignmentId]);
 
   const handleEdit = () => {
-    // Navigate to the create/edit page (reusing the create page in edit mode could be an option)
-    router.push(
-      `/teacher/classes/${classId}/assignments/create?edit=${assignmentId}`
-    );
+    router.push(`/teacher/classes/${classId}/assignments/${assignmentId}/edit`);
   };
 
   const handleDelete = async () => {

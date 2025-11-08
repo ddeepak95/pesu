@@ -68,10 +68,10 @@ export default function Assignments({ classData }: AssignmentsProps) {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleEdit = (assignment: Assignment) => {
-    // TODO: Implement edit functionality
-    alert("Edit functionality coming soon!");
+    router.push(
+      `/teacher/classes/${classData.class_id}/assignments/${assignment.assignment_id}/edit`
+    );
   };
 
   const handleCopyLink = (assignmentId: string) => {
