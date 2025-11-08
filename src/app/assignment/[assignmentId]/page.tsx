@@ -6,7 +6,6 @@ import PageLayout from "@/components/PageLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -15,12 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { getAssignmentById } from "@/lib/queries/assignments";
 import {
   createSubmission,
@@ -29,6 +22,7 @@ import {
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
+import { VoiceAssessment } from "@/components/VoiceAssessment";
 
 type Phase = "info" | "answering" | "completed";
 
@@ -47,9 +41,7 @@ export default function PublicAssignmentPage() {
 
   // Question answering
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<{ [key: number]: string }>({});
   const [submissionId, setSubmissionId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (assignmentId) {
@@ -109,62 +101,30 @@ export default function PublicAssignmentPage() {
     }
   };
 
-  const handleAnswerChange = (questionOrder: number, value: string) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionOrder]: value,
-    }));
-  };
-
-  const handleNextQuestion = async () => {
+  const handleAnswerComplete = async (transcript: string) => {
     if (!assignmentData || !submissionId) return;
 
     const currentQuestion = assignmentData.questions[currentQuestionIndex];
-    const currentAnswer = answers[currentQuestion.order] || "";
 
-    // Save the current answer
     try {
+      // Save the answer (transcript)
       await updateSubmissionAnswer(
         submissionId,
         currentQuestion.order,
-        currentAnswer
+        transcript
       );
+
+      // Move to next question or complete
+      if (currentQuestionIndex < assignmentData.questions.length - 1) {
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+      } else {
+        // This is the last question, complete the submission
+        await completeSubmission(submissionId);
+        setPhase("completed");
+      }
     } catch (err) {
       console.error("Error saving answer:", err);
       alert("Failed to save answer. Please try again.");
-      return;
-    }
-
-    // Move to next question
-    if (currentQuestionIndex < assignmentData.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-
-  const handleSubmitAssignment = async () => {
-    if (!assignmentData || !submissionId) return;
-
-    setSubmitting(true);
-
-    try {
-      // Save the last answer
-      const currentQuestion = assignmentData.questions[currentQuestionIndex];
-      const currentAnswer = answers[currentQuestion.order] || "";
-
-      await updateSubmissionAnswer(
-        submissionId,
-        currentQuestion.order,
-        currentAnswer
-      );
-
-      // Mark submission as completed
-      await completeSubmission(submissionId);
-      setPhase("completed");
-    } catch (err) {
-      console.error("Error submitting assignment:", err);
-      alert("Failed to submit assignment. Please try again.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -269,77 +229,16 @@ export default function PublicAssignmentPage() {
               </div>
             </div>
 
-            {/* Question Number */}
-            <p className="text-lg font-medium">
-              Question ({currentQuestionIndex + 1}/{sortedQuestions.length})
-            </p>
-
-            {/* Question Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Prompt</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="whitespace-pre-wrap">{currentQuestion.prompt}</p>
-
-                {/* View Rubric Accordion */}
-                {currentQuestion.rubric &&
-                  currentQuestion.rubric.length > 0 && (
-                    <Accordion type="single" collapsible>
-                      <AccordionItem value="rubric">
-                        <AccordionTrigger>View Rubric</AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-2">
-                            {currentQuestion.rubric.map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="flex justify-between items-start gap-4 p-3 bg-muted/50 rounded-md"
-                              >
-                                <span className="flex-1">{item.item}</span>
-                                <span className="font-semibold text-sm whitespace-nowrap">
-                                  {item.points} pts
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  )}
-
-                {/* Answer Textarea */}
-                <div className="space-y-2">
-                  <Label htmlFor="answer">Your Answer</Label>
-                  <Textarea
-                    id="answer"
-                    placeholder="Your answer will go here (voice feature coming soon)"
-                    value={answers[currentQuestion.order] || ""}
-                    onChange={(e) =>
-                      handleAnswerChange(currentQuestion.order, e.target.value)
-                    }
-                    rows={8}
-                    className="resize-none"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Navigation Buttons */}
-            <div className="flex justify-end">
-              {isLastQuestion ? (
-                <Button
-                  onClick={handleSubmitAssignment}
-                  disabled={submitting}
-                  size="lg"
-                >
-                  {submitting ? "Submitting..." : "Submit Assignment"}
-                </Button>
-              ) : (
-                <Button onClick={handleNextQuestion} size="lg">
-                  Next Question
-                </Button>
-              )}
-            </div>
+            {/* Voice Assessment Component */}
+            <VoiceAssessment
+              question={currentQuestion}
+              language={preferredLanguage}
+              assignmentId={assignmentData.assignment_id}
+              questionNumber={currentQuestionIndex + 1}
+              totalQuestions={sortedQuestions.length}
+              onAnswerComplete={handleAnswerComplete}
+              isLastQuestion={isLastQuestion}
+            />
           </div>
         </div>
       </PageLayout>
