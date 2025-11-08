@@ -121,6 +121,7 @@ export async function deleteClass(
 
 /**
  * Get a single class by its unique class_id
+ * Only returns active classes (excludes deleted ones)
  */
 export async function getClassByClassId(classId: string): Promise<Class | null> {
   const supabase = createClient();
@@ -129,6 +130,7 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
     .from("classes")
     .select("*")
     .eq("class_id", classId)
+    .eq("status", "active")
     .single();
 
   if (error) {

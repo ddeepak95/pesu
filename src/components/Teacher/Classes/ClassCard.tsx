@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import { Class } from "@/types/class";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +25,22 @@ export default function ClassCard({
   onDelete,
   onInviteLink,
 }: ClassCardProps) {
+  const router = useRouter();
+
+  const handleCardClick = () => {
+    router.push(`/teacher/classes/${classData.class_id}`);
+  };
+
+  const handleMenuClick = (e: React.MouseEvent) => {
+    // Prevent card click when clicking menu
+    e.stopPropagation();
+  };
+
   return (
-    <Card className="hover:shadow-lg transition-shadow">
+    <Card
+      className="hover:shadow-lg transition-shadow cursor-pointer"
+      onClick={handleCardClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex-1">
           <CardTitle className="text-xl">{classData.name}</CardTitle>
@@ -33,33 +48,36 @@ export default function ClassCard({
             Class ID: {classData.class_id}
           </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {onInviteLink && (
-              <DropdownMenuItem onClick={() => onInviteLink(classData.class_id)}>
-                Invite Link
+        <div onClick={handleMenuClick}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {onInviteLink && (
+                <DropdownMenuItem
+                  onClick={() => onInviteLink(classData.class_id)}
+                >
+                  Invite Link
+                </DropdownMenuItem>
+              )}
+              {onEdit && (
+                <DropdownMenuItem onClick={() => onEdit(classData)}>
+                  Edit
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => onDelete(classData.id)}
+                className="text-destructive"
+              >
+                Delete
               </DropdownMenuItem>
-            )}
-            {onEdit && (
-              <DropdownMenuItem onClick={() => onEdit(classData)}>
-                Edit
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem
-              onClick={() => onDelete(classData.id)}
-              className="text-destructive"
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </CardHeader>
     </Card>
   );
 }
-

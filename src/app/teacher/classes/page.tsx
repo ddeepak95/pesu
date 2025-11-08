@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import PageLayout from "@/components/PageLayout";
 import InnerPageLayout from "@/components/Layout/InnerPageLayout";
 import CreateClass from "@/components/Teacher/Classes/CreateClass";
+import EditClass from "@/components/Teacher/Classes/EditClass";
 import ClassCard from "@/components/Teacher/Classes/ClassCard";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +16,8 @@ export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const fetchClasses = useCallback(async () => {
     if (!user) {
@@ -61,6 +64,11 @@ export default function ClassesPage() {
     }
   };
 
+  const handleEdit = (classData: Class) => {
+    setEditingClass(classData);
+    setEditDialogOpen(true);
+  };
+
   const handleInviteLink = (classId: string) => {
     // TODO: Implement invite link feature later
     alert(`Invite link feature coming soon! Class ID: ${classId}`);
@@ -87,6 +95,7 @@ export default function ClassesPage() {
               <ClassCard
                 key={classItem.id}
                 classData={classItem}
+                onEdit={handleEdit}
                 onDelete={handleDelete}
                 onInviteLink={handleInviteLink}
               />
@@ -95,6 +104,13 @@ export default function ClassesPage() {
           />
         )}
       </InnerPageLayout>
+
+      <EditClass
+        classData={editingClass}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onClassUpdated={fetchClasses}
+      />
     </PageLayout>
   );
 }
