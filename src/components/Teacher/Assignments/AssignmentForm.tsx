@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -23,11 +24,13 @@ interface AssignmentFormProps {
   initialTitle?: string;
   initialQuestions?: Question[];
   initialLanguage?: string;
+  initialIsPublic?: boolean;
   onSubmit: (data: {
     title: string;
     questions: Question[];
     totalPoints: number;
     preferredLanguage: string;
+    isPublic: boolean;
   }) => Promise<void>;
 }
 
@@ -49,12 +52,14 @@ export default function AssignmentForm({
     },
   ],
   initialLanguage = "en",
+  initialIsPublic = false,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
+  const [isPublic, setIsPublic] = useState(initialIsPublic);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -220,6 +225,7 @@ export default function AssignmentForm({
         questions: cleanedQuestions,
         totalPoints,
         preferredLanguage,
+        isPublic,
       });
 
       // Navigate based on mode
@@ -269,6 +275,27 @@ export default function AssignmentForm({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Public Access Toggle */}
+      <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
+        <Checkbox
+          id="isPublic"
+          checked={isPublic}
+          onCheckedChange={(checked) => setIsPublic(checked === true)}
+          disabled={loading}
+        />
+        <div className="space-y-1">
+          <Label
+            htmlFor="isPublic"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Make this assignment publicly accessible
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Anyone with the link can view and complete this assignment without logging in
+          </p>
+        </div>
       </div>
 
       {/* Questions */}

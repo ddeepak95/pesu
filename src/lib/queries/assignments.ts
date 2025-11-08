@@ -55,7 +55,10 @@ export async function getAssignmentById(assignmentId: string): Promise<Assignmen
     .single();
 
   if (error) {
-    console.error("Error fetching assignment:", error);
+    // When RLS blocks access, Supabase returns PGRST116 (not found) because
+    // from the user's perspective, a blocked row doesn't exist.
+    // We can't distinguish between "truly not found" and "blocked by RLS"
+    // so we return null and let the frontend handle the message.
     return null;
   }
 
@@ -79,6 +82,7 @@ export async function createAssignment(
     }[];
     total_points: number;
     preferred_language: string;
+    is_public?: boolean;
   },
   userId: string
 ): Promise<Assignment> {
@@ -96,6 +100,7 @@ export async function createAssignment(
       created_by: userId,
       status: "active",
       preferred_language: assignment.preferred_language,
+      is_public: assignment.is_public ?? false,
     })
     .select()
     .single();
@@ -125,6 +130,7 @@ export async function updateAssignment(
     }[];
     total_points: number;
     preferred_language: string;
+    is_public?: boolean;
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -136,6 +142,7 @@ export async function updateAssignment(
       questions: assignment.questions,
       total_points: assignment.total_points,
       preferred_language: assignment.preferred_language,
+      is_public: assignment.is_public ?? false,
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)

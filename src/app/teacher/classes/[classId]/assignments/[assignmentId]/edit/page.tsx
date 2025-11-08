@@ -17,6 +17,7 @@ export default function EditAssignmentPage() {
   const [title, setTitle] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [preferredLanguage, setPreferredLanguage] = useState("en");
+  const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -31,6 +32,7 @@ export default function EditAssignmentPage() {
           setTitle(assignmentData.title);
           setQuestions(assignmentData.questions);
           setPreferredLanguage(assignmentData.preferred_language);
+          setIsPublic(assignmentData.is_public);
           setAssignmentDbId(assignmentData.id);
         } else {
           setError("Assignment not found");
@@ -59,6 +61,7 @@ export default function EditAssignmentPage() {
     }[];
     totalPoints: number;
     preferredLanguage: string;
+    isPublic: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -73,6 +76,7 @@ export default function EditAssignmentPage() {
       questions: data.questions,
       total_points: data.totalPoints,
       preferred_language: data.preferredLanguage,
+      is_public: data.isPublic,
     });
   };
 
@@ -107,6 +111,7 @@ export default function EditAssignmentPage() {
           initialTitle={title}
           initialQuestions={questions}
           initialLanguage={preferredLanguage}
+          initialIsPublic={isPublic}
           onSubmit={handleSubmit}
         />
       </div>

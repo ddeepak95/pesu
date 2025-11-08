@@ -23,5 +23,6 @@ export interface Assignment {
   updated_at: string;
   status: "active" | "deleted";
   preferred_language: string;
+  is_public: boolean;
 }
 

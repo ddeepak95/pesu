@@ -47,6 +47,7 @@ export default function CreateAssignmentPage() {
     questions: { order: number; prompt: string; total_points: number; rubric: { item: string; points: number }[]; supporting_content: string }[];
     totalPoints: number;
     preferredLanguage: string;
+    isPublic: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -63,6 +64,7 @@ export default function CreateAssignmentPage() {
         questions: data.questions,
         total_points: data.totalPoints,
         preferred_language: data.preferredLanguage,
+        is_public: data.isPublic,
       },
       user.id
     );
