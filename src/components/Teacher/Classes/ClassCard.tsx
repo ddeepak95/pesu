@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { MoreVertical } from "lucide-react";
 import { Class } from "@/types/class";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -51,9 +50,7 @@ export default function ClassCard({
         <div onClick={handleMenuClick}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
+              <Button variant="outline">Options</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {onInviteLink && (
