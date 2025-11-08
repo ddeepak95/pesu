@@ -85,6 +85,12 @@ export default function Assignments({ classData }: AssignmentsProps) {
     router.push(`/teacher/classes/${classData.class_id}/assignments/create`);
   };
 
+  const handleAssignmentClick = (assignment: Assignment) => {
+    router.push(
+      `/teacher/classes/${classData.class_id}/assignments/${assignment.assignment_id}`
+    );
+  };
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
@@ -110,6 +116,7 @@ export default function Assignments({ classData }: AssignmentsProps) {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onCopyLink={handleCopyLink}
+              onClick={handleAssignmentClick}
             />
           )}
           emptyMessage="No assignments yet. Create your first assignment to get started!"

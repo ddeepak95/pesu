@@ -15,6 +15,7 @@ interface AssignmentCardProps {
   onEdit?: (assignment: Assignment) => void;
   onDelete: (assignmentId: string) => void;
   onCopyLink?: (assignmentId: string) => void;
+  onClick?: (assignment: Assignment) => void;
 }
 
 export default function AssignmentCard({
@@ -22,14 +23,24 @@ export default function AssignmentCard({
   onEdit,
   onDelete,
   onCopyLink,
+  onClick,
 }: AssignmentCardProps) {
   const handleMenuClick = (e: React.MouseEvent) => {
     // Prevent any parent click handlers
     e.stopPropagation();
   };
 
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick(assignment);
+    }
+  };
+
   return (
-    <Card>
+    <Card 
+      className={onClick ? "cursor-pointer hover:bg-accent transition-colors" : ""}
+      onClick={handleCardClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex-1">
           <CardTitle className="text-xl">{assignment.title}</CardTitle>
