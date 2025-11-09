@@ -13,6 +13,7 @@ interface VoiceConnectButtonProps {
   };
   onConnected?: () => void;
   onBotReady?: () => void;
+  onDisconnect?: () => void;
   disabled?: boolean;
   connectLabel?: string;
   disconnectLabel?: string;
@@ -27,9 +28,10 @@ export function VoiceConnectButton({
   connectionData,
   onConnected,
   onBotReady,
+  onDisconnect,
   disabled = false,
   connectLabel = "Start Recording",
-  disconnectLabel = "Stop Recording",
+  disconnectLabel = "Stop Answering",
 }: VoiceConnectButtonProps) {
   const client = usePipecatClient();
   const transportState = usePipecatClientTransportState();
@@ -68,8 +70,20 @@ export function VoiceConnectButton({
 
     try {
       console.log("Disconnecting...");
+
+      // Call onDisconnect BEFORE disconnect to ensure evaluation happens
+      console.log("Calling onDisconnect callback...");
+      if (onDisconnect) {
+        onDisconnect();
+        console.log("onDisconnect callback completed");
+      } else {
+        console.warn("No onDisconnect callback provided");
+      }
+
+      // Now disconnect
       await client.disconnect();
       setConversationStarted(false);
+      console.log("Disconnect completed");
     } catch (error) {
       console.error("Error disconnecting:", error);
     }

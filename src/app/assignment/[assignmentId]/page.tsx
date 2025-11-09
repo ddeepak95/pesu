@@ -17,11 +17,15 @@ import {
 import { getAssignmentById } from "@/lib/queries/assignments";
 import {
   createSubmission,
-  updateSubmissionAnswer,
   completeSubmission,
   getSubmissionById,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
+import {
+  SubmissionAnswer,
+  SubmissionAttempt,
+  QuestionAnswers,
+} from "@/types/submission";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { VoiceAssessment } from "@/components/VoiceAssessment";
 import {
@@ -142,11 +146,46 @@ export default function PublicAssignmentPage() {
       setStudentName(submission.student_name);
       setPreferredLanguage(submission.preferred_language);
 
-      // Reconstruct answers from submission data
+      // Reconstruct answers from submission data (supports both formats)
       const reconstructedAnswers: { [key: number]: string } = {};
-      submission.answers.forEach((answer) => {
-        reconstructedAnswers[answer.question_order] = answer.answer_text;
-      });
+      const submissionAnswers = submission.answers as
+        | SubmissionAnswer[]
+        | { [key: number]: QuestionAnswers };
+
+      if (Array.isArray(submissionAnswers)) {
+        submissionAnswers.forEach((answer) => {
+          reconstructedAnswers[answer.question_order] = answer.answer_text;
+        });
+      } else if (submissionAnswers && typeof submissionAnswers === "object") {
+        Object.entries(submissionAnswers).forEach(
+          ([questionOrderKey, questionValue]) => {
+            const questionOrder = Number(questionOrderKey);
+            if (Number.isNaN(questionOrder)) return;
+
+            const questionAnswers = questionValue as QuestionAnswers;
+            if (!questionAnswers.attempts?.length) return;
+
+            let selectedAttempt: SubmissionAttempt | undefined;
+
+            if (questionAnswers.selected_attempt) {
+              selectedAttempt = questionAnswers.attempts.find(
+                (attempt) =>
+                  attempt.attempt_number === questionAnswers.selected_attempt
+              );
+            }
+
+            if (!selectedAttempt) {
+              selectedAttempt =
+                questionAnswers.attempts[questionAnswers.attempts.length - 1];
+            }
+
+            if (selectedAttempt) {
+              reconstructedAnswers[questionOrder] =
+                selectedAttempt.answer_text || "";
+            }
+          }
+        );
+      }
       setAnswers(reconstructedAnswers);
 
       // Determine current question index
@@ -231,20 +270,8 @@ export default function PublicAssignmentPage() {
       [currentQuestion.order]: transcript,
     }));
 
-    try {
-      // Save the answer (transcript) to database
-      await updateSubmissionAnswer(
-        submissionId,
-        currentQuestion.order,
-        transcript
-      );
-
-      // Update current question index in localStorage
-      updateQuestionIndex(assignmentId, currentQuestionIndex);
-    } catch (err) {
-      console.error("Error saving answer:", err);
-      alert("Failed to save answer. Please try again.");
-    }
+    // Update current question index in localStorage
+    updateQuestionIndex(assignmentId, currentQuestionIndex);
   };
 
   const handlePrevious = () => {
@@ -393,21 +420,24 @@ export default function PublicAssignmentPage() {
             </div>
 
             {/* Voice Assessment Component */}
-            <VoiceAssessment
-              question={currentQuestion}
-              language={preferredLanguage}
-              assignmentId={assignmentData.assignment_id}
-              questionNumber={currentQuestionIndex + 1}
-              totalQuestions={sortedQuestions.length}
-              onAnswerSave={handleAnswerSave}
-              onPrevious={handlePrevious}
-              onNext={handleNext}
-              onSubmit={handleSubmit}
-              isFirstQuestion={currentQuestionIndex === 0}
-              isLastQuestion={isLastQuestion}
-              existingAnswer={answers[currentQuestion.order]}
-              onLanguageChange={handleLanguageChange}
-            />
+            {submissionId && (
+              <VoiceAssessment
+                question={currentQuestion}
+                language={preferredLanguage}
+                assignmentId={assignmentData.assignment_id}
+                submissionId={submissionId}
+                questionNumber={currentQuestionIndex + 1}
+                totalQuestions={sortedQuestions.length}
+                onAnswerSave={handleAnswerSave}
+                onPrevious={handlePrevious}
+                onNext={handleNext}
+                onSubmit={handleSubmit}
+                isFirstQuestion={currentQuestionIndex === 0}
+                isLastQuestion={isLastQuestion}
+                existingAnswer={answers[currentQuestion.order]}
+                onLanguageChange={handleLanguageChange}
+              />
+            )}
           </div>
         </div>
       </PageLayout>
