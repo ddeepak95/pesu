@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
+import { Loader2 } from "lucide-react";
 
 interface VoiceAssessmentProps {
   question: Question;
@@ -318,28 +319,25 @@ function VoiceAssessmentContent({
             />
           </div>
 
+          {/* Transcript Display (when recording/not evaluated yet) */}
+          {transcript && (
+            <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
+              <div className="text-sm whitespace-pre-wrap">{transcript}</div>
+            </div>
+          )}
+
           {/* Evaluating State */}
           {isEvaluating && (
-            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-md text-center">
-              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                Getting feedback...
-              </p>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+            <div className="mt-4 p-4 border rounded-md text-center">
+              <Loader2 className="h-5 w-5 mx-auto animate-spin text-muted-foreground" />
+              <p className="text-xs mt-1">
                 Please wait while we evaluate your answer
               </p>
             </div>
           )}
 
-          {/* Transcript Display (when recording/not evaluated yet) */}
-          {transcript && !isEvaluating && (
-            <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-96 overflow-y-auto">
-              <p className="text-sm font-semibold mb-2">Conversation:</p>
-              <div className="text-sm whitespace-pre-wrap">{transcript}</div>
-            </div>
-          )}
-
           {/* Attempts Section - Shows all attempts as accordions */}
-          {attempts.length > 0 && !isEvaluating && (
+          {attempts.length > 0 && (
             <div className="mt-4 border rounded-lg">
               <div className="p-3 bg-muted/30 border-b">
                 <p className="text-sm font-semibold">Attempts</p>
