@@ -27,20 +27,26 @@ export function VoiceAssessmentProvider({
   const [transcript, setTranscript] = useState<string>("");
   const { messages } = usePipecatConversation();
 
-  // Accumulate user messages into transcript
+  // Accumulate all conversation messages into transcript
   useEffect(() => {
-    const userMessages = messages
-      .filter((m) => m.role === "user")
-      .map((m) => 
-        m.parts
+    const conversationText = messages
+      .map((m) => {
+        const messageText = m.parts
           .map((part) => (typeof part.text === "string" ? part.text : ""))
           .join(" ")
-      )
+          .trim();
+        
+        if (!messageText) return "";
+        
+        // Format with role labels
+        const roleLabel = m.role === "user" ? "Student" : "Teacher";
+        return `${roleLabel}: ${messageText}`;
+      })
       .filter(Boolean)
-      .join("\n");
+      .join("\n\n");
 
-    if (userMessages) {
-      setTranscript(userMessages);
+    if (conversationText) {
+      setTranscript(conversationText);
     }
   }, [messages]);
 

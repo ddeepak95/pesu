@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,9 +10,21 @@ import {
 } from "@/components/ui/accordion";
 import { VoiceClient } from "@/components/VoiceClient";
 import { VoiceConnectButton } from "@/components/VoiceConnectButton";
-import { VoiceAssessmentProvider, useVoiceTranscript } from "@/contexts/VoiceAssessmentContext";
+import {
+  VoiceAssessmentProvider,
+  useVoiceTranscript,
+} from "@/contexts/VoiceAssessmentContext";
 import { Question } from "@/types/assignment";
 import { usePipecatClientTransportState } from "@pipecat-ai/client-react";
+import { VoiceVisualizer } from "@pipecat-ai/voice-ui-kit";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { supportedLanguages } from "@/utils/supportedLanguages";
 
 interface VoiceAssessmentProps {
   question: Question;
@@ -20,8 +32,14 @@ interface VoiceAssessmentProps {
   assignmentId: string;
   questionNumber: number;
   totalQuestions: number;
-  onAnswerComplete: (transcript: string) => void;
+  onAnswerSave: (transcript: string) => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  onSubmit?: () => void;
+  isFirstQuestion: boolean;
   isLastQuestion: boolean;
+  existingAnswer?: string;
+  onLanguageChange?: (language: string) => void;
 }
 
 /**
@@ -33,17 +51,44 @@ function VoiceAssessmentContent({
   assignmentId,
   questionNumber,
   totalQuestions,
-  onAnswerComplete,
+  onAnswerSave,
+  onPrevious,
+  onNext,
+  onSubmit,
+  isFirstQuestion,
   isLastQuestion,
+  existingAnswer,
+  onLanguageChange,
 }: VoiceAssessmentProps) {
-  const { transcript, clearTranscript } = useVoiceTranscript();
+  const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
 
-  const handleComplete = () => {
-    const finalTranscript = transcript.trim();
-    onAnswerComplete(finalTranscript);
-    clearTranscript();
+  // Load existing answer when question changes
+  React.useEffect(() => {
+    // Clear and load existing answer when question changes
+    if (existingAnswer) {
+      setTranscript(existingAnswer);
+    } else {
+      clearTranscript();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question.order, existingAnswer]);
+
+  const handleSaveAndNavigate = (action: "previous" | "next" | "submit") => {
+    // Save current transcript if it exists
+    if (transcript.trim()) {
+      onAnswerSave(transcript.trim());
+    }
+
+    // Navigate based on action (useEffect will handle loading the next question's answer)
+    if (action === "previous" && onPrevious) {
+      onPrevious();
+    } else if (action === "next" && onNext) {
+      onNext();
+    } else if (action === "submit" && onSubmit) {
+      onSubmit();
+    }
   };
 
   // Prepare connection data to send to server
@@ -57,10 +102,34 @@ function VoiceAssessmentContent({
 
   return (
     <div className="space-y-6">
-      {/* Question Number */}
-      <p className="text-lg font-medium">
-        Question ({questionNumber}/{totalQuestions})
-      </p>
+      {/* Question Number and Language Selector */}
+      <div className="flex items-center justify-between">
+        <p className="text-lg font-medium">
+          Question ({questionNumber}/{totalQuestions})
+        </p>
+
+        {onLanguageChange && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Language:</span>
+            <Select
+              value={language}
+              onValueChange={onLanguageChange}
+              disabled={isConnected}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {supportedLanguages.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
       {/* Question Card */}
       <Card>
@@ -93,48 +162,64 @@ function VoiceAssessmentContent({
               </AccordionItem>
             </Accordion>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Voice Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Voice Answer</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Click "Start Recording" to begin your voice response. The AI will
-            have a conversation with you about the question. When you're done,
-            click "Stop Recording" and then "Done with This Question" to proceed.
-          </p>
+          {/* Voice Visualizer */}
+          <div className="flex justify-center py-4">
+            <VoiceVisualizer
+              participantType="bot"
+              barColor="hsl(var(--primary))"
+            />
+          </div>
 
           <div className="flex justify-center">
             <VoiceConnectButton
               connectionData={connectionData}
-              connectLabel="Start Recording"
-              disconnectLabel="Stop Recording"
+              connectLabel="Start Answering"
+              disconnectLabel="Stop"
             />
           </div>
 
           {/* Transcript Display */}
           {transcript && (
-            <div className="mt-4 p-4 bg-muted/50 rounded-md">
-              <p className="text-sm font-semibold mb-2">Your Response:</p>
-              <p className="text-sm whitespace-pre-wrap">{transcript}</p>
+            <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-96 overflow-y-auto">
+              <p className="text-sm font-semibold mb-2">Conversation:</p>
+              <div className="text-sm whitespace-pre-wrap">{transcript}</div>
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Navigation Buttons */}
-      <div className="flex justify-end gap-4">
+      <div className="flex justify-between gap-4">
         <Button
-          onClick={handleComplete}
-          disabled={isConnected || !transcript}
+          onClick={() => handleSaveAndNavigate("previous")}
+          disabled={isFirstQuestion || isConnected}
+          variant="outline"
           size="lg"
         >
-          {isLastQuestion ? "Submit Assignment" : "Done with This Question"}
+          Previous Question
         </Button>
+
+        <div className="flex gap-4">
+          {!isLastQuestion && (
+            <Button
+              onClick={() => handleSaveAndNavigate("next")}
+              disabled={isConnected}
+              size="lg"
+            >
+              Next Question
+            </Button>
+          )}
+          {isLastQuestion && (
+            <Button
+              onClick={() => handleSaveAndNavigate("submit")}
+              disabled={isConnected}
+              size="lg"
+              variant="default"
+            >
+              Submit Assignment
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -146,11 +231,10 @@ function VoiceAssessmentContent({
  */
 export function VoiceAssessment(props: VoiceAssessmentProps) {
   return (
-    <VoiceClient showVisualizer={true} showTranscript={false}>
+    <VoiceClient showVisualizer={false} showTranscript={false}>
       <VoiceAssessmentProvider>
         <VoiceAssessmentContent {...props} />
       </VoiceAssessmentProvider>
     </VoiceClient>
   );
 }
-

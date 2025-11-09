@@ -42,6 +42,7 @@ export default function PublicAssignmentPage() {
   // Question answering
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<{ [key: number]: string }>({});
 
   useEffect(() => {
     if (assignmentId) {
@@ -101,31 +102,59 @@ export default function PublicAssignmentPage() {
     }
   };
 
-  const handleAnswerComplete = async (transcript: string) => {
+  const handleAnswerSave = async (transcript: string) => {
     if (!assignmentData || !submissionId) return;
 
     const currentQuestion = assignmentData.questions[currentQuestionIndex];
 
+    // Update local state
+    setAnswers((prev) => ({
+      ...prev,
+      [currentQuestion.order]: transcript,
+    }));
+
     try {
-      // Save the answer (transcript)
+      // Save the answer (transcript) to database
       await updateSubmissionAnswer(
         submissionId,
         currentQuestion.order,
         transcript
       );
-
-      // Move to next question or complete
-      if (currentQuestionIndex < assignmentData.questions.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-      } else {
-        // This is the last question, complete the submission
-        await completeSubmission(submissionId);
-        setPhase("completed");
-      }
     } catch (err) {
       console.error("Error saving answer:", err);
       alert("Failed to save answer. Please try again.");
     }
+  };
+
+  const handlePrevious = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (
+      assignmentData &&
+      currentQuestionIndex < assignmentData.questions.length - 1
+    ) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!submissionId) return;
+
+    try {
+      await completeSubmission(submissionId);
+      setPhase("completed");
+    } catch (err) {
+      console.error("Error submitting assignment:", err);
+      alert("Failed to submit assignment. Please try again.");
+    }
+  };
+
+  const handleLanguageChange = (newLanguage: string) => {
+    setPreferredLanguage(newLanguage);
   };
 
   if (loading) {
@@ -216,17 +245,9 @@ export default function PublicAssignmentPage() {
       <PageLayout userName={studentName}>
         <div className="p-8">
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Assignment Title and Language */}
-            <div>
+            {/* Assignment Title and Language Selector */}
+            <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
-              <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-                <p>
-                  Language:{" "}
-                  {supportedLanguages.find(
-                    (lang) => lang.code === preferredLanguage
-                  )?.name || preferredLanguage}
-                </p>
-              </div>
             </div>
 
             {/* Voice Assessment Component */}
@@ -236,8 +257,14 @@ export default function PublicAssignmentPage() {
               assignmentId={assignmentData.assignment_id}
               questionNumber={currentQuestionIndex + 1}
               totalQuestions={sortedQuestions.length}
-              onAnswerComplete={handleAnswerComplete}
+              onAnswerSave={handleAnswerSave}
+              onPrevious={handlePrevious}
+              onNext={handleNext}
+              onSubmit={handleSubmit}
+              isFirstQuestion={currentQuestionIndex === 0}
               isLastQuestion={isLastQuestion}
+              existingAnswer={answers[currentQuestion.order]}
+              onLanguageChange={handleLanguageChange}
             />
           </div>
         </div>
