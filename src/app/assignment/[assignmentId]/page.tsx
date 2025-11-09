@@ -422,6 +422,7 @@ export default function PublicAssignmentPage() {
             {/* Voice Assessment Component */}
             {submissionId && (
               <VoiceAssessment
+                key={currentQuestion.order}
                 question={currentQuestion}
                 language={preferredLanguage}
                 assignmentId={assignmentData.assignment_id}

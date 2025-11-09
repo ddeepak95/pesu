@@ -73,12 +73,18 @@ function VoiceAssessmentContent({
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
 
-  const [conversationStarted, setConversationStarted] = React.useState(false);
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
 
+  const transportStateRef = React.useRef(transportState);
+  React.useEffect(() => {
+    transportStateRef.current = transportState;
+  }, [transportState]);
+
   // Load existing attempts when question changes
   React.useEffect(() => {
+    // Reset local state before loading
+    setAttempts([]);
     async function loadAttempts() {
       try {
         const questionAttempts = await getQuestionAttempts(
@@ -114,12 +120,15 @@ function VoiceAssessmentContent({
   // Disconnect when question changes (each question gets fresh connection)
   React.useEffect(() => {
     return () => {
-      if (client && isConnected) {
+      if (
+        client &&
+        ["connected", "ready"].includes(transportStateRef.current)
+      ) {
         console.log("Question changing, disconnecting current session...");
         client.disconnect().catch(console.error);
       }
     };
-  }, [question.order, client, isConnected]);
+  }, [question.order, client]);
 
   const handleSaveAndNavigate = (action: "previous" | "next" | "submit") => {
     // Save current transcript if it exists
@@ -142,7 +151,7 @@ function VoiceAssessmentContent({
     console.log("=== Starting evaluation ===");
     console.log("Transcript:", transcript);
     console.log("Transcript length:", transcript.trim().length);
-    
+
     if (!transcript.trim()) {
       console.warn("No transcript to evaluate");
       alert("No answer recorded. Please try speaking your answer again.");
@@ -185,7 +194,7 @@ function VoiceAssessmentContent({
 
       const result = await response.json();
       console.log("Evaluation result:", result);
-      
+
       const newAttempt = result.attempt as SubmissionAttempt;
 
       if (!newAttempt) {
@@ -197,7 +206,7 @@ function VoiceAssessmentContent({
 
       // Note: Evaluation API already saved the attempt to database
       // No need to call onAnswerSave here
-      
+
       console.log("=== Evaluation complete ===");
     } catch (error) {
       console.error("Error evaluating answer:", error);
@@ -211,7 +220,6 @@ function VoiceAssessmentContent({
     }
   };
 
-
   // Prepare connection data to send to server (only used for initial connection)
   const connectionData = {
     language,
@@ -223,7 +231,6 @@ function VoiceAssessmentContent({
 
   const handleBotReady = () => {
     console.log("Bot is ready for conversation");
-    setConversationStarted(true);
     // Clear transcript when starting new attempt
     clearTranscript();
   };
@@ -302,7 +309,9 @@ function VoiceAssessmentContent({
           <div className="flex justify-center">
             <VoiceConnectButton
               connectionData={connectionData}
-              connectLabel={attempts.length > 0 ? "Try Again" : "Start Answering"}
+              connectLabel={
+                attempts.length > 0 ? "Try Again" : "Start Answering"
+              }
               disconnectLabel="Stop Answering"
               onBotReady={handleBotReady}
               onDisconnect={handleEvaluate}
@@ -322,7 +331,7 @@ function VoiceAssessmentContent({
           )}
 
           {/* Transcript Display (when recording/not evaluated yet) */}
-          {transcript && !isEvaluating && attempts.length === 0 && (
+          {transcript && !isEvaluating && (
             <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-96 overflow-y-auto">
               <p className="text-sm font-semibold mb-2">Conversation:</p>
               <div className="text-sm whitespace-pre-wrap">{transcript}</div>

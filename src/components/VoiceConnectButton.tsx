@@ -36,7 +36,6 @@ export function VoiceConnectButton({
   const client = usePipecatClient();
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
-  const [conversationStarted, setConversationStarted] = React.useState(false);
 
   const handleConnect = async () => {
     if (!client || isConnected) {
@@ -57,7 +56,6 @@ export function VoiceConnectButton({
       });
 
       console.log("Connection successful!");
-      setConversationStarted(true);
       onConnected?.();
     } catch (error) {
       console.error("Connection error:", error);
@@ -70,20 +68,16 @@ export function VoiceConnectButton({
 
     try {
       console.log("Disconnecting...");
+      await client.disconnect();
+      console.log("Disconnect completed");
 
-      // Call onDisconnect BEFORE disconnect to ensure evaluation happens
-      console.log("Calling onDisconnect callback...");
       if (onDisconnect) {
-        onDisconnect();
+        console.log("Calling onDisconnect callback...");
+        await onDisconnect();
         console.log("onDisconnect callback completed");
       } else {
         console.warn("No onDisconnect callback provided");
       }
-
-      // Now disconnect
-      await client.disconnect();
-      setConversationStarted(false);
-      console.log("Disconnect completed");
     } catch (error) {
       console.error("Error disconnecting:", error);
     }
@@ -106,7 +100,7 @@ export function VoiceConnectButton({
   }, [client, onBotReady]);
 
   const handleClick = async () => {
-    if (isConnected && conversationStarted) {
+    if (isConnected) {
       // Disconnect completely
       await handleDisconnect();
     } else {
@@ -123,7 +117,7 @@ export function VoiceConnectButton({
     ) {
       return "Connecting...";
     }
-    if (isConnected && conversationStarted) {
+    if (isConnected) {
       return disconnectLabel;
     }
     return connectLabel;
@@ -136,7 +130,7 @@ export function VoiceConnectButton({
     <Button
       onClick={handleClick}
       disabled={isButtonDisabled}
-      variant={isConnected && conversationStarted ? "destructive" : "default"}
+      variant={isConnected ? "destructive" : "default"}
       size="lg"
     >
       {getButtonLabel()}
