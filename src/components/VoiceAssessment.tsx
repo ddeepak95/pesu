@@ -9,10 +9,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { VoiceClient } from "@/components/VoiceClient";
-import {
-  VoiceConnectButton,
-  sendContextUpdate,
-} from "@/components/VoiceConnectButton";
+import { VoiceConnectButton } from "@/components/VoiceConnectButton";
 import { AgentStatus } from "@/components/AgentStatus";
 import {
   VoiceAssessmentProvider,
@@ -72,13 +69,7 @@ function VoiceAssessmentContent({
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
 
-  const [connectionStatus, setConnectionStatus] = React.useState<
-    "disconnected" | "connecting" | "ready"
-  >("disconnected");
   const [conversationStarted, setConversationStarted] = React.useState(false);
-  const [previousQuestionOrder, setPreviousQuestionOrder] = React.useState(
-    question.order
-  );
 
   // Load existing answer when question changes
   React.useEffect(() => {
@@ -91,31 +82,15 @@ function VoiceAssessmentContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question.order, existingAnswer]);
 
-  // Handle question changes: send context update instead of reconnecting
+  // Disconnect when question changes (each question gets fresh connection)
   React.useEffect(() => {
-    if (previousQuestionOrder !== question.order && isConnected && client) {
-      console.log("Question changed, sending context update");
-
-      // Send context update to bot
-      sendContextUpdate(client, {
-        question_prompt: question.prompt,
-        rubric: question.rubric,
-        question_order: question.order,
-      });
-
-      // Reset conversation state for new question
-      setConversationStarted(false);
-
-      setPreviousQuestionOrder(question.order);
-    }
-  }, [
-    question.order,
-    question.prompt,
-    question.rubric,
-    previousQuestionOrder,
-    isConnected,
-    client,
-  ]);
+    return () => {
+      if (client && isConnected) {
+        console.log("Question changing, disconnecting current session...");
+        client.disconnect().catch(console.error);
+      }
+    };
+  }, [question.order, client, isConnected]);
 
   const handleSaveAndNavigate = (action: "previous" | "next" | "submit") => {
     // Save current transcript if it exists
@@ -143,19 +118,8 @@ function VoiceAssessmentContent({
   };
 
   const handleBotReady = () => {
+    console.log("Bot is ready for conversation");
     setConversationStarted(true);
-  };
-
-  const handleDisconnected = () => {
-    setConversationStarted(false);
-    setConnectionStatus("disconnected");
-  };
-
-  // Determine button mode based on connection state
-  const getButtonMode = (): "connect" | "start" | "stop" => {
-    if (!isConnected) return "connect";
-    if (isConnected && !conversationStarted) return "start";
-    return "stop";
   };
 
   return (
@@ -221,18 +185,6 @@ function VoiceAssessmentContent({
             </Accordion>
           )}
 
-          {/* Connection Status Indicator */}
-          {connectionStatus === "connecting" && (
-            <div className="text-center text-sm text-muted-foreground py-2">
-              Connecting to voice agent...
-            </div>
-          )}
-          {connectionStatus === "ready" && !conversationStarted && (
-            <div className="text-center text-sm text-green-600 py-2">
-              Agent ready! Click &quot;Start Answering&quot; to begin.
-            </div>
-          )}
-
           {/* Agent Status Display */}
           <AgentStatus className="py-2" />
 
@@ -245,12 +197,8 @@ function VoiceAssessmentContent({
             <VoiceConnectButton
               connectionData={connectionData}
               connectLabel="Start Answering"
-              disconnectLabel="Stop"
-              autoConnect={true}
-              mode={getButtonMode()}
-              onModeReady={setConnectionStatus}
+              disconnectLabel="Disconnect"
               onBotReady={handleBotReady}
-              onDisconnected={handleDisconnected}
             />
           </div>
 
@@ -268,7 +216,7 @@ function VoiceAssessmentContent({
       <div className="flex justify-between gap-4">
         <Button
           onClick={() => handleSaveAndNavigate("previous")}
-          disabled={isFirstQuestion || conversationStarted}
+          disabled={isFirstQuestion || isConnected}
           variant="outline"
           size="lg"
         >
@@ -279,7 +227,7 @@ function VoiceAssessmentContent({
           {!isLastQuestion && (
             <Button
               onClick={() => handleSaveAndNavigate("next")}
-              disabled={conversationStarted}
+              disabled={isConnected}
               size="lg"
             >
               Next Question
@@ -288,7 +236,7 @@ function VoiceAssessmentContent({
           {isLastQuestion && (
             <Button
               onClick={() => handleSaveAndNavigate("submit")}
-              disabled={conversationStarted}
+              disabled={isConnected}
               size="lg"
               variant="default"
             >
