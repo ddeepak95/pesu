@@ -19,10 +19,19 @@ import {
   createSubmission,
   updateSubmissionAnswer,
   completeSubmission,
+  getSubmissionById,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { VoiceAssessment } from "@/components/VoiceAssessment";
+import {
+  saveSession,
+  loadSession,
+  clearSession,
+  updateQuestionIndex,
+  getSubmissionIdFromUrl,
+  updateUrlWithSubmissionId,
+} from "@/utils/sessionStorage";
 
 type Phase = "info" | "answering" | "completed";
 
@@ -43,13 +52,23 @@ export default function PublicAssignmentPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<{ [key: number]: string }>({});
+  const [restoringSession, setRestoringSession] = useState(true);
 
+  // First useEffect: Fetch assignment data
   useEffect(() => {
     if (assignmentId) {
       fetchAssignment();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentId]);
+
+  // Second useEffect: Restore session after assignment is loaded
+  useEffect(() => {
+    if (assignmentData && restoringSession) {
+      restoreSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignmentData, restoringSession]);
 
   const fetchAssignment = async () => {
     setLoading(true);
@@ -80,6 +99,93 @@ export default function PublicAssignmentPage() {
     }
   };
 
+  const restoreSession = async () => {
+    try {
+      // First, check URL for submission ID
+      const urlSubmissionId = getSubmissionIdFromUrl();
+
+      // Then check localStorage
+      const localSession = loadSession(assignmentId);
+
+      // Prefer URL parameter over localStorage
+      const sessionSubmissionId = urlSubmissionId || localSession?.submissionId;
+
+      if (!sessionSubmissionId) {
+        // No session to restore
+        setRestoringSession(false);
+        return;
+      }
+
+      // Fetch the submission from database
+      const submission = await getSubmissionById(sessionSubmissionId);
+
+      if (!submission || submission.assignment_id !== assignmentId) {
+        // Invalid or mismatched submission
+        console.warn("Invalid submission ID, clearing session");
+        clearSession(assignmentId);
+        setRestoringSession(false);
+        return;
+      }
+
+      if (submission.status === "completed") {
+        // Submission is completed, show completion screen
+        setSubmissionId(submission.submission_id);
+        setStudentName(submission.student_name);
+        setPreferredLanguage(submission.preferred_language);
+        setPhase("completed");
+        setRestoringSession(false);
+        return;
+      }
+
+      // Restore in-progress submission
+      setSubmissionId(submission.submission_id);
+      setStudentName(submission.student_name);
+      setPreferredLanguage(submission.preferred_language);
+
+      // Reconstruct answers from submission data
+      const reconstructedAnswers: { [key: number]: string } = {};
+      submission.answers.forEach((answer) => {
+        reconstructedAnswers[answer.question_order] = answer.answer_text;
+      });
+      setAnswers(reconstructedAnswers);
+
+      // Determine current question index
+      // If we have a saved index in localStorage, use it
+      // Otherwise, find the first unanswered question
+      let questionIndex = localSession?.currentQuestionIndex ?? 0;
+
+      // Validate the index is within bounds
+      if (
+        !assignmentData?.questions ||
+        questionIndex >= assignmentData.questions.length
+      ) {
+        questionIndex = 0;
+      }
+
+      setCurrentQuestionIndex(questionIndex);
+      setPhase("answering");
+
+      // Ensure URL has the submission ID
+      if (!urlSubmissionId) {
+        updateUrlWithSubmissionId(assignmentId, submission.submission_id);
+      }
+
+      // Save/update localStorage
+      saveSession(assignmentId, {
+        submissionId: submission.submission_id,
+        studentName: submission.student_name,
+        preferredLanguage: submission.preferred_language,
+        currentQuestionIndex: questionIndex,
+        phase: "answering",
+      });
+    } catch (err) {
+      console.error("Error restoring session:", err);
+      clearSession(assignmentId);
+    } finally {
+      setRestoringSession(false);
+    }
+  };
+
   const handleBeginAssignment = async () => {
     if (!studentName.trim()) {
       alert("Please enter your name");
@@ -96,6 +202,18 @@ export default function PublicAssignmentPage() {
       );
       setSubmissionId(submission.submission_id);
       setPhase("answering");
+
+      // Save session to localStorage
+      saveSession(assignmentId, {
+        submissionId: submission.submission_id,
+        studentName: studentName.trim(),
+        preferredLanguage,
+        currentQuestionIndex: 0,
+        phase: "answering",
+      });
+
+      // Update URL with submission ID
+      updateUrlWithSubmissionId(assignmentId, submission.submission_id);
     } catch (err) {
       console.error("Error creating submission:", err);
       alert("Failed to start assignment. Please try again.");
@@ -120,6 +238,9 @@ export default function PublicAssignmentPage() {
         currentQuestion.order,
         transcript
       );
+
+      // Update current question index in localStorage
+      updateQuestionIndex(assignmentId, currentQuestionIndex);
     } catch (err) {
       console.error("Error saving answer:", err);
       alert("Failed to save answer. Please try again.");
@@ -128,7 +249,10 @@ export default function PublicAssignmentPage() {
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      const newIndex = currentQuestionIndex - 1;
+      setCurrentQuestionIndex(newIndex);
+      // Update localStorage with new question index
+      updateQuestionIndex(assignmentId, newIndex);
     }
   };
 
@@ -137,7 +261,10 @@ export default function PublicAssignmentPage() {
       assignmentData &&
       currentQuestionIndex < assignmentData.questions.length - 1
     ) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      const newIndex = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(newIndex);
+      // Update localStorage with new question index
+      updateQuestionIndex(assignmentId, newIndex);
     }
   };
 
@@ -147,6 +274,8 @@ export default function PublicAssignmentPage() {
     try {
       await completeSubmission(submissionId);
       setPhase("completed");
+      // Clear localStorage session since assignment is completed
+      clearSession(assignmentId);
     } catch (err) {
       console.error("Error submitting assignment:", err);
       alert("Failed to submit assignment. Please try again.");
@@ -155,13 +284,26 @@ export default function PublicAssignmentPage() {
 
   const handleLanguageChange = (newLanguage: string) => {
     setPreferredLanguage(newLanguage);
+
+    // Update language in localStorage session
+    const session = loadSession(assignmentId);
+    if (session) {
+      saveSession(assignmentId, {
+        ...session,
+        preferredLanguage: newLanguage,
+      });
+    }
   };
 
-  if (loading) {
+  if (loading || restoringSession) {
     return (
       <PageLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <p className="text-muted-foreground">Loading assignment...</p>
+          <p className="text-muted-foreground">
+            {restoringSession
+              ? "Restoring your session..."
+              : "Loading assignment..."}
+          </p>
         </div>
       </PageLayout>
     );
