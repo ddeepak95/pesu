@@ -169,7 +169,7 @@ function VoiceAssessmentContent({
 
           {/* Voice Visualizer */}
           <div className="flex justify-center py-4">
-            <VoiceVisualizer participantType="bot" />
+            <VoiceVisualizer participantType="bot" barColor="currentColor" />
           </div>
 
           <div className="flex justify-center">
