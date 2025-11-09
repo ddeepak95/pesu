@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/accordion";
 import { VoiceClient } from "@/components/VoiceClient";
 import { VoiceConnectButton } from "@/components/VoiceConnectButton";
+import { AgentStatus } from "@/components/AgentStatus";
 import {
   VoiceAssessmentProvider,
   useVoiceTranscript,
@@ -162,12 +163,13 @@ function VoiceAssessmentContent({
               </AccordionItem>
             </Accordion>
           )}
+
+          {/* Agent Status Display */}
+          <AgentStatus className="py-2" />
+
           {/* Voice Visualizer */}
           <div className="flex justify-center py-4">
-            <VoiceVisualizer
-              participantType="bot"
-              barColor="hsl(var(--primary))"
-            />
+            <VoiceVisualizer participantType="bot" />
           </div>
 
           <div className="flex justify-center">
