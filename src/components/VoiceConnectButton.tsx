@@ -47,38 +47,46 @@ export function VoiceConnectButton({
       } else {
         console.log("Connecting to bot with data:", connectionData);
 
-        // Determine endpoint based on USE_CLOUD flag or use provided endpoint
-        const useCloud = process.env.NEXT_PUBLIC_PIPECAT_USE_CLOUD === "true";
-        const resolvedEndpoint =
-          endpoint ||
-          (useCloud
-            ? process.env.NEXT_PUBLIC_PIPECAT_CLOUD_ENDPOINT ||
-              "https://api.pipecat.daily.co/v1/public/pesu-pipecat/start"
-            : process.env.NEXT_PUBLIC_PIPECAT_LOCAL_ENDPOINT ||
-              "http://localhost:7860/start");
+        // Always use the API route - backend decides local vs cloud
+        const apiEndpoint = endpoint || "/api/pipecat/start";
 
-        // Prepare configuration object with optional headers
-        const config = {
-          endpoint: resolvedEndpoint,
-          requestData: {
-            body: connectionData as Record<
-              string,
-              string | number | boolean | null
-            >,
-            ...(useCloud &&
-              process.env.NEXT_PUBLIC_PIPECAT_API_KEY && {
-                headers: {
-                  Authorization: `Bearer ${process.env.NEXT_PUBLIC_PIPECAT_API_KEY}`,
-                },
-              }),
-          },
-        };
+        console.log("Connecting via API route:", apiEndpoint);
 
-        await client.startBotAndConnect(config);
+        await client.startBotAndConnect({
+          endpoint: apiEndpoint,
+          requestData: connectionData as Record<
+            string,
+            string | number | boolean | null
+          >,
+        });
+
         onConnected?.();
       }
     } catch (error) {
       console.error("Connection error:", error);
+
+      // Extract more details from the error
+      if (error && typeof error === "object") {
+        if ("message" in error) {
+          console.error("Error message:", error.message);
+        }
+        if ("response" in error) {
+          console.error("Error response:", error.response);
+        }
+        if ("status" in error) {
+          console.error("Error status:", error.status);
+        }
+      }
+
+      // Show user-friendly error message
+      const errorMsg =
+        error &&
+        typeof error === "object" &&
+        "message" in error &&
+        typeof error.message === "string"
+          ? error.message
+          : "Failed to connect to voice service";
+      alert(`Connection failed: ${errorMsg}\n\nCheck console for details.`);
     }
   };
 
