@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 
 interface VoiceConnectButtonProps {
   endpoint?: string;
-  connectionData: {
+  connectionData: Record<string, unknown> & {
     language: string;
-    [key: string]: any;
   };
   onConnected?: () => void;
   onDisconnected?: () => void;
@@ -23,7 +22,7 @@ interface VoiceConnectButtonProps {
  * Accepts custom connection data to pass context to the server
  */
 export function VoiceConnectButton({
-  endpoint = "http://localhost:7860/start",
+  endpoint,
   connectionData,
   onConnected,
   onDisconnected,
@@ -47,12 +46,35 @@ export function VoiceConnectButton({
         onDisconnected?.();
       } else {
         console.log("Connecting to bot with data:", connectionData);
-        await client.startBotAndConnect({
-          endpoint,
+
+        // Determine endpoint based on USE_CLOUD flag or use provided endpoint
+        const useCloud = process.env.NEXT_PUBLIC_PIPECAT_USE_CLOUD === "true";
+        const resolvedEndpoint =
+          endpoint ||
+          (useCloud
+            ? process.env.NEXT_PUBLIC_PIPECAT_CLOUD_ENDPOINT ||
+              "https://api.pipecat.daily.co/v1/public/pesu-pipecat/start"
+            : process.env.NEXT_PUBLIC_PIPECAT_LOCAL_ENDPOINT ||
+              "http://localhost:7860/start");
+
+        // Prepare configuration object with optional headers
+        const config = {
+          endpoint: resolvedEndpoint,
           requestData: {
-            body: connectionData,
+            body: connectionData as Record<
+              string,
+              string | number | boolean | null
+            >,
+            ...(useCloud &&
+              process.env.NEXT_PUBLIC_PIPECAT_API_KEY && {
+                headers: {
+                  Authorization: `Bearer ${process.env.NEXT_PUBLIC_PIPECAT_API_KEY}`,
+                },
+              }),
           },
-        });
+        };
+
+        await client.startBotAndConnect(config);
         onConnected?.();
       }
     } catch (error) {
@@ -71,4 +93,3 @@ export function VoiceConnectButton({
     </Button>
   );
 }
-
