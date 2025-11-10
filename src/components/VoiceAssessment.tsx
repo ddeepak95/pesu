@@ -331,7 +331,8 @@ function VoiceAssessmentContent({
             <div className="mt-4 p-4 border rounded-md text-center">
               <Loader2 className="h-5 w-5 mx-auto animate-spin text-muted-foreground" />
               <p className="text-xs mt-1">
-                Please wait while we evaluate your answer
+                Please wait while we evaluate your answer. This takes upto a
+                minute.
               </p>
             </div>
           )}

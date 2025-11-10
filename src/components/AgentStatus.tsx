@@ -178,7 +178,7 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
     switch (agentState) {
       case "starting":
         return {
-          text: "Agent is starting up...",
+          text: "Agent is starting up. This takes upto 30 seconds. Please wait...",
           color: "text-yellow-600",
         };
       case "listening":
