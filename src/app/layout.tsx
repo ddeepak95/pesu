@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pesu | Voice-based AI Assistant for Learning",
+  title: "Speak2Learn | Voice-based AI Assistant for Learning",
   description: "Voice-based AI Assistant for Learning",
 };
 
@@ -25,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body 
+      <body
         className={`${geistSans.variable} ${geistMono.variable}`}
         suppressHydrationWarning
       >
