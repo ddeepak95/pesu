@@ -3,4 +3,5 @@ export const supportedLanguages = [
     {code:"hi", name: "Hindi"},
     {code: "ta", name: "Tamil"},
     {code:"de", name: "German"},
+    {code:"kn", name: "Kannada"},
 ];
