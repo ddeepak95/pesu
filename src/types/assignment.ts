@@ -24,5 +24,10 @@ export interface Assignment {
   status: "active" | "deleted";
   preferred_language: string;
   is_public: boolean;
+  /**
+   * Assessment delivery mode for this assignment.
+   * Defaults to "voice" for legacy assignments where this field is missing.
+   */
+  assessment_mode?: "voice" | "text_chat" | "static_text";
 }
 

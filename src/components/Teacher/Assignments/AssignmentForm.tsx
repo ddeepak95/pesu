@@ -25,12 +25,14 @@ interface AssignmentFormProps {
   initialQuestions?: Question[];
   initialLanguage?: string;
   initialIsPublic?: boolean;
+  initialAssessmentMode?: "voice" | "text_chat" | "static_text";
   onSubmit: (data: {
     title: string;
     questions: Question[];
     totalPoints: number;
     preferredLanguage: string;
     isPublic: boolean;
+    assessmentMode: "voice" | "text_chat" | "static_text";
   }) => Promise<void>;
 }
 
@@ -53,6 +55,7 @@ export default function AssignmentForm({
   ],
   initialLanguage = "en",
   initialIsPublic = false,
+  initialAssessmentMode = "voice",
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -60,6 +63,9 @@ export default function AssignmentForm({
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
+  const [assessmentMode, setAssessmentMode] = useState<
+    "voice" | "text_chat" | "static_text"
+  >(initialAssessmentMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,12 +110,15 @@ export default function AssignmentForm({
     setQuestions(newQuestions);
   };
 
-  const handleRemoveRubricItem = (questionIndex: number, rubricIndex: number) => {
+  const handleRemoveRubricItem = (
+    questionIndex: number,
+    rubricIndex: number
+  ) => {
     const newQuestions = [...questions];
     if (newQuestions[questionIndex].rubric.length > 1) {
-      newQuestions[questionIndex].rubric = newQuestions[questionIndex].rubric.filter(
-        (_, i) => i !== rubricIndex
-      );
+      newQuestions[questionIndex].rubric = newQuestions[
+        questionIndex
+      ].rubric.filter((_, i) => i !== rubricIndex);
 
       // Recalculate total points for this question
       const total = newQuestions[questionIndex].rubric.reduce(
@@ -200,7 +209,9 @@ export default function AssignmentForm({
       );
 
       if (validRubricItems.length === 0) {
-        setError(`Question ${i + 1}: At least one valid rubric item is required`);
+        setError(
+          `Question ${i + 1}: At least one valid rubric item is required`
+        );
         return;
       }
     }
@@ -226,6 +237,7 @@ export default function AssignmentForm({
         totalPoints,
         preferredLanguage,
         isPublic,
+        assessmentMode,
       });
 
       // Navigate based on mode
@@ -235,8 +247,15 @@ export default function AssignmentForm({
         router.push(`/teacher/classes/${classId}`);
       }
     } catch (err) {
-      console.error(`Error ${mode === "edit" ? "updating" : "creating"} assignment:`, err);
-      setError(`Failed to ${mode === "edit" ? "update" : "create"} assignment. Please try again.`);
+      console.error(
+        `Error ${mode === "edit" ? "updating" : "creating"} assignment:`,
+        err
+      );
+      setError(
+        `Failed to ${
+          mode === "edit" ? "update" : "create"
+        } assignment. Please try again.`
+      );
     } finally {
       setLoading(false);
     }
@@ -254,6 +273,29 @@ export default function AssignmentForm({
           disabled={loading}
           placeholder="Enter assignment title"
         />
+      </div>
+
+      {/* Assessment Mode */}
+      <div className="space-y-2">
+        <Label htmlFor="assessmentMode">Assessment Type</Label>
+        <Select
+          value={assessmentMode}
+          onValueChange={(value) =>
+            setAssessmentMode(value as "voice" | "text_chat" | "static_text")
+          }
+          disabled={loading}
+        >
+          <SelectTrigger id="assessmentMode">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="voice">Voice assessment</SelectItem>
+            <SelectItem value="text_chat">Text chat assessment</SelectItem>
+            <SelectItem value="static_text">
+              Static text assessment (coming soon)
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Preferred Language */}
@@ -293,7 +335,8 @@ export default function AssignmentForm({
             Make this assignment publicly accessible
           </Label>
           <p className="text-sm text-muted-foreground">
-            Anyone with the link can view and complete this assignment without logging in
+            Anyone with the link can view and complete this assignment without
+            logging in
           </p>
         </div>
       </div>
@@ -345,11 +388,14 @@ export default function AssignmentForm({
         </Button>
         <Button type="submit" disabled={loading}>
           {loading
-            ? mode === "edit" ? "Updating..." : "Creating..."
-            : mode === "edit" ? "Update Assignment" : "Create Assignment"}
+            ? mode === "edit"
+              ? "Updating..."
+              : "Creating..."
+            : mode === "edit"
+            ? "Update Assignment"
+            : "Create Assignment"}
         </Button>
       </div>
     </form>
   );
 }
-

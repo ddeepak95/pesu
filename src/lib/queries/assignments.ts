@@ -83,6 +83,7 @@ export async function createAssignment(
     total_points: number;
     preferred_language: string;
     is_public?: boolean;
+    assessment_mode?: "voice" | "text_chat" | "static_text";
   },
   userId: string
 ): Promise<Assignment> {
@@ -101,6 +102,7 @@ export async function createAssignment(
       status: "active",
       preferred_language: assignment.preferred_language,
       is_public: assignment.is_public ?? false,
+      assessment_mode: assignment.assessment_mode ?? "voice",
     })
     .select()
     .single();
@@ -131,6 +133,7 @@ export async function updateAssignment(
     total_points: number;
     preferred_language: string;
     is_public?: boolean;
+    assessment_mode?: "voice" | "text_chat" | "static_text";
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -143,6 +146,7 @@ export async function updateAssignment(
       total_points: assignment.total_points,
       preferred_language: assignment.preferred_language,
       is_public: assignment.is_public ?? false,
+      assessment_mode: assignment.assessment_mode ?? "voice",
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)

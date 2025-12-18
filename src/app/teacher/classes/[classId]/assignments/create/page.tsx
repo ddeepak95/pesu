@@ -44,10 +44,17 @@ export default function CreateAssignmentPage() {
 
   const handleSubmit = async (data: {
     title: string;
-    questions: { order: number; prompt: string; total_points: number; rubric: { item: string; points: number }[]; supporting_content: string }[];
+    questions: {
+      order: number;
+      prompt: string;
+      total_points: number;
+      rubric: { item: string; points: number }[];
+      supporting_content: string;
+    }[];
     totalPoints: number;
     preferredLanguage: string;
     isPublic: boolean;
+    assessmentMode: "voice" | "text_chat" | "static_text";
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -65,6 +72,7 @@ export default function CreateAssignmentPage() {
         total_points: data.totalPoints,
         preferred_language: data.preferredLanguage,
         is_public: data.isPublic,
+        assessment_mode: data.assessmentMode,
       },
       user.id
     );
@@ -104,4 +112,3 @@ export default function CreateAssignmentPage() {
     </PageLayout>
   );
 }
-

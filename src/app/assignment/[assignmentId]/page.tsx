@@ -28,6 +28,7 @@ import {
 } from "@/types/submission";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { VoiceAssessment } from "@/components/VoiceAssessment";
+import { ChatAssessment } from "@/components/ChatAssessment";
 import {
   saveSession,
   loadSession,
@@ -410,6 +411,8 @@ export default function PublicAssignmentPage() {
     const currentQuestion = sortedQuestions[currentQuestionIndex];
     const isLastQuestion = currentQuestionIndex === sortedQuestions.length - 1;
 
+    const assessmentMode = assignmentData.assessment_mode ?? "voice";
+
     return (
       <PageLayout userName={studentName}>
         <div className="p-8">
@@ -419,8 +422,8 @@ export default function PublicAssignmentPage() {
               <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
             </div>
 
-            {/* Voice Assessment Component */}
-            {submissionId && (
+            {/* Assessment Component based on mode */}
+            {submissionId && assessmentMode === "voice" && (
               <VoiceAssessment
                 key={currentQuestion.order}
                 question={currentQuestion}
@@ -438,6 +441,69 @@ export default function PublicAssignmentPage() {
                 existingAnswer={answers[currentQuestion.order]}
                 onLanguageChange={handleLanguageChange}
               />
+            )}
+            {submissionId && assessmentMode === "text_chat" && (
+              <ChatAssessment
+                key={currentQuestion.order}
+                question={currentQuestion}
+                language={preferredLanguage}
+                assignmentId={assignmentData.assignment_id}
+                submissionId={submissionId}
+                questionNumber={currentQuestionIndex + 1}
+                totalQuestions={sortedQuestions.length}
+                onAnswerSave={handleAnswerSave}
+                onPrevious={handlePrevious}
+                onNext={handleNext}
+                onSubmit={handleSubmit}
+                isFirstQuestion={currentQuestionIndex === 0}
+                isLastQuestion={isLastQuestion}
+                existingAnswer={answers[currentQuestion.order]}
+                onLanguageChange={handleLanguageChange}
+              />
+            )}
+            {submissionId && assessmentMode === "static_text" && (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Prompt</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap">
+                      {currentQuestion.prompt}
+                    </p>
+                  </CardContent>
+                </Card>
+                <p className="text-sm text-muted-foreground">
+                  Static text assessment is coming soon. Please contact your
+                  teacher if you expected an interactive question here.
+                </p>
+                <div className="flex justify-between gap-4">
+                  <Button
+                    onClick={handlePrevious}
+                    disabled={currentQuestionIndex === 0}
+                    variant="outline"
+                    size="lg"
+                  >
+                    Previous Question
+                  </Button>
+                  <div className="flex gap-4">
+                    {!isLastQuestion && (
+                      <Button onClick={handleNext} size="lg">
+                        Next Question
+                      </Button>
+                    )}
+                    {isLastQuestion && (
+                      <Button
+                        onClick={handleSubmit}
+                        size="lg"
+                        variant="default"
+                      >
+                        Submit Assignment
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
