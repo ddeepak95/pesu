@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 
-// Server-side Supabase client
+// Server-side Supabase client with cookie support (for pages/components)
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies()
 
@@ -31,4 +31,3 @@ export async function createServerSupabaseClient() {
     }
   )
 }
-

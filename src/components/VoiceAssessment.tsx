@@ -148,6 +148,7 @@ function VoiceAssessmentContent({
   };
 
   // Handle evaluation after disconnect
+  // Note: Audio recording is now handled server-side by Pipecat's AudioBufferProcessor
   const handleEvaluate = async () => {
     console.log("=== Starting evaluation ===");
     console.log("Transcript:", transcript);
@@ -206,7 +207,7 @@ function VoiceAssessmentContent({
       setAttempts((prev) => [...prev, newAttempt]);
 
       // Note: Evaluation API already saved the attempt to database
-      // No need to call onAnswerSave here
+      // Audio recording is handled server-side by Pipecat
 
       console.log("=== Evaluation complete ===");
     } catch (error) {
@@ -222,17 +223,21 @@ function VoiceAssessmentContent({
   };
 
   // Prepare connection data to send to server (only used for initial connection)
+  // Server-side Pipecat bot handles audio recording via AudioBufferProcessor
   const connectionData = {
     language,
     question_prompt: question.prompt,
     rubric: question.rubric,
     assignment_id: assignmentId,
     question_order: question.order,
+    submission_id: submissionId, // For server-side audio recording
+    attempt_number: attempts.length + 1, // For server-side audio recording
   };
 
   const handleBotReady = () => {
     console.log("Bot is ready for conversation");
     // Clear transcript when starting new attempt
+    // Audio recording is handled server-side by Pipecat's AudioBufferProcessor
     clearTranscript();
   };
 
