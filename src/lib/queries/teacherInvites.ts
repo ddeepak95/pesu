@@ -10,6 +10,7 @@ export interface ClassTeacherInvite {
   uses: number;
   created_at: string;
   updated_at: string;
+  token: string | null; // Token is only visible to the owner
 }
 
 export async function createTeacherInvite(params: {
@@ -66,4 +67,5 @@ export async function acceptTeacherInvite(token: string): Promise<string> {
   if (error) throw error;
   return data as string; // classes.class_id (public id)
 }
+
 

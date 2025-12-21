@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS class_teacher_invites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
   token_hash TEXT UNIQUE NOT NULL,
+  -- Store token for owner to retrieve later (encrypted at rest, only readable by owner)
+  token TEXT,
   created_by UUID NOT NULL,
   expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
   revoked_at TIMESTAMP WITH TIME ZONE,
@@ -23,6 +25,9 @@ CREATE TABLE IF NOT EXISTS class_teacher_invites (
 
 -- Ensure max_uses allows NULL (for unlimited uses)
 ALTER TABLE class_teacher_invites ALTER COLUMN max_uses DROP NOT NULL;
+
+-- Add token column if it doesn't exist (for existing installations)
+ALTER TABLE class_teacher_invites ADD COLUMN IF NOT EXISTS token TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_class_teacher_invites_class_id
   ON class_teacher_invites(class_id);
@@ -123,11 +128,12 @@ BEGIN
   v_hash := encode(digest(v_token, 'sha256'), 'hex');
 
   -- Single invite per class: overwrite existing invite (regenerate link).
-  INSERT INTO class_teacher_invites (class_id, token_hash, created_by, expires_at, max_uses, uses, revoked_at)
-  VALUES (p_class_id, v_hash, auth.uid(), p_expires_at, p_max_uses, 0, NULL)
+  INSERT INTO class_teacher_invites (class_id, token_hash, token, created_by, expires_at, max_uses, uses, revoked_at)
+  VALUES (p_class_id, v_hash, v_token, auth.uid(), p_expires_at, p_max_uses, 0, NULL)
   ON CONFLICT (class_id)
   DO UPDATE SET
     token_hash = EXCLUDED.token_hash,
+    token = EXCLUDED.token,
     expires_at = EXCLUDED.expires_at,
     max_uses = EXCLUDED.max_uses,
     uses = 0,

@@ -54,9 +54,11 @@ export default function ManageTeachersDialog({
   }, [invites]);
 
   const inviteUrl = useMemo(() => {
-    if (!newInviteLink) return "";
-    return `${window.location.origin}/teacher/invites/${newInviteLink}`;
-  }, [newInviteLink]);
+    // Use token from activeInvite if available, otherwise use newly generated token
+    const token = activeInvite?.token || newInviteLink;
+    if (!token) return "";
+    return `${window.location.origin}/teacher/invites/${token}`;
+  }, [activeInvite, newInviteLink]);
 
   const refresh = async () => {
     setLoading(true);
@@ -97,7 +99,7 @@ export default function ManageTeachersDialog({
 
   useEffect(() => {
     if (open) {
-      setNewInviteLink("");
+      setNewInviteLink(""); // Clear newly generated token when dialog opens
       refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,6 +137,7 @@ export default function ManageTeachersDialog({
     setLoading(true);
     try {
       await revokeTeacherInvite(inviteId);
+      setNewInviteLink("");
       await refresh();
     } catch (err) {
       console.error("Error revoking invite:", err);
@@ -189,8 +192,8 @@ export default function ManageTeachersDialog({
                 value={inviteUrl}
                 readOnly
                 placeholder={
-                  activeInvite
-                    ? "Invite exists (link hidden). Regenerate to get a new link."
+                  activeInvite && !inviteUrl
+                    ? "Invite exists but token not available. Regenerate to get a new link."
                     : "Generate an invite link..."
                 }
               />
