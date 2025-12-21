@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Class, ClassTeacher } from "@/types/class";
+import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   listClassTeachers,
   removeCoTeacher,
+  ClassTeacherWithUserInfo,
 } from "@/lib/queries/classTeachers";
 import {
   ClassTeacherInvite,
@@ -40,7 +41,7 @@ export default function ManageTeachersDialog({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [teachers, setTeachers] = useState<ClassTeacher[]>([]);
+  const [teachers, setTeachers] = useState<ClassTeacherWithUserInfo[]>([]);
   const [invites, setInvites] = useState<ClassTeacherInvite[]>([]);
   const [newInviteLink, setNewInviteLink] = useState<string>("");
 
@@ -259,31 +260,43 @@ export default function ManageTeachersDialog({
           <List
             items={teachers}
             emptyMessage="No teachers found."
-            renderItem={(t) => (
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">
-                    {t.teacher_id}
+            renderItem={(t) => {
+              const displayName =
+                t.teacher_display_name || t.teacher_email || t.teacher_id;
+              const showEmailUnderName =
+                t.teacher_email && t.teacher_display_name;
+
+              return (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {displayName}
+                    </div>
+                    {showEmailUnderName && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t.teacher_email}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground capitalize">
+                      {t.role}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground capitalize">
-                    {t.role}
+                  <div className="flex gap-2">
+                    {t.role === "co-teacher" && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleRemoveTeacher(t.teacher_id)}
+                        disabled={!isOwner || loading}
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {t.role === "co-teacher" && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleRemoveTeacher(t.teacher_id)}
-                      disabled={!isOwner || loading}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
+              );
+            }}
           />
         </div>
 
