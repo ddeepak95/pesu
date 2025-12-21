@@ -65,13 +65,18 @@ function LoginForm() {
     setError('')
     setGoogleLoading(true)
     
+    // Ensure we use the current origin (production domain in production)
+    const origin = window.location.origin
     const destination = redirectUrl 
-      ? `${window.location.origin}${decodeURIComponent(redirectUrl)}`
-      : `${window.location.origin}/teacher`
+      ? `${origin}${decodeURIComponent(redirectUrl).split('?')[0]}` // Remove any query params
+      : `${origin}/teacher`
+    
+    console.log('Initiating Google sign-in with destination:', destination)
     
     const { error } = await signInWithGoogle(destination)
     
     if (error) {
+      console.error('Google sign-in error:', error)
       setError(error.message)
       setGoogleLoading(false)
     }
