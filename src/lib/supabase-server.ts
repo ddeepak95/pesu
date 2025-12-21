@@ -1,7 +1,7 @@
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
-// Server-side Supabase client with cookie support (for pages/components)
+// Server-side Supabase client for API routes
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies()
 
@@ -11,15 +11,17 @@ export async function createServerSupabaseClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll().map(({ name, value }) => ({ name, value }))
+          return cookieStore.getAll()
         },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          for (const { name, value, options } of cookiesToSet) {
-            try {
-              cookieStore.set({ name, value, ...options })
-            } catch {
-              // In Server Components, cookies are read-only; ignore.
-            }
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
           }
         },
       },
