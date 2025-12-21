@@ -59,7 +59,7 @@ export default function Assignments({ classData }: AssignmentsProps) {
     if (!confirmed) return;
 
     try {
-      await deleteAssignment(assignmentId);
+      await deleteAssignment(assignmentId, classData.id);
       // Refresh the list after deletion
       await fetchAssignments();
     } catch (err) {
