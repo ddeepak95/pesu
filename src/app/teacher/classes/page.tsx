@@ -12,7 +12,7 @@ import { getClassesByUser, deleteClass } from "@/lib/queries/classes";
 import { Class } from "@/types/class";
 
 export default function ClassesPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +73,17 @@ export default function ClassesPage() {
     // TODO: Implement invite link feature later
     alert(`Invite link feature coming soon! Class ID: ${classId}`);
   };
+
+  // Show loading while checking auth (middleware handles redirect if not authenticated)
+  if (authLoading || !user) {
+    return (
+      <PageLayout>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout>

@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS class_teacher_invites (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Ensure max_uses allows NULL (for unlimited uses)
+ALTER TABLE class_teacher_invites ALTER COLUMN max_uses DROP NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_class_teacher_invites_class_id
   ON class_teacher_invites(class_id);
 CREATE INDEX IF NOT EXISTS idx_class_teacher_invites_token_hash
@@ -31,6 +34,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_class_teacher_invites_unique_class_id
   ON class_teacher_invites(class_id);
 
 ALTER TABLE class_teacher_invites ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "Owner can view teacher invites" ON class_teacher_invites;
+DROP POLICY IF EXISTS "Owner can create teacher invites" ON class_teacher_invites;
+DROP POLICY IF EXISTS "Owner can update teacher invites" ON class_teacher_invites;
 
 -- Owner can read/manage invites for their class
 CREATE POLICY "Owner can view teacher invites" ON class_teacher_invites
@@ -89,7 +97,8 @@ CREATE TRIGGER update_class_teacher_invites_updated_at
 
 CREATE OR REPLACE FUNCTION create_teacher_invite(
   p_class_id UUID,
-  p_expires_at TIMESTAMP WITH TIME ZONE DEFAULT (timezone('utc'::text, now()) + interval '7 days'),
+  -- Default: 100 years from now (effectively never expires until revoked)
+  p_expires_at TIMESTAMP WITH TIME ZONE DEFAULT (timezone('utc'::text, now()) + interval '100 years'),
   -- Pass NULL for unlimited uses (default).
   p_max_uses INTEGER DEFAULT NULL
 )
@@ -156,6 +165,7 @@ $$;
 
 -- Accept an invite token and join the class as co-teacher.
 -- Returns the class public id (classes.class_id) for redirecting.
+-- If already a member, still returns the class id (allows re-using link).
 CREATE OR REPLACE FUNCTION accept_teacher_invite(p_token TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -165,6 +175,7 @@ DECLARE
   v_hash TEXT;
   v_invite RECORD;
   v_class_public_id TEXT;
+  v_is_new_member BOOLEAN := FALSE;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Must be authenticated to accept invite';
@@ -185,27 +196,37 @@ BEGIN
     RAISE EXCEPTION 'Invite invalid or expired';
   END IF;
 
-  -- Prevent owner from joining as co-teacher
+  -- Get the class public ID
+  SELECT class_id INTO v_class_public_id FROM classes WHERE id = v_invite.class_id;
+
+  -- Check if user is already the owner - just return the class (no error)
   IF EXISTS (SELECT 1 FROM classes WHERE id = v_invite.class_id AND created_by = auth.uid()) THEN
-    RAISE EXCEPTION 'Owner does not need to accept invite';
+    RETURN v_class_public_id;
   END IF;
 
-  -- Insert into class_teachers (if already present, do nothing)
-  IF NOT EXISTS (
+  -- Check if already a co-teacher - just return the class (no error)
+  IF EXISTS (
     SELECT 1 FROM class_teachers
     WHERE class_teachers.class_id = v_invite.class_id
       AND class_teachers.teacher_id = auth.uid()
   ) THEN
-    INSERT INTO class_teachers (class_id, teacher_id, role)
-    VALUES (v_invite.class_id, auth.uid(), 'co-teacher');
+    RETURN v_class_public_id;
   END IF;
 
-  UPDATE class_teacher_invites
-  SET uses = uses + 1
-  WHERE id = v_invite.id;
+  -- New member - insert into class_teachers
+  INSERT INTO class_teachers (class_id, teacher_id, role)
+  VALUES (v_invite.class_id, auth.uid(), 'co-teacher');
+  v_is_new_member := TRUE;
 
-  SELECT class_id INTO v_class_public_id FROM classes WHERE id = v_invite.class_id;
+  -- Only increment uses for new members
+  IF v_is_new_member THEN
+    UPDATE class_teacher_invites
+    SET uses = uses + 1
+    WHERE id = v_invite.id;
+  END IF;
+
   RETURN v_class_public_id;
 END;
 $$;
+
 

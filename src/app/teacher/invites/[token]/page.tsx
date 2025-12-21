@@ -1,84 +1,159 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import { acceptTeacherInvite } from "@/lib/queries/teacherInvites";
 import { Button } from "@/components/ui/button";
-import BackButton from "@/components/ui/back-button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+
+type InviteStatus = "pending" | "accepting" | "success" | "error";
 
 export default function AcceptTeacherInvitePage() {
   const params = useParams();
   const router = useRouter();
   const token = params.token as string;
+  const { user, loading: authLoading } = useAuth();
 
-  const [status, setStatus] = useState<"loading" | "success" | "error">(
-    "loading"
-  );
+  const [status, setStatus] = useState<InviteStatus>("pending");
   const [error, setError] = useState<string>("");
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        const classPublicId = await acceptTeacherInvite(token);
-        setStatus("success");
-        // Redirect to class page shortly after
-        setTimeout(() => {
-          router.push(`/teacher/classes/${classPublicId}`);
-        }, 500);
-      } catch (err: unknown) {
-        console.error("Error accepting teacher invite:", err);
-        setStatus("error");
-        const message =
-          typeof err === "object" && err !== null
-            ? ((err as Record<string, unknown>)["message"] as
-                | string
-                | undefined)
-            : undefined;
-        setError(message || "Failed to accept invite.");
-      }
-    };
+  const handleAcceptInvite = async () => {
+    setStatus("accepting");
+    setError("");
 
-    if (token) run();
-  }, [token, router]);
+    try {
+      const classPublicId = await acceptTeacherInvite(token);
+      setStatus("success");
+      // Redirect to class page after a brief moment
+      setTimeout(() => {
+        router.push(`/teacher/classes/${classPublicId}`);
+      }, 1500);
+    } catch (err: unknown) {
+      console.error("Error accepting teacher invite:", err);
+      setStatus("error");
+      const message =
+        typeof err === "object" && err !== null
+          ? ((err as Record<string, unknown>)["message"] as string | undefined)
+          : undefined;
+      setError(
+        message ||
+          "Failed to accept invite. The link may be invalid or expired."
+      );
+    }
+  };
+
+  const handleDecline = () => {
+    router.push("/teacher/classes");
+  };
+
+  // Show loading while checking auth (middleware handles redirect if not authenticated)
+  if (authLoading || !user) {
+    return (
+      <PageLayout>
+        <div className="min-h-[60vh] flex items-center justify-center p-8">
+          <p className="text-muted-foreground">Loading…</p>
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout>
-      <div className="p-8 max-w-xl mx-auto">
-        <div className="mb-4">
-          <BackButton label="Back" />
-        </div>
-        {status === "loading" && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Accepting invite…</p>
-          </div>
-        )}
+      <div className="min-h-[60vh] flex items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          {status === "pending" && (
+            <>
+              <CardHeader className="text-center">
+                <CardTitle>Teacher Invitation</CardTitle>
+                <CardDescription>
+                  You&apos;ve been invited to join a class as a co-teacher
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  Signed in as <span className="font-medium">{user.email}</span>
+                </p>
+                <div className="flex flex-col gap-3">
+                  <Button onClick={handleAcceptInvite} className="w-full">
+                    Accept Invitation
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleDecline}
+                    className="w-full"
+                  >
+                    Decline
+                  </Button>
+                </div>
+              </CardContent>
+            </>
+          )}
 
-        {status === "success" && (
-          <div className="text-center py-12 space-y-4">
-            <p className="text-muted-foreground">
-              Invite accepted. Redirecting…
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => router.push("/teacher/classes")}
-            >
-              Go to classes
-            </Button>
-          </div>
-        )}
+          {status === "accepting" && (
+            <>
+              <CardHeader className="text-center">
+                <CardTitle>Accepting Invitation</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center py-8">
+                <p className="text-muted-foreground">Please wait…</p>
+              </CardContent>
+            </>
+          )}
 
-        {status === "error" && (
-          <div className="text-center py-12 space-y-4">
-            <p className="text-destructive">{error}</p>
-            <Button
-              variant="outline"
-              onClick={() => router.push("/teacher/classes")}
-            >
-              Go to classes
-            </Button>
-          </div>
-        )}
+          {status === "success" && (
+            <>
+              <CardHeader className="text-center">
+                <CardTitle className="text-green-600">🎉 Welcome!</CardTitle>
+                <CardDescription>
+                  You&apos;ve successfully joined the class
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <p className="text-muted-foreground">
+                  Redirecting to the class…
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/teacher/classes")}
+                >
+                  Go to all classes
+                </Button>
+              </CardContent>
+            </>
+          )}
+
+          {status === "error" && (
+            <>
+              <CardHeader className="text-center">
+                <CardTitle className="text-destructive">
+                  Unable to Accept
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <p className="text-destructive text-sm">{error}</p>
+                <div className="flex flex-col gap-3">
+                  <Button onClick={handleAcceptInvite} variant="outline">
+                    Try Again
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => router.push("/teacher/classes")}
+                  >
+                    Go to classes
+                  </Button>
+                </div>
+              </CardContent>
+            </>
+          )}
+        </Card>
       </div>
     </PageLayout>
   );

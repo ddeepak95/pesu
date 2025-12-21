@@ -8,11 +8,21 @@ import { ArrowLeft } from "lucide-react";
 export default function BackButton({
   label = "Back",
   className,
+  href,
 }: {
   label?: string;
   className?: string;
+  href?: string;
 }) {
   const router = useRouter();
+
+  const handleClick = () => {
+    if (href) {
+      router.push(href);
+    } else {
+      router.back();
+    }
+  };
 
   return (
     <div className={cn("inline-flex items-center", className)}>
@@ -20,7 +30,7 @@ export default function BackButton({
         type="button"
         variant="outline"
         className="gap-2"
-        onClick={() => router.back()}
+        onClick={handleClick}
       >
         <ArrowLeft className="h-4 w-4" />
         {label}

@@ -182,7 +182,14 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
     .single();
 
   if (error) {
-    console.error("Error fetching class:", error);
+    // Log full error details for debugging
+    console.error("Error fetching class:", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      classId,
+    });
     return null;
   }
 
