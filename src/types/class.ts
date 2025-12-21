@@ -7,6 +7,7 @@ export interface Class {
   updated_at: string;
   status: "active" | "deleted";
   preferred_language: string;
+  group_count?: number;
 }
 
 export interface ClassTeacher {

@@ -22,6 +22,7 @@ export default function CreateAssessment() {
     preferredLanguage: string;
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
+    isDraft: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -36,6 +37,7 @@ export default function CreateAssessment() {
         preferred_language: data.preferredLanguage,
         is_public: data.isPublic,
         assessment_mode: data.assessmentMode,
+        status: data.isDraft ? "draft" : "active",
       },
       user.id
     );
@@ -56,6 +58,7 @@ export default function CreateAssessment() {
         preferredLanguage,
         isPublic,
         assessmentMode,
+        isDraft,
       }) =>
         handleSubmit({
           title,
@@ -64,6 +67,7 @@ export default function CreateAssessment() {
           preferredLanguage,
           isPublic,
           assessmentMode,
+          isDraft,
         })
       }
     />

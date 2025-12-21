@@ -9,7 +9,7 @@ import List from "@/components/ui/List";
 import AssignmentCard from "@/components/Teacher/Assignments/AssignmentCard";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getAssignmentsByClass,
+  getAssignmentsByClassForTeacher,
   deleteAssignment,
 } from "@/lib/queries/assignments";
 
@@ -35,7 +35,7 @@ export default function Assignments({ classData }: AssignmentsProps) {
     setError(null);
 
     try {
-      const data = await getAssignmentsByClass(classData.id);
+      const data = await getAssignmentsByClassForTeacher(classData.id);
       setAssignments(data);
     } catch (err) {
       console.error("Error fetching assignments:", err);

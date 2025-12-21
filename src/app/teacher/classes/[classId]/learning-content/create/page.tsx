@@ -1,29 +1,28 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
-import AssignmentForm from "@/components/Teacher/Assignments/AssignmentForm";
 import { useAuth } from "@/contexts/AuthContext";
-import { createAssignment } from "@/lib/queries/assignments";
 import { getClassByClassId } from "@/lib/queries/classes";
+import { createLearningContent } from "@/lib/queries/learningContent";
 import { createContentItem } from "@/lib/queries/contentItems";
+import LearningContentForm from "@/components/Teacher/LearningContent/LearningContentForm";
 import { getClassGroups } from "@/lib/queries/groups";
 
-export default function CreateAssignmentPage() {
+export default function CreateLearningContentPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const classId = params.classId as string;
 
-  const [error, setError] = useState<string | null>(null);
+  const classId = params.classId as string;
   const [classDbId, setClassDbId] = useState<string | null>(null);
   const [classGroupId, setClassGroupId] = useState<string | null>(null);
-  const [classLanguage, setClassLanguage] = useState<string>("en");
   const [loadingClass, setLoadingClass] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const backToContentHref = useMemo(() => {
     const groupId = searchParams.get("groupId");
@@ -32,17 +31,15 @@ export default function CreateAssignmentPage() {
       : `/teacher/classes/${classId}?tab=content`;
   }, [classId, searchParams]);
 
-  // Fetch the class to get the database ID and preferred language
   useEffect(() => {
     const fetchClass = async () => {
       try {
         const classData = await getClassByClassId(classId);
-        if (classData) {
-          setClassDbId(classData.id);
-          setClassLanguage(classData.preferred_language);
-        } else {
+        if (!classData) {
           setError("Class not found");
+          return;
         }
+        setClassDbId(classData.id);
       } catch (err) {
         console.error("Error fetching class:", err);
         setError("Failed to load class");
@@ -51,9 +48,7 @@ export default function CreateAssignmentPage() {
       }
     };
 
-    if (classId) {
-      fetchClass();
-    }
+    if (classId) fetchClass();
   }, [classId]);
 
   useEffect(() => {
@@ -75,72 +70,23 @@ export default function CreateAssignmentPage() {
     initGroup();
   }, [classDbId, searchParams]);
 
-  const handleSubmit = async (data: {
-    title: string;
-    questions: {
-      order: number;
-      prompt: string;
-      total_points: number;
-      rubric: { item: string; points: number }[];
-      supporting_content: string;
-    }[];
-    totalPoints: number;
-    preferredLanguage: string;
-    isPublic: boolean;
-    assessmentMode: "voice" | "text_chat" | "static_text";
-    isDraft: boolean;
-  }) => {
-    if (!user) {
-      throw new Error("You must be logged in to create an assignment");
-    }
-
-    if (!classDbId || !classGroupId) {
-      throw new Error("Class not found");
-    }
-
-    const assignment = await createAssignment(
-      {
-        class_id: classDbId,
-        class_group_id: classGroupId,
-        title: data.title,
-        questions: data.questions,
-        total_points: data.totalPoints,
-        preferred_language: data.preferredLanguage,
-        is_public: data.isPublic,
-        assessment_mode: data.assessmentMode,
-        status: data.isDraft ? "draft" : "active",
-      },
-      user.id
-    );
-
-    // Insert into the unified content feed
-    await createContentItem(
-      {
-        class_id: classDbId,
-        class_group_id: classGroupId,
-        type: "formative_assignment",
-        ref_id: assignment.id,
-        status: data.isDraft ? "draft" : "active",
-      },
-      user.id
-    );
-  };
-
   if (loadingClass) {
     return (
       <PageLayout>
         <div className="p-8 text-center">
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Loading…</p>
         </div>
       </PageLayout>
     );
   }
 
-  if (error && (!classDbId || !classGroupId)) {
+  if (error || !classDbId || !classGroupId) {
     return (
       <PageLayout>
         <div className="p-8 text-center">
-          <p className="text-destructive">{error}</p>
+          <p className="text-destructive">
+            {error || "Class/groups not found"}
+          </p>
         </div>
       </PageLayout>
     );
@@ -148,16 +94,47 @@ export default function CreateAssignmentPage() {
 
   return (
     <PageLayout>
-      <div className="max-w-4xl mx-auto p-8">
+      <div className="max-w-3xl mx-auto p-8">
         <div className="mb-4">
           <BackButton />
         </div>
-        <h1 className="text-3xl font-bold mb-8">Create Learning Assignment</h1>
-        <AssignmentForm
-          mode="create"
-          classId={classId}
-          initialLanguage={classLanguage}
-          onSubmit={handleSubmit}
+        <h1 className="text-3xl font-bold mb-2">Create Learning Content</h1>
+        <p className="text-muted-foreground mb-8">
+          Add a video link, text notes, or both.
+        </p>
+
+        <LearningContentForm
+          submitLabel="Create"
+          onSubmit={async ({ title, videoUrl, body, isDraft }) => {
+            if (!user) throw new Error("You must be logged in");
+
+            const learningContent = await createLearningContent(
+              {
+                class_id: classDbId,
+                class_group_id: classGroupId,
+                title,
+                video_url: videoUrl || null,
+                body: body || null,
+                status: isDraft ? "draft" : "active",
+              },
+              user.id
+            );
+
+            await createContentItem(
+              {
+                class_id: classDbId,
+                class_group_id: classGroupId,
+                type: "learning_content",
+                ref_id: learningContent.id,
+                status: isDraft ? "draft" : "active",
+              },
+              user.id
+            );
+
+            router.push(
+              `/teacher/classes/${classId}/learning-content/${learningContent.learning_content_id}`
+            );
+          }}
         />
         <div className="mt-6">
           <Button

@@ -12,7 +12,11 @@ interface QuestionCardProps {
   question: Question;
   index: number;
   totalQuestions: number;
-  onChange: (index: number, field: keyof Question, value: any) => void;
+  onChange: (
+    index: number,
+    field: keyof Question,
+    value: Question[keyof Question]
+  ) => void;
   onRubricChange: (
     questionIndex: number,
     rubricIndex: number,
@@ -150,7 +154,9 @@ export default function QuestionCard({
         <Textarea
           id={`supportingContent-${index}`}
           value={question.supporting_content}
-          onChange={(e) => onChange(index, "supporting_content", e.target.value)}
+          onChange={(e) =>
+            onChange(index, "supporting_content", e.target.value)
+          }
           disabled={disabled}
           placeholder="Enter any supporting content or instructions"
           rows={4}
@@ -159,8 +165,3 @@ export default function QuestionCard({
     </div>
   );
 }
-
-
-
-
-

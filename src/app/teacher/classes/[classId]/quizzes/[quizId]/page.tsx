@@ -13,75 +13,73 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  getAssignmentByIdForTeacher,
-  deleteAssignment,
-} from "@/lib/queries/assignments";
-import { Assignment } from "@/types/assignment";
-import QuestionView from "@/components/Teacher/Assignments/QuestionView";
-import { supportedLanguages } from "@/utils/supportedLanguages";
+import { getQuizByShortIdForTeacher, deleteQuiz } from "@/lib/queries/quizzes";
+import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
+import { Quiz } from "@/types/quiz";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function AssignmentDetailPage() {
+export default function QuizDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+
   const classId = params.classId as string;
-  const assignmentId = params.assignmentId as string;
-  const [assignmentData, setAssignmentData] = useState<Assignment | null>(null);
+  const quizId = params.quizId as string;
+
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAssignment = async () => {
+  const fetchQuiz = async () => {
     setLoading(true);
     setError(null);
-
     try {
-      const data = await getAssignmentByIdForTeacher(assignmentId);
+      const data = await getQuizByShortIdForTeacher(quizId);
       if (!data) {
-        setError("Assignment not found");
+        setError("Quiz not found");
       } else {
-        setAssignmentData(data);
+        setQuiz(data);
       }
     } catch (err) {
-      console.error("Error fetching assignment:", err);
-      setError("Failed to load assignment details");
+      console.error("Error fetching quiz:", err);
+      setError("Failed to load quiz");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (assignmentId) {
-      fetchAssignment();
-    }
+    if (quizId) fetchQuiz();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentId]);
+  }, [quizId]);
 
   const handleEdit = () => {
     const qs = searchParams.toString();
     router.push(
-      `/teacher/classes/${classId}/assignments/${assignmentId}/edit${
-        qs ? `?${qs}` : ""
-      }`
+      `/teacher/classes/${classId}/quizzes/${quizId}/edit${qs ? `?${qs}` : ""}`
     );
   };
 
   const handleDelete = async () => {
-    if (!user || !assignmentData) return;
+    if (!user || !quiz) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to delete this assignment? This action cannot be undone."
+      "Are you sure you want to delete this quiz? This action cannot be undone."
     );
-
     if (!confirmed) return;
 
     try {
-      await deleteAssignment(assignmentData.id);
+      await deleteQuiz(quiz.id);
+      await softDeleteContentItemByRef({
+        class_id: quiz.class_id,
+        type: "quiz",
+        ref_id: quiz.id,
+      });
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
-      console.error("Error deleting assignment:", err);
-      alert("Failed to delete assignment. Please try again.");
+      console.error("Error deleting quiz:", err);
+      alert("Failed to delete quiz. Please try again.");
     }
   };
 
@@ -89,17 +87,17 @@ export default function AssignmentDetailPage() {
     return (
       <PageLayout>
         <div className="p-8 text-center">
-          <p className="text-muted-foreground">Loading assignment details...</p>
+          <p className="text-muted-foreground">Loading quiz...</p>
         </div>
       </PageLayout>
     );
   }
 
-  if (error || !assignmentData) {
+  if (error || !quiz) {
     return (
       <PageLayout>
         <div className="p-8 text-center">
-          <p className="text-destructive">{error || "Assignment not found"}</p>
+          <p className="text-destructive">{error || "Quiz not found"}</p>
         </div>
       </PageLayout>
     );
@@ -114,16 +112,11 @@ export default function AssignmentDetailPage() {
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
+              <h1 className="text-3xl font-bold">{quiz.title}</h1>
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-                <p>{assignmentData.total_points} points total</p>
+                <p>{quiz.total_points} points total</p>
                 <span>•</span>
-                <p>
-                  Language:{" "}
-                  {supportedLanguages.find(
-                    (lang) => lang.code === assignmentData.preferred_language
-                  )?.name || assignmentData.preferred_language}
-                </p>
+                <p className="capitalize">Status: {quiz.status}</p>
               </div>
             </div>
             <DropdownMenu>
@@ -149,11 +142,45 @@ export default function AssignmentDetailPage() {
             </TabsList>
 
             <TabsContent value="questions" className="space-y-4 py-6">
-              {assignmentData.questions
+              {quiz.questions
                 .sort((a, b) => a.order - b.order)
-                .map((question, index) => (
-                  <QuestionView key={index} question={question} index={index} />
-                ))}
+                .map((q, idx) => {
+                  const correct = q.options.find(
+                    (o) => o.id === q.correct_option_id
+                  );
+                  return (
+                    <Card key={idx}>
+                      <CardHeader>
+                        <CardTitle className="text-lg">
+                          Question {idx + 1} • {q.points} pts
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <p className="whitespace-pre-wrap">{q.prompt}</p>
+                        <div className="space-y-2">
+                          {q.options.map((o) => (
+                            <div
+                              key={o.id}
+                              className="flex items-center justify-between rounded-md border px-3 py-2"
+                            >
+                              <span>{o.text}</span>
+                              {o.id === q.correct_option_id && (
+                                <span className="text-xs text-muted-foreground">
+                                  Correct
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {correct && (
+                          <p className="text-sm text-muted-foreground">
+                            Correct answer: {correct.text}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
             </TabsContent>
 
             <TabsContent value="submissions" className="py-6">

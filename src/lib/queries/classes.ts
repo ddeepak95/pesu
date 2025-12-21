@@ -18,26 +18,62 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
 
   console.log("Fetching classes for user:", userId);
 
-  const { data, error } = await supabase
+  // Avoid relying on join/or syntax across embedded relationships.
+  // Fetch owned classes + co-taught classes via class_teachers, then merge.
+
+  const ownedQuery = supabase
     .from("classes")
     .select("*")
     .eq("created_by", userId)
-    .eq("status", "active") // Only fetch active classes
-    .order("created_at", { ascending: false });
+    .eq("status", "active");
 
-  if (error) {
-    console.error("Error fetching classes:", error);
-    console.error("Error details:", {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-    });
-    throw error;
+  const coTeachIdsQuery = supabase
+    .from("class_teachers")
+    .select("class_id")
+    .eq("teacher_id", userId);
+
+  const [{ data: owned, error: ownedError }, { data: teachRows, error: teachError }] =
+    await Promise.all([ownedQuery, coTeachIdsQuery]);
+
+  if (ownedError) {
+    console.error("Error fetching owned classes:", ownedError);
+    throw ownedError;
   }
 
-  console.log("Classes fetched successfully:", data);
-  return data || [];
+  let coTaught: Class[] = [];
+  if (teachError) {
+    // If class_teachers isn't available yet (or RLS blocks it), fall back to owned classes only.
+    console.error("Error fetching class_teachers rows:", teachError);
+  } else {
+    const classDbIds = Array.from(
+      new Set((teachRows || []).map((r) => (r as { class_id: string }).class_id))
+    ).filter(Boolean);
+
+    if (classDbIds.length > 0) {
+      const { data: taught, error: taughtError } = await supabase
+        .from("classes")
+        .select("*")
+        .in("id", classDbIds)
+        .eq("status", "active");
+
+      if (taughtError) {
+        console.error("Error fetching co-taught classes:", taughtError);
+      } else {
+        coTaught = (taught || []) as Class[];
+      }
+    }
+  }
+
+  const mergedById = new Map<string, Class>();
+  for (const c of (owned || []) as Class[]) mergedById.set(c.id, c);
+  for (const c of coTaught) mergedById.set(c.id, c);
+
+  const merged = Array.from(mergedById.values()).sort((a, b) =>
+    b.created_at.localeCompare(a.created_at)
+  );
+
+  console.log("Classes fetched successfully:", merged);
+  return merged;
 }
 
 /**

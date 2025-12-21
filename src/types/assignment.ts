@@ -15,13 +15,14 @@ export interface Assignment {
   id: string;
   assignment_id: string;
   class_id: string;
+  class_group_id?: string | null;
   title: string;
   questions: Question[];
   total_points: number;
   created_by: string;
   created_at: string;
   updated_at: string;
-  status: "active" | "deleted";
+  status: "draft" | "active" | "deleted";
   preferred_language: string;
   is_public: boolean;
   /**

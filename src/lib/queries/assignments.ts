@@ -41,6 +41,26 @@ export async function getAssignmentsByClass(classId: string): Promise<Assignment
 }
 
 /**
+ * Get all assignments for a class (teacher view).
+ * Returns both active and draft assignments (excludes deleted).
+ */
+export async function getAssignmentsByClassForTeacher(
+  classId: string
+): Promise<Assignment[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .select("*")
+    .eq("class_id", classId)
+    .in("status", ["active", "draft"])
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
  * Get a single assignment by its unique assignment_id
  * Only returns active assignments (excludes deleted ones)
  */
@@ -66,12 +86,72 @@ export async function getAssignmentById(assignmentId: string): Promise<Assignmen
 }
 
 /**
+ * Get a single assignment by its unique assignment_id (teacher view).
+ * Returns both active and draft assignments (excludes deleted).
+ */
+export async function getAssignmentByIdForTeacher(
+  assignmentId: string
+): Promise<Assignment | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .select("*")
+    .eq("assignment_id", assignmentId)
+    .in("status", ["active", "draft"])
+    .single();
+
+  if (error) return null;
+  return data as Assignment;
+}
+
+/**
+ * Get assignments by their database UUID primary keys.
+ */
+export async function getAssignmentsByIds(ids: string[]): Promise<Assignment[]> {
+  const supabase = createClient();
+
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .select("*")
+    .in("id", ids)
+    .eq("status", "active");
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * Get assignments by their database UUID primary keys (teacher view).
+ * Returns both active and draft assignments (excludes deleted).
+ */
+export async function getAssignmentsByIdsForTeacher(ids: string[]): Promise<Assignment[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .select("*")
+    .in("id", ids)
+    .in("status", ["active", "draft"]);
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
  * Create a new assignment
  * Authorization is handled by RLS policies - allows class owner and co-teachers
  */
 export async function createAssignment(
   assignment: {
     class_id: string;
+    class_group_id?: string | null;
     title: string;
     questions: {
       order: number;
@@ -84,6 +164,7 @@ export async function createAssignment(
     preferred_language: string;
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
+    status?: "draft" | "active";
   },
   userId: string
 ): Promise<Assignment> {
@@ -95,11 +176,12 @@ export async function createAssignment(
     .insert({
       assignment_id: assignmentId,
       class_id: assignment.class_id,
+      class_group_id: assignment.class_group_id ?? null,
       title: assignment.title,
       questions: assignment.questions,
       total_points: assignment.total_points,
       created_by: userId,
-      status: "active",
+      status: assignment.status ?? "active",
       preferred_language: assignment.preferred_language,
       is_public: assignment.is_public ?? false,
       assessment_mode: assignment.assessment_mode ?? "voice",

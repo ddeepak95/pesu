@@ -1,15 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import BackButton from "@/components/ui/back-button";
+import { Button } from "@/components/ui/button";
 import AssignmentForm from "@/components/Teacher/Assignments/AssignmentForm";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAssignmentById, updateAssignment } from "@/lib/queries/assignments";
+import {
+  getAssignmentByIdForTeacher,
+  updateAssignment,
+} from "@/lib/queries/assignments";
 import { Question } from "@/types/assignment";
 
 export default function EditAssignmentPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const classId = params.classId as string;
   const assignmentId = params.assignmentId as string;
@@ -30,7 +37,7 @@ export default function EditAssignmentPage() {
     const fetchAssignment = async () => {
       setLoadingAssignment(true);
       try {
-        const assignmentData = await getAssignmentById(assignmentId);
+        const assignmentData = await getAssignmentByIdForTeacher(assignmentId);
         if (assignmentData) {
           setTitle(assignmentData.title);
           setQuestions(assignmentData.questions);
@@ -67,6 +74,7 @@ export default function EditAssignmentPage() {
     preferredLanguage: string;
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
+    isDraft: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -109,6 +117,9 @@ export default function EditAssignmentPage() {
   return (
     <PageLayout>
       <div className="max-w-4xl mx-auto p-8">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <h1 className="text-3xl font-bold mb-8">Edit Assignment</h1>
         <AssignmentForm
           mode="edit"
@@ -121,6 +132,23 @@ export default function EditAssignmentPage() {
           initialAssessmentMode={assessmentMode}
           onSubmit={handleSubmit}
         />
+
+        <div className="mt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const qs = searchParams.toString();
+              router.push(
+                `/teacher/classes/${classId}/assignments/${assignmentId}${
+                  qs ? `?${qs}` : ""
+                }`
+              );
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
       </div>
     </PageLayout>
   );

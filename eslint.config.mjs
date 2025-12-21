@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local python venvs / vendor files:
+    "pesu-server/.venv/**",
   ]),
 ]);
 

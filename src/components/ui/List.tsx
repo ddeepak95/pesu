@@ -3,6 +3,7 @@ import React from "react";
 interface ListProps<T> {
   items: T[];
   renderItem: (item: T, index: number) => React.ReactNode;
+  keyExtractor?: (item: T, index: number) => string | number;
   emptyMessage?: string;
   className?: string;
 }
@@ -10,6 +11,7 @@ interface ListProps<T> {
 export default function List<T>({
   items,
   renderItem,
+  keyExtractor,
   emptyMessage = "No items to display",
   className = "",
 }: ListProps<T>) {
@@ -24,9 +26,10 @@ export default function List<T>({
   return (
     <div className={`space-y-4 ${className}`}>
       {items.map((item, index) => (
-        <div key={index}>{renderItem(item, index)}</div>
+        <div key={keyExtractor ? keyExtractor(item, index) : index}>
+          {renderItem(item, index)}
+        </div>
       ))}
     </div>
   );
 }
-

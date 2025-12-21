@@ -1,0 +1,242 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import PageLayout from "@/components/PageLayout";
+import BackButton from "@/components/ui/back-button";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  getLearningContentByShortIdForTeacher,
+  deleteLearningContent,
+} from "@/lib/queries/learningContent";
+import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
+import { LearningContent } from "@/types/learningContent";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+function getYouTubeEmbedUrl(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+
+    // youtu.be/<id>
+    if (url.hostname === "youtu.be") {
+      const id = url.pathname.replace("/", "").trim();
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+
+    // youtube.com
+    if (
+      url.hostname === "www.youtube.com" ||
+      url.hostname === "youtube.com" ||
+      url.hostname === "m.youtube.com"
+    ) {
+      // /watch?v=<id>
+      if (url.pathname === "/watch") {
+        const id = url.searchParams.get("v");
+        return id ? `https://www.youtube.com/embed/${id}` : null;
+      }
+
+      // /embed/<id>
+      if (url.pathname.startsWith("/embed/")) {
+        const id = url.pathname.split("/embed/")[1]?.split("/")[0]?.trim();
+        return id ? `https://www.youtube.com/embed/${id}` : null;
+      }
+
+      // /shorts/<id>
+      if (url.pathname.startsWith("/shorts/")) {
+        const id = url.pathname.split("/shorts/")[1]?.split("/")[0]?.trim();
+        return id ? `https://www.youtube.com/embed/${id}` : null;
+      }
+    }
+  } catch {
+    // ignore invalid URLs
+  }
+
+  return null;
+}
+
+export default function LearningContentDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+
+  const classId = params.classId as string;
+  const learningContentId = params.learningContentId as string;
+
+  const [content, setContent] = useState<LearningContent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchContent = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getLearningContentByShortIdForTeacher(
+        learningContentId
+      );
+      if (!data) setError("Learning content not found");
+      else setContent(data);
+    } catch (err) {
+      console.error("Error fetching learning content:", err);
+      setError("Failed to load learning content");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (learningContentId) fetchContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learningContentId]);
+
+  const handleEdit = () => {
+    const qs = searchParams.toString();
+    router.push(
+      `/teacher/classes/${classId}/learning-content/${learningContentId}/edit${
+        qs ? `?${qs}` : ""
+      }`
+    );
+  };
+
+  const handleDelete = async () => {
+    if (!user || !content) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this learning content? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteLearningContent(content.id);
+      await softDeleteContentItemByRef({
+        class_id: content.class_id,
+        type: "learning_content",
+        ref_id: content.id,
+      });
+      router.push(`/teacher/classes/${classId}`);
+    } catch (err) {
+      console.error("Error deleting learning content:", err);
+      alert("Failed to delete learning content. Please try again.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <PageLayout>
+        <div className="p-8 text-center">
+          <p className="text-muted-foreground">Loading learning content…</p>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (error || !content) {
+    return (
+      <PageLayout>
+        <div className="p-8 text-center">
+          <p className="text-destructive">{error || "Not found"}</p>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  const youtubeEmbedUrl = content.video_url
+    ? getYouTubeEmbedUrl(content.video_url)
+    : null;
+
+  return (
+    <PageLayout>
+      <div className="border-b">
+        <div className="p-8 pb-0">
+          <div className="mb-4">
+            <BackButton />
+          </div>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold">{content.title}</h1>
+              <div className="flex items-center gap-4 mt-1 text-muted-foreground">
+                <p className="capitalize">Type: {content.content_type}</p>
+                <span>•</span>
+                <p className="capitalize">Status: {content.status}</p>
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">Options</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleDelete}
+                  className="text-destructive"
+                >
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="space-y-6 pb-8">
+            {content.video_url && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Video</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {youtubeEmbedUrl ? (
+                    <div className="space-y-3">
+                      <div className="relative w-full pt-[56.25%] overflow-hidden rounded-md border">
+                        <iframe
+                          className="absolute inset-0 h-full w-full"
+                          src={youtubeEmbedUrl}
+                          title="YouTube video preview"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      </div>
+                      <a
+                        className="text-sm underline underline-offset-4"
+                        href={content.video_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open on YouTube
+                      </a>
+                    </div>
+                  ) : (
+                    <a
+                      className="text-sm underline underline-offset-4"
+                      href={content.video_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {content.video_url}
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {content.body && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Text</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="whitespace-pre-wrap">{content.body}</div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
+    </PageLayout>
+  );
+}

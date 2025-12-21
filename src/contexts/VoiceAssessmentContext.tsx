@@ -1,5 +1,11 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { usePipecatConversation } from "@pipecat-ai/voice-ui-kit";
 
 export interface VoiceAssessmentContextType {
@@ -9,9 +15,9 @@ export interface VoiceAssessmentContextType {
   setTranscript: (transcript: string) => void;
 }
 
-const VoiceAssessmentContext = createContext<VoiceAssessmentContextType | undefined>(
-  undefined
-);
+const VoiceAssessmentContext = createContext<
+  VoiceAssessmentContextType | undefined
+>(undefined);
 
 export interface VoiceAssessmentProviderProps {
   children: ReactNode;
@@ -35,9 +41,9 @@ export function VoiceAssessmentProvider({
           .map((part) => (typeof part.text === "string" ? part.text : ""))
           .join(" ")
           .trim();
-        
+
         if (!messageText) return "";
-        
+
         // Format with role labels
         const roleLabel = m.role === "user" ? "Student" : "Teacher";
         return `${roleLabel}: ${messageText}`;
@@ -46,6 +52,7 @@ export function VoiceAssessmentProvider({
       .join("\n\n");
 
     if (conversationText) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTranscript(conversationText);
     }
   }, [messages]);
@@ -81,4 +88,3 @@ export function useVoiceTranscript(): VoiceAssessmentContextType {
   }
   return context;
 }
-

@@ -33,6 +33,7 @@ interface AssignmentFormProps {
     preferredLanguage: string;
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
+    isDraft: boolean;
   }) => Promise<void>;
 }
 
@@ -63,6 +64,7 @@ export default function AssignmentForm({
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
+  const [isDraft, setIsDraft] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >(initialAssessmentMode);
@@ -72,8 +74,7 @@ export default function AssignmentForm({
   const handleQuestionChange = (
     questionIndex: number,
     field: keyof Question,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    value: any
+    value: Question[keyof Question]
   ) => {
     const newQuestions = [...questions];
     newQuestions[questionIndex] = {
@@ -238,6 +239,7 @@ export default function AssignmentForm({
         preferredLanguage,
         isPublic,
         assessmentMode,
+        isDraft,
       });
 
       // Navigate based on mode
@@ -317,6 +319,28 @@ export default function AssignmentForm({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Draft Toggle */}
+      <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
+        <Checkbox
+          id="isDraft"
+          checked={isDraft}
+          onCheckedChange={(checked) => setIsDraft(checked === true)}
+          disabled={loading}
+        />
+        <div className="space-y-1">
+          <Label
+            htmlFor="isDraft"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Save as draft
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Draft items are visible to teachers but not available to students
+            yet.
+          </p>
+        </div>
       </div>
 
       {/* Public Access Toggle */}
