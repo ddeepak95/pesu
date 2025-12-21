@@ -18,7 +18,13 @@ interface HeaderProps {
 
 export default function Header({ userName }: HeaderProps) {
   const { user, signOut } = useAuth();
-  const displayName = userName || user?.email || "Guest";
+  const displayName = 
+    userName || 
+    user?.user_metadata?.display_name || 
+    user?.user_metadata?.name || 
+    user?.user_metadata?.full_name || 
+    user?.email || 
+    "Guest";
 
   return (
     <header className="w-full border-b bg-secondary drop-shadow-md">
