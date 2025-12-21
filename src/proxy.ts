@@ -1,15 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-
-type CookieOptions = {
-  domain?: string
-  expires?: Date | string
-  httpOnly?: boolean
-  maxAge?: number
-  path?: string
-  sameSite?: 'lax' | 'strict' | 'none'
-  secure?: boolean
-}
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
@@ -23,42 +13,20 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll().map(({ name, value }) => ({ name, value }))
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          // In Middleware, cookies must be set on the response.
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set({ name, value, ...options })
+          }
         },
       },
     }

@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
 // Server-side Supabase client with cookie support (for pages/components)
 export async function createServerSupabaseClient() {
@@ -10,21 +10,16 @@ export async function createServerSupabaseClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
+        getAll() {
+          return cookieStore.getAll().map(({ name, value }) => ({ name, value }))
         },
-        set(name: string, value: string, options: Record<string, unknown>) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch {
-            // Handle cookie setting errors
-          }
-        },
-        remove(name: string, options: Record<string, unknown>) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch {
-            // Handle cookie removal errors
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          for (const { name, value, options } of cookiesToSet) {
+            try {
+              cookieStore.set({ name, value, ...options })
+            } catch {
+              // In Server Components, cookies are read-only; ignore.
+            }
           }
         },
       },
