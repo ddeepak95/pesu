@@ -1,87 +1,102 @@
-'use client'
+"use client";
 
-import { useState, useEffect, Suspense, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { useAuth } from '@/contexts/AuthContext'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect, Suspense, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { getBaseURL } from "@/lib/get-url";
 
 function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
-  const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth()
-  const searchParams = useSearchParams()
-  const hasRedirected = useRef(false)
-  
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const hasRedirected = useRef(false);
+
   // Get redirect URL from query params
-  const redirectUrl = searchParams.get('redirect')
-  const code = searchParams.get('code')
+  const redirectUrl = searchParams.get("redirect");
+  const code = searchParams.get("code");
 
   // Handle OAuth callback if code is present
   useEffect(() => {
     if (code && !authLoading) {
       // If there's a code in the URL, redirect to the callback handler
-      const finalDestination = redirectUrl 
-        ? decodeURIComponent(redirectUrl.split('?')[0]) // Remove any query params from redirect
-        : '/teacher'
-      window.location.href = `/api/auth/callback?code=${code}&next=${encodeURIComponent(finalDestination)}`
+      const finalDestination = redirectUrl
+        ? decodeURIComponent(redirectUrl.split("?")[0]) // Remove any query params from redirect
+        : "/teacher";
+      window.location.href = `/api/auth/callback?code=${code}&next=${encodeURIComponent(
+        finalDestination
+      )}`;
     }
-  }, [code, authLoading, redirectUrl])
+  }, [code, authLoading, redirectUrl]);
 
   // If already logged in, redirect appropriately
   useEffect(() => {
     if (!authLoading && user && !hasRedirected.current && !code) {
-      hasRedirected.current = true
-      const destination = redirectUrl ? decodeURIComponent(redirectUrl.split('?')[0]) : '/teacher'
+      hasRedirected.current = true;
+      const destination = redirectUrl
+        ? decodeURIComponent(redirectUrl.split("?")[0])
+        : "/teacher";
       // Use window.location for reliable redirect
-      window.location.href = destination
+      window.location.href = destination;
     }
-  }, [user, authLoading, redirectUrl, code])
+  }, [user, authLoading, redirectUrl, code]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    const { error } = await signIn(email, password)
+    const { error } = await signIn(email, password);
 
     if (error) {
-      setError(error.message)
-      setLoading(false)
+      setError(error.message);
+      setLoading(false);
     } else {
       // Redirect to the return URL if provided, otherwise go to teacher dashboard
-      const destination = redirectUrl ? decodeURIComponent(redirectUrl) : '/teacher'
+      const destination = redirectUrl
+        ? decodeURIComponent(redirectUrl)
+        : "/teacher";
       // Use window.location for reliable redirect
-      window.location.href = destination
+      window.location.href = destination;
     }
-  }
+  };
 
   const handleGoogleSignIn = async () => {
-    setError('')
-    setGoogleLoading(true)
-    
-    // Ensure we use the current origin (production domain in production)
-    const origin = window.location.origin
-    const destination = redirectUrl 
-      ? `${origin}${decodeURIComponent(redirectUrl).split('?')[0]}` // Remove any query params
-      : `${origin}/teacher`
-    
-    console.log('Initiating Google sign-in with destination:', destination)
-    
-    const { error } = await signInWithGoogle(destination)
-    
+    setError("");
+    setGoogleLoading(true);
+
+    // Use the helper function to get the correct base URL
+    // This ensures we use the production URL in production, not localhost
+    const baseURL = getBaseURL();
+    const destination = redirectUrl
+      ? `${baseURL}${decodeURIComponent(redirectUrl).split("?")[0]}` // Remove any query params
+      : `${baseURL}/teacher`;
+
+    console.log("Initiating Google sign-in with destination:", destination);
+    console.log("Base URL:", baseURL);
+
+    const { error } = await signInWithGoogle(destination);
+
     if (error) {
-      console.error('Google sign-in error:', error)
-      setError(error.message)
-      setGoogleLoading(false)
+      console.error("Google sign-in error:", error);
+      setError(error.message);
+      setGoogleLoading(false);
     }
     // Note: OAuth redirect will happen automatically, so we don't need to handle success case
-  }
+  };
 
   // Show loading while checking auth
   if (authLoading) {
@@ -89,7 +104,7 @@ function LoginForm() {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <p className="text-muted-foreground">Loading...</p>
       </div>
-    )
+    );
   }
 
   // If already logged in, show redirecting message
@@ -98,14 +113,16 @@ function LoginForm() {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <p className="text-muted-foreground">Redirecting...</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Speak2Learn</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">
+            Speak2Learn
+          </CardTitle>
           <CardDescription className="text-center">
             Sign in to your teacher account
           </CardDescription>
@@ -142,7 +159,7 @@ function LoginForm() {
                   fill="#EA4335"
                 />
               </svg>
-              {googleLoading ? 'Signing in...' : 'Continue with Google'}
+              {googleLoading ? "Signing in..." : "Continue with Google"}
             </Button>
 
             <div className="relative">
@@ -186,26 +203,31 @@ function LoginForm() {
                   {error}
                 </div>
               )}
-              <Button type="submit" className="w-full" disabled={loading || googleLoading}>
-                {loading ? 'Signing in...' : 'Sign In'}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading || googleLoading}
+              >
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
-  )
+  );
 }
-

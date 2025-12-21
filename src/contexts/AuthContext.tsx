@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, AuthError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { getBaseURL } from "@/lib/get-url";
 
 interface AuthContextType {
   user: User | null;
@@ -53,19 +54,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async (redirectTo?: string) => {
-    // Ensure we're using the current origin (will be production domain in production)
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    // Use the helper function to get the correct base URL
+    // This handles environment variables for production (Vercel, etc.)
+    const baseURL = getBaseURL();
 
     // Construct the final destination URL
-    const finalDestination = redirectTo || `${origin}/teacher`;
+    // If redirectTo is provided and is absolute, use it; otherwise construct from baseURL
+    const finalDestination = redirectTo
+      ? redirectTo.startsWith("http")
+        ? redirectTo
+        : `${baseURL}${
+            redirectTo.startsWith("/") ? redirectTo.slice(1) : redirectTo
+          }`
+      : `${baseURL}/teacher`;
 
     // Ensure the callback URL is absolute and properly formatted
     // This must exactly match what's in Supabase's allowed redirect URLs
-    const callbackUrl = `${origin}/api/auth/callback?next=${encodeURIComponent(
+    const callbackUrl = `${baseURL}/api/auth/callback?next=${encodeURIComponent(
       finalDestination
     )}`;
 
     console.log("OAuth redirect URL:", callbackUrl); // Debug log
+    console.log("Base URL:", baseURL); // Debug log
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
