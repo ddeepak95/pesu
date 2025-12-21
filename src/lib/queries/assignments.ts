@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase";
 import { Assignment } from "@/types/assignment";
 import { nanoid } from "nanoid";
+import { softDeleteContentItemByRef } from "./contentItems";
 
 /**
  * Generate a unique short assignment ID
@@ -245,22 +246,48 @@ export async function updateAssignment(
 
 /**
  * Soft delete an assignment (sets status to 'deleted' instead of removing from database)
+ * Also deletes the associated content_item
  * Authorization is handled by RLS policies - allows class owner and co-teachers
  */
-export async function deleteAssignment(assignmentId: string): Promise<void> {
+export async function deleteAssignment(assignmentId: string, classId: string): Promise<void> {
   const supabase = createClient();
 
+  // Delete the assignment
   const { error } = await supabase
     .from("assignments")
-    .update({
-      status: "deleted",
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: "deleted", updated_at: new Date().toISOString() })
     .eq("id", assignmentId);
 
   if (error) {
-    console.error("Error deleting assignment:", error);
-    throw error;
+    console.error("Error deleting assignment:", {
+      error,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      assignmentId,
+    });
+    
+    // Provide more helpful error messages based on error codes
+    if (error.code === "42501" || error.code === "PGRST301") {
+      throw new Error("You don't have permission to delete this assignment. Only the class owner or co-teachers can delete assignments.");
+    } else if (error.code === "PGRST116") {
+      throw new Error("Assignment not found. It may have already been deleted.");
+    } else {
+      throw new Error(`Failed to delete assignment: ${error.message || error.code || "Unknown error"}`);
+    }
+  }
+
+  // Also delete the associated content_item
+  try {
+    await softDeleteContentItemByRef({
+      class_id: classId,
+      type: "formative_assignment",
+      ref_id: assignmentId,
+    });
+  } catch (contentItemError) {
+    console.error("Error deleting content item for assignment:", contentItemError);
+    // Don't throw - the assignment is already deleted, content item deletion is secondary
   }
 }
 

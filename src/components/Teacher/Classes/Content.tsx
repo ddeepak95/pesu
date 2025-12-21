@@ -7,6 +7,7 @@ import { ContentItem } from "@/types/contentItem";
 import {
   getContentItemsByGroup,
   updateContentItemPositions,
+  softDeleteContentItem,
 } from "@/lib/queries/contentItems";
 import { getAssignmentsByIdsForTeacher } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
@@ -304,6 +305,56 @@ export default function Content({ classData }: ContentProps) {
     setDuplicateOpen(true);
   };
 
+  const handleEdit = (item: ContentItem) => {
+    const backQs = selectedGroupId
+      ? `?tab=content&groupId=${selectedGroupId}`
+      : `?tab=content`;
+
+    if (item.type === "formative_assignment") {
+      const a = assignmentById[item.ref_id];
+      if (a) {
+        router.push(
+          `/teacher/classes/${classData.class_id}/assignments/${a.assignment_id}/edit${backQs}`
+        );
+        return;
+      }
+    }
+
+    if (item.type === "learning_content") {
+      const lc = learningContentById[item.ref_id];
+      if (lc) {
+        router.push(
+          `/teacher/classes/${classData.class_id}/learning-content/${lc.learning_content_id}/edit${backQs}`
+        );
+      }
+    }
+
+    if (item.type === "quiz") {
+      const q = quizById[item.ref_id];
+      if (q) {
+        router.push(
+          `/teacher/classes/${classData.class_id}/quizzes/${q.quiz_id}/edit${backQs}`
+        );
+      }
+    }
+  };
+
+  const handleDelete = async (item: ContentItem) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this item? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      await softDeleteContentItem(item.id);
+      // Optimistically remove from UI
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+    } catch (err) {
+      console.error("Error deleting content item:", err);
+      alert("Failed to delete item. Please try again.");
+    }
+  };
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
@@ -356,6 +407,11 @@ export default function Content({ classData }: ContentProps) {
 
                   const titleLoading = !resolvedTitle;
 
+                  const assessmentMode =
+                    item.type === "formative_assignment"
+                      ? assignmentById[item.ref_id]?.assessment_mode
+                      : undefined;
+
                   return (
                     <ContentCard
                       item={item}
@@ -364,8 +420,11 @@ export default function Content({ classData }: ContentProps) {
                       title={resolvedTitle}
                       titleLoading={titleLoading}
                       savingOrder={savingOrder}
+                      assessmentMode={assessmentMode}
                       onOpen={() => handleOpen(item)}
+                      onEdit={() => handleEdit(item)}
                       onDuplicate={() => openDuplicate(item)}
+                      onDelete={() => handleDelete(item)}
                       onMove={(direction) => handleMove(index, direction)}
                     />
                   );

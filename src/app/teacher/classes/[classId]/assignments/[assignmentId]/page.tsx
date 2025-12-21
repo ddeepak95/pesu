@@ -77,11 +77,20 @@ export default function AssignmentDetailPage() {
     if (!confirmed) return;
 
     try {
-      await deleteAssignment(assignmentData.id);
+      console.log("Deleting assignment:", {
+        id: assignmentData.id,
+        assignment_id: assignmentData.assignment_id,
+        class_id: assignmentData.class_id,
+      });
+      await deleteAssignment(assignmentData.id, assignmentData.class_id);
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting assignment:", err);
-      alert("Failed to delete assignment. Please try again.");
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to delete assignment. Please try again.";
+      alert(errorMessage);
     }
   };
 
