@@ -72,7 +72,7 @@ export default function SubmissionViewDialog({
     }
 
     // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
-    return submission.answers as { [key: number]: QuestionAnswers } | { [key: string]: QuestionAnswers };
+    return submission.answers as { [key: number | string]: QuestionAnswers };
   };
 
   const isNewFormat = (
@@ -159,8 +159,10 @@ export default function SubmissionViewDialog({
                 {assignment.questions
                   .sort((a, b) => a.order - b.order)
                   .map((question, index) => {
-                    // Handle both string and number keys
-                    const questionAnswers = answers[question.order] || answers[String(question.order)];
+                    // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
+                    const questionAnswers = 
+                      (answers[question.order] as QuestionAnswers | undefined) ||
+                      (answers[String(question.order)] as QuestionAnswers | undefined);
                     const attempts = questionAnswers?.attempts || [];
 
                     return (

@@ -320,7 +320,7 @@ export async function getQuestionAttempts(
   const attempts = answers[questionOrder]?.attempts || [];
   
   if (excludeStale) {
-    return attempts.filter((attempt) => !attempt.stale || attempt.stale === false);
+    return attempts.filter((attempt) => !attempt.stale);
   }
   
   return attempts;
@@ -443,7 +443,7 @@ export async function getMaxAttemptCountAcrossQuestions(
     if (qa.attempts) {
       // Count only non-stale attempts
       const nonStaleCount = qa.attempts.filter(
-        (attempt) => !attempt.stale || attempt.stale === false
+        (attempt) => !attempt.stale
       ).length;
       if (nonStaleCount > maxAttempts) {
         maxAttempts = nonStaleCount;
@@ -528,10 +528,7 @@ export function hasNonStaleAttempts(submission: Submission): boolean {
       // Check if there's at least one non-stale attempt
       // If stale is undefined/null, it's not stale (backward compatibility)
       const hasNonStale = qa.attempts.some(
-        (attempt) => {
-          const isNotStale = attempt.stale === undefined || attempt.stale === false || !attempt.stale;
-          return isNotStale;
-        }
+        (attempt) => !attempt.stale
       );
       
       if (hasNonStale) {

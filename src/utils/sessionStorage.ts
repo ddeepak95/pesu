@@ -5,7 +5,7 @@
 
 export interface AssignmentSession {
   submissionId: string;
-  studentName: string;
+  studentName?: string; // Optional - not always available, and we get it from submission anyway
   preferredLanguage: string;
   currentQuestionIndex: number;
   phase: "info" | "answering" | "completed";

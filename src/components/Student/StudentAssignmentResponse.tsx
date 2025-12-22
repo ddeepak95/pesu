@@ -148,7 +148,7 @@ export default function StudentAssignmentResponse({
 
               // Filter out stale attempts
               const nonStaleAttempts = questionAnswers.attempts.filter(
-                (attempt) => !attempt.stale || attempt.stale === false
+                (attempt) => !attempt.stale
               );
 
               if (!nonStaleAttempts.length) return;
@@ -308,7 +308,7 @@ export default function StudentAssignmentResponse({
 
           // Filter out stale attempts
           const nonStaleAttempts = questionAnswers.attempts.filter(
-            (attempt) => !attempt.stale || attempt.stale === false
+            (attempt) => !attempt.stale
           );
 
           if (!nonStaleAttempts.length) return;

@@ -192,10 +192,10 @@ export default function AssignmentResponse({
       if (submission.status === "completed") {
         // Submission is completed, show completion screen
         setSubmissionId(submission.submission_id);
-        setStudentName(submission.student_name);
+        setStudentName(submission.student_name || "");
         setPreferredLanguage(submission.preferred_language);
         if (onStudentNameChange) {
-          onStudentNameChange(submission.student_name);
+          onStudentNameChange(submission.student_name || "");
         }
         setPhase("completed");
         setRestoringSession(false);
@@ -204,10 +204,10 @@ export default function AssignmentResponse({
 
       // Restore in-progress submission
       setSubmissionId(submission.submission_id);
-      setStudentName(submission.student_name);
+      setStudentName(submission.student_name || "");
       setPreferredLanguage(submission.preferred_language);
       if (onStudentNameChange) {
-        onStudentNameChange(submission.student_name);
+        onStudentNameChange(submission.student_name || "");
       }
 
       // Reconstruct answers from submission data (supports both formats)
@@ -274,7 +274,7 @@ export default function AssignmentResponse({
       // Save/update localStorage
       saveSession(assignmentId, {
         submissionId: submission.submission_id,
-        studentName: submission.student_name,
+        studentName: submission.student_name || undefined,
         preferredLanguage: submission.preferred_language,
         currentQuestionIndex: questionIndex,
         phase: "answering",
@@ -466,7 +466,6 @@ export default function AssignmentResponse({
               onAnswerSave={handleAnswerSave}
               onPrevious={handlePrevious}
               onNext={handleNext}
-              onSubmit={handleSubmit}
               isFirstQuestion={currentQuestionIndex === 0}
               isLastQuestion={isLastQuestion}
               existingAnswer={answers[currentQuestion.order]}
@@ -485,7 +484,6 @@ export default function AssignmentResponse({
               onAnswerSave={handleAnswerSave}
               onPrevious={handlePrevious}
               onNext={handleNext}
-              onSubmit={handleSubmit}
               isFirstQuestion={currentQuestionIndex === 0}
               isLastQuestion={isLastQuestion}
               existingAnswer={answers[currentQuestion.order]}
