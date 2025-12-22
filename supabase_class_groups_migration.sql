@@ -5,6 +5,20 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Helper: Check if current user is a student enrolled in a class (bypasses RLS)
+CREATE OR REPLACE FUNCTION is_class_student(p_class_id UUID)
+RETURNS BOOLEAN
+LANGUAGE SQL
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM class_students 
+    WHERE class_id = p_class_id 
+    AND student_id = auth.uid()
+  );
+$$;
+
 -- Add group_count to classes
 ALTER TABLE classes
   ADD COLUMN IF NOT EXISTS group_count INTEGER NOT NULL DEFAULT 1 CHECK (group_count >= 1);
@@ -221,6 +235,15 @@ ALTER TABLE class_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_group_memberships ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "Teachers can view class groups" ON class_groups;
+DROP POLICY IF EXISTS "Owner can manage class groups" ON class_groups;
+DROP POLICY IF EXISTS "Student can join class" ON class_students;
+DROP POLICY IF EXISTS "Student can view their enrollment" ON class_students;
+DROP POLICY IF EXISTS "Teachers can view class students" ON class_students;
+DROP POLICY IF EXISTS "Student can view their membership" ON class_group_memberships;
+DROP POLICY IF EXISTS "Teachers can view class memberships" ON class_group_memberships;
+
 -- Teachers (owner or co-teacher) can view groups and memberships
 CREATE POLICY "Teachers can view class groups" ON class_groups
   FOR SELECT
@@ -249,6 +272,11 @@ CREATE POLICY "Owner can manage class groups" ON class_groups
 CREATE POLICY "Student can join class" ON class_students
   FOR INSERT
   WITH CHECK (auth.uid() = student_id);
+
+-- Students can view their own enrollment records
+CREATE POLICY "Student can view their enrollment" ON class_students
+  FOR SELECT
+  USING (auth.uid() = student_id);
 
 CREATE POLICY "Teachers can view class students" ON class_students
   FOR SELECT
@@ -287,4 +315,16 @@ CREATE POLICY "Teachers can view class memberships" ON class_group_memberships
       )
     )
   );
+
+-- =====================================================
+-- PART 3: Update classes table RLS to allow students
+-- =====================================================
+
+-- Policy: Students can view classes they're enrolled in
+-- Uses helper function to avoid circular RLS dependency
+DROP POLICY IF EXISTS "Students can view their classes" ON classes;
+CREATE POLICY "Students can view their classes" ON classes
+  FOR SELECT
+  USING (is_class_student(id));
+
 

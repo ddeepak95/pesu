@@ -89,7 +89,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    router.push("/teacher/login");
+    // Determine redirect based on current path
+    if (typeof window !== "undefined") {
+      const currentPath = window.location.pathname;
+      if (currentPath.startsWith("/students")) {
+        router.push("/students/login");
+      } else {
+        router.push("/teacher/login");
+      }
+    } else {
+      // Fallback if window is not available
+      router.push("/teacher/login");
+    }
   };
 
   return (

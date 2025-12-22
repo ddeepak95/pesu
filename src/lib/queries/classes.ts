@@ -196,3 +196,50 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
   return data;
 }
 
+/**
+ * Get all classes for a specific student (enrolled in)
+ * Only returns active classes (excludes deleted ones)
+ */
+export async function getClassesByStudent(studentId: string): Promise<Class[]> {
+  const supabase = createClient();
+
+  console.log("Fetching classes for student:", studentId);
+
+  // Get class IDs from class_students table
+  const { data: studentRows, error: studentError } = await supabase
+    .from("class_students")
+    .select("class_id")
+    .eq("student_id", studentId);
+
+  if (studentError) {
+    console.error("Error fetching class_students rows:", studentError);
+    throw studentError;
+  }
+
+  const classDbIds = Array.from(
+    new Set((studentRows || []).map((r) => (r as { class_id: string }).class_id))
+  ).filter(Boolean);
+
+  if (classDbIds.length === 0) {
+    return [];
+  }
+
+  // Fetch the actual class data
+  const { data: classes, error: classesError } = await supabase
+    .from("classes")
+    .select("*")
+    .in("id", classDbIds)
+    .eq("status", "active");
+
+  if (classesError) {
+    console.error("Error fetching student classes:", classesError);
+    throw classesError;
+  }
+
+  const result = (classes || []) as Class[];
+  const sorted = result.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  console.log("Student classes fetched successfully:", sorted);
+  return sorted;
+}
+

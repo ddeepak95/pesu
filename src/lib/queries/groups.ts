@@ -36,3 +36,32 @@ export async function reconfigureClassGroups(params: {
   if (error) throw error;
 }
 
+/**
+ * Get the group ID for a student in a specific class
+ * Returns the group ID or null if student is not enrolled or not assigned to a group
+ */
+export async function getStudentGroupForClass(
+  classDbId: string,
+  studentId: string
+): Promise<string | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("class_group_memberships")
+    .select("group_id")
+    .eq("class_id", classDbId)
+    .eq("student_id", studentId)
+    .single();
+
+  if (error) {
+    // If no membership found, return null (not an error)
+    if (error.code === "PGRST116") {
+      return null;
+    }
+    throw error;
+  }
+
+  return (data as { group_id: string })?.group_id ?? null;
+}
+
+
