@@ -14,8 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
-import { Question, RubricItem } from "@/types/assignment";
+import { Question, RubricItem, ResponderFieldConfig } from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
+import { Trash2, Plus } from "lucide-react";
 
 interface AssignmentFormProps {
   mode: "create" | "edit";
@@ -26,6 +27,8 @@ interface AssignmentFormProps {
   initialLanguage?: string;
   initialIsPublic?: boolean;
   initialAssessmentMode?: "voice" | "text_chat" | "static_text";
+  initialResponderFieldsConfig?: ResponderFieldConfig[];
+  initialMaxAttempts?: number;
   onSubmit: (data: {
     title: string;
     questions: Question[];
@@ -34,6 +37,8 @@ interface AssignmentFormProps {
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
+    responderFieldsConfig?: ResponderFieldConfig[];
+    maxAttempts?: number;
   }) => Promise<void>;
 }
 
@@ -57,6 +62,8 @@ export default function AssignmentForm({
   initialLanguage = "en",
   initialIsPublic = false,
   initialAssessmentMode = "voice",
+  initialResponderFieldsConfig,
+  initialMaxAttempts = 1,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -68,6 +75,20 @@ export default function AssignmentForm({
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >(initialAssessmentMode);
+  const [maxAttempts, setMaxAttempts] = useState(initialMaxAttempts);
+  const [responderFieldsConfig, setResponderFieldsConfig] = useState<
+    ResponderFieldConfig[]
+  >(
+    initialResponderFieldsConfig || [
+      {
+        field: "name",
+        type: "text",
+        label: "Your Name",
+        required: true,
+        placeholder: "Enter your name",
+      },
+    ]
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -240,6 +261,8 @@ export default function AssignmentForm({
         isPublic,
         assessmentMode,
         isDraft,
+        responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
+        maxAttempts,
       });
 
       // Navigate based on mode
@@ -321,6 +344,29 @@ export default function AssignmentForm({
         </Select>
       </div>
 
+      {/* Max Attempts */}
+      <div className="space-y-2">
+        <Label htmlFor="maxAttempts">Maximum Attempts</Label>
+        <Input
+          id="maxAttempts"
+          type="number"
+          min="1"
+          value={maxAttempts}
+          onChange={(e) => {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value) && value >= 1) {
+              setMaxAttempts(value);
+            }
+          }}
+          disabled={loading}
+          placeholder="1"
+        />
+        <p className="text-sm text-muted-foreground">
+          Number of attempts students can make for this assignment. Default is 1
+          (single attempt).
+        </p>
+      </div>
+
       {/* Draft Toggle */}
       <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
         <Checkbox
@@ -364,6 +410,187 @@ export default function AssignmentForm({
           </p>
         </div>
       </div>
+
+      {/* Responder Fields Configuration (only for public assignments) */}
+      {isPublic && (
+        <div className="space-y-4 p-4 border rounded-md">
+          <div className="space-y-2">
+            <Label>Responder Information Fields</Label>
+            <p className="text-sm text-muted-foreground">
+              Configure what information to collect from public responders
+            </p>
+          </div>
+
+          {responderFieldsConfig.map((field, index) => (
+            <div key={index} className="p-4 border rounded-md space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Field {index + 1}</Label>
+                {responderFieldsConfig.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newFields = responderFieldsConfig.filter(
+                        (_, i) => i !== index
+                      );
+                      setResponderFieldsConfig(newFields);
+                    }}
+                    disabled={loading}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`field-${index}-label`}>Label</Label>
+                  <Input
+                    id={`field-${index}-label`}
+                    value={field.label}
+                    onChange={(e) => {
+                      const newFields = [...responderFieldsConfig];
+                      newFields[index].label = e.target.value;
+                      setResponderFieldsConfig(newFields);
+                    }}
+                    placeholder="e.g., Full Name"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor={`field-${index}-type`}>Type</Label>
+                  <Select
+                    value={field.type}
+                    onValueChange={(value) => {
+                      const newFields = [...responderFieldsConfig];
+                      newFields[index].type =
+                        value as ResponderFieldConfig["type"];
+                      // Clear options if not select type
+                      if (value !== "select") {
+                        delete newFields[index].options;
+                      }
+                      setResponderFieldsConfig(newFields);
+                    }}
+                    disabled={loading}
+                  >
+                    <SelectTrigger id={`field-${index}-type`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">Text</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="tel">Phone</SelectItem>
+                      <SelectItem value="select">Select (Dropdown)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`field-${index}-field`}>Field Identifier</Label>
+                <Input
+                  id={`field-${index}-field`}
+                  value={field.field}
+                  onChange={(e) => {
+                    const newFields = [...responderFieldsConfig];
+                    newFields[index].field = e.target.value;
+                    setResponderFieldsConfig(newFields);
+                  }}
+                  placeholder="e.g., name, email, organization"
+                  disabled={loading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Unique identifier for this field (used in data storage)
+                </p>
+              </div>
+
+              {field.type === "select" && (
+                <div className="space-y-2">
+                  <Label htmlFor={`field-${index}-options`}>
+                    Options (one per line)
+                  </Label>
+                  <textarea
+                    id={`field-${index}-options`}
+                    className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md"
+                    value={field.options?.join("\n") || ""}
+                    onChange={(e) => {
+                      const newFields = [...responderFieldsConfig];
+                      newFields[index].options = e.target.value
+                        .split("\n")
+                        .map((line) => line.trim())
+                        .filter((line) => line.length > 0);
+                      setResponderFieldsConfig(newFields);
+                    }}
+                    placeholder="Option 1&#10;Option 2&#10;Option 3"
+                    disabled={loading}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`field-${index}-required`}
+                    checked={field.required}
+                    onCheckedChange={(checked) => {
+                      const newFields = [...responderFieldsConfig];
+                      newFields[index].required = checked === true;
+                      setResponderFieldsConfig(newFields);
+                    }}
+                    disabled={loading}
+                  />
+                  <Label
+                    htmlFor={`field-${index}-required`}
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Required field
+                  </Label>
+                </div>
+
+                {field.type !== "select" && (
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor={`field-${index}-placeholder`}>
+                      Placeholder
+                    </Label>
+                    <Input
+                      id={`field-${index}-placeholder`}
+                      value={field.placeholder || ""}
+                      onChange={(e) => {
+                        const newFields = [...responderFieldsConfig];
+                        newFields[index].placeholder = e.target.value;
+                        setResponderFieldsConfig(newFields);
+                      }}
+                      placeholder="Optional placeholder text"
+                      disabled={loading}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const newField: ResponderFieldConfig = {
+                field: `field_${responderFieldsConfig.length + 1}`,
+                type: "text",
+                label: "",
+                required: false,
+              };
+              setResponderFieldsConfig([...responderFieldsConfig, newField]);
+            }}
+            disabled={loading}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Field
+          </Button>
+        </div>
+      )}
 
       {/* Questions */}
       <div className="space-y-4">

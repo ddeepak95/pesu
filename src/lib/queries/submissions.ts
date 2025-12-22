@@ -17,31 +17,99 @@ function generateSubmissionId(): string {
 /**
  * Create a new submission record
  * Initializes with empty answers array and in_progress status
+ * 
+ * @param assignmentId - The assignment ID
+ * @param preferredLanguage - Preferred language for the submission
+ * @param studentId - Optional: Student ID for authenticated submissions
+ * @param responderDetails - Optional: Responder details for public submissions
  */
 export async function createSubmission(
   assignmentId: string,
-  studentName: string,
-  preferredLanguage: string
+  preferredLanguage: string,
+  options?: {
+    studentId?: string;
+    responderDetails?: Record<string, any>;
+  }
 ): Promise<Submission> {
   const supabase = createClient();
   const submissionId = generateSubmissionId();
 
+  // Build responder_details
+  let responderDetails: Record<string, any> | undefined;
+  let studentName: string | undefined;
+
+  if (options?.studentId) {
+    // Authenticated student: get display name from user metadata
+    const { data: userData } = await supabase.auth.getUser();
+    const displayName =
+      userData?.user?.user_metadata?.display_name ||
+      userData?.user?.user_metadata?.name ||
+      userData?.user?.email?.split("@")[0] ||
+      "Student";
+    responderDetails = { name: displayName };
+    studentName = displayName; // For backward compatibility
+  } else if (options?.responderDetails) {
+    // Public submission: use provided responder details
+    responderDetails = options.responderDetails;
+    studentName = responderDetails.name || responderDetails.email || "Responder"; // For backward compatibility
+  } else {
+    throw new Error("Either studentId or responderDetails must be provided");
+  }
+
+  const insertData: any = {
+    submission_id: submissionId,
+    assignment_id: assignmentId,
+    preferred_language: preferredLanguage,
+    answers: {},
+    status: "in_progress",
+    responder_details: responderDetails,
+  };
+
+  // Add student_id if provided
+  if (options?.studentId) {
+    insertData.student_id = options.studentId;
+  }
+
+  // Add student_name for backward compatibility
+  if (studentName) {
+    insertData.student_name = studentName;
+  }
+
   const { data, error } = await supabase
     .from("submissions")
-    .insert({
-      submission_id: submissionId,
-      assignment_id: assignmentId,
-      student_name: studentName,
-      preferred_language: preferredLanguage,
-      answers: {},
-      status: "in_progress",
-    })
+    .insert(insertData)
     .select()
     .single();
 
   if (error) {
     console.error("Error creating submission:", error);
     throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Get submission by student ID and assignment ID (for authenticated students)
+ */
+export async function getSubmissionByStudentAndAssignment(
+  studentId: string,
+  assignmentId: string
+): Promise<Submission | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("*")
+    .eq("student_id", studentId)
+    .eq("assignment_id", assignmentId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching submission:", error);
+    return null;
   }
 
   return data;
@@ -303,6 +371,107 @@ export async function selectAttemptForGrading(
 
   if (error) {
     console.error("Error updating submission:", error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Get the number of attempts for a specific question
+ */
+export async function getAttemptCountForQuestion(
+  submissionId: string,
+  questionOrder: number
+): Promise<number> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("answers")
+    .eq("submission_id", submissionId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching submission:", error);
+    return 0;
+  }
+
+  let answers = data.answers as
+    | { [key: number]: QuestionAnswers }
+    | SubmissionAnswer[];
+
+  if (!isNewFormat(answers)) {
+    answers = convertToNewFormat(answers);
+  }
+
+  const questionAnswers = answers[questionOrder];
+  if (!questionAnswers || !questionAnswers.attempts) {
+    return 0;
+  }
+
+  return questionAnswers.attempts.length;
+}
+
+/**
+ * Get the maximum number of attempts across all questions in a submission
+ * This represents how many times the student has attempted the assignment
+ */
+export async function getMaxAttemptCountAcrossQuestions(
+  submissionId: string
+): Promise<number> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("answers")
+    .eq("submission_id", submissionId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching submission:", error);
+    return 0;
+  }
+
+  let answers = data.answers as
+    | { [key: number]: QuestionAnswers }
+    | SubmissionAnswer[];
+
+  if (!isNewFormat(answers)) {
+    answers = convertToNewFormat(answers);
+  }
+
+  let maxAttempts = 0;
+  Object.values(answers).forEach((questionAnswers) => {
+    const qa = questionAnswers as QuestionAnswers;
+    if (qa.attempts && qa.attempts.length > maxAttempts) {
+      maxAttempts = qa.attempts.length;
+    }
+  });
+
+  return maxAttempts;
+}
+
+/**
+ * Reset submission status to in_progress to allow retake
+ */
+export async function resetSubmissionForRetake(
+  submissionId: string
+): Promise<Submission> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .update({
+      status: "in_progress",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("submission_id", submissionId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error resetting submission:", error);
     throw error;
   }
 

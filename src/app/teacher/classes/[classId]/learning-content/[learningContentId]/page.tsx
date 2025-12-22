@@ -20,46 +20,7 @@ import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
 import { LearningContent } from "@/types/learningContent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-function getYouTubeEmbedUrl(rawUrl: string): string | null {
-  try {
-    const url = new URL(rawUrl);
-
-    // youtu.be/<id>
-    if (url.hostname === "youtu.be") {
-      const id = url.pathname.replace("/", "").trim();
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-
-    // youtube.com
-    if (
-      url.hostname === "www.youtube.com" ||
-      url.hostname === "youtube.com" ||
-      url.hostname === "m.youtube.com"
-    ) {
-      // /watch?v=<id>
-      if (url.pathname === "/watch") {
-        const id = url.searchParams.get("v");
-        return id ? `https://www.youtube.com/embed/${id}` : null;
-      }
-
-      // /embed/<id>
-      if (url.pathname.startsWith("/embed/")) {
-        const id = url.pathname.split("/embed/")[1]?.split("/")[0]?.trim();
-        return id ? `https://www.youtube.com/embed/${id}` : null;
-      }
-
-      // /shorts/<id>
-      if (url.pathname.startsWith("/shorts/")) {
-        const id = url.pathname.split("/shorts/")[1]?.split("/")[0]?.trim();
-        return id ? `https://www.youtube.com/embed/${id}` : null;
-      }
-    }
-  } catch {
-    // ignore invalid URLs
-  }
-
-  return null;
-}
+import YouTubeEmbed from "@/components/Shared/YouTubeEmbed";
 
 export default function LearningContentDetailPage() {
   const params = useParams();
@@ -147,10 +108,6 @@ export default function LearningContentDetailPage() {
     );
   }
 
-  const youtubeEmbedUrl = content.video_url
-    ? getYouTubeEmbedUrl(content.video_url)
-    : null;
-
   return (
     <PageLayout>
       <div className="border-b">
@@ -190,36 +147,10 @@ export default function LearningContentDetailPage() {
                   <CardTitle className="text-lg">Video</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {youtubeEmbedUrl ? (
-                    <div className="space-y-3">
-                      <div className="relative w-full pt-[56.25%] overflow-hidden rounded-md border">
-                        <iframe
-                          className="absolute inset-0 h-full w-full"
-                          src={youtubeEmbedUrl}
-                          title="YouTube video preview"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                          allowFullScreen
-                        />
-                      </div>
-                      <a
-                        className="text-sm underline underline-offset-4"
-                        href={content.video_url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open on YouTube
-                      </a>
-                    </div>
-                  ) : (
-                    <a
-                      className="text-sm underline underline-offset-4"
-                      href={content.video_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {content.video_url}
-                    </a>
-                  )}
+                  <YouTubeEmbed
+                    videoUrl={content.video_url}
+                    title={content.title}
+                  />
                 </CardContent>
               </Card>
             )}

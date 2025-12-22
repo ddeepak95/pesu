@@ -1,27 +1,17 @@
 "use client";
 
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Bot, Send } from "lucide-react";
 import { Question } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
-import { supportedLanguages } from "@/utils/supportedLanguages";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
+import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
+import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCard";
+import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
+import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
+import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 
 interface ChatMessage {
   id: string;
@@ -39,11 +29,13 @@ interface ChatAssessmentProps {
   onAnswerSave: (answer: string) => void;
   onPrevious?: () => void;
   onNext?: () => void;
-  onSubmit?: () => void;
   isFirstQuestion: boolean;
   isLastQuestion: boolean;
   existingAnswer?: string;
   onLanguageChange?: (language: string) => void;
+  currentAttemptNumber?: number;
+  maxAttempts?: number;
+  maxAttemptsReached?: boolean;
 }
 
 export function ChatAssessment({
@@ -56,11 +48,13 @@ export function ChatAssessment({
   onAnswerSave,
   onPrevious,
   onNext,
-  onSubmit,
   isFirstQuestion,
   isLastQuestion,
   existingAnswer,
   onLanguageChange,
+  currentAttemptNumber,
+  maxAttempts,
+  maxAttemptsReached,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -68,6 +62,7 @@ export function ChatAssessment({
   const [isSending, setIsSending] = React.useState(false);
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
+  
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const messagesContainerRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -121,7 +116,7 @@ export function ChatAssessment({
       // ignore storage errors
     }
   }, [storageKey]);
-
+  
   // Load existing attempts for this question
   React.useEffect(() => {
     setAttempts([]);
@@ -191,6 +186,12 @@ export function ChatAssessment({
   };
 
   const handleStartChat = async () => {
+    // Prevent starting new chat if max attempts reached
+    if (maxAttemptsReached) {
+      alert("You have reached the maximum number of attempts for this question.");
+      return;
+    }
+
     setIsStarting(true);
     try {
       // If there is already an in-progress conversation (e.g., restored from storage),
@@ -296,6 +297,12 @@ export function ChatAssessment({
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
+
+    // Prevent sending messages if max attempts reached
+    if (maxAttemptsReached) {
+      alert("You have reached the maximum number of attempts for this question.");
+      return;
+    }
 
     // If a previous response is streaming, abort it so the user can interrupt
     if (activeRequestAbortRef.current) {
@@ -415,6 +422,12 @@ export function ChatAssessment({
       return;
     }
 
+    // Prevent evaluating if max attempts reached
+    if (maxAttemptsReached) {
+      alert("You have reached the maximum number of attempts for this question.");
+      return;
+    }
+
     setIsEvaluating(true);
     try {
       const response = await fetch("/api/evaluate", {
@@ -469,7 +482,7 @@ export function ChatAssessment({
     }
   };
 
-  const handleSaveAndNavigate = (action: "previous" | "next" | "submit") => {
+  const handleSaveAndNavigate = (action: "previous" | "next") => {
     const answerText = aggregateStudentAnswer().trim();
     if (answerText) {
       onAnswerSave(answerText);
@@ -479,8 +492,6 @@ export function ChatAssessment({
       onPrevious();
     } else if (action === "next" && onNext) {
       onNext();
-    } else if (action === "submit" && onSubmit) {
-      onSubmit();
     }
   };
 
@@ -488,325 +499,160 @@ export function ChatAssessment({
 
   return (
     <div className="space-y-6">
-      {/* Question Number and Language Selector */}
-      <div className="flex items-center justify-between">
-        <p className="text-lg font-medium">
-          Question ({questionNumber}/{totalQuestions})
-        </p>
+      <AssessmentQuestionHeader
+        questionNumber={questionNumber}
+        totalQuestions={totalQuestions}
+        language={language}
+        onLanguageChange={onLanguageChange}
+        languageDisabled={hasStarted}
+      />
 
-        {onLanguageChange && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Language:</span>
-            <Select
-              value={language}
-              onValueChange={onLanguageChange}
-              disabled={hasStarted}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {supportedLanguages.map((lang) => (
-                  <SelectItem key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-
-      {/* Question Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Prompt</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="whitespace-pre-wrap">{question.prompt}</p>
-
-          {/* View Rubric Accordion */}
-          {question.rubric && question.rubric.length > 0 && (
-            <Accordion type="single" collapsible>
-              <AccordionItem value="rubric">
-                <AccordionTrigger>View Rubric</AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-2">
-                    {question.rubric.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex justify-between items-start gap-4 p-3 bg-muted/50 rounded-md"
-                      >
-                        <span className="flex-1">{item.item}</span>
-                        <span className="font-semibold text-sm whitespace-nowrap">
-                          {item.points} pts
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          )}
-
-          {/* Chat Area */}
-          <div className="mt-4 border rounded-xl bg-background shadow-sm">
-            {!hasStarted ? (
-              <div className="flex flex-col items-center justify-center py-16 px-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <Bot className="h-6 w-6 text-primary" />
-                </div>
-                <p className="mb-4 text-sm text-muted-foreground text-center max-w-md">
-                  Click &quot;Start Chat&quot; to begin a conversation with the
-                  tutor about this question. You can type your answer and get
-                  feedback step by step.
-                </p>
-                <Button onClick={handleStartChat} disabled={isStarting}>
-                  {isStarting ? "Starting..." : "Start Chat"}
-                </Button>
+      <AssessmentQuestionCard question={question}>
+        {/* Chat Area */}
+        <div className="mt-4 border rounded-xl bg-background shadow-sm">
+          {!hasStarted ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Bot className="h-6 w-6 text-primary" />
               </div>
-            ) : (
-              <>
-                {/* Messages Container */}
-                <div
-                  ref={messagesContainerRef}
-                  className="h-96 overflow-y-auto p-4 space-y-4 bg-muted/20"
-                >
-                  {messages.map((message) => (
+              <p className="mb-4 text-sm text-muted-foreground text-center max-w-md">
+                Click &quot;Start Chat&quot; to begin a conversation with the
+                tutor about this question. You can type your answer and get
+                feedback step by step.
+              </p>
+              <Button 
+                onClick={handleStartChat} 
+                disabled={isStarting || maxAttemptsReached}
+              >
+                {isStarting ? "Starting..." : "Start Chat"}
+              </Button>
+              {maxAttemptsReached && (
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Maximum attempts reached. You can view your previous attempts below.
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Messages Container */}
+              <div
+                ref={messagesContainerRef}
+                className="h-96 overflow-y-auto p-4 space-y-4 bg-muted/20"
+              >
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex items-end gap-2 ${
+                      message.role === "student"
+                        ? "flex-row-reverse"
+                        : "flex-row"
+                    }`}
+                  >
+                    {/* Avatar */}
+                    {message.role === "assistant" && (
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Bot className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+
+                    {/* Message Bubble */}
                     <div
-                      key={message.id}
-                      className={`flex items-end gap-2 ${
+                      className={`max-w-[75%] px-4 py-2.5 text-sm whitespace-pre-wrap shadow-sm ${
                         message.role === "student"
-                          ? "flex-row-reverse"
-                          : "flex-row"
+                          ? "bg-primary text-primary-foreground rounded-2xl rounded-br-md"
+                          : "bg-card border border-border text-card-foreground rounded-2xl rounded-bl-md"
                       }`}
                     >
-                      {/* Avatar */}
-                      {message.role === "assistant" && (
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Bot className="h-4 w-4 text-primary" />
-                        </div>
-                      )}
-
-                      {/* Message Bubble */}
-                      <div
-                        className={`max-w-[75%] px-4 py-2.5 text-sm whitespace-pre-wrap shadow-sm ${
-                          message.role === "student"
-                            ? "bg-primary text-primary-foreground rounded-2xl rounded-br-md"
-                            : "bg-card border border-border text-card-foreground rounded-2xl rounded-bl-md"
-                        }`}
-                      >
-                        {message.content || (
-                          <span className="inline-flex items-center gap-1">
-                            <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                            <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                            <span className="w-2 h-2 bg-current rounded-full animate-bounce"></span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Student Avatar Placeholder (for alignment) */}
-                      {message.role === "student" && (
-                        <div className="w-8 h-8 flex-shrink-0" />
+                      {message.content || (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                          <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                          <span className="w-2 h-2 bg-current rounded-full animate-bounce"></span>
+                        </span>
                       )}
                     </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
 
-                {/* Input Area */}
-                <div className="p-4 border-t bg-background rounded-b-xl">
-                  <div className="flex gap-2 items-end">
-                    <Textarea
-                      ref={textareaRef}
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-                      rows={2}
-                      className="resize-none flex-1 min-h-[60px] max-h-32"
-                    />
-                    <Button
-                      type="button"
-                      size="icon"
-                      onClick={handleSend}
-                      disabled={!input.trim()}
-                      className="h-10 w-10 flex-shrink-0"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
+                    {/* Student Avatar Placeholder (for alignment) */}
+                    {message.role === "student" && (
+                      <div className="w-8 h-8 flex-shrink-0" />
+                    )}
                   </div>
-                  <div className="flex justify-end mt-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleEvaluate}
-                      disabled={isEvaluating || !hasStarted}
-                    >
-                      {isEvaluating ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Evaluating...
-                        </>
-                      ) : (
-                        "Finish & Evaluate"
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Evaluating State */}
-          {isEvaluating && (
-            <div className="mt-4 p-4 border rounded-md text-center">
-              <Loader2 className="h-5 w-5 mx-auto animate-spin text-muted-foreground" />
-              <p className="text-xs mt-1">
-                Please wait while we evaluate your answer. This takes up to a
-                minute.
-              </p>
-            </div>
-          )}
-
-          {/* Attempts Section */}
-          {attempts.length > 0 && (
-            <div className="mt-4 border rounded-lg">
-              <div className="p-3 bg-muted/30 border-b">
-                <p className="text-sm font-semibold">Attempts</p>
+                ))}
+                <div ref={messagesEndRef} />
               </div>
-              <Accordion type="single" collapsible className="w-full">
-                {attempts.map((attempt) => {
-                  const scorePercentage =
-                    (attempt.score / attempt.max_score) * 100;
-                  const getScoreColor = (percentage: number) => {
-                    if (percentage >= 75)
-                      return "text-green-600 dark:text-green-400";
-                    if (percentage >= 50)
-                      return "text-yellow-600 dark:text-yellow-400";
-                    return "text-red-600 dark:text-red-400";
-                  };
 
-                  return (
-                    <AccordionItem
-                      key={attempt.attempt_number}
-                      value={`attempt-${attempt.attempt_number}`}
-                      className="border-b last:border-b-0"
-                    >
-                      <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
-                        <div className="flex items-center justify-between w-full pr-2">
-                          <span className="text-sm font-medium">
-                            Attempt {attempt.attempt_number}
-                          </span>
-                          <span
-                            className={`text-sm font-semibold ${getScoreColor(
-                              scorePercentage
-                            )}`}
-                          >
-                            {attempt.score}/{attempt.max_score}
-                          </span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4">
-                        {/* Overall Feedback */}
-                        {attempt.evaluation_feedback && (
-                          <div className="mb-4 p-3 bg-muted/50 rounded-md">
-                            <p className="text-xs font-semibold mb-2">
-                              Overall Feedback:
-                            </p>
-                            <p className="text-sm whitespace-pre-wrap">
-                              {attempt.evaluation_feedback}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Rubric Breakdown */}
-                        {attempt.rubric_scores &&
-                          attempt.rubric_scores.length > 0 && (
-                            <div className="space-y-2 mb-4">
-                              <p className="text-xs font-semibold">
-                                Rubric Breakdown:
-                              </p>
-                              {attempt.rubric_scores.map((rubricItem, idx) => {
-                                const itemPercentage =
-                                  (rubricItem.points_earned /
-                                    rubricItem.points_possible) *
-                                  100;
-                                return (
-                                  <div
-                                    key={idx}
-                                    className="p-2 bg-muted/30 rounded-md space-y-1"
-                                  >
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm font-medium">
-                                        {rubricItem.item}
-                                      </span>
-                                      <span
-                                        className={`text-sm font-semibold ${
-                                          itemPercentage >= 75
-                                            ? "text-green-600 dark:text-green-400"
-                                            : itemPercentage >= 50
-                                            ? "text-yellow-600 dark:text-yellow-400"
-                                            : "text-red-600 dark:text-red-400"
-                                        }`}
-                                      >
-                                        {rubricItem.points_earned}/
-                                        {rubricItem.points_possible} pts
-                                      </span>
-                                    </div>
-                                    {rubricItem.feedback && (
-                                      <p className="text-xs text-muted-foreground">
-                                        {rubricItem.feedback}
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                        {/* Timestamp */}
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(attempt.timestamp).toLocaleString()}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between gap-4">
-        <Button
-          onClick={() => handleSaveAndNavigate("previous")}
-          disabled={isFirstQuestion}
-          variant="outline"
-          size="lg"
-        >
-          Previous Question
-        </Button>
-
-        <div className="flex gap-4">
-          {!isLastQuestion && (
-            <Button onClick={() => handleSaveAndNavigate("next")} size="lg">
-              Next Question
-            </Button>
-          )}
-          {isLastQuestion && (
-            <Button
-              onClick={() => handleSaveAndNavigate("submit")}
-              size="lg"
-              variant="default"
-            >
-              Submit Assignment
-            </Button>
+              {/* Input Area */}
+              <div className="p-4 border-t bg-background rounded-b-xl">
+                <div className="flex gap-2 items-end">
+                  <Textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={
+                      maxAttemptsReached
+                        ? "Maximum attempts reached. You can view your previous attempts below."
+                        : "Type your message... (Enter to send, Shift+Enter for new line)"
+                    }
+                    rows={2}
+                    className="resize-none flex-1 min-h-[60px] max-h-32"
+                    disabled={maxAttemptsReached}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={!input.trim() || maxAttemptsReached}
+                    className="h-10 w-10 flex-shrink-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex justify-end mt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleEvaluate}
+                    disabled={isEvaluating || !hasStarted || maxAttemptsReached}
+                  >
+                    {isEvaluating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Evaluating...
+                      </>
+                    ) : (
+                      "Finish & Evaluate"
+                    )}
+                  </Button>
+                  {maxAttemptsReached && (
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      Maximum attempts reached. You can view your previous attempts below.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
-      </div>
+
+        {/* Evaluating State */}
+        {isEvaluating && <EvaluatingIndicator />}
+
+        {/* Attempts Section */}
+        <AttemptsPanel
+          attempts={attempts}
+          maxAttempts={maxAttempts}
+          maxAttemptsReached={maxAttemptsReached}
+        />
+      </AssessmentQuestionCard>
+
+      {/* Navigation Buttons */}
+      <AssessmentNavigation
+        isFirstQuestion={isFirstQuestion}
+        isLastQuestion={isLastQuestion}
+        onPrevious={() => handleSaveAndNavigate("previous")}
+        onNext={() => handleSaveAndNavigate("next")}
+      />
     </div>
   );
 }

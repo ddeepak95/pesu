@@ -11,6 +11,15 @@ export interface Question {
   supporting_content: string;
 }
 
+export interface ResponderFieldConfig {
+  field: string; // unique field identifier (e.g., "name", "email", "organization")
+  type: "text" | "email" | "tel" | "select";
+  label: string; // display label
+  required: boolean;
+  placeholder?: string;
+  options?: string[]; // for select type
+}
+
 export interface Assignment {
   id: string;
   assignment_id: string;
@@ -30,5 +39,15 @@ export interface Assignment {
    * Defaults to "voice" for legacy assignments where this field is missing.
    */
   assessment_mode?: "voice" | "text_chat" | "static_text";
+  /**
+   * Configuration for responder details collection in public assignments.
+   * Defines what fields to collect from public responders.
+   */
+  responder_fields_config?: ResponderFieldConfig[];
+  /**
+   * Maximum number of attempts allowed per student for this assignment.
+   * Defaults to 1 if not specified.
+   */
+  max_attempts?: number;
 }
 

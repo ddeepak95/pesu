@@ -166,6 +166,8 @@ export async function createAssignment(
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
     status?: "draft" | "active";
+    responder_fields_config?: any; // JSONB array of ResponderFieldConfig
+    max_attempts?: number;
   },
   userId: string
 ): Promise<Assignment> {
@@ -186,6 +188,8 @@ export async function createAssignment(
       preferred_language: assignment.preferred_language,
       is_public: assignment.is_public ?? false,
       assessment_mode: assignment.assessment_mode ?? "voice",
+      responder_fields_config: assignment.responder_fields_config ?? null,
+      max_attempts: assignment.max_attempts ?? 1,
     })
     .select()
     .single();
@@ -217,6 +221,8 @@ export async function updateAssignment(
     preferred_language: string;
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
+    responder_fields_config?: any; // JSONB array of ResponderFieldConfig
+    max_attempts?: number;
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -230,6 +236,8 @@ export async function updateAssignment(
       preferred_language: assignment.preferred_language,
       is_public: assignment.is_public ?? false,
       assessment_mode: assignment.assessment_mode ?? "voice",
+      responder_fields_config: assignment.responder_fields_config ?? null,
+      max_attempts: assignment.max_attempts ?? 1,
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)

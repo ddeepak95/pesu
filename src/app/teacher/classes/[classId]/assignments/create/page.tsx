@@ -89,6 +89,8 @@ export default function CreateAssignmentPage() {
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
+    responderFieldsConfig?: any;
+    maxAttempts?: number;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -109,6 +111,8 @@ export default function CreateAssignmentPage() {
         is_public: data.isPublic,
         assessment_mode: data.assessmentMode,
         status: data.isDraft ? "draft" : "active",
+        responder_fields_config: data.responderFieldsConfig,
+        max_attempts: data.maxAttempts ?? 1,
       },
       user.id
     );

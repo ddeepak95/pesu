@@ -20,6 +20,24 @@ export async function getQuizzesByIds(ids: string[]): Promise<Quiz[]> {
   return (data || []) as Quiz[];
 }
 
+/**
+ * Get a single quiz by its unique quiz_id (student view)
+ * Only returns active quizzes (excludes deleted and draft ones)
+ */
+export async function getQuizByShortId(quizId: string): Promise<Quiz | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("quizzes")
+    .select("*")
+    .eq("quiz_id", quizId)
+    .eq("status", "active")
+    .single();
+
+  if (error) return null;
+  return data as Quiz;
+}
+
 export async function getQuizByShortIdForTeacher(quizId: string): Promise<Quiz | null> {
   const supabase = createClient();
 
@@ -117,4 +135,5 @@ export async function deleteQuiz(id: string): Promise<void> {
 
   if (error) throw error;
 }
+
 

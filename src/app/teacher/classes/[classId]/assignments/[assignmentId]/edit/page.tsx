@@ -11,7 +11,7 @@ import {
   getAssignmentByIdForTeacher,
   updateAssignment,
 } from "@/lib/queries/assignments";
-import { Question } from "@/types/assignment";
+import { Question, ResponderFieldConfig } from "@/types/assignment";
 
 export default function EditAssignmentPage() {
   const params = useParams();
@@ -28,6 +28,10 @@ export default function EditAssignmentPage() {
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >("voice");
+  const [responderFieldsConfig, setResponderFieldsConfig] = useState<
+    ResponderFieldConfig[] | undefined
+  >(undefined);
+  const [maxAttempts, setMaxAttempts] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -44,6 +48,8 @@ export default function EditAssignmentPage() {
           setPreferredLanguage(assignmentData.preferred_language);
           setIsPublic(assignmentData.is_public);
           setAssessmentMode(assignmentData.assessment_mode ?? "voice");
+          setResponderFieldsConfig(assignmentData.responder_fields_config);
+          setMaxAttempts(assignmentData.max_attempts ?? 1);
           setAssignmentDbId(assignmentData.id);
         } else {
           setError("Assignment not found");
@@ -75,6 +81,8 @@ export default function EditAssignmentPage() {
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
+    responderFieldsConfig?: ResponderFieldConfig[];
+    maxAttempts?: number;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -91,6 +99,8 @@ export default function EditAssignmentPage() {
       preferred_language: data.preferredLanguage,
       is_public: data.isPublic,
       assessment_mode: data.assessmentMode,
+      responder_fields_config: data.responderFieldsConfig,
+      max_attempts: data.maxAttempts ?? 1,
     });
   };
 
@@ -130,6 +140,8 @@ export default function EditAssignmentPage() {
           initialLanguage={preferredLanguage}
           initialIsPublic={isPublic}
           initialAssessmentMode={assessmentMode}
+          initialResponderFieldsConfig={responderFieldsConfig}
+          initialMaxAttempts={maxAttempts}
           onSubmit={handleSubmit}
         />
 

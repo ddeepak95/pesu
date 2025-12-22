@@ -18,7 +18,7 @@ import {
   deleteAssignment,
 } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
-import QuestionView from "@/components/Teacher/Assignments/QuestionView";
+import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 export default function AssignmentDetailPage() {

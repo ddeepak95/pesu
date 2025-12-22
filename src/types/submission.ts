@@ -31,7 +31,21 @@ export interface Submission {
   id: string;
   submission_id: string;
   assignment_id: string;
-  student_name: string;
+  /**
+   * @deprecated Use responder_details.name or derive from user metadata
+   * Kept for backward compatibility
+   */
+  student_name?: string;
+  /**
+   * Student ID for authenticated submissions (references auth.users)
+   */
+  student_id?: string | null;
+  /**
+   * Responder details as key-value pairs
+   * For authenticated: {name: "John Doe"} (derived from user metadata)
+   * For public: all collected fields from responder_fields_config
+   */
+  responder_details?: Record<string, any>;
   preferred_language: string;
   answers: { [question_order: number]: QuestionAnswers } | SubmissionAnswer[]; // Support both formats
   submitted_at: string;

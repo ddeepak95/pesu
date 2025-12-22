@@ -1,13 +1,5 @@
 "use client";
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { VoiceClient } from "@/components/VoiceClient";
 import { VoiceConnectButton } from "@/components/VoiceConnectButton";
 import { AgentStatus } from "@/components/AgentStatus";
@@ -22,16 +14,12 @@ import {
   usePipecatClientTransportState,
 } from "@pipecat-ai/client-react";
 import { VoiceVisualizer } from "@pipecat-ai/voice-ui-kit";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { supportedLanguages } from "@/utils/supportedLanguages";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
-import { Loader2 } from "lucide-react";
+import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
+import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCard";
+import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
+import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
+import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 
 interface VoiceAssessmentProps {
   question: Question;
@@ -43,11 +31,13 @@ interface VoiceAssessmentProps {
   onAnswerSave: (transcript: string) => void;
   onPrevious?: () => void;
   onNext?: () => void;
-  onSubmit?: () => void;
   isFirstQuestion: boolean;
   isLastQuestion: boolean;
   existingAnswer?: string;
   onLanguageChange?: (language: string) => void;
+  currentAttemptNumber?: number;
+  maxAttempts?: number;
+  maxAttemptsReached?: boolean;
 }
 
 /**
@@ -63,11 +53,13 @@ function VoiceAssessmentContent({
   onAnswerSave,
   onPrevious,
   onNext,
-  onSubmit,
   isFirstQuestion,
   isLastQuestion,
   existingAnswer,
   onLanguageChange,
+  currentAttemptNumber,
+  maxAttempts,
+  maxAttemptsReached,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -81,7 +73,7 @@ function VoiceAssessmentContent({
   React.useEffect(() => {
     transportStateRef.current = transportState;
   }, [transportState]);
-
+  
   // Load existing attempts when question changes
   React.useEffect(() => {
     // Reset local state before loading
@@ -131,7 +123,7 @@ function VoiceAssessmentContent({
     };
   }, [question.order, client]);
 
-  const handleSaveAndNavigate = (action: "previous" | "next" | "submit") => {
+  const handleSaveAndNavigate = (action: "previous" | "next") => {
     // Save current transcript if it exists
     if (transcript.trim()) {
       onAnswerSave(transcript.trim());
@@ -142,14 +134,18 @@ function VoiceAssessmentContent({
       onPrevious();
     } else if (action === "next" && onNext) {
       onNext();
-    } else if (action === "submit" && onSubmit) {
-      onSubmit();
     }
   };
 
   // Handle evaluation after disconnect
   // Note: Audio recording is now handled server-side by Pipecat's AudioBufferProcessor
   const handleEvaluate = async () => {
+    // Prevent evaluating if max attempts reached
+    if (maxAttemptsReached) {
+      alert("You have reached the maximum number of attempts for this question.");
+      return;
+    }
+
     console.log("=== Starting evaluation ===");
     console.log("Transcript:", transcript);
     console.log("Transcript length:", transcript.trim().length);
@@ -243,248 +239,68 @@ function VoiceAssessmentContent({
 
   return (
     <div className="space-y-6">
-      {/* Question Number and Language Selector */}
-      <div className="flex items-center justify-between">
-        <p className="text-lg font-medium">
-          Question ({questionNumber}/{totalQuestions})
-        </p>
+      <AssessmentQuestionHeader
+        questionNumber={questionNumber}
+        totalQuestions={totalQuestions}
+        language={language}
+        onLanguageChange={onLanguageChange}
+        languageDisabled={isConnected}
+      />
 
-        {onLanguageChange && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Language:</span>
-            <Select
-              value={language}
-              onValueChange={onLanguageChange}
-              disabled={isConnected}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {supportedLanguages.map((lang) => (
-                  <SelectItem key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
+      <AssessmentQuestionCard question={question}>
+        {/* Agent Status Display */}
+        <AgentStatus className="py-2" />
 
-      {/* Question Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Prompt</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="whitespace-pre-wrap">{question.prompt}</p>
+        {/* Voice Visualizer */}
+        <div className="flex justify-center py-4">
+          <VoiceVisualizer participantType="bot" barColor="currentColor" />
+        </div>
 
-          {/* View Rubric Accordion */}
-          {question.rubric && question.rubric.length > 0 && (
-            <Accordion type="single" collapsible>
-              <AccordionItem value="rubric">
-                <AccordionTrigger>View Rubric</AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-2">
-                    {question.rubric.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex justify-between items-start gap-4 p-3 bg-muted/50 rounded-md"
-                      >
-                        <span className="flex-1">{item.item}</span>
-                        <span className="font-semibold text-sm whitespace-nowrap">
-                          {item.points} pts
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          )}
-
-          {/* Agent Status Display */}
-          <AgentStatus className="py-2" />
-
-          {/* Voice Visualizer */}
-          <div className="flex justify-center py-4">
-            <VoiceVisualizer participantType="bot" barColor="currentColor" />
-          </div>
-
-          <div className="flex justify-center">
-            <VoiceConnectButton
-              connectionData={connectionData}
-              connectLabel={
-                attempts.length > 0 ? "Try Again" : "Start Answering"
-              }
-              disconnectLabel="Stop Answering"
-              onBotReady={handleBotReady}
-              onDisconnect={handleEvaluate}
-            />
-          </div>
-
-          {/* Transcript Display (when recording/not evaluated yet) */}
-          {transcript && (
-            <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
-              <div className="text-sm whitespace-pre-wrap">{transcript}</div>
-            </div>
-          )}
-
-          {/* Evaluating State */}
-          {isEvaluating && (
-            <div className="mt-4 p-4 border rounded-md text-center">
-              <Loader2 className="h-5 w-5 mx-auto animate-spin text-muted-foreground" />
-              <p className="text-xs mt-1">
-                Please wait while we evaluate your answer. This takes upto a
-                minute.
-              </p>
-            </div>
-          )}
-
-          {/* Attempts Section - Shows all attempts as accordions */}
-          {attempts.length > 0 && (
-            <div className="mt-4 border rounded-lg">
-              <div className="p-3 bg-muted/30 border-b">
-                <p className="text-sm font-semibold">Attempts</p>
-              </div>
-              <Accordion type="single" collapsible className="w-full">
-                {attempts.map((attempt) => {
-                  const scorePercentage =
-                    (attempt.score / attempt.max_score) * 100;
-                  const getScoreColor = (percentage: number) => {
-                    if (percentage >= 75)
-                      return "text-green-600 dark:text-green-400";
-                    if (percentage >= 50)
-                      return "text-yellow-600 dark:text-yellow-400";
-                    return "text-red-600 dark:text-red-400";
-                  };
-
-                  return (
-                    <AccordionItem
-                      key={attempt.attempt_number}
-                      value={`attempt-${attempt.attempt_number}`}
-                      className="border-b last:border-b-0"
-                    >
-                      <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
-                        <div className="flex items-center justify-between w-full pr-2">
-                          <span className="text-sm font-medium">
-                            Attempt {attempt.attempt_number}
-                          </span>
-                          <span
-                            className={`text-sm font-semibold ${getScoreColor(
-                              scorePercentage
-                            )}`}
-                          >
-                            {attempt.score}/{attempt.max_score}
-                          </span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4">
-                        {/* Overall Feedback */}
-                        {attempt.evaluation_feedback && (
-                          <div className="mb-4 p-3 bg-muted/50 rounded-md">
-                            <p className="text-xs font-semibold mb-2">
-                              Overall Feedback:
-                            </p>
-                            <p className="text-sm whitespace-pre-wrap">
-                              {attempt.evaluation_feedback}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Rubric Breakdown */}
-                        {attempt.rubric_scores &&
-                          attempt.rubric_scores.length > 0 && (
-                            <div className="space-y-2 mb-4">
-                              <p className="text-xs font-semibold">
-                                Rubric Breakdown:
-                              </p>
-                              {attempt.rubric_scores.map((rubricItem, idx) => {
-                                const itemPercentage =
-                                  (rubricItem.points_earned /
-                                    rubricItem.points_possible) *
-                                  100;
-                                return (
-                                  <div
-                                    key={idx}
-                                    className="p-2 bg-muted/30 rounded-md space-y-1"
-                                  >
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm font-medium">
-                                        {rubricItem.item}
-                                      </span>
-                                      <span
-                                        className={`text-sm font-semibold ${
-                                          itemPercentage >= 75
-                                            ? "text-green-600 dark:text-green-400"
-                                            : itemPercentage >= 50
-                                            ? "text-yellow-600 dark:text-yellow-400"
-                                            : "text-red-600 dark:text-red-400"
-                                        }`}
-                                      >
-                                        {rubricItem.points_earned}/
-                                        {rubricItem.points_possible} pts
-                                      </span>
-                                    </div>
-                                    {rubricItem.feedback && (
-                                      <p className="text-xs text-muted-foreground">
-                                        {rubricItem.feedback}
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                        {/* Timestamp */}
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(attempt.timestamp).toLocaleString()}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between gap-4">
-        <Button
-          onClick={() => handleSaveAndNavigate("previous")}
-          disabled={isFirstQuestion || isConnected || isEvaluating}
-          variant="outline"
-          size="lg"
-        >
-          Previous Question
-        </Button>
-
-        <div className="flex gap-4">
-          {!isLastQuestion && (
-            <Button
-              onClick={() => handleSaveAndNavigate("next")}
-              disabled={isConnected || isEvaluating}
-              size="lg"
-            >
-              Next Question
-            </Button>
-          )}
-          {isLastQuestion && (
-            <Button
-              onClick={() => handleSaveAndNavigate("submit")}
-              disabled={isConnected || isEvaluating}
-              size="lg"
-              variant="default"
-            >
-              Submit Assignment
-            </Button>
+        <div className="flex flex-col items-center gap-2">
+          <VoiceConnectButton
+            connectionData={connectionData}
+            connectLabel={
+              attempts.length > 0 ? "Try Again" : "Start Answering"
+            }
+            disconnectLabel="Stop Answering"
+            onBotReady={handleBotReady}
+            onDisconnect={handleEvaluate}
+            disabled={maxAttemptsReached}
+          />
+          {maxAttemptsReached && (
+            <p className="text-xs text-muted-foreground text-center">
+              Maximum attempts reached. You can view your previous attempts below.
+            </p>
           )}
         </div>
-      </div>
+
+        {/* Transcript Display (when recording/not evaluated yet) */}
+        {transcript && (
+          <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
+            <div className="text-sm whitespace-pre-wrap">{transcript}</div>
+          </div>
+        )}
+
+        {/* Evaluating State */}
+        {isEvaluating && <EvaluatingIndicator />}
+
+        {/* Attempts Section */}
+        <AttemptsPanel
+          attempts={attempts}
+          maxAttempts={maxAttempts}
+          maxAttemptsReached={maxAttemptsReached}
+        />
+      </AssessmentQuestionCard>
+
+      {/* Navigation Buttons */}
+      <AssessmentNavigation
+        isFirstQuestion={isFirstQuestion}
+        isLastQuestion={isLastQuestion}
+        onPrevious={() => handleSaveAndNavigate("previous")}
+        onNext={() => handleSaveAndNavigate("next")}
+        previousDisabled={isConnected || isEvaluating}
+        nextDisabled={isConnected || isEvaluating}
+      />
     </div>
   );
 }
