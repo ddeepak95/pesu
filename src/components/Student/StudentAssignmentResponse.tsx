@@ -146,18 +146,26 @@ export default function StudentAssignmentResponse({
               const questionAnswers = questionValue as QuestionAnswers;
               if (!questionAnswers.attempts?.length) return;
 
+              // Filter out stale attempts
+              const nonStaleAttempts = questionAnswers.attempts.filter(
+                (attempt) => !attempt.stale || attempt.stale === false
+              );
+
+              if (!nonStaleAttempts.length) return;
+
               let selectedAttempt: SubmissionAttempt | undefined;
 
               if (questionAnswers.selected_attempt) {
-                selectedAttempt = questionAnswers.attempts.find(
+                // First try to find selected attempt in non-stale attempts
+                selectedAttempt = nonStaleAttempts.find(
                   (attempt) =>
                     attempt.attempt_number === questionAnswers.selected_attempt
                 );
               }
 
               if (!selectedAttempt) {
-                selectedAttempt =
-                  questionAnswers.attempts[questionAnswers.attempts.length - 1];
+                // Use the latest non-stale attempt
+                selectedAttempt = nonStaleAttempts[nonStaleAttempts.length - 1];
               }
 
               if (selectedAttempt) {
@@ -227,9 +235,11 @@ export default function StudentAssignmentResponse({
     }
 
     try {
+      const submissionMode = assignmentData.assessment_mode ?? "voice";
       const submission = await createSubmission(
         assignmentData.assignment_id,
         preferredLanguage,
+        submissionMode,
         {
           studentId: user.id,
         }
@@ -296,18 +306,26 @@ export default function StudentAssignmentResponse({
           const questionAnswers = questionValue as QuestionAnswers;
           if (!questionAnswers.attempts?.length) return;
 
+          // Filter out stale attempts
+          const nonStaleAttempts = questionAnswers.attempts.filter(
+            (attempt) => !attempt.stale || attempt.stale === false
+          );
+
+          if (!nonStaleAttempts.length) return;
+
           let selectedAttempt: SubmissionAttempt | undefined;
 
           if (questionAnswers.selected_attempt) {
-            selectedAttempt = questionAnswers.attempts.find(
+            // First try to find selected attempt in non-stale attempts
+            selectedAttempt = nonStaleAttempts.find(
               (attempt) =>
                 attempt.attempt_number === questionAnswers.selected_attempt
             );
           }
 
           if (!selectedAttempt) {
-            selectedAttempt =
-              questionAnswers.attempts[questionAnswers.attempts.length - 1];
+            // Use the latest non-stale attempt
+            selectedAttempt = nonStaleAttempts[nonStaleAttempts.length - 1];
           }
 
           if (selectedAttempt) {

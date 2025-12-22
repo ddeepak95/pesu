@@ -20,6 +20,7 @@ export interface SubmissionAttempt {
   rubric_scores: RubricScore[];
   evaluation_feedback: string;
   timestamp: string;
+  stale?: boolean; // Marks attempt as stale when teacher resets attempts
 }
 
 export interface QuestionAnswers {
@@ -50,6 +51,11 @@ export interface Submission {
   answers: { [question_order: number]: QuestionAnswers } | SubmissionAnswer[]; // Support both formats
   submitted_at: string;
   status: "in_progress" | "completed";
+  /**
+   * The submission mode used for this submission
+   * Stored at creation time to preserve historical accuracy
+   */
+  submission_mode?: "voice" | "text_chat" | "static_text";
   created_at?: string;
   updated_at?: string;
 }

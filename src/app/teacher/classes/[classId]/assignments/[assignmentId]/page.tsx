@@ -20,6 +20,7 @@ import {
 import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
+import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -166,11 +167,10 @@ export default function AssignmentDetailPage() {
             </TabsContent>
 
             <TabsContent value="submissions" className="py-6">
-              <div className="text-center p-12">
-                <p className="text-muted-foreground text-lg">
-                  Submissions feature coming soon
-                </p>
-              </div>
+              <SubmissionsTab
+                assignmentId={assignmentData.assignment_id}
+                classId={classId}
+              />
             </TabsContent>
           </Tabs>
         </div>

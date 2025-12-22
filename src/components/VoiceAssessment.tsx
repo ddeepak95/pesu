@@ -82,7 +82,8 @@ function VoiceAssessmentContent({
       try {
         const questionAttempts = await getQuestionAttempts(
           submissionId,
-          question.order
+          question.order,
+          true // Exclude stale attempts
         );
         setAttempts(questionAttempts);
 

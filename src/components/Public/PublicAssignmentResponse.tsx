@@ -221,9 +221,11 @@ export default function PublicAssignmentResponse({
     if (!assignmentData) return;
 
     try {
+      const submissionMode = assignmentData.assessment_mode ?? "voice";
       const submission = await createSubmission(
         assignmentData.assignment_id,
         preferredLanguage,
+        submissionMode,
         {
           responderDetails,
         }

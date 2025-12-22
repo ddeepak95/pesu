@@ -124,7 +124,8 @@ export function ChatAssessment({
       try {
         const questionAttempts = await getQuestionAttempts(
           submissionId,
-          question.order
+          question.order,
+          true // Exclude stale attempts
         );
         setAttempts(questionAttempts);
         // If we already restored from storage, never overwrite that state here.

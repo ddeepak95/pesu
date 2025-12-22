@@ -61,19 +61,33 @@ export function AttemptsPanel({
             >
               <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
                 <div className="flex items-center justify-between w-full pr-2">
-                  <span className="text-sm font-medium">
-                    Attempt {attempt.attempt_number}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      Attempt {attempt.attempt_number}
+                    </span>
+                    {attempt.stale && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                        Stale
+                      </span>
+                    )}
+                  </div>
                   <span
                     className={`text-sm font-semibold ${getScoreColor(
                       scorePercentage
-                    )}`}
+                    )} ${attempt.stale ? "opacity-50" : ""}`}
                   >
                     {attempt.score}/{attempt.max_score}
                   </span>
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="px-4 pb-4">
+              <AccordionContent className={`px-4 pb-4 ${attempt.stale ? "opacity-60" : ""}`}>
+                {attempt.stale && (
+                  <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                    <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-200">
+                      This attempt has been marked as stale by the teacher.
+                    </p>
+                  </div>
+                )}
                 {/* Overall Feedback */}
                 {attempt.evaluation_feedback && (
                   <div className="mb-4 p-3 bg-muted/50 rounded-md">

@@ -94,10 +94,14 @@ export default function AssignmentResponse({
     if (!assignmentData) return;
 
     try {
+      const submissionMode = assignmentData.assessment_mode ?? "voice";
       const submission = await createSubmission(
         assignmentData.assignment_id,
-        name.trim(),
-        lang
+        lang, // preferredLanguage
+        submissionMode,
+        {
+          responderDetails: { name: name.trim() },
+        }
       );
       setSubmissionId(submission.submission_id);
       setStudentName(name.trim());
