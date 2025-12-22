@@ -7,12 +7,19 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase";
 import List from "@/components/ui/List";
 import ManageStudentsDialog from "./ManageStudentsDialog";
-
-interface StudentInfo {
-  student_id: string;
-  student_email: string | null;
-  joined_at: string;
-}
+import {
+  StudentWithInfo,
+  getClassStudentsWithInfo,
+  reassignStudentToGroup,
+} from "@/lib/queries/students";
+import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface StudentsProps {
   classData: Class;
@@ -23,9 +30,11 @@ export default function Students({ classData }: StudentsProps) {
   const [isTeacher, setIsTeacher] = useState(false);
   const isOwner = user?.id === classData.created_by;
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
-  const [students, setStudents] = useState<StudentInfo[]>([]);
+  const [students, setStudents] = useState<StudentWithInfo[]>([]);
+  const [groups, setGroups] = useState<ClassGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reassigning, setReassigning] = useState<Record<string, boolean>>({});
 
   // Check if user is a co-teacher
   useEffect(() => {
@@ -58,9 +67,9 @@ export default function Students({ classData }: StudentsProps) {
     checkTeacherStatus();
   }, [user, classData.id, isOwner]);
 
-  // Fetch enrolled students
+  // Fetch enrolled students and groups
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchData = async () => {
       if (!isTeacher) {
         setLoading(false);
         return;
@@ -69,31 +78,13 @@ export default function Students({ classData }: StudentsProps) {
       setLoading(true);
       setError(null);
       try {
-        const supabase = createClient();
-        const { data: studentData, error: studentError } = await supabase
-          .from("class_students")
-          .select("student_id, joined_at")
-          .eq("class_id", classData.id)
-          .order("joined_at", { ascending: false });
+        const [studentsData, groupsData] = await Promise.all([
+          getClassStudentsWithInfo(classData.id),
+          getClassGroups(classData.id),
+        ]);
 
-        if (studentError) throw studentError;
-
-        // Fetch user emails for students (if available)
-        const studentInfo: StudentInfo[] = [];
-
-        if (studentData && studentData.length > 0) {
-          // Try to get user emails from auth.users (via a view or function if available)
-          // For now, we'll just use the student_id
-          for (const student of studentData) {
-            studentInfo.push({
-              student_id: student.student_id,
-              student_email: null, // Could be enhanced with a user info function
-              joined_at: student.joined_at,
-            });
-          }
-        }
-
-        setStudents(studentInfo);
+        setStudents(studentsData);
+        setGroups(groupsData);
       } catch (err) {
         console.error("Error fetching students:", err);
         setError("Failed to load students.");
@@ -102,8 +93,30 @@ export default function Students({ classData }: StudentsProps) {
       }
     };
 
-    fetchStudents();
+    fetchData();
   }, [isTeacher, classData.id]);
+
+  const handleReassignGroup = async (
+    studentId: string,
+    newGroupId: string
+  ) => {
+    setReassigning((prev) => ({ ...prev, [studentId]: true }));
+    try {
+      await reassignStudentToGroup({
+        classDbId: classData.id,
+        studentId,
+        newGroupId,
+      });
+      // Refresh the students list
+      const studentsData = await getClassStudentsWithInfo(classData.id);
+      setStudents(studentsData);
+    } catch (err) {
+      console.error("Error reassigning student:", err);
+      alert("Failed to reassign student to group. Please try again.");
+    } finally {
+      setReassigning((prev) => ({ ...prev, [studentId]: false }));
+    }
+  };
 
   return (
     <div className="py-6">
@@ -133,18 +146,50 @@ export default function Students({ classData }: StudentsProps) {
           items={students}
           emptyMessage="No students enrolled yet. Use the 'Invite Students' button to generate an invite link."
           renderItem={(s) => {
-            const displayId = s.student_email || s.student_id.substring(0, 8) + "...";
+            const displayName =
+              s.student_display_name ||
+              s.student_email ||
+              s.student_id.substring(0, 8) + "...";
+            const groupDisplayName =
+              s.group_name || (s.group_index !== null ? `Group ${s.group_index + 1}` : "No group");
 
             return (
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="min-w-0">
+              <div className="flex items-center justify-between rounded-md border p-3 gap-4">
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">
-                    {displayId}
+                    {displayName}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Joined: {new Date(s.joined_at).toLocaleDateString()}
+                  {s.student_email && s.student_display_name && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      {s.student_email}
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Joined: {new Date(s.joined_at).toLocaleDateString()} • Group: {groupDisplayName}
                   </div>
                 </div>
+                {groups.length > 0 && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Select
+                      value={s.group_id || ""}
+                      onValueChange={(newGroupId) =>
+                        handleReassignGroup(s.student_id, newGroupId)
+                      }
+                      disabled={reassigning[s.student_id]}
+                    >
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="Select group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groups.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name || `Group ${group.group_index + 1}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             );
           }}

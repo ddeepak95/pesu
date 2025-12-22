@@ -77,10 +77,19 @@ export default function Content({ classData }: ContentProps) {
   useEffect(() => {
     const fetchItems = async () => {
       if (!studentGroupId || !classData.id) {
+        console.log("Cannot fetch items - missing groupId or classId:", {
+          studentGroupId,
+          classId: classData.id,
+        });
         setItems([]);
         setLoading(false);
         return;
       }
+
+      console.log("Fetching content items for group:", {
+        classDbId: classData.id,
+        classGroupId: studentGroupId,
+      });
 
       setLoading(true);
       setError(null);
@@ -89,6 +98,7 @@ export default function Content({ classData }: ContentProps) {
           classDbId: classData.id,
           classGroupId: studentGroupId,
         });
+        console.log("Fetched content items:", contentItems);
         setItems(contentItems);
       } catch (err: unknown) {
         const code =

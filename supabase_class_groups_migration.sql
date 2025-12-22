@@ -316,6 +316,39 @@ CREATE POLICY "Teachers can view class memberships" ON class_group_memberships
     )
   );
 
+-- Teachers can manage (insert/update/delete) group memberships
+DROP POLICY IF EXISTS "Teachers can manage class memberships" ON class_group_memberships;
+CREATE POLICY "Teachers can manage class memberships" ON class_group_memberships
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM classes
+      WHERE classes.id = class_group_memberships.class_id
+      AND (
+        classes.created_by = auth.uid()
+        OR EXISTS (
+          SELECT 1 FROM class_teachers
+          WHERE class_teachers.class_id = classes.id
+          AND class_teachers.teacher_id = auth.uid()
+        )
+      )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM classes
+      WHERE classes.id = class_group_memberships.class_id
+      AND (
+        classes.created_by = auth.uid()
+        OR EXISTS (
+          SELECT 1 FROM class_teachers
+          WHERE class_teachers.class_id = classes.id
+          AND class_teachers.teacher_id = auth.uid()
+        )
+      )
+    )
+  );
+
 -- =====================================================
 -- PART 3: Update classes table RLS to allow students
 -- =====================================================
