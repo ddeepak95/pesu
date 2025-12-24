@@ -12,7 +12,7 @@ import { useEffect, useRef } from "react";
 
 export default function LandingPage() {
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
-  const waitlistEmail = "waitlist@speak2learn.com";
+  const waitlistEmail = "dv292@cornell.edu";
   const waitlistSubject = "Join Waitlist - Speak2Learn";
   const waitlistBody =
     "I'm interested in joining the Speak2Learn waitlist. Please add me to receive updates about the launch.";
@@ -422,9 +422,6 @@ export default function LandingPage() {
             <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed max-w-2xl mx-auto">
               Provide your students with personalized one-on-one learning
               support through voice dialogues with AI in their native language.
-              Each student gets individualized attention, instant feedback, and
-              guidance tailored to their understanding, all without language
-              barriers getting in the way of their learning.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
