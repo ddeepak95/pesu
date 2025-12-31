@@ -4,6 +4,22 @@
     "myAccount": "My Account",
     "signOut": "Sign Out"
   },
+  "auth": {
+    "loading": "Loading...",
+    "redirecting": "Redirecting...",
+    "signInToAccount": "Sign in to your {{accountType}} account",
+    "signInToContinue": "Sign in to continue to the requested page",
+    "continueWithGoogle": "Continue with Google",
+    "signingIn": "Signing in...",
+    "orContinueWithEmail": "Or continue with email",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign In",
+    "accountTypes": {
+      "teacher": "teacher",
+      "student": "student"
+    }
+  },
   "landing": {
     "hero": {
       "title": "Improve Learning Through Conversations",

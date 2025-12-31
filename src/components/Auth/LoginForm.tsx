@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,11 @@ interface LoginFormProps {
   defaultRedirect: string;
 }
 
-export default function LoginForm({ userType, defaultRedirect }: LoginFormProps) {
+export default function LoginForm({
+  userType,
+  defaultRedirect,
+}: LoginFormProps) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -107,7 +112,7 @@ export default function LoginForm({ userType, defaultRedirect }: LoginFormProps)
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("auth.loading")}</p>
       </div>
     );
   }
@@ -116,27 +121,28 @@ export default function LoginForm({ userType, defaultRedirect }: LoginFormProps)
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <p className="text-muted-foreground">Redirecting...</p>
+        <p className="text-muted-foreground">{t("auth.redirecting")}</p>
       </div>
     );
   }
 
-  const accountTypeLabel = userType === "teacher" ? "teacher" : "student";
-  const emailPlaceholder = userType === "teacher" ? "teacher@example.com" : "student@example.com";
+  const accountTypeLabel = t(`auth.accountTypes.${userType}`);
+  const emailPlaceholder =
+    userType === "teacher" ? "teacher@example.com" : "student@example.com";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            Speak2Learn
+            {t("toolName")}
           </CardTitle>
           <CardDescription className="text-center">
-            Sign in to your {accountTypeLabel} account
+            {t("auth.signInToAccount", { accountType: accountTypeLabel })}
           </CardDescription>
           {redirectUrl && (
             <p className="text-sm text-center text-muted-foreground pt-2">
-              Sign in to continue to the requested page
+              {t("auth.signInToContinue")}
             </p>
           )}
         </CardHeader>
@@ -167,7 +173,9 @@ export default function LoginForm({ userType, defaultRedirect }: LoginFormProps)
                   fill="#EA4335"
                 />
               </svg>
-              {googleLoading ? "Signing in..." : "Continue with Google"}
+              {googleLoading
+                ? t("auth.signingIn")
+                : t("auth.continueWithGoogle")}
             </Button>
 
             <div className="relative">
@@ -176,14 +184,14 @@ export default function LoginForm({ userType, defaultRedirect }: LoginFormProps)
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with email
+                  {t("auth.orContinueWithEmail")}
                 </span>
               </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("auth.email")}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -195,7 +203,7 @@ export default function LoginForm({ userType, defaultRedirect }: LoginFormProps)
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("auth.password")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -216,7 +224,7 @@ export default function LoginForm({ userType, defaultRedirect }: LoginFormProps)
                 className="w-full"
                 disabled={loading || googleLoading}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? t("auth.signingIn") : t("auth.signIn")}
               </Button>
             </form>
           </div>
@@ -225,5 +233,3 @@ export default function LoginForm({ userType, defaultRedirect }: LoginFormProps)
     </div>
   );
 }
-
-
