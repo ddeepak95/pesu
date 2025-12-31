@@ -27,3 +27,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_content_items_unique_group_position_active
   WHERE class_group_id IS NOT NULL
     AND status IN ('active', 'draft');
 
+

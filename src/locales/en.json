@@ -1,0 +1,67 @@
+{
+  "toolName": "ConvoEd",
+  "header": {
+    "myAccount": "My Account",
+    "signOut": "Sign Out"
+  },
+  "landing": {
+    "hero": {
+      "title": "Improve Learning Through Conversations",
+      "description": "Provide your students with personalized one-on-one learning support through voice dialogues with AI in their native language.",
+      "joinWaitlist": "Join Waitlist"
+    },
+    "challenge": {
+      "title": "The Challenge",
+      "paragraph1": "Millions of learners worldwide study core subjects like Science and Mathematics in English, even when English isn't their native language. This creates a dual challenge: students must simultaneously develop English proficiency and master complex academic concepts.",
+      "paragraph2": "Traditional assessments often fail to distinguish between language limitations and conceptual gaps, leading to learning loss and forcing students to rely on rote memorization rather than true understanding."
+    },
+    "solution": {
+      "title": "Our Solution",
+      "subtitle": "Voice-first AI learning support that bridges language barriers",
+      "cards": {
+        "voiceDialogue": {
+          "title": "Voice-Based Dialogue",
+          "description": "Students explain concepts and respond to questions in their native or most comfortable language, reducing cognitive load and enabling deeper thinking."
+        },
+        "englishScaffolding": {
+          "title": "Progressive English Scaffolding",
+          "description": "English terms and expressions are gradually introduced through meaningful, context-grounded interactions, building proficiency naturally alongside conceptual understanding."
+        },
+        "oneOnOne": {
+          "title": "One-on-One Learning Support",
+          "description": "Each student receives personalized, individualized attention through voice dialogues. The AI adapts to each learner's pace, understanding level, and needs, providing the kind of one-on-one support that's difficult to scale in large classrooms."
+        },
+        "teacherInsights": {
+          "title": "Teacher Insights",
+          "description": "Actionable summaries help teachers identify which concepts are secure, where misconceptions persist, and which students need targeted support."
+        }
+      }
+    },
+    "howItWorks": {
+      "title": "How It Works",
+      "steps": {
+        "step1": {
+          "title": "Learn in Class",
+          "description": "Teachers introduce concepts in class as usual, then assign short oral homework using ConvoEd."
+        },
+        "step2": {
+          "title": "One-on-One Practice at Home",
+          "description": "Each student engages in personalized voice dialogues with AI, explaining concepts, responding to questions, and receiving individualized feedback in their native language."
+        },
+        "step3": {
+          "title": "Build Understanding",
+          "description": "Through guided practice, immediate feedback, and progressive English scaffolding, students build strong conceptual foundations."
+        },
+        "step4": {
+          "title": "Support Teachers",
+          "description": "Teachers receive actionable insights about student understanding, enabling targeted support and better instruction."
+        }
+      }
+    },
+    "cta": {
+      "title": "Ready to Transform Learning?",
+      "description": "Join the waitlist to be among the first to experience ConvoEd and help shape the future of multilingual education.",
+      "joinWaitlist": "Join Waitlist"
+    }
+  }
+}

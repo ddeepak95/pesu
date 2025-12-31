@@ -25,3 +25,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_class_teacher_invites_unique_class_id
 -- 3) Update functions (recreate from latest migration file)
 -- Note: easiest is to re-run the function definitions from `supabase_teacher_invites_migration.sql`.
 
+

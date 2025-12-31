@@ -88,3 +88,4 @@ CREATE POLICY "Teachers can delete class assignments" ON assignments
 -- Step 7: Verify policies were created
 SELECT policyname, cmd, permissive FROM pg_policies WHERE tablename = 'assignments';
 
+

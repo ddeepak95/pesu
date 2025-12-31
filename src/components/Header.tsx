@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,19 +18,20 @@ interface HeaderProps {
 }
 
 export default function Header({ userName }: HeaderProps) {
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
-  const displayName = 
-    userName || 
-    user?.user_metadata?.display_name || 
-    user?.user_metadata?.name || 
-    user?.user_metadata?.full_name || 
-    user?.email || 
+  const displayName =
+    userName ||
+    user?.user_metadata?.display_name ||
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.email ||
     "Guest";
 
   return (
     <header className="w-full border-b bg-secondary drop-shadow-md">
       <div className="flex items-center justify-between px-8 py-4">
-        <div className="text-2xl font-semibold">Speak2Learn</div>
+        <div className="text-2xl font-semibold">{t("toolName")}</div>
         {user && (
           <div className="flex items-center gap-2">
             <DropdownMenu>
@@ -50,7 +52,7 @@ export default function Header({ userName }: HeaderProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("header.myAccount")}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={signOut} className="cursor-pointer">
                   <svg
@@ -66,7 +68,7 @@ export default function Header({ userName }: HeaderProps) {
                       d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                     />
                   </svg>
-                  Sign Out
+                  {t("header.signOut")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -76,4 +78,3 @@ export default function Header({ userName }: HeaderProps) {
     </header>
   );
 }
-

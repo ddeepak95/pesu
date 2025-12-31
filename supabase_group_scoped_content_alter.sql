@@ -54,3 +54,4 @@ CREATE INDEX IF NOT EXISTS idx_learning_contents_class_group_id
 CREATE INDEX IF NOT EXISTS idx_quizzes_class_group_id
   ON quizzes(class_group_id);
 
+

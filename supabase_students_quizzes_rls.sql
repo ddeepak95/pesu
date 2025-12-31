@@ -14,3 +14,4 @@ CREATE POLICY "Students can view quizzes for their group" ON quizzes
     AND status = 'active'
   );
 
+

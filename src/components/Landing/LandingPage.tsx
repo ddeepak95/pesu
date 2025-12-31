@@ -9,13 +9,14 @@ import {
 } from "@/components/ui/card";
 import { Mic, Languages, Users, BarChart3 } from "lucide-react";
 import { useEffect, useRef } from "react";
-
+import { useTranslation } from "react-i18next";
 export default function LandingPage() {
+  const { t } = useTranslation();
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
   const waitlistEmail = "dv292@cornell.edu";
-  const waitlistSubject = "Join Waitlist - Speak2Learn";
+  const waitlistSubject = "Join Waitlist - ConvoEd";
   const waitlistBody =
-    "I'm interested in joining the Speak2Learn waitlist. Please add me to receive updates about the launch.";
+    "I'm interested in joining the ConvoEd waitlist. Please add me to receive to the waitlist.";
   const mailtoLink = `mailto:${waitlistEmail}?subject=${encodeURIComponent(
     waitlistSubject
   )}&body=${encodeURIComponent(waitlistBody)}`;
@@ -412,16 +413,15 @@ export default function LandingPage() {
                 style={{ borderColor: `${colors.coral.base}40` }}
               ></div>
               <Mic className="w-4 h-4 relative z-10" />
-              <span className="relative z-10">Speak2Learn</span>
+              <span className="relative z-10">{t("toolName")}</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Improve Learning Through Conversations
+              {t("landing.hero.title")}
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed max-w-2xl mx-auto">
-              Provide your students with personalized one-on-one learning
-              support through voice dialogues with AI in their native language.
+              {t("landing.hero.description")}
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -434,7 +434,7 @@ export default function LandingPage() {
                   backgroundSize: "200% 200%",
                 }}
               >
-                <a href={mailtoLink}>Join Waitlist</a>
+                <a href={mailtoLink}>{t("landing.hero.joinWaitlist")}</a>
               </Button>
             </div>
           </div>
@@ -496,22 +496,11 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">
-              The Challenge
+              {t("landing.challenge.title")}
             </h2>
             <div className="space-y-6 text-lg text-muted-foreground">
-              <p>
-                Millions of learners worldwide study core subjects like Science
-                and Mathematics in English, even when English isn&apos;t their
-                native language. This creates a dual challenge: students must
-                simultaneously develop English proficiency and master complex
-                academic concepts.
-              </p>
-              <p>
-                Traditional assessments often fail to distinguish between
-                language limitations and conceptual gaps, leading to learning
-                loss and forcing students to rely on rote memorization rather
-                than true understanding.
-              </p>
+              <p>{t("landing.challenge.paragraph1")}</p>
+              <p>{t("landing.challenge.paragraph2")}</p>
             </div>
           </div>
         </div>
@@ -527,10 +516,10 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
-              Our Solution
+              {t("landing.solution.title")}
             </h2>
             <p className="text-xl text-center text-muted-foreground mb-12">
-              Voice-first AI learning support that bridges language barriers
+              {t("landing.solution.subtitle")}
             </p>
 
             <div className="grid md:grid-cols-2 gap-8 mb-12">
@@ -546,11 +535,11 @@ export default function LandingPage() {
                       style={{ color: colors.coral.base }}
                     />
                   </div>
-                  <CardTitle>Voice-Based Dialogue</CardTitle>
+                  <CardTitle>
+                    {t("landing.solution.cards.voiceDialogue.title")}
+                  </CardTitle>
                   <CardDescription>
-                    Students explain concepts and respond to questions in their
-                    native or most comfortable language, reducing cognitive load
-                    and enabling deeper thinking.
+                    {t("landing.solution.cards.voiceDialogue.description")}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -567,11 +556,11 @@ export default function LandingPage() {
                       style={{ color: colors.sky.base }}
                     />
                   </div>
-                  <CardTitle>Progressive English Scaffolding</CardTitle>
+                  <CardTitle>
+                    {t("landing.solution.cards.englishScaffolding.title")}
+                  </CardTitle>
                   <CardDescription>
-                    English terms and expressions are gradually introduced
-                    through meaningful, context-grounded interactions, building
-                    proficiency naturally alongside conceptual understanding.
+                    {t("landing.solution.cards.englishScaffolding.description")}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -588,13 +577,11 @@ export default function LandingPage() {
                       style={{ color: colors.lavender.base }}
                     />
                   </div>
-                  <CardTitle>One-on-One Learning Support</CardTitle>
+                  <CardTitle>
+                    {t("landing.solution.cards.oneOnOne.title")}
+                  </CardTitle>
                   <CardDescription>
-                    Each student receives personalized, individualized attention
-                    through voice dialogues. The AI adapts to each
-                    learner&apos;s pace, understanding level, and needs,
-                    providing the kind of one-on-one support that&apos;s
-                    difficult to scale in large classrooms.
+                    {t("landing.solution.cards.oneOnOne.description")}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -611,11 +598,11 @@ export default function LandingPage() {
                       style={{ color: colors.mint.base }}
                     />
                   </div>
-                  <CardTitle>Teacher Insights</CardTitle>
+                  <CardTitle>
+                    {t("landing.solution.cards.teacherInsights.title")}
+                  </CardTitle>
                   <CardDescription>
-                    Actionable summaries help teachers identify which concepts
-                    are secure, where misconceptions persist, and which students
-                    need targeted support.
+                    {t("landing.solution.cards.teacherInsights.description")}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -634,7 +621,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">
-              How It Works
+              {t("landing.howItWorks.title")}
             </h2>
             <div className="space-y-8">
               {/* Step 1 - Coral */}
@@ -646,10 +633,11 @@ export default function LandingPage() {
                   1
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">Learn in Class</h3>
+                  <h3 className="font-semibold text-lg mb-2">
+                    {t("landing.howItWorks.steps.step1.title")}
+                  </h3>
                   <p className="text-muted-foreground">
-                    Teachers introduce concepts in class as usual, then assign
-                    short oral homework using Speak2Learn.
+                    {t("landing.howItWorks.steps.step1.description")}
                   </p>
                 </div>
               </div>
@@ -667,12 +655,10 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg mb-2">
-                    One-on-One Practice at Home
+                    {t("landing.howItWorks.steps.step2.title")}
                   </h3>
                   <p className="text-muted-foreground">
-                    Each student engages in personalized voice dialogues with
-                    AI, explaining concepts, responding to questions, and
-                    receiving individualized feedback in their native language.
+                    {t("landing.howItWorks.steps.step2.description")}
                   </p>
                 </div>
               </div>
@@ -690,12 +676,10 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg mb-2">
-                    Build Understanding
+                    {t("landing.howItWorks.steps.step3.title")}
                   </h3>
                   <p className="text-muted-foreground">
-                    Through guided practice, immediate feedback, and progressive
-                    English scaffolding, students build strong conceptual
-                    foundations.
+                    {t("landing.howItWorks.steps.step3.description")}
                   </p>
                 </div>
               </div>
@@ -713,12 +697,10 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg mb-2">
-                    Support Teachers
+                    {t("landing.howItWorks.steps.step4.title")}
                   </h3>
                   <p className="text-muted-foreground">
-                    Teachers receive actionable insights about student
-                    understanding, enabling targeted support and better
-                    instruction.
+                    {t("landing.howItWorks.steps.step4.description")}
                   </p>
                 </div>
               </div>
@@ -737,11 +719,10 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Ready to Transform Learning?
+              {t("landing.cta.title")}
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Join the waitlist to be among the first to experience Speak2Learn
-              and help shape the future of multilingual education.
+              {t("landing.cta.description")}
             </p>
             <Button
               asChild
@@ -752,7 +733,7 @@ export default function LandingPage() {
                 backgroundSize: "200% 200%",
               }}
             >
-              <a href={mailtoLink}>Join Waitlist</a>
+              <a href={mailtoLink}>{t("landing.cta.joinWaitlist")}</a>
             </Button>
           </div>
         </div>

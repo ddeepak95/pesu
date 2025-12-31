@@ -14,3 +14,4 @@ CREATE POLICY "Students can view learning contents for their group" ON learning_
     AND status = 'active'
   );
 
+

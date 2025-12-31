@@ -14,3 +14,4 @@ CREATE POLICY "Students can view assignments for their group" ON assignments
     AND status = 'active'
   );
 
+

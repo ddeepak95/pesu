@@ -103,3 +103,4 @@ export default function EditQuizPage() {
     </PageLayout>
   );
 }
+

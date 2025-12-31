@@ -10,3 +10,4 @@ ALTER TABLE assignments
   ADD CONSTRAINT assignments_status_check
   CHECK (status IN ('draft', 'active', 'deleted'));
 
+

@@ -68,3 +68,4 @@ export async function acceptStudentInvite(token: string): Promise<string> {
   return data as string; // classes.class_id (public id)
 }
 
+

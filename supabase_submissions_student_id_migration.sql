@@ -52,3 +52,4 @@ CREATE POLICY "Students can update their own submissions" ON submissions
     OR responder_details IS NOT NULL
   );
 
+
