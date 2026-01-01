@@ -10,6 +10,7 @@ import {
 import { Mic, Languages, Users, BarChart3 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import Link from "next/link";
 import LandingNavbar from "./LandingNavbar";
 export default function LandingPage() {
   const { t } = useTranslation();
@@ -64,7 +65,7 @@ export default function LandingPage() {
     },
   };
 
-  // Shared wavy underline style
+  // Shared styles
   const wavyUnderlineStyle: React.CSSProperties = {
     textDecoration: "underline",
     textDecorationStyle: "wavy",
@@ -73,6 +74,14 @@ export default function LandingPage() {
     textUnderlineOffset: "0.3em",
     opacity: 0.7,
   };
+
+  const waitlistButtonStyle = {
+    background: `linear-gradient(135deg, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
+    backgroundSize: "200% 200%",
+  };
+
+  const waitlistButtonClassName =
+    "text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient";
 
   return (
     <div
@@ -106,25 +115,6 @@ export default function LandingPage() {
         waitlistText={t("landing.hero.joinWaitlist")}
       />
       <style jsx>{`
-        @keyframes pulse-ring {
-          0% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          100% {
-            transform: scale(1.8);
-            opacity: 0;
-          }
-        }
-        @keyframes sound-wave {
-          0%,
-          100% {
-            transform: scaleY(0.4);
-          }
-          50% {
-            transform: scaleY(1);
-          }
-        }
         @keyframes fade-in {
           from {
             opacity: 0;
@@ -155,49 +145,6 @@ export default function LandingPage() {
             transform: translateX(0);
           }
         }
-        @keyframes float-slow {
-          0%,
-          100% {
-            transform: translateY(0) rotate(-2deg);
-          }
-          50% {
-            transform: translateY(-12px) rotate(2deg);
-          }
-        }
-        @keyframes float-up {
-          0% {
-            transform: translate(0, 20px) scale(0.3) rotate(0deg);
-            opacity: 0;
-          }
-          20% {
-            opacity: 0.4;
-          }
-          80% {
-            opacity: 0.4;
-          }
-          100% {
-            transform: translate(var(--drift-x, 15px), -300px) scale(1.2)
-              rotate(var(--rotate, 10deg));
-            opacity: 0;
-          }
-        }
-        @keyframes wave-flow {
-          0% {
-            transform: translateX(0) scaleY(1);
-            opacity: 0.1;
-          }
-          50% {
-            transform: translateX(-10px) scaleY(1.15);
-            opacity: 0.2;
-          }
-          100% {
-            transform: translateX(0) scaleY(1);
-            opacity: 0.1;
-          }
-        }
-        .animate-wave-flow {
-          animation: wave-flow 12s ease-in-out infinite;
-        }
         @keyframes gradient-shift {
           0%,
           100% {
@@ -208,12 +155,6 @@ export default function LandingPage() {
           }
         }
 
-        .animate-pulse-ring {
-          animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        .animate-sound-wave {
-          animation: sound-wave 1.2s ease-in-out infinite;
-        }
         .animate-fade-in {
           animation: fade-in 0.6s ease-out forwards;
         }
@@ -223,26 +164,15 @@ export default function LandingPage() {
         .animate-slide-in-right {
           animation: slide-in-right 0.6s ease-out forwards;
         }
-        .animate-float-slow {
-          animation: float-slow 10s ease-in-out infinite;
-        }
-        .animate-float-up {
-          animation: float-up 8s ease-out infinite;
-        }
         .animate-gradient {
           background-size: 200% 200%;
           animation: gradient-shift 4s ease infinite;
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .animate-pulse-ring,
-          .animate-sound-wave,
           .animate-fade-in,
           .animate-slide-in-left,
           .animate-slide-in-right,
-          .animate-float-slow,
-          .animate-float-up,
-          .animate-wave-pulse,
           .animate-gradient {
             animation: none;
           }
@@ -251,239 +181,79 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-pink-mist-50/30 via-glaucous-50/20 to-electric-aqua-50/30">
-        {/* Subtle language scripts scattered on the right */}
-        <div
-          className="pointer-events-none absolute top-0 right-0 w-1/2 h-full hidden lg:block"
-          aria-hidden="true"
-        >
-          {/* Hindi */}
-          <span
-            className="absolute text-5xl font-normal"
-            style={{
-              top: "12%",
-              right: "22%",
-              color: colors["pink-mist"].base,
-              opacity: 0.15,
-            }}
-          >
-            अ
-          </span>
-          {/* Tamil */}
-          <span
-            className="absolute text-4xl font-normal"
-            style={{
-              top: "38%",
-              right: "6%",
-              color: colors.glaucous.base,
-              opacity: 0.13,
-            }}
-          >
-            அ
-          </span>
-          {/* Telugu */}
-          <span
-            className="absolute text-6xl font-light"
-            style={{
-              top: "58%",
-              right: "28%",
-              color: colors["glaucous-light"].base,
-              opacity: 0.12,
-            }}
-          >
-            అ
-          </span>
-          {/* Kannada */}
-          <span
-            className="absolute text-4xl font-normal"
-            style={{
-              top: "20%",
-              right: "42%",
-              color: colors["electric-aqua"].base,
-              opacity: 0.14,
-            }}
-          >
-            ಅ
-          </span>
-          {/* Malayalam */}
-          <span
-            className="absolute text-5xl font-normal"
-            style={{
-              top: "72%",
-              right: "12%",
-              color: colors["pink-mist"].base,
-              opacity: 0.12,
-            }}
-          >
-            അ
-          </span>
-          {/* Bengali */}
-          <span
-            className="absolute text-4xl font-normal"
-            style={{
-              top: "48%",
-              right: "45%",
-              color: colors.glaucous.base,
-              opacity: 0.14,
-            }}
-          >
-            অ
-          </span>
-          {/* Arabic */}
-          <span
-            className="absolute text-5xl font-normal"
-            style={{
-              top: "82%",
-              right: "38%",
-              color: colors["glaucous-light"].base,
-              opacity: 0.12,
-            }}
-          >
-            ع
-          </span>
-          {/* Chinese */}
-          <span
-            className="absolute text-4xl font-normal"
-            style={{
-              top: "62%",
-              right: "4%",
-              color: colors["electric-aqua"].base,
-              opacity: 0.13,
-            }}
-          >
-            中
-          </span>
-          {/* Japanese */}
-          <span
-            className="absolute text-5xl font-light"
-            style={{
-              top: "28%",
-              right: "10%",
-              color: colors["pink-mist"].base,
-              opacity: 0.11,
-            }}
-          >
-            あ
-          </span>
-          {/* Korean */}
-          <span
-            className="absolute text-4xl font-normal"
-            style={{
-              top: "88%",
-              right: "20%",
-              color: colors.glaucous.base,
-              opacity: 0.13,
-            }}
-          >
-            한
-          </span>
-          {/* Spanish */}
-          <span
-            className="absolute text-5xl font-normal"
-            style={{
-              top: "5%",
-              right: "8%",
-              color: colors["glaucous-light"].base,
-              opacity: 0.1,
-            }}
-          >
-            ñ
-          </span>
-          {/* Greek */}
-          <span
-            className="absolute text-4xl font-normal"
-            style={{
-              top: "42%",
-              right: "18%",
-              color: colors["electric-aqua"].base,
-              opacity: 0.12,
-            }}
-          >
-            Ω
-          </span>
-          {/* Russian */}
-          <span
-            className="absolute text-5xl font-light"
-            style={{
-              top: "75%",
-              right: "48%",
-              color: colors["pink-mist"].base,
-              opacity: 0.11,
-            }}
-          >
-            Я
-          </span>
-          {/* Thai */}
-          <span
-            className="absolute text-4xl font-normal"
-            style={{
-              top: "32%",
-              right: "32%",
-              color: colors.glaucous.base,
-              opacity: 0.13,
-            }}
-          >
-            ก
-          </span>
-          {/* Hebrew */}
-          <span
-            className="absolute text-5xl font-normal"
-            style={{
-              top: "52%",
-              right: "52%",
-              color: colors["glaucous-light"].base,
-              opacity: 0.1,
-            }}
-          >
-            א
-          </span>
-        </div>
-
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-30 sm:py-24 lg:py-40 relative z-10">
-          <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
-              {t("landing.hero.title")}
-            </h1>
+          <div className="grid lg:grid-cols-[60%_40%] gap-3 lg:gap-3 items-center">
+            {/* Left column: Hero text content */}
+            <div className="text-left pl-8 sm:pl-10 lg:pl-20">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
+                {t("landing.hero.title")}
+              </h1>
 
-            <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed max-w-2xl mx-auto">
-              Provide your students with personalized{" "}
-              <span className="relative inline-block">
-                <span className="relative z-10">
-                  one-on-one learning support
+              <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed">
+                Provide your students with personalized{" "}
+                <span className="relative inline-block">
+                  <span className="relative z-10 font-medium">
+                    one-on-one learning support
+                  </span>
+                  <span
+                    className="absolute inset-0 pointer-events-none font-medium"
+                    style={wavyUnderlineStyle}
+                  >
+                    one-on-one learning support
+                  </span>
+                </span>{" "}
+                through{" "}
+                <span className="relative inline-block">
+                  <span className="relative z-10 font-medium">
+                    voice dialogues with AI in their native language
+                  </span>
+                  <span
+                    className="absolute inset-0 pointer-events-none font-medium"
+                    style={wavyUnderlineStyle}
+                  >
+                    voice dialogues with AI in their native language
+                  </span>
                 </span>
-                <span
-                  className="absolute inset-0 pointer-events-none"
-                  style={wavyUnderlineStyle}
-                >
-                  one-on-one learning support
-                </span>
-              </span>{" "}
-              through{" "}
-              <span className="relative inline-block">
-                <span className="relative z-10">
-                  voice dialogues with AI in their native language
-                </span>
-                <span
-                  className="absolute inset-0 pointer-events-none"
-                  style={wavyUnderlineStyle}
-                >
-                  voice dialogues with AI in their native language
-                </span>
-              </span>
-              .
-            </p>
+                .
+              </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                asChild
-                size="lg"
-                className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
-                style={{
-                  background: `linear-gradient(135deg, ${colors["pink-mist"].base}, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
-                  backgroundSize: "200% 200%",
-                }}
-              >
-                <a href={mailtoLink}>{t("landing.hero.joinWaitlist")}</a>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-4 justify-start">
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="text-lg px-8 py-6 hover:scale-105 transition-all duration-300 border-foreground"
+                  style={{
+                    color: "oklch(0.145 0 0)",
+                    borderColor: "oklch(0.145 0 0)",
+                  }}
+                >
+                  <Link
+                    href="/assignment/R7Dyuzez"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Try Sample Activity
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  className={waitlistButtonClassName}
+                  style={waitlistButtonStyle}
+                >
+                  <a href={mailtoLink}>{t("landing.hero.joinWaitlist")}</a>
+                </Button>
+              </div>
+            </div>
+
+            {/* Right column: Hero illustration */}
+            <div className="relative z-20 hidden lg:block flex items-center justify-start pr-6 sm:pr-8 lg:pr-20">
+              <img
+                src="/hero-illustration.svg"
+                alt="Hero illustration"
+                className="h-auto max-w-md"
+              />
             </div>
           </div>
         </div>
@@ -496,14 +266,26 @@ export default function LandingPage() {
         }}
         className="relative py-16 sm:py-20 lg:py-24 opacity-0 bg-muted/30 overflow-hidden"
       >
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
-              {t("landing.challenge.title")}
-            </h2>
-            <div className="space-y-6 text-lg text-muted-foreground">
-              <p>{t("landing.challenge.paragraph1")}</p>
-              <p>{t("landing.challenge.paragraph2")}</p>
+        <div className="container mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
+          <div className="grid lg:grid-cols-[60%_40%] gap-6 lg:gap-8 items-center">
+            {/* Left column: Challenge text content */}
+            <div>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-foreground">
+                {t("landing.challenge.title")}
+              </h2>
+              <div className="space-y-6 text-lg text-muted-foreground">
+                <p>{t("landing.challenge.paragraph1")}</p>
+                <p>{t("landing.challenge.paragraph2")}</p>
+              </div>
+            </div>
+
+            {/* Right column: Challenge illustration */}
+            <div className="hidden lg:block flex items-center justify-center">
+              <img
+                src="/challenge.svg"
+                alt="Challenge illustration"
+                className="w-full h-auto max-w-sm"
+              />
             </div>
           </div>
         </div>
@@ -730,11 +512,8 @@ export default function LandingPage() {
             <Button
               asChild
               size="lg"
-              className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
-              style={{
-                background: `linear-gradient(135deg, ${colors["pink-mist"].base}, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
-                backgroundSize: "200% 200%",
-              }}
+              className={waitlistButtonClassName}
+              style={waitlistButtonStyle}
             >
               <a href={mailtoLink}>{t("landing.cta.joinWaitlist")}</a>
             </Button>

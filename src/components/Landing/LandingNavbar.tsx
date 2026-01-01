@@ -67,18 +67,34 @@ export default function LandingNavbar({
               />
             </Link>
 
-            {/* Join Waitlist Button */}
-            <Button
-              asChild
-              size="lg"
-              className="text-white hover:opacity-90 transition-all duration-300 shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, #c8376c, #8495e1, #6A7FDB)`,
-                backgroundSize: "200% 200%",
-              }}
-            >
-              <a href={mailtoLink}>{waitlistText}</a>
-            </Button>
+            {/* Buttons */}
+            <div className="flex items-center gap-3">
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="border-foreground"
+                style={{
+                  color: "oklch(0.145 0 0)",
+                  borderColor: "oklch(0.145 0 0)",
+                }}
+              >
+                <Link href="/assignment/R7Dyuzez" target="_blank" rel="noopener noreferrer">
+                  Try Sample Activity
+                </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                className="text-white hover:opacity-90 transition-all duration-300 shadow-lg animate-gradient"
+                style={{
+                  background: `linear-gradient(135deg, #8495e1, #6A7FDB)`,
+                  backgroundSize: "200% 200%",
+                }}
+              >
+                <a href={mailtoLink}>{waitlistText}</a>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
