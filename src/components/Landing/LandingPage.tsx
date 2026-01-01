@@ -184,7 +184,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-30 sm:py-24 lg:py-40 relative z-10">
           <div className="grid lg:grid-cols-[60%_40%] gap-3 lg:gap-3 items-center">
             {/* Left column: Hero text content */}
-            <div className="text-left pl-8 sm:pl-10 lg:pl-20">
+            <div className="text-left lg:pl-20">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
                 {t("landing.hero.title")}
               </h1>
@@ -232,11 +232,11 @@ export default function LandingPage() {
             </div>
 
             {/* Right column: Hero illustration */}
-            <div className="relative z-20 hidden lg:block flex items-center justify-start pr-6 sm:pr-8 lg:pr-20">
+            <div className="relative z-20 hidden lg:flex items-center justify-start lg:pr-20">
               <img
                 src="/hero-illustration.svg"
                 alt="Hero illustration"
-                className="h-auto max-w-md"
+                className="h-auto w-full max-w-md mx-auto lg:mx-0"
               />
             </div>
           </div>
@@ -250,13 +250,13 @@ export default function LandingPage() {
         }}
         className="relative py-16 sm:py-20 lg:py-24 opacity-0 bg-muted/30 overflow-hidden"
       >
-        <div className="container mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-8 lg:mb-12 text-center text-foreground">
+            {t("landing.challenge.title")}
+          </h2>
           <div className="grid lg:grid-cols-[60%_40%] gap-6 lg:gap-8 items-center">
             {/* Left column: Challenge text content */}
-            <div>
-              <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-foreground">
-                {t("landing.challenge.title")}
-              </h2>
+            <div className="lg:pl-20 order-2 lg:order-1">
               <div className="space-y-6 text-lg text-muted-foreground">
                 <p>{t("landing.challenge.paragraph1")}</p>
                 <p>{t("landing.challenge.paragraph2")}</p>
@@ -264,11 +264,11 @@ export default function LandingPage() {
             </div>
 
             {/* Right column: Challenge illustration */}
-            <div className="hidden lg:block flex items-center justify-center">
+            <div className="flex items-center justify-center lg:pr-20 order-1 lg:order-2">
               <img
                 src="/challenge.svg"
                 alt="Challenge illustration"
-                className="w-full h-auto max-w-sm"
+                className="w-full h-auto max-w-sm mx-auto lg:mx-0"
               />
             </div>
           </div>
