@@ -64,7 +64,30 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      style={{
+        // Force light mode by overriding CSS variables
+        "--background": "oklch(1 0 0)",
+        "--foreground": "oklch(0.145 0 0)",
+        "--card": "oklch(1 0 0)",
+        "--card-foreground": "oklch(0.145 0 0)",
+        "--popover": "oklch(1 0 0)",
+        "--popover-foreground": "oklch(0.145 0 0)",
+        "--primary": "oklch(0.205 0 0)",
+        "--primary-foreground": "oklch(0.985 0 0)",
+        "--secondary": "oklch(0.97 0 0)",
+        "--secondary-foreground": "oklch(0.205 0 0)",
+        "--muted": "oklch(0.97 0 0)",
+        "--muted-foreground": "oklch(0.556 0 0)",
+        "--accent": "oklch(0.97 0 0)",
+        "--accent-foreground": "oklch(0.205 0 0)",
+        "--destructive": "oklch(0.577 0.245 27.325)",
+        "--border": "oklch(0.922 0 0)",
+        "--input": "oklch(0.922 0 0)",
+        "--ring": "oklch(0.708 0 0)",
+      } as React.CSSProperties}
+    >
       <style jsx>{`
         @keyframes pulse-ring {
           0% {
@@ -416,7 +439,7 @@ export default function LandingPage() {
               <span className="relative z-10">{t("toolName")}</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
               {t("landing.hero.title")}
             </h1>
 
@@ -495,7 +518,7 @@ export default function LandingPage() {
 
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
               {t("landing.challenge.title")}
             </h2>
             <div className="space-y-6 text-lg text-muted-foreground">
@@ -515,7 +538,7 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">
               {t("landing.solution.title")}
             </h2>
             <p className="text-xl text-center text-muted-foreground mb-12">
@@ -620,7 +643,7 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
               {t("landing.howItWorks.title")}
             </h2>
             <div className="space-y-8">
@@ -633,7 +656,7 @@ export default function LandingPage() {
                   1
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">
+                  <h3 className="font-semibold text-lg mb-2 text-foreground">
                     {t("landing.howItWorks.steps.step1.title")}
                   </h3>
                   <p className="text-muted-foreground">
@@ -654,7 +677,7 @@ export default function LandingPage() {
                   2
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">
+                  <h3 className="font-semibold text-lg mb-2 text-foreground">
                     {t("landing.howItWorks.steps.step2.title")}
                   </h3>
                   <p className="text-muted-foreground">
@@ -675,7 +698,7 @@ export default function LandingPage() {
                   3
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">
+                  <h3 className="font-semibold text-lg mb-2 text-foreground">
                     {t("landing.howItWorks.steps.step3.title")}
                   </h3>
                   <p className="text-muted-foreground">
@@ -696,7 +719,7 @@ export default function LandingPage() {
                   4
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">
+                  <h3 className="font-semibold text-lg mb-2 text-foreground">
                     {t("landing.howItWorks.steps.step4.title")}
                   </h3>
                   <p className="text-muted-foreground">
@@ -718,7 +741,7 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
               {t("landing.cta.title")}
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
