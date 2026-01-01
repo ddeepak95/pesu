@@ -191,28 +191,12 @@ export default function LandingPage() {
 
               <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed">
                 Provide your students with personalized{" "}
-                <span className="relative inline-block">
-                  <span className="relative z-10 font-medium">
-                    one-on-one learning support
-                  </span>
-                  <span
-                    className="absolute inset-0 pointer-events-none font-medium"
-                    style={wavyUnderlineStyle}
-                  >
-                    one-on-one learning support
-                  </span>
+                <span className="font-medium" style={wavyUnderlineStyle}>
+                  one-on-one learning support
                 </span>{" "}
                 through{" "}
-                <span className="relative inline-block">
-                  <span className="relative z-10 font-medium">
-                    voice dialogues with AI in their native language
-                  </span>
-                  <span
-                    className="absolute inset-0 pointer-events-none font-medium"
-                    style={wavyUnderlineStyle}
-                  >
-                    voice dialogues with AI in their native language
-                  </span>
+                <span className="font-medium" style={wavyUnderlineStyle}>
+                  voice dialogues with AI in their native language
                 </span>
                 .
               </p>
