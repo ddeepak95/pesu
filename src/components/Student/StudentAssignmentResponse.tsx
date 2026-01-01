@@ -6,7 +6,6 @@ import {
   getSubmissionById,
   getSubmissionByStudentAndAssignment,
   getMaxAttemptCountAcrossQuestions,
-  resetSubmissionForRetake,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
 import {
@@ -18,7 +17,6 @@ import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import {
   saveSession,
   loadSession,
-  clearSession,
   getSubmissionIdFromUrl,
   updateUrlWithSubmissionId,
 } from "@/utils/sessionStorage";
@@ -249,7 +247,6 @@ export default function StudentAssignmentResponse({
       setDisplayName(name);
       // For new submission, current attempt is 1 (no attempts yet)
       setCurrentAttemptNumber(1);
-      const maxAttempts = assignmentData.max_attempts ?? 1;
       setMaxAttemptsReached(false);
 
       if (onDisplayNameChange) {
@@ -273,7 +270,7 @@ export default function StudentAssignmentResponse({
     }
   };
 
-  const restoreSubmission = async (submission: any) => {
+  const restoreSubmission = async (submission: { submission_id: string; preferred_language: string; responder_details?: Record<string, string>; student_name?: string }) => {
     setSubmissionId(submission.submission_id);
     const name = getDisplayName(submission);
     setDisplayName(name);
@@ -364,7 +361,7 @@ export default function StudentAssignmentResponse({
     });
   };
 
-  const getDisplayName = (submission: any): string => {
+  const getDisplayName = (submission: { responder_details?: Record<string, string>; student_name?: string }): string => {
     if (submission.responder_details?.name) {
       return submission.responder_details.name;
     }

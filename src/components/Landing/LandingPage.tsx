@@ -10,6 +10,7 @@ import {
 import { Mic, Languages, Users, BarChart3 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import LandingNavbar from "./LandingNavbar";
 export default function LandingPage() {
   const { t } = useTranslation();
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
@@ -43,51 +44,67 @@ export default function LandingPage() {
     };
   }, []);
 
-  // Harmonious pastel color palette
+  // Color palette using pink-mist, glaucous, and electric-aqua
   const colors = {
-    coral: {
-      base: "oklch(0.72 0.12 25)",
-      light: "oklch(0.94 0.04 25)",
+    "pink-mist": {
+      base: "#c8376c", // pink-mist-500
+      light: "#faebf0", // pink-mist-50
     },
-    sky: {
-      base: "oklch(0.68 0.10 220)",
-      light: "oklch(0.94 0.03 220)",
+    glaucous: {
+      base: "#6A7FDB", // glaucous-400 (primary)
+      light: "#eaedfa", // glaucous-50
     },
-    lavender: {
-      base: "oklch(0.70 0.10 280)",
-      light: "oklch(0.94 0.04 280)",
+    "glaucous-light": {
+      base: "#8495e1", // glaucous-300
+      light: "#eaedfa", // glaucous-50
     },
-    mint: {
-      base: "oklch(0.72 0.10 160)",
-      light: "oklch(0.94 0.03 160)",
+    "electric-aqua": {
+      base: "#22d9dd", // electric-aqua-500
+      light: "#e9fbfc", // electric-aqua-50
     },
+  };
+
+  // Shared wavy underline style
+  const wavyUnderlineStyle: React.CSSProperties = {
+    textDecoration: "underline",
+    textDecorationStyle: "wavy",
+    textDecorationColor: colors["pink-mist"].base,
+    textDecorationThickness: "1px",
+    textUnderlineOffset: "0.3em",
+    opacity: 0.7,
   };
 
   return (
     <div
       className="min-h-screen bg-background"
-      style={{
-        // Force light mode by overriding CSS variables
-        "--background": "oklch(1 0 0)",
-        "--foreground": "oklch(0.145 0 0)",
-        "--card": "oklch(1 0 0)",
-        "--card-foreground": "oklch(0.145 0 0)",
-        "--popover": "oklch(1 0 0)",
-        "--popover-foreground": "oklch(0.145 0 0)",
-        "--primary": "oklch(0.205 0 0)",
-        "--primary-foreground": "oklch(0.985 0 0)",
-        "--secondary": "oklch(0.97 0 0)",
-        "--secondary-foreground": "oklch(0.205 0 0)",
-        "--muted": "oklch(0.97 0 0)",
-        "--muted-foreground": "oklch(0.556 0 0)",
-        "--accent": "oklch(0.97 0 0)",
-        "--accent-foreground": "oklch(0.205 0 0)",
-        "--destructive": "oklch(0.577 0.245 27.325)",
-        "--border": "oklch(0.922 0 0)",
-        "--input": "oklch(0.922 0 0)",
-        "--ring": "oklch(0.708 0 0)",
-      } as React.CSSProperties}
+      style={
+        {
+          // Force light mode by overriding CSS variables
+          "--background": "oklch(1 0 0)",
+          "--foreground": "oklch(0.145 0 0)",
+          "--card": "oklch(1 0 0)",
+          "--card-foreground": "oklch(0.145 0 0)",
+          "--popover": "oklch(1 0 0)",
+          "--popover-foreground": "oklch(0.145 0 0)",
+          "--primary": "#6A7FDB",
+          "--primary-foreground": "oklch(0.985 0 0)",
+          "--secondary": "oklch(0.97 0 0)",
+          "--secondary-foreground": "oklch(0.205 0 0)",
+          "--muted": "oklch(0.97 0 0)",
+          "--muted-foreground": "oklch(0.556 0 0)",
+          "--accent": "oklch(0.97 0 0)",
+          "--accent-foreground": "oklch(0.205 0 0)",
+          "--destructive": "oklch(0.577 0.245 27.325)",
+          "--border": "oklch(0.922 0 0)",
+          "--input": "oklch(0.922 0 0)",
+          "--ring": "oklch(0.708 0 0)",
+        } as React.CSSProperties
+      }
     >
+      <LandingNavbar
+        mailtoLink={mailtoLink}
+        waitlistText={t("landing.hero.joinWaitlist")}
+      />
       <style jsx>{`
         @keyframes pulse-ring {
           0% {
@@ -233,7 +250,7 @@ export default function LandingPage() {
       `}</style>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[oklch(0.72_0.12_25/0.15)] via-[oklch(0.68_0.10_220/0.12)] to-[oklch(0.70_0.10_280/0.15)]">
+      <section className="relative overflow-hidden bg-gradient-to-br from-pink-mist-50/30 via-glaucous-50/20 to-electric-aqua-50/30">
         {/* Subtle language scripts scattered on the right */}
         <div
           className="pointer-events-none absolute top-0 right-0 w-1/2 h-full hidden lg:block"
@@ -245,7 +262,7 @@ export default function LandingPage() {
             style={{
               top: "12%",
               right: "22%",
-              color: colors.coral.base,
+              color: colors["pink-mist"].base,
               opacity: 0.15,
             }}
           >
@@ -257,7 +274,7 @@ export default function LandingPage() {
             style={{
               top: "38%",
               right: "6%",
-              color: colors.sky.base,
+              color: colors.glaucous.base,
               opacity: 0.13,
             }}
           >
@@ -269,7 +286,7 @@ export default function LandingPage() {
             style={{
               top: "58%",
               right: "28%",
-              color: colors.lavender.base,
+              color: colors["glaucous-light"].base,
               opacity: 0.12,
             }}
           >
@@ -281,7 +298,7 @@ export default function LandingPage() {
             style={{
               top: "20%",
               right: "42%",
-              color: colors.mint.base,
+              color: colors["electric-aqua"].base,
               opacity: 0.14,
             }}
           >
@@ -293,7 +310,7 @@ export default function LandingPage() {
             style={{
               top: "72%",
               right: "12%",
-              color: colors.coral.base,
+              color: colors["pink-mist"].base,
               opacity: 0.12,
             }}
           >
@@ -305,7 +322,7 @@ export default function LandingPage() {
             style={{
               top: "48%",
               right: "45%",
-              color: colors.sky.base,
+              color: colors.glaucous.base,
               opacity: 0.14,
             }}
           >
@@ -317,7 +334,7 @@ export default function LandingPage() {
             style={{
               top: "82%",
               right: "38%",
-              color: colors.lavender.base,
+              color: colors["glaucous-light"].base,
               opacity: 0.12,
             }}
           >
@@ -329,7 +346,7 @@ export default function LandingPage() {
             style={{
               top: "62%",
               right: "4%",
-              color: colors.mint.base,
+              color: colors["electric-aqua"].base,
               opacity: 0.13,
             }}
           >
@@ -341,7 +358,7 @@ export default function LandingPage() {
             style={{
               top: "28%",
               right: "10%",
-              color: colors.coral.base,
+              color: colors["pink-mist"].base,
               opacity: 0.11,
             }}
           >
@@ -353,7 +370,7 @@ export default function LandingPage() {
             style={{
               top: "88%",
               right: "20%",
-              color: colors.sky.base,
+              color: colors.glaucous.base,
               opacity: 0.13,
             }}
           >
@@ -365,7 +382,7 @@ export default function LandingPage() {
             style={{
               top: "5%",
               right: "8%",
-              color: colors.lavender.base,
+              color: colors["glaucous-light"].base,
               opacity: 0.1,
             }}
           >
@@ -377,7 +394,7 @@ export default function LandingPage() {
             style={{
               top: "42%",
               right: "18%",
-              color: colors.mint.base,
+              color: colors["electric-aqua"].base,
               opacity: 0.12,
             }}
           >
@@ -389,7 +406,7 @@ export default function LandingPage() {
             style={{
               top: "75%",
               right: "48%",
-              color: colors.coral.base,
+              color: colors["pink-mist"].base,
               opacity: 0.11,
             }}
           >
@@ -401,7 +418,7 @@ export default function LandingPage() {
             style={{
               top: "32%",
               right: "32%",
-              color: colors.sky.base,
+              color: colors.glaucous.base,
               opacity: 0.13,
             }}
           >
@@ -413,7 +430,7 @@ export default function LandingPage() {
             style={{
               top: "52%",
               right: "52%",
-              color: colors.lavender.base,
+              color: colors["glaucous-light"].base,
               opacity: 0.1,
             }}
           >
@@ -421,30 +438,38 @@ export default function LandingPage() {
           </span>
         </div>
 
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-24 lg:py-32 relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-30 sm:py-24 lg:py-40 relative z-10">
           <div className="max-w-3xl mx-auto text-center">
-            {/* Badge with mic */}
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mb-8 relative border bg-background/60 backdrop-blur-sm"
-              style={{
-                color: colors.coral.base,
-                borderColor: `${colors.coral.base}30`,
-              }}
-            >
-              <div
-                className="absolute inset-0 rounded-full border animate-pulse-ring"
-                style={{ borderColor: `${colors.coral.base}40` }}
-              ></div>
-              <Mic className="w-4 h-4 relative z-10" />
-              <span className="relative z-10">{t("toolName")}</span>
-            </div>
-
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
               {t("landing.hero.title")}
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed max-w-2xl mx-auto">
-              {t("landing.hero.description")}
+              Provide your students with personalized{" "}
+              <span className="relative inline-block">
+                <span className="relative z-10">
+                  one-on-one learning support
+                </span>
+                <span
+                  className="absolute inset-0 pointer-events-none"
+                  style={wavyUnderlineStyle}
+                >
+                  one-on-one learning support
+                </span>
+              </span>{" "}
+              through{" "}
+              <span className="relative inline-block">
+                <span className="relative z-10">
+                  voice dialogues with AI in their native language
+                </span>
+                <span
+                  className="absolute inset-0 pointer-events-none"
+                  style={wavyUnderlineStyle}
+                >
+                  voice dialogues with AI in their native language
+                </span>
+              </span>
+              .
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -453,7 +478,7 @@ export default function LandingPage() {
                 size="lg"
                 className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
                 style={{
-                  background: `linear-gradient(135deg, ${colors.coral.base}, ${colors.lavender.base}, ${colors.sky.base})`,
+                  background: `linear-gradient(135deg, ${colors["pink-mist"].base}, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
                   backgroundSize: "200% 200%",
                 }}
               >
@@ -471,51 +496,6 @@ export default function LandingPage() {
         }}
         className="relative py-16 sm:py-20 lg:py-24 opacity-0 bg-muted/30 overflow-hidden"
       >
-        {/* Conversation waves as background */}
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          {/* Ambient glow behind waves */}
-          <div
-            className="absolute w-[600px] h-[400px] blur-[120px] rounded-full opacity-15"
-            style={{
-              background: `radial-gradient(circle, ${colors.sky.base}, ${colors.lavender.base})`,
-            }}
-          ></div>
-
-          {/* Voice/Conversation Waveform - spanning the full width */}
-          <svg
-            className="absolute w-full h-full overflow-visible"
-            viewBox="0 0 1200 400"
-            preserveAspectRatio="xMidYMid slice"
-            aria-hidden="true"
-          >
-            {/* Several overlapping waves for a fluid, calming effect */}
-            <path
-              className="animate-wave-flow"
-              d="M0,200 C200,100 300,300 400,200 C500,100 600,300 700,200 C800,100 900,300 1000,200 C1100,100 1200,300 1200,200"
-              stroke={colors.sky.base}
-              strokeWidth="1.5"
-              fill="none"
-              style={{ animationDelay: "0s", animationDuration: "25s" }}
-            />
-            <path
-              className="animate-wave-flow"
-              d="M0,200 C150,280 350,120 500,200 C650,280 850,120 1000,200 C1150,280 1200,120 1200,200"
-              stroke={colors.lavender.base}
-              strokeWidth="1"
-              fill="none"
-              style={{ animationDelay: "-6s", animationDuration: "30s" }}
-            />
-            <path
-              className="animate-wave-flow"
-              d="M0,200 C250,150 350,250 500,200 C650,150 750,250 900,200 C1050,150 1150,250 1200,200"
-              stroke={colors.mint.base}
-              strokeWidth="1.2"
-              fill="none"
-              style={{ animationDelay: "-12s", animationDuration: "35s" }}
-            />
-          </svg>
-        </div>
-
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
@@ -551,11 +531,11 @@ export default function LandingPage() {
                 <CardHeader>
                   <div
                     className="w-12 h-12 rounded-lg flex items-center justify-center mb-4"
-                    style={{ backgroundColor: colors.coral.light }}
+                    style={{ backgroundColor: colors["pink-mist"].light }}
                   >
                     <Mic
                       className="w-6 h-6"
-                      style={{ color: colors.coral.base }}
+                      style={{ color: colors["pink-mist"].base }}
                     />
                   </div>
                   <CardTitle>
@@ -572,11 +552,11 @@ export default function LandingPage() {
                 <CardHeader>
                   <div
                     className="w-12 h-12 rounded-lg flex items-center justify-center mb-4"
-                    style={{ backgroundColor: colors.sky.light }}
+                    style={{ backgroundColor: colors.glaucous.light }}
                   >
                     <Languages
                       className="w-6 h-6"
-                      style={{ color: colors.sky.base }}
+                      style={{ color: colors.glaucous.base }}
                     />
                   </div>
                   <CardTitle>
@@ -593,11 +573,11 @@ export default function LandingPage() {
                 <CardHeader>
                   <div
                     className="w-12 h-12 rounded-lg flex items-center justify-center mb-4"
-                    style={{ backgroundColor: colors.lavender.light }}
+                    style={{ backgroundColor: colors["glaucous-light"].light }}
                   >
                     <Users
                       className="w-6 h-6"
-                      style={{ color: colors.lavender.base }}
+                      style={{ color: colors["glaucous-light"].base }}
                     />
                   </div>
                   <CardTitle>
@@ -614,11 +594,11 @@ export default function LandingPage() {
                 <CardHeader>
                   <div
                     className="w-12 h-12 rounded-lg flex items-center justify-center mb-4"
-                    style={{ backgroundColor: colors.mint.light }}
+                    style={{ backgroundColor: colors["electric-aqua"].light }}
                   >
                     <BarChart3
                       className="w-6 h-6"
-                      style={{ color: colors.mint.base }}
+                      style={{ color: colors["electric-aqua"].base }}
                     />
                   </div>
                   <CardTitle>
@@ -651,7 +631,7 @@ export default function LandingPage() {
               <div className="flex gap-6 opacity-0 animate-slide-in-left">
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors.coral.base }}
+                  style={{ backgroundColor: colors["pink-mist"].base }}
                 >
                   1
                 </div>
@@ -672,7 +652,7 @@ export default function LandingPage() {
               >
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors.sky.base }}
+                  style={{ backgroundColor: colors.glaucous.base }}
                 >
                   2
                 </div>
@@ -693,7 +673,7 @@ export default function LandingPage() {
               >
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors.lavender.base }}
+                  style={{ backgroundColor: colors["glaucous-light"].base }}
                 >
                   3
                 </div>
@@ -714,7 +694,7 @@ export default function LandingPage() {
               >
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors.mint.base }}
+                  style={{ backgroundColor: colors["electric-aqua"].base }}
                 >
                   4
                 </div>
@@ -737,7 +717,7 @@ export default function LandingPage() {
         ref={(el) => {
           sectionRefs.current[3] = el;
         }}
-        className="py-16 sm:py-20 lg:py-24 relative overflow-hidden opacity-0 bg-gradient-to-br from-[oklch(0.72_0.10_160/0.15)] via-[oklch(0.68_0.10_220/0.12)] to-[oklch(0.70_0.10_280/0.15)]"
+        className="py-16 sm:py-20 lg:py-24 relative overflow-hidden opacity-0 bg-gradient-to-br from-electric-aqua-50/30 via-glaucous-50/20 to-pink-mist-50/30"
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-3xl mx-auto text-center">
@@ -752,7 +732,7 @@ export default function LandingPage() {
               size="lg"
               className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
               style={{
-                background: `linear-gradient(135deg, ${colors.coral.base}, ${colors.lavender.base}, ${colors.sky.base})`,
+                background: `linear-gradient(135deg, ${colors["pink-mist"].base}, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
                 backgroundSize: "200% 200%",
               }}
             >

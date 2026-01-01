@@ -11,6 +11,7 @@ import { createAssignment } from "@/lib/queries/assignments";
 import { getClassByClassId } from "@/lib/queries/classes";
 import { createContentItem } from "@/lib/queries/contentItems";
 import { getClassGroups } from "@/lib/queries/groups";
+import { ResponderFieldConfig } from "@/types/assignment";
 
 export default function CreateAssignmentPage() {
   const params = useParams();
@@ -89,7 +90,7 @@ export default function CreateAssignmentPage() {
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
-    responderFieldsConfig?: any;
+    responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
   }) => {
     if (!user) {

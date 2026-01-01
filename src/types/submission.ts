@@ -46,7 +46,7 @@ export interface Submission {
    * For authenticated: {name: "John Doe"} (derived from user metadata)
    * For public: all collected fields from responder_fields_config
    */
-  responder_details?: Record<string, any>;
+  responder_details?: Record<string, string>;
   preferred_language: string;
   answers: { [question_order: number]: QuestionAnswers } | SubmissionAnswer[]; // Support both formats
   submitted_at: string;

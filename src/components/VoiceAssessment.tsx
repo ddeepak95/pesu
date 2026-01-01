@@ -57,7 +57,6 @@ function VoiceAssessmentContent({
   isLastQuestion,
   existingAnswer,
   onLanguageChange,
-  currentAttemptNumber,
   maxAttempts,
   maxAttemptsReached,
 }: VoiceAssessmentProps) {

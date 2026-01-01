@@ -52,14 +52,12 @@ export function ChatAssessment({
   isLastQuestion,
   existingAnswer,
   onLanguageChange,
-  currentAttemptNumber,
   maxAttempts,
   maxAttemptsReached,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
   const [isStarting, setIsStarting] = React.useState(false);
-  const [isSending, setIsSending] = React.useState(false);
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
   
@@ -152,7 +150,6 @@ export function ChatAssessment({
     }
 
     loadAttempts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question.order, submissionId, storageKey, existingAnswer]);
 
   // Persist chat draft to localStorage so it survives refresh while in progress

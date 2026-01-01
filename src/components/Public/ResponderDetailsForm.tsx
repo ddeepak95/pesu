@@ -15,8 +15,8 @@ import { ResponderFieldConfig } from "@/types/assignment";
 
 interface ResponderDetailsFormProps {
   fields: ResponderFieldConfig[];
-  onSubmit: (data: Record<string, any>) => void;
-  initialValues?: Record<string, any>;
+  onSubmit: (data: Record<string, string>) => void;
+  initialValues?: Record<string, string>;
   submitLabel?: string;
 }
 
@@ -30,7 +30,7 @@ export default function ResponderDetailsForm({
   initialValues = {},
   submitLabel = "Begin Assignment",
 }: ResponderDetailsFormProps) {
-  const [formData, setFormData] = useState<Record<string, any>>(initialValues);
+  const [formData, setFormData] = useState<Record<string, string>>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = (field: string, value: string) => {

@@ -18,6 +18,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: `${en.toolName} | Voice-based AI Assistant for Learning`,
   description: "Voice-based AI Assistant for Learning",
+  icons: {
+    icon: "/convoed-symbol.svg",
+  },
 };
 
 export default function RootLayout({

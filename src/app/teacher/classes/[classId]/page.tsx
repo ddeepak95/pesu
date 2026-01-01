@@ -69,7 +69,7 @@ export default function ClassDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const fetchClass = async () => {
+  const fetchClass = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -86,13 +86,13 @@ export default function ClassDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [classId]);
 
   useEffect(() => {
     if (classId) {
       fetchClass();
     }
-  }, [classId]);
+  }, [classId, fetchClass]);
 
   const handleEdit = () => {
     setEditDialogOpen(true);

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase";
-import { Assignment } from "@/types/assignment";
+import { Assignment, ResponderFieldConfig } from "@/types/assignment";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
 
@@ -166,7 +166,7 @@ export async function createAssignment(
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
     status?: "draft" | "active";
-    responder_fields_config?: any; // JSONB array of ResponderFieldConfig
+    responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
   },
   userId: string
@@ -221,7 +221,7 @@ export async function updateAssignment(
     preferred_language: string;
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
-    responder_fields_config?: any; // JSONB array of ResponderFieldConfig
+    responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
   }
 ): Promise<Assignment> {

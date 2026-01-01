@@ -237,7 +237,7 @@ export default function Content({ classData }: ContentProps) {
       ) : !studentGroupId ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
-            You haven't been assigned to a group yet.
+            You haven&apos;t been assigned to a group yet.
           </p>
         </div>
       ) : (

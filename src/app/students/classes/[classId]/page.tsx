@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import Content from "@/components/Student/Classes/Content";
@@ -11,14 +11,13 @@ import { Class } from "@/types/class";
 
 export default function ClassDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const classId = params.classId as string;
   const [classData, setClassData] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchClass = async () => {
+  const fetchClass = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -35,13 +34,13 @@ export default function ClassDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [classId]);
 
   useEffect(() => {
     if (classId) {
       fetchClass();
     }
-  }, [classId]);
+  }, [classId, fetchClass]);
 
   // Show loading while checking auth (middleware handles redirect if not authenticated)
   if (authLoading || !user) {

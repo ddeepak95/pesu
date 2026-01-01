@@ -207,7 +207,7 @@ export default function PublicAssignmentResponse({
     }
   };
 
-  const getDisplayName = (submission: any): string => {
+  const getDisplayName = (submission: { responder_details?: Record<string, string>; student_name?: string }): string => {
     if (submission.responder_details?.name) {
       return submission.responder_details.name;
     }
@@ -217,7 +217,7 @@ export default function PublicAssignmentResponse({
     return "Responder";
   };
 
-  const handleBeginAssignment = async (responderDetails: Record<string, any>) => {
+  const handleBeginAssignment = async (responderDetails: Record<string, string>) => {
     if (!assignmentData) return;
 
     try {

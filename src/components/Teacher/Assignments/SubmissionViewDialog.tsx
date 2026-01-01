@@ -75,12 +75,6 @@ export default function SubmissionViewDialog({
     return submission.answers as { [key: number | string]: QuestionAnswers };
   };
 
-  const isNewFormat = (
-    answers: { [key: number]: QuestionAnswers } | any[]
-  ): answers is { [key: number]: QuestionAnswers } => {
-    return !Array.isArray(answers);
-  };
-
   if (!studentSubmission.submission) {
     return null;
   }

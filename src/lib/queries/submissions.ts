@@ -31,14 +31,14 @@ export async function createSubmission(
   submissionMode: "voice" | "text_chat" | "static_text",
   options?: {
     studentId?: string;
-    responderDetails?: Record<string, any>;
+    responderDetails?: Record<string, string>;
   }
 ): Promise<Submission> {
   const supabase = createClient();
   const submissionId = generateSubmissionId();
 
   // Build responder_details
-  let responderDetails: Record<string, any> | undefined;
+  let responderDetails: Record<string, string> | undefined;
   let studentName: string | undefined;
 
   if (options?.studentId) {
@@ -59,7 +59,7 @@ export async function createSubmission(
     throw new Error("Either studentId or responderDetails must be provided");
   }
 
-  const insertData: any = {
+  const insertData: Record<string, unknown> = {
     submission_id: submissionId,
     assignment_id: assignmentId,
     preferred_language: preferredLanguage,
@@ -493,7 +493,7 @@ export function hasNonStaleAttempts(submission: Submission): boolean {
   if (typeof answersRaw === 'string') {
     try {
       answersRaw = JSON.parse(answersRaw);
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -515,13 +515,13 @@ export function hasNonStaleAttempts(submission: Submission): boolean {
     return false;
   }
 
-  let answers = answersRaw as
+  const answers = answersRaw as
     | { [key: number]: QuestionAnswers }
     | { [key: string]: QuestionAnswers }
     | SubmissionAnswer[];
 
   // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
-  for (const [key, questionAnswers] of Object.entries(answers)) {
+  for (const [, questionAnswers] of Object.entries(answers)) {
     const qa = questionAnswers as QuestionAnswers;
     
     if (qa && qa.attempts && Array.isArray(qa.attempts) && qa.attempts.length > 0) {
@@ -616,8 +616,6 @@ export async function getSubmissionsByAssignmentWithStudents(
   assignmentId: string,
   classId: string
 ): Promise<StudentSubmissionStatus[]> {
-  const supabase = createClient();
-
   // Get all students in the class
   const students = await getClassStudentsWithInfo(classId);
 

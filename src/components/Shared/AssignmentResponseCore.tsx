@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 // No need to import getSubmissionById - no completion status checking
 import { Assignment } from "@/types/assignment";
-import { supportedLanguages } from "@/utils/supportedLanguages";
 import { VoiceAssessment } from "@/components/VoiceAssessment";
 import { ChatAssessment } from "@/components/ChatAssessment";
 import {
@@ -36,10 +35,8 @@ interface AssignmentResponseCoreProps {
 export default function AssignmentResponseCore({
   assignmentData,
   submissionId,
-  displayName,
   preferredLanguage: initialPreferredLanguage,
   onComplete,
-  onBack,
   onLanguageChange,
   assignmentId,
   initialQuestionIndex = 0,
