@@ -31,7 +31,12 @@ export default function Header({ userName }: HeaderProps) {
   return (
     <header className="w-full border-b bg-secondary drop-shadow-md">
       <div className="flex items-center justify-between px-8 py-4">
-        <div className="text-2xl font-semibold">{t("toolName")}</div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/convoed-symbol.svg"
+          alt={t("toolName")}
+          className="h-8 w-auto"
+        />
         {user && (
           <div className="flex items-center gap-2">
             <DropdownMenu>
