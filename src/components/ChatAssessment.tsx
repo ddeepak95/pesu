@@ -58,6 +58,7 @@ export function ChatAssessment({
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
   const [isStarting, setIsStarting] = React.useState(false);
+  const [isSending, setIsSending] = React.useState(false);
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
   

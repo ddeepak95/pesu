@@ -270,7 +270,7 @@ export default function StudentAssignmentResponse({
     }
   };
 
-  const restoreSubmission = async (submission: { submission_id: string; preferred_language: string; responder_details?: Record<string, string>; student_name?: string }) => {
+  const restoreSubmission = async (submission: { submission_id: string; preferred_language: string; responder_details?: Record<string, string>; student_name?: string; answers?: { [key: number]: QuestionAnswers } | SubmissionAnswer[] }) => {
     setSubmissionId(submission.submission_id);
     const name = getDisplayName(submission);
     setDisplayName(name);
