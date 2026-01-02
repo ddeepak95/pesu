@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import { getAssignmentById } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
-import PublicAssignmentResponse from "@/components/Public/PublicAssignmentResponse";
+import PublicAssignmentResponse, { PublicAssignmentResponseRef } from "@/components/Public/PublicAssignmentResponse";
 
 export default function PublicAssignmentPage() {
   const params = useParams();
@@ -15,6 +15,8 @@ export default function PublicAssignmentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
+  const [hasActiveSubmission, setHasActiveSubmission] = useState(false);
+  const assignmentResponseRef = useRef<PublicAssignmentResponseRef>(null);
 
   useEffect(() => {
     fetchAssignment();
@@ -68,13 +70,29 @@ export default function PublicAssignmentPage() {
     );
   }
 
+  const handleLogoutSubmission = () => {
+    if (assignmentResponseRef.current) {
+      assignmentResponseRef.current.resetSubmission();
+      setHasActiveSubmission(false);
+    }
+  };
+
+  const handleSubmissionStateChange = (hasActive: boolean) => {
+    setHasActiveSubmission(hasActive);
+  };
+
   return (
-    <PageLayout userName={displayName}>
+    <PageLayout 
+      userName={displayName}
+      onLogoutSubmission={hasActiveSubmission ? handleLogoutSubmission : undefined}
+    >
       <div className="p-8">
         <PublicAssignmentResponse
+          ref={assignmentResponseRef}
           assignmentData={assignmentData}
           assignmentId={assignmentId}
           onDisplayNameChange={setDisplayName}
+          onSubmissionStateChange={handleSubmissionStateChange}
         />
       </div>
     </PageLayout>

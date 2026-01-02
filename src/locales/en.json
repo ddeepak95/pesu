@@ -2,7 +2,8 @@
   "toolName": "ConvoEd",
   "header": {
     "myAccount": "My Account",
-    "signOut": "Sign Out"
+    "signOut": "Sign Out",
+    "logOutOfSubmission": "Log Out of Submission"
   },
   "auth": {
     "loading": "Loading...",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useImperativeHandle, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -28,6 +28,7 @@ import {
   clearSession,
   getSubmissionIdFromUrl,
   updateUrlWithSubmissionId,
+  removeSubmissionIdFromUrl,
 } from "@/utils/sessionStorage";
 
 type Phase = "info" | "answering" | "completed";
@@ -38,19 +39,31 @@ interface PublicAssignmentResponseProps {
   onComplete?: () => void;
   onBack?: () => void;
   onDisplayNameChange?: (name: string) => void;
+  onSubmissionStateChange?: (hasActiveSubmission: boolean) => void;
+}
+
+export interface PublicAssignmentResponseRef {
+  resetSubmission: () => void;
 }
 
 /**
  * Public assignment response wrapper
  * Handles responder details collection and session management for public assignments
  */
-export default function PublicAssignmentResponse({
-  assignmentData,
-  assignmentId,
-  onComplete,
-  onBack,
-  onDisplayNameChange,
-}: PublicAssignmentResponseProps) {
+const PublicAssignmentResponse = forwardRef<
+  PublicAssignmentResponseRef,
+  PublicAssignmentResponseProps
+>(function PublicAssignmentResponse(
+  {
+    assignmentData,
+    assignmentId,
+    onComplete,
+    onBack,
+    onDisplayNameChange,
+    onSubmissionStateChange,
+  },
+  ref
+) {
   const [phase, setPhase] = useState<Phase>("info");
   const [restoringSession, setRestoringSession] = useState(true);
   const [preferredLanguage, setPreferredLanguage] = useState(
@@ -71,6 +84,14 @@ export default function PublicAssignmentResponse({
       placeholder: "Enter your name",
     },
   ];
+
+  // Notify parent of submission state changes
+  useEffect(() => {
+    if (onSubmissionStateChange) {
+      onSubmissionStateChange(submissionId !== null && phase !== "info");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submissionId, phase]);
 
   // Restore session after assignment is loaded
   useEffect(() => {
@@ -269,6 +290,37 @@ export default function PublicAssignmentResponse({
     }
   };
 
+  const resetSubmission = () => {
+    // Clear localStorage session
+    clearSession(assignmentId);
+    
+    // Remove submission ID from URL
+    removeSubmissionIdFromUrl();
+    
+    // Reset component state
+    setSubmissionId(null);
+    setDisplayName("");
+    setCurrentQuestionIndex(0);
+    setExistingAnswers({});
+    setPhase("info");
+    setPreferredLanguage(assignmentData.preferred_language || "");
+    
+    // Clear display name in parent
+    if (onDisplayNameChange) {
+      onDisplayNameChange("");
+    }
+    
+    // Notify parent that submission is cleared
+    if (onSubmissionStateChange) {
+      onSubmissionStateChange(false);
+    }
+  };
+
+  // Expose reset function via ref
+  useImperativeHandle(ref, () => ({
+    resetSubmission,
+  }));
+
   if (restoringSession) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -362,5 +414,7 @@ export default function PublicAssignmentResponse({
   }
 
   return null;
-}
+});
+
+export default PublicAssignmentResponse;
 

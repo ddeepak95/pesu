@@ -100,3 +100,13 @@ export function updateUrlWithSubmissionId(
   window.history.pushState({}, "", url.toString());
 }
 
+/**
+ * Remove submission ID from URL without reloading the page
+ */
+export function removeSubmissionIdFromUrl(): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("sid");
+  window.history.pushState({}, "", url.toString());
+}
+

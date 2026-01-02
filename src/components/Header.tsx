@@ -15,9 +15,10 @@ import {
 
 interface HeaderProps {
   userName?: string;
+  onLogoutSubmission?: () => void;
 }
 
-export default function Header({ userName }: HeaderProps) {
+export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const displayName =
@@ -28,6 +29,8 @@ export default function Header({ userName }: HeaderProps) {
     user?.email ||
     "Guest";
 
+  const hasUserMenu = user || onLogoutSubmission;
+
   return (
     <header className="w-full border-b bg-secondary drop-shadow-md">
       <div className="flex items-center justify-between px-8 py-4">
@@ -37,7 +40,7 @@ export default function Header({ userName }: HeaderProps) {
           alt={t("toolName")}
           className="h-8 w-auto"
         />
-        {user && (
+        {hasUserMenu && (
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -57,24 +60,49 @@ export default function Header({ userName }: HeaderProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>{t("header.myAccount")}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} className="cursor-pointer">
-                  <svg
-                    className="w-4 h-4 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                  {t("header.signOut")}
-                </DropdownMenuItem>
+                {user && !onLogoutSubmission && (
+                  <>
+                    <DropdownMenuLabel>{t("header.myAccount")}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {onLogoutSubmission ? (
+                  <DropdownMenuItem onClick={onLogoutSubmission} className="cursor-pointer">
+                    <svg
+                      className="w-4 h-4 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                      />
+                    </svg>
+                    {t("header.logOutOfSubmission") || "Log Out of Submission"}
+                  </DropdownMenuItem>
+                ) : (
+                  user && (
+                    <DropdownMenuItem onClick={signOut} className="cursor-pointer">
+                      <svg
+                        className="w-4 h-4 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                        />
+                      </svg>
+                      {t("header.signOut")}
+                    </DropdownMenuItem>
+                  )
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
