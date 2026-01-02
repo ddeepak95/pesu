@@ -8,13 +8,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Mic, Languages, Users, BarChart3 } from "lucide-react";
-import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import Link from "next/link";
 import LandingNavbar from "./LandingNavbar";
 export default function LandingPage() {
   const { t } = useTranslation();
-  const sectionRefs = useRef<(HTMLElement | null)[]>([]);
   const waitlistEmail = "dv292@cornell.edu";
   const waitlistSubject = "Join Waitlist - ConvoEd";
   const waitlistBody =
@@ -22,28 +20,6 @@ export default function LandingPage() {
   const mailtoLink = `mailto:${waitlistEmail}?subject=${encodeURIComponent(
     waitlistSubject
   )}&body=${encodeURIComponent(waitlistBody)}`;
-
-  useEffect(() => {
-    const observers = sectionRefs.current.map((ref) => {
-      if (!ref) return null;
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add("animate-fade-in");
-            }
-          });
-        },
-        { threshold: 0.1 }
-      );
-      observer.observe(ref);
-      return observer;
-    });
-
-    return () => {
-      observers.forEach((observer) => observer?.disconnect());
-    };
-  }, []);
 
   // Color palette using pink-mist, glaucous, and electric-aqua
   const colors = {
@@ -244,12 +220,7 @@ export default function LandingPage() {
       </section>
 
       {/* Problem Section */}
-      <section
-        ref={(el) => {
-          sectionRefs.current[0] = el;
-        }}
-        className="relative py-16 sm:py-20 lg:py-24 opacity-0 bg-muted/30 overflow-hidden"
-      >
+      <section className="relative py-16 sm:py-20 lg:py-24 bg-muted/30 overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <h2 className="text-3xl sm:text-4xl font-bold mb-8 lg:mb-12 text-center text-foreground">
             {t("landing.challenge.title")}
@@ -276,12 +247,7 @@ export default function LandingPage() {
       </section>
 
       {/* Solution Section */}
-      <section
-        ref={(el) => {
-          sectionRefs.current[1] = el;
-        }}
-        className="py-16 sm:py-20 lg:py-24 opacity-0 bg-background"
-      >
+      <section className="py-16 sm:py-20 lg:py-24 bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">
@@ -381,12 +347,7 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works Section */}
-      <section
-        ref={(el) => {
-          sectionRefs.current[2] = el;
-        }}
-        className="py-16 sm:py-20 lg:py-24 opacity-0 bg-muted/30"
-      >
+      <section className="py-16 sm:py-20 lg:py-24 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
@@ -394,7 +355,7 @@ export default function LandingPage() {
             </h2>
             <div className="space-y-8">
               {/* Step 1 - Coral */}
-              <div className="flex gap-6 opacity-0 animate-slide-in-left">
+              <div className="flex gap-6">
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
                   style={{ backgroundColor: colors["pink-mist"].base }}
@@ -412,10 +373,7 @@ export default function LandingPage() {
               </div>
 
               {/* Step 2 - Sky */}
-              <div
-                className="flex gap-6 opacity-0 animate-slide-in-right"
-                style={{ animationDelay: "0.1s" }}
-              >
+              <div className="flex gap-6">
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
                   style={{ backgroundColor: colors.glaucous.base }}
@@ -433,10 +391,7 @@ export default function LandingPage() {
               </div>
 
               {/* Step 3 - Lavender */}
-              <div
-                className="flex gap-6 opacity-0 animate-slide-in-left"
-                style={{ animationDelay: "0.2s" }}
-              >
+              <div className="flex gap-6">
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
                   style={{ backgroundColor: colors["glaucous-light"].base }}
@@ -454,10 +409,7 @@ export default function LandingPage() {
               </div>
 
               {/* Step 4 - Mint */}
-              <div
-                className="flex gap-6 opacity-0 animate-slide-in-right"
-                style={{ animationDelay: "0.3s" }}
-              >
+              <div className="flex gap-6">
                 <div
                   className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
                   style={{ backgroundColor: colors["electric-aqua"].base }}
@@ -479,12 +431,7 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA Section */}
-      <section
-        ref={(el) => {
-          sectionRefs.current[3] = el;
-        }}
-        className="py-16 sm:py-20 lg:py-24 relative overflow-hidden opacity-0 bg-gradient-to-br from-electric-aqua-50/30 via-glaucous-50/20 to-pink-mist-50/30"
-      >
+      <section className="py-16 sm:py-20 lg:py-24 relative overflow-hidden bg-gradient-to-br from-electric-aqua-50/30 via-glaucous-50/20 to-pink-mist-50/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
