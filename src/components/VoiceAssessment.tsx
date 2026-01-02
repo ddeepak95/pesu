@@ -67,12 +67,13 @@ function VoiceAssessmentContent({
 
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
+  const evaluationTriggeredRef = React.useRef(false);
 
   const transportStateRef = React.useRef(transportState);
   React.useEffect(() => {
     transportStateRef.current = transportState;
   }, [transportState]);
-  
+
   // Load existing attempts when question changes
   React.useEffect(() => {
     // Reset local state before loading
@@ -142,7 +143,9 @@ function VoiceAssessmentContent({
   const handleEvaluate = async () => {
     // Prevent evaluating if max attempts reached
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question."
+      );
       return;
     }
 
@@ -218,6 +221,83 @@ function VoiceAssessmentContent({
     }
   };
 
+  // Handle automatic disconnection when backend terminates (via EndTaskFrame/EndFrame)
+  // When bot disconnects, we disconnect the client and trigger evaluation
+  React.useEffect(() => {
+    if (!client) return;
+
+    const handleBotDisconnected = async () => {
+      console.log(
+        "Bot disconnected event received (backend terminated conversation)"
+      );
+
+      // Prevent double-evaluation
+      if (evaluationTriggeredRef.current) {
+        console.log("Evaluation already triggered, skipping");
+        return;
+      }
+
+      try {
+        // Disconnect the client to update UI state
+        if (isConnected) {
+          await client.disconnect();
+          console.log("Client disconnected after bot termination");
+        }
+
+        // Trigger evaluation after a brief delay to ensure disconnection completes
+        // Only evaluate if we have a transcript and aren't already evaluating
+        if (transcript.trim() && !isEvaluating) {
+          evaluationTriggeredRef.current = true;
+          // Small delay to ensure state updates complete
+          setTimeout(() => {
+            console.log("Triggering evaluation after bot disconnection");
+            handleEvaluate();
+          }, 300);
+        }
+      } catch (error) {
+        console.error("Error handling bot disconnection:", error);
+      }
+    };
+
+    // Listen for botDisconnected event (fires when backend sends EndTaskFrame/EndFrame)
+    client.on("botDisconnected", handleBotDisconnected);
+
+    return () => {
+      client.off("botDisconnected", handleBotDisconnected);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, isConnected, transcript, isEvaluating]);
+
+  // Also watch transport state changes as a backup
+  const prevTransportStateRef = React.useRef(transportState);
+  React.useEffect(() => {
+    const prevState = prevTransportStateRef.current;
+    prevTransportStateRef.current = transportState;
+
+    // Check if we transitioned from connected/ready to disconnected
+    // This happens when the backend sends EndTaskFrame and terminates the conversation
+    // Note: This is a backup - botDisconnected handler should handle evaluation
+    if (
+      (prevState === "connected" || prevState === "ready") &&
+      transportState === "disconnected"
+    ) {
+      console.log("Transport state changed to disconnected");
+      // Only evaluate if botDisconnected handler didn't already trigger it
+      if (
+        transcript.trim() &&
+        !isEvaluating &&
+        !evaluationTriggeredRef.current
+      ) {
+        evaluationTriggeredRef.current = true;
+        console.log(
+          "Triggering evaluation via transport state change (backup)"
+        );
+        handleEvaluate();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transportState, transcript, isEvaluating]);
+
   // Prepare connection data to send to server (only used for initial connection)
   // Server-side Pipecat bot handles audio recording via AudioBufferProcessor
   const connectionData = {
@@ -235,6 +315,8 @@ function VoiceAssessmentContent({
     // Clear transcript when starting new attempt
     // Audio recording is handled server-side by Pipecat's AudioBufferProcessor
     clearTranscript();
+    // Reset evaluation trigger flag for new conversation
+    evaluationTriggeredRef.current = false;
   };
 
   return (
@@ -259,9 +341,7 @@ function VoiceAssessmentContent({
         <div className="flex flex-col items-center gap-2">
           <VoiceConnectButton
             connectionData={connectionData}
-            connectLabel={
-              attempts.length > 0 ? "Try Again" : "Start Answering"
-            }
+            connectLabel={attempts.length > 0 ? "Try Again" : "Start Answering"}
             disconnectLabel="Stop Answering"
             onBotReady={handleBotReady}
             onDisconnect={handleEvaluate}
@@ -269,7 +349,8 @@ function VoiceAssessmentContent({
           />
           {maxAttemptsReached && (
             <p className="text-xs text-muted-foreground text-center">
-              Maximum attempts reached. You can view your previous attempts below.
+              Maximum attempts reached. You can view your previous attempts
+              below.
             </p>
           )}
         </div>
