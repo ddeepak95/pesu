@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef, useMemo } from "react";
+import Image from "next/image";
 import { usePipecatEventStream } from "@pipecat-ai/voice-ui-kit";
 import { usePipecatClientTransportState } from "@pipecat-ai/client-react";
 
@@ -173,47 +174,171 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
     isUserSpeaking,
   ]);
 
+  // Get avatar image path based on state
+  const getAvatarImage = (state: AgentState): string => {
+    switch (state) {
+      case "starting":
+        return "/speaking_avatars/getting_ready.png";
+      case "listening":
+        return "/speaking_avatars/listening.png";
+      case "speaking":
+        return "/speaking_avatars/speaking.png";
+      case "thinking":
+        return "/speaking_avatars/thinking.png";
+      case "ready":
+        return "/speaking_avatars/speaking.png";
+      case "disconnected":
+        return "/speaking_avatars/disconnected.png";
+      default:
+        return "/speaking_avatars/speaking.png";
+    }
+  };
+
+  // Get ring animation and color based on state
+  const getRingConfig = (state: AgentState) => {
+    switch (state) {
+      case "starting":
+        return {
+          animationClass: "animate-ring-pulse",
+          color: "border-yellow-600",
+          ringCount: 1,
+        };
+      case "listening":
+        return {
+          animationClass: "animate-ring-pulse",
+          color: "border-blue-600",
+          ringCount: 1,
+        };
+      case "speaking":
+        return {
+          animationClass: "animate-ring-ripple",
+          color: "border-indigo-600",
+          ringCount: 3,
+        };
+      case "thinking":
+        return {
+          animationClass: "animate-ring-spin",
+          color: "border-purple-600",
+          ringCount: 1,
+        };
+      case "ready":
+        return {
+          animationClass: "animate-ring-breathe",
+          color: "border-green-600",
+          ringCount: 1,
+        };
+      case "disconnected":
+      default:
+        return {
+          animationClass: "",
+          color: "border-gray-400",
+          ringCount: 1,
+        };
+    }
+  };
+
   // Get display text and styling based on state
   const getStateDisplay = () => {
     switch (agentState) {
       case "starting":
         return {
-          text: "Agent is starting up. This takes upto 30 seconds. Please wait...",
+          text: "Konvo is preparing for the activity. This takes upto 30 seconds. Please wait...",
           color: "text-yellow-600",
         };
       case "listening":
         return {
-          text: "Agent is listening",
+          text: "Konvo is listening",
           color: "text-blue-600",
         };
       case "speaking":
         return {
-          text: "Agent is speaking",
+          text: "Konvo is speaking",
           color: "text-indigo-600",
         };
       case "thinking":
         return {
-          text: "Agent is thinking...",
+          text: "Konvo is thinking...",
           color: "text-purple-600",
         };
       case "ready":
         return {
-          text: "Agent is ready",
+          text: "Konvo is ready",
           color: "text-green-600",
         };
       case "disconnected":
       default:
         return {
-          text: "Agent is disconnected",
+          text: "Konvo is disconnected",
           color: "text-gray-400",
         };
     }
   };
 
   const display = getStateDisplay();
+  const avatarImage = getAvatarImage(agentState);
+  const ringConfig = getRingConfig(agentState);
+  const isDisconnected = agentState === "disconnected";
 
   return (
-    <div className={`flex items-center justify-center ${className}`}>
+    <div
+      className={`flex flex-col items-center justify-center gap-4 ${className}`}
+    >
+      {/* Avatar with animated rings */}
+      <div className="relative w-40 h-40 flex items-center justify-center">
+        {/* Animated rings */}
+        {ringConfig.ringCount === 1 ? (
+          <div
+            className={`absolute inset-0 m-auto rounded-full ${
+              ringConfig.color
+            } ${ringConfig.animationClass || ""} ${
+              isDisconnected ? "opacity-50" : ""
+            }`}
+            style={{
+              width: "160px",
+              height: "160px",
+              borderWidth: "2.5px",
+            }}
+          />
+        ) : (
+          // Multiple rings for ripple effect
+          Array.from({ length: ringConfig.ringCount }).map((_, index) => (
+            <div
+              key={index}
+              className={`absolute inset-0 m-auto rounded-full ${
+                ringConfig.color
+              } ${ringConfig.animationClass} ${
+                isDisconnected ? "opacity-50" : ""
+              }`}
+              style={{
+                width: "160px",
+                height: "160px",
+                borderWidth: "2.5px",
+                animationDelay: `${index * 0.5}s`,
+              }}
+            />
+          ))
+        )}
+
+        {/* Avatar circle container */}
+        <div
+          className={`relative w-32 h-32 rounded-full overflow-hidden border-4 ${
+            ringConfig.color
+          } ${isDisconnected ? "opacity-50 grayscale" : ""}`}
+        >
+          <Image
+            src={avatarImage}
+            alt={`Konvo ${agentState}`}
+            fill
+            className="object-cover"
+            style={{
+              transform: "scale(1.5) translateY(15px)",
+            }}
+            sizes="128px"
+          />
+        </div>
+      </div>
+
+      {/* Status text */}
       <p className={`text-sm font-medium ${display.color}`}>{display.text}</p>
     </div>
   );

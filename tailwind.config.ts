@@ -98,10 +98,30 @@ const config: Config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "ring-pulse": {
+          "0%, 100%": { transform: "scale(1)", opacity: "1" },
+          "50%": { transform: "scale(1.15)", opacity: "0.8" },
+        },
+        "ring-ripple": {
+          "0%": { transform: "scale(1)", opacity: "0.8" },
+          "100%": { transform: "scale(1.5)", opacity: "0" },
+        },
+        "ring-spin": {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
+        },
+        "ring-breathe": {
+          "0%, 100%": { transform: "scale(1)", opacity: "0.9" },
+          "50%": { transform: "scale(1.05)", opacity: "0.7" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "ring-pulse": "ring-pulse 1.5s ease-in-out infinite",
+        "ring-ripple": "ring-ripple 2s ease-out infinite",
+        "ring-spin": "ring-spin 2s linear infinite",
+        "ring-breathe": "ring-breathe 3s ease-in-out infinite",
       },
     },
   },
