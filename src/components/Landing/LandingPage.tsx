@@ -223,15 +223,17 @@ export default function LandingPage() {
             <div className="lg:pl-20 order-2 lg:order-1">
               <div className="space-y-6 text-lg text-muted-foreground">
                 <p>
-                  Millions of learners worldwide study core subjects like
-                  Science and Mathematics in English, even when English
-                  isn&apos;t their native language. This creates a dual
-                  challenge: students must simultaneously develop English
-                  proficiency and master complex academic concepts.
+                  Millions of students learn Science and Mathematics in English,
+                  even when English is not their native language and they have
+                  not yet fully learned it. While teachers often explain
+                  concepts bilingually, assignments and assessments remain
+                  English-only, pushing students toward rote memorization rather
+                  than understanding.
                 </p>
                 <p>
-                  This leads to sustained learning loss that compounds over time
-                  and making millions of students fall behind.
+                  Large class sizes and limited teacher time make individualized
+                  support difficult. Over time, these gaps compound, causing
+                  many learners to fall permanently behind.
                 </p>
                 {/* <p>{t("landing.challenge.paragraph2")}</p> */}
               </div>
