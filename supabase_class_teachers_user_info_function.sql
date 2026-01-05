@@ -41,3 +41,5 @@ $$;
 GRANT EXECUTE ON FUNCTION get_class_teachers_with_user_info(UUID) TO authenticated;
 
 
+
+

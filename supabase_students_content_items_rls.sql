@@ -35,3 +35,5 @@ CREATE POLICY "Students can view content items for their group" ON content_items
 GRANT EXECUTE ON FUNCTION is_student_in_group(UUID, UUID) TO authenticated;
 
 
+
+

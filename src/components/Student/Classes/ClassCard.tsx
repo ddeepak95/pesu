@@ -31,3 +31,5 @@ export default function ClassCard({ classData }: ClassCardProps) {
 }
 
 
+
+

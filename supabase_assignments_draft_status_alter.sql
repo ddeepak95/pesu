@@ -11,3 +11,5 @@ ALTER TABLE assignments
   CHECK (status IN ('draft', 'active', 'deleted'));
 
 
+
+

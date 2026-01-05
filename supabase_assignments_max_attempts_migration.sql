@@ -8,3 +8,5 @@ COMMENT ON COLUMN assignments.max_attempts IS
   'Maximum number of attempts allowed per student for this assignment. Defaults to 1 (single attempt).';
 
 
+
+

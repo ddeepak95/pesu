@@ -8,3 +8,5 @@ COMMENT ON COLUMN assignments.responder_fields_config IS
   'Configuration for responder details collection in public assignments. Array of field definitions: {field: string, type: "text"|"email"|"tel"|"select", label: string, required: boolean, placeholder?: string, options?: string[]}';
 
 
+
+
