@@ -55,8 +55,8 @@ export default function TermsPage() {
             <p className="text-muted-foreground leading-relaxed">
               You agree to use ConvoEd only for lawful purposes and in a way
               that does not infringe the rights of, restrict, or inhibit anyone
-              else&apos;s use and enjoyment of the platform. Prohibited
-              behavior includes:
+              else&apos;s use and enjoyment of the platform. Prohibited behavior
+              includes:
             </p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
               <li>Harassing or abusing other users</li>
@@ -101,9 +101,9 @@ export default function TermsPage() {
             <p className="text-muted-foreground leading-relaxed">
               ConvoEd is provided &quot;as is&quot; for research purposes. The
               research team makes no warranties, expressed or implied, regarding
-              the platform&apos;s availability, accuracy, or suitability for
-              any particular purpose. We are not liable for any damages arising
-              from your use of the platform.
+              the platform&apos;s availability, accuracy, or suitability for any
+              particular purpose. We are not liable for any damages arising from
+              your use of the platform.
             </p>
           </section>
 
@@ -164,4 +164,3 @@ export default function TermsPage() {
     </div>
   );
 }
-
