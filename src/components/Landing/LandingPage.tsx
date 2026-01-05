@@ -151,9 +151,18 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-pink-mist-50/30 via-glaucous-50/20 to-electric-aqua-50/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-30 sm:py-24 lg:py-40 relative z-10">
-          <div className="grid lg:grid-cols-[55%_45%] gap-3 lg:gap-3 items-center">
-            {/* Left column: Hero text content */}
-            <div className="text-left lg:pl-20">
+          <div className="grid lg:grid-cols-[55%_45%] gap-6 lg:gap-3 items-center">
+            {/* Hero illustration - appears first on mobile, second on desktop */}
+            <div className="relative z-20 flex items-center justify-center lg:justify-start order-1 lg:order-2">
+              <img
+                src="/home/hero.png"
+                alt="Hero illustration"
+                className="h-auto w-full max-w-xs sm:max-w-sm lg:max-w-lg mx-auto lg:mx-0"
+              />
+            </div>
+
+            {/* Hero text content - appears second on mobile, first on desktop */}
+            <div className="text-left lg:pl-20 order-2 lg:order-1">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
                 Improve Learning Through Conversations
               </h1>
@@ -198,15 +207,6 @@ export default function LandingPage() {
                   <a href={mailtoLink}>Join Waitlist</a>
                 </Button>
               </div>
-            </div>
-
-            {/* Right column: Hero illustration */}
-            <div className="relative z-20 hidden lg:flex items-center justify-start">
-              <img
-                src="/home/hero.png"
-                alt="Hero illustration"
-                className="h-auto w-full max-w-lg mx-auto lg:mx-0"
-              />
             </div>
           </div>
         </div>
@@ -441,7 +441,7 @@ export default function LandingPage() {
 
         {/* Image - Appears to come out of the footer */}
         <div className="relative flex justify-center pb-0">
-          <div className="w-64 sm:w-80 lg:w-96">
+          <div className="w-64 sm:w-64 md:w-80 lg:w-96 mt-6">
             <img
               src="/home/cta-2.png"
               alt="ConvoEd"
@@ -452,8 +452,8 @@ export default function LandingPage() {
       </section>
 
       {/* Footer Section */}
-      <footer className="relative bg-muted -mt-30 pb-8 px-4 sm:px-6 lg:px-8 z-20">
-        <div className="container mx-auto max-w-6xl pt-6">
+      <footer className="relative bg-muted -mt-20 sm:-mt-26 lg:-mt-30 pb-8 px-4 sm:px-6 lg:px-8 z-20">
+        <div className="container mx-auto max-w-6xl pt-8 sm:pt-12 lg:pt-12">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12 mb-8">
             {/* Project Details Section - Takes more space */}
             <div className="md:col-span-5 lg:col-span-4">
