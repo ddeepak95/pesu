@@ -35,6 +35,10 @@
     "solution": {
       "title": "Our Solution",
       "subtitle": "Voice-first AI learning support that bridges language barriers",
+      "konvo": {
+        "title": "Meet Konvo",
+        "description": "Your AI-powered Teaching Assistant to support students master the concepts with support in their native language."
+      },
       "cards": {
         "voiceDialogue": {
           "title": "Voice-Based Dialogue",

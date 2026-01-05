@@ -189,4 +189,7 @@ a {
   input, select, textarea, button {
     @apply text-foreground;
   }
+  .font-rubik {
+    font-family: var(--font-rubik), sans-serif;
+  }
 }

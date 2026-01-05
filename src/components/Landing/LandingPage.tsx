@@ -8,11 +8,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Mic, Languages, Users, BarChart3 } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import Link from "next/link";
 import LandingNavbar from "./LandingNavbar";
+import HowItWorksStep from "./HowItWorksStep";
 export default function LandingPage() {
-  const { t } = useTranslation();
   const waitlistEmail = "dv292@cornell.edu";
   const waitlistSubject = "Join Waitlist - ConvoEd";
   const waitlistBody =
@@ -48,7 +47,6 @@ export default function LandingPage() {
     textDecorationColor: colors["pink-mist"].base,
     textDecorationThickness: "1px",
     textUnderlineOffset: "0.3em",
-    opacity: 0.7,
   };
 
   const waitlistButtonStyle = {
@@ -61,7 +59,7 @@ export default function LandingPage() {
 
   return (
     <div
-      className="min-h-screen bg-background"
+      className="min-h-screen bg-background font-rubik"
       style={
         {
           // Force light mode by overriding CSS variables
@@ -86,10 +84,7 @@ export default function LandingPage() {
         } as React.CSSProperties
       }
     >
-      <LandingNavbar
-        mailtoLink={mailtoLink}
-        waitlistText={t("landing.hero.joinWaitlist")}
-      />
+      <LandingNavbar mailtoLink={mailtoLink} waitlistText="Join Waitlist" />
       <style jsx>{`
         @keyframes fade-in {
           from {
@@ -130,7 +125,6 @@ export default function LandingPage() {
             background-position: 100% 50%;
           }
         }
-
         .animate-fade-in {
           animation: fade-in 0.6s ease-out forwards;
         }
@@ -144,7 +138,6 @@ export default function LandingPage() {
           background-size: 200% 200%;
           animation: gradient-shift 4s ease infinite;
         }
-
         @media (prefers-reduced-motion: reduce) {
           .animate-fade-in,
           .animate-slide-in-left,
@@ -158,11 +151,11 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-pink-mist-50/30 via-glaucous-50/20 to-electric-aqua-50/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-30 sm:py-24 lg:py-40 relative z-10">
-          <div className="grid lg:grid-cols-[60%_40%] gap-3 lg:gap-3 items-center">
+          <div className="grid lg:grid-cols-[55%_45%] gap-3 lg:gap-3 items-center">
             {/* Left column: Hero text content */}
             <div className="text-left lg:pl-20">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
-                {t("landing.hero.title")}
+                Improve Learning Through Conversations
               </h1>
 
               <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed">
@@ -202,17 +195,17 @@ export default function LandingPage() {
                   className={waitlistButtonClassName}
                   style={waitlistButtonStyle}
                 >
-                  <a href={mailtoLink}>{t("landing.hero.joinWaitlist")}</a>
+                  <a href={mailtoLink}>Join Waitlist</a>
                 </Button>
               </div>
             </div>
 
             {/* Right column: Hero illustration */}
-            <div className="relative z-20 hidden lg:flex items-center justify-start lg:pr-20">
+            <div className="relative z-20 hidden lg:flex items-center justify-start">
               <img
-                src="/hero-illustration.svg"
+                src="/home/hero.png"
                 alt="Hero illustration"
-                className="h-auto w-full max-w-md mx-auto lg:mx-0"
+                className="h-auto w-full max-w-lg mx-auto lg:mx-0"
               />
             </div>
           </div>
@@ -223,23 +216,33 @@ export default function LandingPage() {
       <section className="relative py-16 sm:py-20 lg:py-24 bg-muted/30 overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <h2 className="text-3xl sm:text-4xl font-bold mb-8 lg:mb-12 text-center text-foreground">
-            {t("landing.challenge.title")}
+            The Challenge
           </h2>
           <div className="grid lg:grid-cols-[60%_40%] gap-6 lg:gap-8 items-center">
             {/* Left column: Challenge text content */}
             <div className="lg:pl-20 order-2 lg:order-1">
               <div className="space-y-6 text-lg text-muted-foreground">
-                <p>{t("landing.challenge.paragraph1")}</p>
-                <p>{t("landing.challenge.paragraph2")}</p>
+                <p>
+                  Millions of learners worldwide study core subjects like
+                  Science and Mathematics in English, even when English
+                  isn&apos;t their native language. This creates a dual
+                  challenge: students must simultaneously develop English
+                  proficiency and master complex academic concepts.
+                </p>
+                <p>
+                  This leads to sustained learning loss that compounds over time
+                  and making millions of students fall behind.
+                </p>
+                {/* <p>{t("landing.challenge.paragraph2")}</p> */}
               </div>
             </div>
 
             {/* Right column: Challenge illustration */}
             <div className="flex items-center justify-center lg:pr-20 order-1 lg:order-2">
               <img
-                src="/challenge.svg"
+                src="/home/challenge.png"
                 alt="Challenge illustration"
-                className="w-full h-auto max-w-sm mx-auto lg:mx-0"
+                className="w-full h-auto max-w-md mx-auto lg:mx-0"
               />
             </div>
           </div>
@@ -250,12 +253,26 @@ export default function LandingPage() {
       <section className="py-16 sm:py-20 lg:py-24 bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">
-              {t("landing.solution.title")}
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-8 text-foreground">
+              Our Solution
             </h2>
-            <p className="text-xl text-center text-muted-foreground mb-12">
-              {t("landing.solution.subtitle")}
-            </p>
+            <img
+              src="/home/konvo.png"
+              alt="Solution illustration"
+              className="w-full h-auto max-w-sm mx-auto mt-8"
+            />
+            <div className="text-center mb-6 mt-10">
+              <h2
+                className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2 inline-block px-6 rounded-2xl"
+                style={{ color: "var(--color-glaucous-500)" }}
+              >
+                Meet Konvo
+              </h2>
+              <p className="text-lg sm:text-xl text-center text-muted-foreground mb-12">
+                Your AI-powered Teaching Assistant, helping students master
+                concepts with personalized support in their native language.
+              </p>
+            </div>
 
             <div className="grid md:grid-cols-2 gap-8 mb-12">
               {/* Card 1 - Coral */}
@@ -270,11 +287,12 @@ export default function LandingPage() {
                       style={{ color: colors["pink-mist"].base }}
                     />
                   </div>
-                  <CardTitle>
-                    {t("landing.solution.cards.voiceDialogue.title")}
-                  </CardTitle>
+                  <CardTitle>Voice-Based Dialogue</CardTitle>
                   <CardDescription>
-                    {t("landing.solution.cards.voiceDialogue.description")}
+                    Konvo enables students to explain concepts and respond to
+                    questions through natural voice conversations in their
+                    native or most comfortable language. This voice-first
+                    approach reduces cognitive load and enables deeper thinking.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -291,11 +309,12 @@ export default function LandingPage() {
                       style={{ color: colors.glaucous.base }}
                     />
                   </div>
-                  <CardTitle>
-                    {t("landing.solution.cards.englishScaffolding.title")}
-                  </CardTitle>
+                  <CardTitle>Progressive English Scaffolding</CardTitle>
                   <CardDescription>
-                    {t("landing.solution.cards.englishScaffolding.description")}
+                    Konvo gradually introduces English terms and expressions
+                    through meaningful, context-grounded interactions. As
+                    students engage with concepts, Konvo naturally builds
+                    English proficiency alongside conceptual understanding.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -312,11 +331,13 @@ export default function LandingPage() {
                       style={{ color: colors["glaucous-light"].base }}
                     />
                   </div>
-                  <CardTitle>
-                    {t("landing.solution.cards.oneOnOne.title")}
-                  </CardTitle>
+                  <CardTitle>Personalized Learner Profiles</CardTitle>
                   <CardDescription>
-                    {t("landing.solution.cards.oneOnOne.description")}
+                    Konvo builds a comprehensive learner profile for each
+                    student based on their interactions over time. This profile
+                    identifies misconceptions, tracks understanding, and reveals
+                    individualized learning needs, creating a sustained record
+                    that grows and adapts with each conversation.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -333,11 +354,12 @@ export default function LandingPage() {
                       style={{ color: colors["electric-aqua"].base }}
                     />
                   </div>
-                  <CardTitle>
-                    {t("landing.solution.cards.teacherInsights.title")}
-                  </CardTitle>
+                  <CardTitle>Teacher Insights</CardTitle>
                   <CardDescription>
-                    {t("landing.solution.cards.teacherInsights.description")}
+                    Konvo provides teachers with actionable summaries that help
+                    identify which concepts are secure, where misconceptions
+                    persist, and which students need targeted support based on
+                    learner profiles and interaction data.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -351,94 +373,60 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
-              {t("landing.howItWorks.title")}
+              How It Works
             </h2>
-            <div className="space-y-8">
-              {/* Step 1 - Coral */}
-              <div className="flex gap-6">
-                <div
-                  className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors["pink-mist"].base }}
-                >
-                  1
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg mb-2 text-foreground">
-                    {t("landing.howItWorks.steps.step1.title")}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {t("landing.howItWorks.steps.step1.description")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 2 - Sky */}
-              <div className="flex gap-6">
-                <div
-                  className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors.glaucous.base }}
-                >
-                  2
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg mb-2 text-foreground">
-                    {t("landing.howItWorks.steps.step2.title")}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {t("landing.howItWorks.steps.step2.description")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 3 - Lavender */}
-              <div className="flex gap-6">
-                <div
-                  className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors["glaucous-light"].base }}
-                >
-                  3
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg mb-2 text-foreground">
-                    {t("landing.howItWorks.steps.step3.title")}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {t("landing.howItWorks.steps.step3.description")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 4 - Mint */}
-              <div className="flex gap-6">
-                <div
-                  className="flex-shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-md"
-                  style={{ backgroundColor: colors["electric-aqua"].base }}
-                >
-                  4
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg mb-2 text-foreground">
-                    {t("landing.howItWorks.steps.step4.title")}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {t("landing.howItWorks.steps.step4.description")}
-                  </p>
-                </div>
-              </div>
+            <div className="space-y-12">
+              <HowItWorksStep
+                stepNumber={1}
+                imageSrc="/home/how-it-works/1_teach.png"
+                imageAlt="Learn in Class"
+                title="Learn in Class"
+                description="Teachers introduce concepts in class as usual, then assign short oral homework using ConvoEd."
+                badgeColor={colors["pink-mist"].base}
+                borderColor={colors["pink-mist"].light}
+              />
+              <HowItWorksStep
+                stepNumber={2}
+                imageSrc="/home/how-it-works/2_interact.png"
+                imageAlt="One-on-One Practice at Home"
+                title="One-on-One Practice at Home"
+                description="Each student engages in personalized voice dialogues with Konvo, explaining concepts, responding to questions, and receiving individualized feedback in their native language."
+                badgeColor={colors.glaucous.base}
+                borderColor={colors.glaucous.light}
+              />
+              <HowItWorksStep
+                stepNumber={3}
+                imageSrc="/home/how-it-works/3_understand.png"
+                imageAlt="Build Understanding"
+                title="Build Understanding"
+                description="Through guided practice, immediate feedback, and progressive English scaffolding, students build strong conceptual foundations."
+                badgeColor={colors["glaucous-light"].base}
+                borderColor={colors["glaucous-light"].light}
+              />
+              <HowItWorksStep
+                stepNumber={4}
+                imageSrc="/home/how-it-works/4_teacher_insights.png"
+                imageAlt="Support Teachers"
+                title="Support Teachers"
+                description="Teachers receive actionable insights about student understanding, enabling targeted support and better instruction."
+                badgeColor={colors["electric-aqua"].base}
+                borderColor={colors["electric-aqua"].light}
+              />
             </div>
           </div>
         </div>
       </section>
 
       {/* Final CTA Section */}
-      <section className="py-16 sm:py-20 lg:py-24 relative overflow-hidden bg-gradient-to-br from-electric-aqua-50/30 via-glaucous-50/20 to-pink-mist-50/30">
+      <section className="py-16 sm:py-20 lg:py-24 relative bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              {t("landing.cta.title")}
+              Ready to Transform Learning?
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              {t("landing.cta.description")}
+              Join the waitlist to be among the first to experience ConvoEd and
+              help shape the future of multilingual education.
             </p>
             <Button
               asChild
@@ -446,11 +434,108 @@ export default function LandingPage() {
               className={waitlistButtonClassName}
               style={waitlistButtonStyle}
             >
-              <a href={mailtoLink}>{t("landing.cta.joinWaitlist")}</a>
+              <a href={mailtoLink}>Join Waitlist</a>
             </Button>
           </div>
         </div>
+
+        {/* Image - Appears to come out of the footer */}
+        <div className="relative flex justify-center pb-0">
+          <div className="w-64 sm:w-80 lg:w-96">
+            <img
+              src="/home/cta-2.png"
+              alt="ConvoEd"
+              className="w-full h-auto"
+            />
+          </div>
+        </div>
       </section>
+
+      {/* Footer Section */}
+      <footer className="relative bg-muted -mt-30 pb-8 px-4 sm:px-6 lg:px-8 z-20">
+        <div className="container mx-auto max-w-6xl pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12 mb-8">
+            {/* Project Details Section - Takes more space */}
+            <div className="md:col-span-5 lg:col-span-4">
+              <div className="flex items-center gap-2 mb-4">
+                <img
+                  src="/convoed-logo.svg"
+                  alt="ConvoEd Logo"
+                  className="h-8 w-auto"
+                />
+              </div>
+              <p
+                className="text-sm leading-relaxed max-w-xs"
+                style={{ color: "oklch(0.556 0 0)" }}
+              >
+                Provide your students with personalized one-on-one learning
+                support through voice dialogues with AI in their native
+                language.
+              </p>
+            </div>
+
+            {/* Spacer for better distribution */}
+            <div className="hidden lg:block lg:col-span-2"></div>
+
+            {/* Legal Section */}
+            <div className="md:col-span-3 lg:col-span-3">
+              <h3
+                className="font-semibold mb-4 text-sm"
+                style={{ color: "oklch(0.145 0 0)" }}
+              >
+                Legal
+              </h3>
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/terms"
+                  className="hover:opacity-80 transition-opacity text-sm"
+                  style={{ color: "oklch(0.556 0 0)" }}
+                >
+                  Terms & Conditions
+                </Link>
+                <Link
+                  href="/privacy"
+                  className="hover:opacity-80 transition-opacity text-sm"
+                  style={{ color: "oklch(0.556 0 0)" }}
+                >
+                  Privacy Policy
+                </Link>
+              </div>
+            </div>
+
+            {/* Contact Section */}
+            <div className="md:col-span-4 lg:col-span-3">
+              <h3
+                className="font-semibold mb-4 text-sm"
+                style={{ color: "oklch(0.145 0 0)" }}
+              >
+                Contact
+              </h3>
+              <a
+                href="mailto:dv292@cornell.edu"
+                className="hover:opacity-80 transition-opacity text-sm block"
+                style={{ color: "oklch(0.556 0 0)" }}
+              >
+                dv292@cornell.edu
+              </a>
+            </div>
+          </div>
+
+          {/* Separator */}
+          <div
+            className="border-t mb-6"
+            style={{ borderColor: "oklch(0.922 0 0)" }}
+          ></div>
+
+          {/* Copyright - centered */}
+          <p
+            className="text-sm text-center"
+            style={{ color: "oklch(0.556 0 0)" }}
+          >
+            © ConvoEd {new Date().getFullYear()}
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
