@@ -11,6 +11,7 @@ import { Mic, Languages, Users, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import LandingNavbar from "./LandingNavbar";
 import HowItWorksStep from "./HowItWorksStep";
+import { useState, useEffect, useRef } from "react";
 export default function LandingPage() {
   const waitlistEmail = "dv292@cornell.edu";
   const waitlistSubject = "Join Waitlist - ConvoEd";
@@ -56,6 +57,52 @@ export default function LandingPage() {
 
   const waitlistButtonClassName =
     "text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient";
+
+  // State and refs for checking if scrolling is needed
+  const [needsScrolling, setNeedsScrolling] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkScrollNeeded = () => {
+      if (containerRef.current && contentRef.current) {
+        // Wait for next frame to ensure layout is complete
+        requestAnimationFrame(() => {
+          if (containerRef.current && contentRef.current) {
+            const containerWidth = containerRef.current.offsetWidth;
+            const contentWidth = contentRef.current.scrollWidth;
+            setNeedsScrolling(contentWidth > containerWidth);
+          }
+        });
+      }
+    };
+
+    // Initial check after a brief delay to ensure DOM is ready
+    const timeoutId = setTimeout(checkScrollNeeded, 100);
+    
+    // Check when window resizes
+    window.addEventListener("resize", checkScrollNeeded);
+    
+    // Check after images load
+    const images = contentRef.current?.querySelectorAll("img");
+    if (images && images.length > 0) {
+      const imageLoadPromises = Array.from(images).map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      });
+      Promise.all(imageLoadPromises).then(() => {
+        setTimeout(checkScrollNeeded, 50);
+      });
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("resize", checkScrollNeeded);
+    };
+  }, []);
 
   return (
     <div
@@ -125,6 +172,14 @@ export default function LandingPage() {
             background-position: 100% 50%;
           }
         }
+        @keyframes marquee {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
         .animate-fade-in {
           animation: fade-in 0.6s ease-out forwards;
         }
@@ -138,11 +193,20 @@ export default function LandingPage() {
           background-size: 200% 200%;
           animation: gradient-shift 4s ease infinite;
         }
+        .animate-marquee {
+          animation: marquee 30s linear infinite;
+          display: inline-flex;
+          width: max-content;
+        }
+        .marquee-container:hover .animate-marquee {
+          animation-play-state: paused;
+        }
         @media (prefers-reduced-motion: reduce) {
           .animate-fade-in,
           .animate-slide-in-left,
           .animate-slide-in-right,
-          .animate-gradient {
+          .animate-gradient,
+          .animate-marquee {
             animation: none;
           }
         }
@@ -419,8 +483,76 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Supported By Section */}
+      <section className="py-16 sm:py-20 lg:py-24 bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12 text-foreground">
+              Supported By
+            </h2>
+            <div className="relative overflow-hidden" ref={containerRef}>
+              <div className="marquee-container">
+                <div
+                  ref={contentRef}
+                  className={`flex items-center gap-8 sm:gap-12 lg:gap-16 whitespace-nowrap ${
+                    needsScrolling ? "animate-marquee" : "justify-center"
+                  }`}
+                >
+                  {/* First set of logos */}
+                  <img
+                    src="/home/supported_by/cornell_logo 1.png"
+                    alt="Cornell University"
+                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                  />
+                  <img
+                    src="/home/supported_by/msr.png"
+                    alt="Microsoft Research"
+                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                  />
+                  <img
+                    src="/home/supported_by/sikshana.png"
+                    alt="Sikshana"
+                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                  />
+                  <img
+                    src="/home/supported_by/cartesia_logo 1.png"
+                    alt="Cartesia"
+                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                  />
+                  {/* Duplicate set for seamless scrolling - only render if scrolling is needed */}
+                  {needsScrolling && (
+                    <>
+                      <img
+                        src="/home/supported_by/cornell_logo 1.png"
+                        alt="Cornell University"
+                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                      />
+                      <img
+                        src="/home/supported_by/msr.png"
+                        alt="Microsoft Research"
+                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                      />
+                      <img
+                        src="/home/supported_by/sikshana.png"
+                        alt="Sikshana"
+                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                      />
+                      <img
+                        src="/home/supported_by/cartesia_logo 1.png"
+                        alt="Cartesia"
+                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA Section */}
-      <section className="py-16 sm:py-20 lg:py-24 relative bg-background">
+      <section className="py-16 sm:py-20 lg:py-24 relative bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
