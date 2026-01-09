@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -28,6 +29,16 @@ export default function CreateContentMenu({
       <DropdownMenuContent align="end">
         <DropdownMenuItem
           onClick={() =>
+            router.push(
+              `/teacher/classes/${classPublicId}/assignments/create${qs}`
+            )
+          }
+        >
+          Create Formative Assessment
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
             router.push(`/teacher/classes/${classPublicId}/quizzes/create${qs}`)
           }
         >
@@ -41,15 +52,6 @@ export default function CreateContentMenu({
           }
         >
           Create Learning Content
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() =>
-            router.push(
-              `/teacher/classes/${classPublicId}/assignments/create${qs}`
-            )
-          }
-        >
-          Create Formative Assessment
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
