@@ -16,6 +16,7 @@ import {
   Pencil,
   Copy,
   Trash2,
+  Share2,
 } from "lucide-react";
 import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
@@ -33,6 +34,7 @@ export default function ContentCard({
   onEdit,
   onDuplicate,
   onDelete,
+  onShareLinks,
 }: {
   item: ContentItem;
   index: number;
@@ -46,6 +48,7 @@ export default function ContentCard({
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onShareLinks?: () => void;
 }) {
   const labelForType = (type: ContentItemType) => {
     switch (type) {
@@ -127,6 +130,17 @@ export default function ContentCard({
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit
               </DropdownMenuItem>
+              {onShareLinks && item.type === "formative_assignment" && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShareLinks();
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Links
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={onDuplicate}>
                 <Copy className="h-4 w-4 mr-2" />
                 Duplicate to…

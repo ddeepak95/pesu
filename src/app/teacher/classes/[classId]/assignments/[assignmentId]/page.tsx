@@ -21,6 +21,8 @@ import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
+import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
+import { Share2 } from "lucide-react";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -32,6 +34,7 @@ export default function AssignmentDetailPage() {
   const [assignmentData, setAssignmentData] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   const fetchAssignment = async () => {
     setLoading(true);
@@ -141,6 +144,10 @@ export default function AssignmentDetailPage() {
                 <Button variant="outline">Options</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShareDialogOpen(true)}>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Links
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleDelete}
@@ -176,6 +183,16 @@ export default function AssignmentDetailPage() {
           </Tabs>
         </div>
       </div>
+
+      {assignmentData && (
+        <AssignmentLinkShare
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          assignmentId={assignmentData.assignment_id}
+          classId={classId}
+          isPublic={assignmentData.is_public}
+        />
+      )}
     </PageLayout>
   );
 }

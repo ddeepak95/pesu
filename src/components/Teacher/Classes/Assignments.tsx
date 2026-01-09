@@ -7,6 +7,7 @@ import { Assignment } from "@/types/assignment";
 import { Button } from "@/components/ui/button";
 import List from "@/components/ui/List";
 import AssignmentCard from "@/components/Teacher/Assignments/AssignmentCard";
+import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getAssignmentsByClassForTeacher,
@@ -23,6 +24,8 @@ export default function Assignments({ classData }: AssignmentsProps) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
   const fetchAssignments = useCallback(async () => {
     if (!classData.id) {
@@ -74,11 +77,9 @@ export default function Assignments({ classData }: AssignmentsProps) {
     );
   };
 
-  const handleCopyLink = (assignmentId: string) => {
-    // TODO: Implement copy link functionality
-    const link = `${window.location.origin}/assignment/${assignmentId}`;
-    navigator.clipboard.writeText(link);
-    alert(`Link copied to clipboard: ${link}`);
+  const handleShareLinks = (assignment: Assignment) => {
+    setSelectedAssignment(assignment);
+    setShareDialogOpen(true);
   };
 
   const handleCreateAssignment = () => {
@@ -115,11 +116,21 @@ export default function Assignments({ classData }: AssignmentsProps) {
               assignment={assignment}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onCopyLink={handleCopyLink}
+              onShareLinks={handleShareLinks}
               onClick={handleAssignmentClick}
             />
           )}
           emptyMessage="No assignments yet. Create your first assignment to get started!"
+        />
+      )}
+
+      {selectedAssignment && (
+        <AssignmentLinkShare
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          assignmentId={selectedAssignment.assignment_id}
+          classId={classData.class_id}
+          isPublic={selectedAssignment.is_public}
         />
       )}
     </div>

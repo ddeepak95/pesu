@@ -21,6 +21,7 @@ import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
 import DuplicateContentDialog from "@/components/Teacher/Classes/DuplicateContentDialog";
 import CreateContentMenu from "@/components/Teacher/Classes/ContentParts/CreateContentMenu";
 import ContentCard from "@/components/Teacher/Classes/ContentParts/ContentCard";
+import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
 
 interface ContentProps {
   classData: Class;
@@ -44,6 +45,8 @@ export default function Content({ classData }: ContentProps) {
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
   const setGroupIdInUrl = (groupId: string) => {
     // Maintain param order: tab first, then groupId, then everything else.
@@ -355,6 +358,16 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
+  const handleShareLinks = (item: ContentItem) => {
+    if (item.type === "formative_assignment") {
+      const assignment = assignmentById[item.ref_id];
+      if (assignment) {
+        setSelectedAssignment(assignment);
+        setShareDialogOpen(true);
+      }
+    }
+  };
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
@@ -426,6 +439,7 @@ export default function Content({ classData }: ContentProps) {
                       onDuplicate={() => openDuplicate(item)}
                       onDelete={() => handleDelete(item)}
                       onMove={(direction) => handleMove(index, direction)}
+                      onShareLinks={() => handleShareLinks(item)}
                     />
                   );
                 }}
@@ -450,6 +464,16 @@ export default function Content({ classData }: ContentProps) {
           } catch {}
         }}
       />
+
+      {selectedAssignment && (
+        <AssignmentLinkShare
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          assignmentId={selectedAssignment.assignment_id}
+          classId={classData.class_id}
+          isPublic={selectedAssignment.is_public}
+        />
+      )}
     </div>
   );
 }

@@ -9,12 +9,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Share2 } from "lucide-react";
 
 interface AssignmentCardProps {
   assignment: Assignment;
   onEdit?: (assignment: Assignment) => void;
   onDelete: (assignmentId: string) => void;
-  onCopyLink?: (assignmentId: string) => void;
+  onShareLinks?: (assignment: Assignment) => void;
   onClick?: (assignment: Assignment) => void;
 }
 
@@ -22,7 +23,7 @@ export default function AssignmentCard({
   assignment,
   onEdit,
   onDelete,
-  onCopyLink,
+  onShareLinks,
   onClick,
 }: AssignmentCardProps) {
   const handleMenuClick = (e: React.MouseEvent) => {
@@ -56,20 +57,32 @@ export default function AssignmentCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {onCopyLink && (
+              {onShareLinks && (
                 <DropdownMenuItem
-                  onClick={() => onCopyLink(assignment.assignment_id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShareLinks(assignment);
+                  }}
                 >
-                  Copy link
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Links
                 </DropdownMenuItem>
               )}
               {onEdit && (
-                <DropdownMenuItem onClick={() => onEdit(assignment)}>
+                <DropdownMenuItem 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(assignment);
+                  }}
+                >
                   Edit
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
-                onClick={() => onDelete(assignment.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(assignment.id);
+                }}
                 className="text-destructive"
               >
                 Delete
