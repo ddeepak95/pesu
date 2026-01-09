@@ -112,7 +112,7 @@ export function AssignmentLinkShare({
                 </>
               )}
             </Button>
-            {navigator.share && (
+            {'share' in navigator && (
               <Button
                 variant="outline"
                 size="sm"
@@ -161,7 +161,7 @@ export function AssignmentLinkShare({
                   </>
                 )}
               </Button>
-              {navigator.share && (
+              {'share' in navigator && (
                 <Button
                   variant="outline"
                   size="sm"
