@@ -160,6 +160,7 @@ export async function createAssignment(
       total_points: number;
       rubric: { item: string; points: number }[];
       supporting_content: string;
+      expected_answer?: string;
     }[];
     total_points: number;
     preferred_language: string;
@@ -216,6 +217,7 @@ export async function updateAssignment(
       total_points: number;
       rubric: { item: string; points: number }[];
       supporting_content: string;
+      expected_answer?: string;
     }[];
     total_points: number;
     preferred_language: string;

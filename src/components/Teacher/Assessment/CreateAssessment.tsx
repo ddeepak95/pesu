@@ -17,6 +17,7 @@ export default function CreateAssessment() {
       total_points: number;
       rubric: { item: string; points: number }[];
       supporting_content: string;
+      expected_answer?: string;
     }[];
     totalPoints: number;
     preferredLanguage: string;

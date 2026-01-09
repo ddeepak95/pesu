@@ -75,6 +75,7 @@ export default function EditAssignmentPage() {
       total_points: number;
       rubric: { item: string; points: number }[];
       supporting_content: string;
+      expected_answer?: string;
     }[];
     totalPoints: number;
     preferredLanguage: string;
@@ -145,7 +146,7 @@ export default function EditAssignmentPage() {
           onSubmit={handleSubmit}
         />
 
-        <div className="mt-6">
+        <div className="mt-6 flex justify-center">
           <Button
             type="button"
             variant="outline"

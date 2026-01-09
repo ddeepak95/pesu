@@ -9,6 +9,7 @@ export interface Question {
   total_points: number;
   rubric: RubricItem[];
   supporting_content: string;
+  expected_answer?: string;
 }
 
 export interface ResponderFieldConfig {

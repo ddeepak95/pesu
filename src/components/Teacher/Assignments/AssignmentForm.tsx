@@ -16,7 +16,7 @@ import {
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import { Question, RubricItem, ResponderFieldConfig } from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, ChevronDown } from "lucide-react";
 
 interface AssignmentFormProps {
   mode: "create" | "edit";
@@ -57,13 +57,14 @@ export default function AssignmentForm({
         { item: "", points: 0 },
       ],
       supporting_content: "",
+      expected_answer: "",
     },
   ],
   initialLanguage = "en",
   initialIsPublic = false,
   initialAssessmentMode = "voice",
   initialResponderFieldsConfig,
-  initialMaxAttempts = 1,
+  initialMaxAttempts = 3,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -71,7 +72,6 @@ export default function AssignmentForm({
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
-  const [isDraft, setIsDraft] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >(initialAssessmentMode);
@@ -91,18 +91,29 @@ export default function AssignmentForm({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
 
   const handleQuestionChange = (
     questionIndex: number,
     field: keyof Question,
     value: Question[keyof Question]
   ) => {
-    const newQuestions = [...questions];
-    newQuestions[questionIndex] = {
-      ...newQuestions[questionIndex],
-      [field]: value,
-    };
-    setQuestions(newQuestions);
+    setQuestions((prevQuestions) => {
+      const newQuestions = [...prevQuestions];
+      // For array fields like rubric, ensure we create a new array reference with new objects
+      if (field === "rubric" && Array.isArray(value)) {
+        newQuestions[questionIndex] = {
+          ...newQuestions[questionIndex],
+          [field]: value.map((item: RubricItem) => ({ ...item })), // Deep copy array items
+        };
+      } else {
+        newQuestions[questionIndex] = {
+          ...newQuestions[questionIndex],
+          [field]: value,
+        };
+      }
+      return newQuestions;
+    });
   };
 
   const handleRubricChange = (
@@ -119,9 +130,8 @@ export default function AssignmentForm({
     };
     newQuestions[questionIndex].rubric = newRubric;
 
-    // Auto-calculate total points for this question
-    const total = newRubric.reduce((sum, item) => sum + (item.points || 0), 0);
-    newQuestions[questionIndex].total_points = total;
+    // Don't auto-calculate total points - user enters it manually
+    // Validation will check if rubric sum matches total points
 
     setQuestions(newQuestions);
   };
@@ -142,12 +152,7 @@ export default function AssignmentForm({
         questionIndex
       ].rubric.filter((_, i) => i !== rubricIndex);
 
-      // Recalculate total points for this question
-      const total = newQuestions[questionIndex].rubric.reduce(
-        (sum, item) => sum + (item.points || 0),
-        0
-      );
-      newQuestions[questionIndex].total_points = total;
+      // Don't auto-calculate total points - user enters it manually
 
       setQuestions(newQuestions);
     }
@@ -163,6 +168,7 @@ export default function AssignmentForm({
         { item: "", points: 0 },
       ],
       supporting_content: "",
+      expected_answer: "",
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -202,7 +208,7 @@ export default function AssignmentForm({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, draft: boolean = false) => {
     e.preventDefault();
     setError(null);
 
@@ -236,6 +242,18 @@ export default function AssignmentForm({
         );
         return;
       }
+
+      // Validate that rubric points sum equals total points
+      const rubricSum = validRubricItems.reduce(
+        (sum, item) => sum + (item.points || 0),
+        0
+      );
+      if (rubricSum !== question.total_points) {
+        setError(
+          `Question ${i + 1}: Rubric points (${rubricSum}) must equal total points (${question.total_points})`
+        );
+        return;
+      }
     }
 
     setLoading(true);
@@ -260,7 +278,7 @@ export default function AssignmentForm({
         preferredLanguage,
         isPublic,
         assessmentMode,
-        isDraft,
+        isDraft: draft,
         responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
         maxAttempts,
       });
@@ -290,7 +308,9 @@ export default function AssignmentForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Assignment Title */}
       <div className="space-y-2">
-        <Label htmlFor="title">Assignment Title</Label>
+        <Label htmlFor="title">
+          Assignment Title <span className="text-destructive">*</span>
+        </Label>
         <Input
           id="title"
           value={title}
@@ -302,7 +322,9 @@ export default function AssignmentForm({
 
       {/* Assessment Mode */}
       <div className="space-y-2">
-        <Label htmlFor="assessmentMode">Assessment Type</Label>
+        <Label htmlFor="assessmentMode">
+          Assessment Type <span className="text-destructive">*</span>
+        </Label>
         <Select
           value={assessmentMode}
           onValueChange={(value) =>
@@ -323,92 +345,90 @@ export default function AssignmentForm({
         </Select>
       </div>
 
-      {/* Preferred Language */}
-      <div className="space-y-2">
-        <Label htmlFor="preferredLanguage">Preferred Language</Label>
-        <Select
-          value={preferredLanguage}
-          onValueChange={setPreferredLanguage}
+      {/* More Options */}
+      <div className="border rounded-md">
+        <button
+          type="button"
+          onClick={() => setIsMoreOptionsOpen(!isMoreOptionsOpen)}
+          className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
           disabled={loading}
         >
-          <SelectTrigger id="preferredLanguage">
-            <SelectValue placeholder="Select a language" />
-          </SelectTrigger>
-          <SelectContent>
-            {supportedLanguages.map((lang) => (
-              <SelectItem key={lang.code} value={lang.code}>
-                {lang.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+          <h3 className="text-sm font-semibold">More Options</h3>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform ${
+              isMoreOptionsOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+        
+        {isMoreOptionsOpen && (
+          <div className="space-y-4 p-4 pt-0 border-t">
+            {/* Preferred Language */}
+            <div className="space-y-2">
+              <Label htmlFor="preferredLanguage">Preferred Language</Label>
+              <Select
+                value={preferredLanguage}
+                onValueChange={setPreferredLanguage}
+                disabled={loading}
+              >
+                <SelectTrigger id="preferredLanguage">
+                  <SelectValue placeholder="Select a language" />
+                </SelectTrigger>
+                <SelectContent>
+                  {supportedLanguages.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-      {/* Max Attempts */}
-      <div className="space-y-2">
-        <Label htmlFor="maxAttempts">Maximum Attempts</Label>
-        <Input
-          id="maxAttempts"
-          type="number"
-          min="1"
-          value={maxAttempts}
-          onChange={(e) => {
-            const value = parseInt(e.target.value, 10);
-            if (!isNaN(value) && value >= 1) {
-              setMaxAttempts(value);
-            }
-          }}
-          disabled={loading}
-          placeholder="1"
-        />
-        <p className="text-sm text-muted-foreground">
-          Number of attempts students can make for this assignment. Default is 1
-          (single attempt).
-        </p>
-      </div>
+            {/* Max Attempts */}
+            <div className="space-y-2">
+              <Label htmlFor="maxAttempts">Maximum Attempts</Label>
+              <Input
+                id="maxAttempts"
+                type="number"
+                min="1"
+                value={maxAttempts}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value, 10);
+                  if (!isNaN(value) && value >= 1) {
+                    setMaxAttempts(value);
+                  }
+                }}
+                disabled={loading}
+                placeholder="3"
+              />
+              <p className="text-sm text-muted-foreground">
+                Number of attempts students can make for this assignment. Default is 3.
+              </p>
+            </div>
 
-      {/* Draft Toggle */}
-      <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
-        <Checkbox
-          id="isDraft"
-          checked={isDraft}
-          onCheckedChange={(checked) => setIsDraft(checked === true)}
-          disabled={loading}
-        />
-        <div className="space-y-1">
-          <Label
-            htmlFor="isDraft"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-          >
-            Save as draft
-          </Label>
-          <p className="text-sm text-muted-foreground">
-            Draft items are visible to teachers but not available to students
-            yet.
-          </p>
-        </div>
-      </div>
-
-      {/* Public Access Toggle */}
-      <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
-        <Checkbox
-          id="isPublic"
-          checked={isPublic}
-          onCheckedChange={(checked) => setIsPublic(checked === true)}
-          disabled={loading}
-        />
-        <div className="space-y-1">
-          <Label
-            htmlFor="isPublic"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-          >
-            Make this assignment publicly accessible
-          </Label>
-          <p className="text-sm text-muted-foreground">
-            Anyone with the link can view and complete this assignment without
-            logging in
-          </p>
-        </div>
+            {/* Public Access Toggle */}
+            <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
+              <Checkbox
+                id="isPublic"
+                checked={isPublic}
+                onCheckedChange={(checked) => setIsPublic(checked === true)}
+                disabled={loading}
+              />
+              <div className="space-y-1">
+                <Label
+                  htmlFor="isPublic"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Make this assignment publicly accessible
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Anyone with the link can view and complete this assignment without
+                  logging in
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Responder Fields Configuration (only for public assignments) */}
@@ -600,6 +620,7 @@ export default function AssignmentForm({
             question={question}
             index={index}
             totalQuestions={questions.length}
+            preferredLanguage={preferredLanguage}
             onChange={handleQuestionChange}
             onRubricChange={handleRubricChange}
             onAddRubricItem={handleAddRubricItem}
@@ -627,15 +648,15 @@ export default function AssignmentForm({
       {/* Error Message */}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* Submit Button */}
+      {/* Submit Buttons */}
       <div className="flex justify-center gap-4">
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.back()}
+          onClick={(e) => handleSubmit(e, true)}
           disabled={loading}
         >
-          Cancel
+          {loading ? "Saving..." : "Save as Draft"}
         </Button>
         <Button type="submit" disabled={loading}>
           {loading
@@ -647,6 +668,7 @@ export default function AssignmentForm({
             : "Create Assignment"}
         </Button>
       </div>
+
     </form>
   );
 }

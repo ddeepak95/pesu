@@ -164,7 +164,7 @@ export default function CreateAssignmentPage() {
           initialLanguage={classLanguage}
           onSubmit={handleSubmit}
         />
-        <div className="mt-6">
+        <div className="mt-6 flex justify-center">
           <Button
             type="button"
             variant="outline"
