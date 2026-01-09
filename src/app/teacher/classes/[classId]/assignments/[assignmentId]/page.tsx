@@ -170,6 +170,7 @@ export default function AssignmentDetailPage() {
               <SubmissionsTab
                 assignmentId={assignmentData.assignment_id}
                 classId={classId}
+                isPublic={assignmentData.is_public}
               />
             </TabsContent>
           </Tabs>

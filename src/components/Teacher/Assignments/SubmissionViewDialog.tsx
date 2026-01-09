@@ -7,19 +7,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { StudentSubmissionStatus } from "@/lib/queries/submissions";
-import { Submission, QuestionAnswers } from "@/types/submission";
+import { 
+  StudentSubmissionStatus,
+  PublicSubmissionStatus 
+} from "@/lib/queries/submissions";
+import { Submission, QuestionAnswers, SubmissionAttempt } from "@/types/submission";
 import { Assignment } from "@/types/assignment";
 import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
 import { useState, useEffect } from "react";
-import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
-import QuestionView from "@/components/Shared/QuestionView";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QuestionAttemptsCard } from "./QuestionAttemptsCard";
+import { TranscriptDialog } from "./TranscriptDialog";
+import { SubmissionDisplayName } from "./SubmissionDisplayName";
 
 interface SubmissionViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  studentSubmission: StudentSubmissionStatus;
+  studentSubmission: StudentSubmissionStatus | PublicSubmissionStatus;
 }
 
 export default function SubmissionViewDialog({
@@ -30,15 +33,23 @@ export default function SubmissionViewDialog({
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [transcriptDialogOpen, setTranscriptDialogOpen] = useState(false);
+  const [selectedAttempt, setSelectedAttempt] = useState<SubmissionAttempt | null>(null);
+  const [selectedQuestionOrder, setSelectedQuestionOrder] = useState<number | null>(null);
+
+  // Get submission from either type
+  const submission = 'student' in studentSubmission 
+    ? studentSubmission.submission 
+    : studentSubmission.submission;
 
   useEffect(() => {
-    if (open && studentSubmission.submission) {
+    if (open && submission) {
       const fetchAssignment = async () => {
         setLoading(true);
         setError(null);
         try {
           const data = await getAssignmentByIdForTeacher(
-            studentSubmission.submission!.assignment_id
+            submission.assignment_id
           );
           setAssignment(data);
         } catch (err) {
@@ -51,15 +62,12 @@ export default function SubmissionViewDialog({
 
       fetchAssignment();
     }
-  }, [open, studentSubmission.submission]);
+  }, [open, submission]);
 
-  const getStudentDisplayName = () => {
-    const student = studentSubmission.student;
-    return (
-      student.student_display_name ||
-      student.student_email ||
-      student.student_id.substring(0, 8) + "..."
-    );
+  const handleViewTranscript = (attempt: SubmissionAttempt, questionOrder: number) => {
+    setSelectedAttempt(attempt);
+    setSelectedQuestionOrder(questionOrder);
+    setTranscriptDialogOpen(true);
   };
 
   const getSubmissionAnswers = (submission: Submission) => {
@@ -75,11 +83,9 @@ export default function SubmissionViewDialog({
     return submission.answers as { [key: number | string]: QuestionAnswers };
   };
 
-  if (!studentSubmission.submission) {
+  if (!submission) {
     return null;
   }
-
-  const submission = studentSubmission.submission;
   const answers = getSubmissionAnswers(submission);
 
   return (
@@ -88,7 +94,7 @@ export default function SubmissionViewDialog({
         <DialogHeader>
           <DialogTitle>Submission Details</DialogTitle>
           <DialogDescription>
-            View submission for {getStudentDisplayName()}
+            View submission for <SubmissionDisplayName submission={studentSubmission} />
           </DialogDescription>
         </DialogHeader>
 
@@ -102,86 +108,25 @@ export default function SubmissionViewDialog({
           </div>
         ) : (
           <div className="space-y-6 mt-4">
-            {/* Submission Metadata */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Submission Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Status:</span>
-                  <span className="text-sm font-medium capitalize">
-                    {submission.status}
-                  </span>
-                </div>
-                {submission.submitted_at && (
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Submitted:
-                    </span>
-                    <span className="text-sm">
-                      {new Date(submission.submitted_at).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Created:</span>
-                  <span className="text-sm">
-                    {submission.created_at
-                      ? new Date(submission.created_at).toLocaleString()
-                      : "N/A"}
-                  </span>
-                </div>
-                {submission.submission_mode && (
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Mode:</span>
-                    <span className="text-sm font-medium capitalize">
-                      {submission.submission_mode === "text_chat"
-                        ? "Text Chat"
-                        : submission.submission_mode === "static_text"
-                        ? "Static Text"
-                        : "Voice"}
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Questions and Attempts */}
+            {/* Attempts by Question */}
             {assignment && (
               <div className="space-y-6">
                 {assignment.questions
                   .sort((a, b) => a.order - b.order)
-                  .map((question, index) => {
+                  .map((question) => {
                     // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
                     const questionAnswers = 
                       (answers[question.order] as QuestionAnswers | undefined) ||
                       (answers[String(question.order)] as QuestionAnswers | undefined);
-                    const attempts = questionAnswers?.attempts || [];
 
                     return (
-                      <div key={question.order} className="space-y-4">
-                        <QuestionView
-                          question={question}
-                          index={index}
-                          showRubric={true}
-                          showSupportingContent={true}
-                        />
-                        {attempts.length > 0 ? (
-                          <AttemptsPanel
-                            attempts={attempts}
-                            maxAttempts={assignment.max_attempts}
-                          />
-                        ) : (
-                          <Card>
-                            <CardContent className="py-4">
-                              <p className="text-sm text-muted-foreground text-center">
-                                No attempts for this question yet.
-                              </p>
-                            </CardContent>
-                          </Card>
-                        )}
-                      </div>
+                      <QuestionAttemptsCard
+                        key={question.order}
+                        questionOrder={question.order}
+                        questionPrompt={question.prompt}
+                        questionAnswers={questionAnswers}
+                        onViewTranscript={handleViewTranscript}
+                      />
                     );
                   })}
               </div>
@@ -189,6 +134,14 @@ export default function SubmissionViewDialog({
           </div>
         )}
       </DialogContent>
+
+      {/* Transcript Dialog */}
+      <TranscriptDialog
+        open={transcriptDialogOpen}
+        onOpenChange={setTranscriptDialogOpen}
+        attempt={selectedAttempt}
+        questionOrder={selectedQuestionOrder}
+      />
     </Dialog>
   );
 }

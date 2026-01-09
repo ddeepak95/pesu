@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import List from "@/components/ui/List";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getSubmissionsByAssignmentWithStudents,
+  getPublicSubmissionsByAssignment,
   StudentSubmissionStatus,
+  PublicSubmissionStatus,
   markAttemptsAsStale,
 } from "@/lib/queries/submissions";
 import { getClassByClassId } from "@/lib/queries/classes";
@@ -14,29 +16,40 @@ import SubmissionViewDialog from "./SubmissionViewDialog";
 interface SubmissionsTabProps {
   assignmentId: string;
   classId: string;
+  isPublic: boolean;
 }
 
 export default function SubmissionsTab({
   assignmentId,
   classId,
+  isPublic,
 }: SubmissionsTabProps) {
-  const [submissions, setSubmissions] = useState<StudentSubmissionStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Class students state
+  const [classSubmissions, setClassSubmissions] = useState<StudentSubmissionStatus[]>([]);
+  const [classLoading, setClassLoading] = useState(true);
+  const [classError, setClassError] = useState<string | null>(null);
+
+  // Public submissions state
+  const [publicSubmissions, setPublicSubmissions] = useState<PublicSubmissionStatus[]>([]);
+  const [publicLoading, setPublicLoading] = useState(true);
+  const [publicError, setPublicError] = useState<string | null>(null);
+
+  // Shared state for dialog
   const [selectedSubmission, setSelectedSubmission] =
-    useState<StudentSubmissionStatus | null>(null);
+    useState<StudentSubmissionStatus | PublicSubmissionStatus | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [resetting, setResetting] = useState<string | null>(null);
 
+  // Fetch class student submissions
   useEffect(() => {
-    const fetchSubmissions = async () => {
-      setLoading(true);
-      setError(null);
+    const fetchClassSubmissions = async () => {
+      setClassLoading(true);
+      setClassError(null);
       try {
         // Convert class_id to database ID
         const classData = await getClassByClassId(classId);
         if (!classData) {
-          setError("Class not found");
+          setClassError("Class not found");
           return;
         }
 
@@ -44,28 +57,56 @@ export default function SubmissionsTab({
           assignmentId,
           classData.id // Use database ID
         );
-        setSubmissions(data);
+        setClassSubmissions(data);
       } catch (err) {
-        console.error("Error fetching submissions:", err);
-        setError("Failed to load submissions.");
+        console.error("Error fetching class submissions:", err);
+        setClassError("Failed to load submissions.");
       } finally {
-        setLoading(false);
+        setClassLoading(false);
       }
     };
 
-    fetchSubmissions();
+    fetchClassSubmissions();
   }, [assignmentId, classId]);
 
-  const handleViewSubmission = (item: StudentSubmissionStatus) => {
+  // Fetch public submissions (only if assignment is public)
+  useEffect(() => {
+    if (!isPublic) {
+      setPublicLoading(false);
+      return;
+    }
+
+    const fetchPublicSubmissions = async () => {
+      setPublicLoading(true);
+      setPublicError(null);
+      try {
+        const data = await getPublicSubmissionsByAssignment(assignmentId);
+        setPublicSubmissions(data);
+      } catch (err) {
+        console.error("Error fetching public submissions:", err);
+        setPublicError("Failed to load public submissions.");
+      } finally {
+        setPublicLoading(false);
+      }
+    };
+
+    fetchPublicSubmissions();
+  }, [assignmentId, isPublic]);
+
+  const handleViewSubmission = (item: StudentSubmissionStatus | PublicSubmissionStatus) => {
     setSelectedSubmission(item);
     setViewDialogOpen(true);
   };
 
-  const handleResetAttempts = async (item: StudentSubmissionStatus) => {
+  const handleResetAttempts = async (item: StudentSubmissionStatus | PublicSubmissionStatus) => {
     if (!item.submission) return;
 
+    const displayName = 'student' in item 
+      ? getStudentDisplayName(item.student)
+      : getPublicResponderDisplayName(item.submission);
+
     const confirmed = window.confirm(
-      `Are you sure you want to reset attempts for ${getStudentDisplayName(item.student)}? This will mark all their attempts as stale, allowing them to start fresh while preserving history.`
+      `Are you sure you want to reset attempts for ${displayName}? This will mark all their attempts as stale, allowing them to start fresh while preserving history.`
     );
 
     if (!confirmed) return;
@@ -73,17 +114,25 @@ export default function SubmissionsTab({
     setResetting(item.submission.submission_id);
     try {
       await markAttemptsAsStale(item.submission.submission_id);
-      // Refresh the submissions list
-      const classData = await getClassByClassId(classId);
-      if (!classData) {
-        alert("Class not found");
-        return;
+      
+      // Refresh the appropriate submissions list
+      if ('student' in item) {
+        // Refresh class submissions
+        const classData = await getClassByClassId(classId);
+        if (!classData) {
+          alert("Class not found");
+          return;
+        }
+        const data = await getSubmissionsByAssignmentWithStudents(
+          assignmentId,
+          classData.id // Use database ID
+        );
+        setClassSubmissions(data);
+      } else {
+        // Refresh public submissions
+        const data = await getPublicSubmissionsByAssignment(assignmentId);
+        setPublicSubmissions(data);
       }
-      const data = await getSubmissionsByAssignmentWithStudents(
-        assignmentId,
-        classData.id // Use database ID
-      );
-      setSubmissions(data);
     } catch (err) {
       console.error("Error resetting attempts:", err);
       alert("Failed to reset attempts. Please try again.");
@@ -100,7 +149,19 @@ export default function SubmissionsTab({
     );
   };
 
-  const getStatusBadge = (status: StudentSubmissionStatus["status"]) => {
+  const getPublicResponderDisplayName = (submission: PublicSubmissionStatus["submission"]) => {
+    if (submission.responder_details) {
+      return (
+        submission.responder_details.name ||
+        submission.responder_details.email ||
+        submission.student_name ||
+        submission.submission_id.substring(0, 8) + "..."
+      );
+    }
+    return submission.student_name || submission.submission_id.substring(0, 8) + "...";
+  };
+
+  const getStatusBadge = (status: "completed" | "started" | "not_started") => {
     const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
     switch (status) {
       case "completed":
@@ -109,10 +170,10 @@ export default function SubmissionsTab({
             Completed
           </span>
         );
-      case "in_progress":
+      case "started":
         return (
           <span className={`${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200`}>
-            In Progress
+            Started
           </span>
         );
       case "not_started":
@@ -124,21 +185,169 @@ export default function SubmissionsTab({
     }
   };
 
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Loading submissions...</p>
-      </div>
-    );
-  }
+  const renderClassStudentsTable = () => {
+    if (classSubmissions.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No students enrolled in this class yet.</p>
+        </div>
+      );
+    }
 
-  if (error) {
     return (
-      <div className="text-center py-12">
-        <p className="text-destructive">{error}</p>
+      <div className="rounded-md border">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="text-left p-4 font-medium text-sm">Name</th>
+              <th className="text-left p-4 font-medium text-sm">Status</th>
+              <th className="text-left p-4 font-medium text-sm">Score</th>
+              <th className="text-left p-4 font-medium text-sm">Attempts</th>
+              <th className="text-right p-4 font-medium text-sm">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classSubmissions.map((item) => {
+              const displayName = getStudentDisplayName(item.student);
+              const scoreDisplay = item.highestScore !== undefined && item.maxScore !== undefined
+                ? `${item.highestScore}/${item.maxScore}`
+                : "-";
+
+              return (
+                <tr key={item.student.student_id} className="border-b hover:bg-muted/30">
+                  <td className="p-4">
+                    <div className="text-sm font-medium truncate max-w-[200px]">
+                      {displayName}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    {getStatusBadge(item.status)}
+                  </td>
+                  <td className="p-4">
+                    <div className="text-sm">
+                      {scoreDisplay}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="text-sm">
+                      {item.totalAttempts}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center justify-end gap-2">
+                      {item.submission && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewSubmission(item)}
+                          >
+                            View
+                          </Button>
+                          {item.hasAttempts && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResetAttempts(item)}
+                              disabled={resetting === item.submission?.submission_id}
+                            >
+                              {resetting === item.submission?.submission_id
+                                ? "Resetting..."
+                                : "Reset"}
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     );
-  }
+  };
+
+  const renderPublicSubmissionsTable = () => {
+    if (publicSubmissions.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No public submissions yet.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-md border">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="text-left p-4 font-medium text-sm">Name</th>
+              <th className="text-left p-4 font-medium text-sm">Status</th>
+              <th className="text-left p-4 font-medium text-sm">Score</th>
+              <th className="text-left p-4 font-medium text-sm">Attempts</th>
+              <th className="text-right p-4 font-medium text-sm">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {publicSubmissions.map((item) => {
+              const displayName = getPublicResponderDisplayName(item.submission);
+              const scoreDisplay = item.highestScore !== undefined && item.maxScore !== undefined
+                ? `${item.highestScore}/${item.maxScore}`
+                : "-";
+
+              return (
+                <tr key={item.submission.submission_id} className="border-b hover:bg-muted/30">
+                  <td className="p-4">
+                    <div className="text-sm font-medium truncate max-w-[200px]">
+                      {displayName}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    {getStatusBadge(item.status)}
+                  </td>
+                  <td className="p-4">
+                    <div className="text-sm">
+                      {scoreDisplay}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="text-sm">
+                      {item.totalAttempts}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewSubmission(item)}
+                      >
+                        View
+                      </Button>
+                      {item.hasAttempts && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleResetAttempts(item)}
+                          disabled={resetting === item.submission?.submission_id}
+                        >
+                          {resetting === item.submission?.submission_id
+                            ? "Resetting..."
+                            : "Reset"}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="py-6">
@@ -149,64 +358,44 @@ export default function SubmissionsTab({
         </p>
       </div>
 
-      <List
-        items={submissions}
-        emptyMessage="No students enrolled in this class yet."
-        renderItem={(item) => {
-          const displayName = getStudentDisplayName(item.student);
+      <Tabs defaultValue="class-students" className="w-full">
+        <TabsList>
+          <TabsTrigger value="class-students">Class Students</TabsTrigger>
+          {isPublic && (
+            <TabsTrigger value="public-submissions">Public Submissions</TabsTrigger>
+          )}
+        </TabsList>
 
-          return (
-            <div className="flex items-center justify-between rounded-md border p-4 gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="text-sm font-medium truncate">
-                    {displayName}
-                  </div>
-                  {getStatusBadge(item.status)}
-                </div>
-                {item.student.student_email && item.student.student_display_name && (
-                  <div className="text-xs text-muted-foreground truncate">
-                    {item.student.student_email}
-                  </div>
-                )}
-                {item.submission && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Submitted:{" "}
-                    {item.submission.submitted_at
-                      ? new Date(item.submission.submitted_at).toLocaleString()
-                      : "Not submitted"}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {item.submission && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewSubmission(item)}
-                    >
-                      View Submission
-                    </Button>
-                    {item.hasAttempts && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleResetAttempts(item)}
-                        disabled={resetting === item.submission?.submission_id}
-                      >
-                        {resetting === item.submission?.submission_id
-                          ? "Resetting..."
-                          : "Reset Attempts"}
-                      </Button>
-                    )}
-                  </>
-                )}
-              </div>
+        <TabsContent value="class-students" className="mt-6">
+          {classLoading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading submissions...</p>
             </div>
-          );
-        }}
-      />
+          ) : classError ? (
+            <div className="text-center py-12">
+              <p className="text-destructive">{classError}</p>
+            </div>
+          ) : (
+            renderClassStudentsTable()
+          )}
+        </TabsContent>
+
+        {isPublic && (
+          <TabsContent value="public-submissions" className="mt-6">
+            {publicLoading ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Loading public submissions...</p>
+              </div>
+            ) : publicError ? (
+              <div className="text-center py-12">
+                <p className="text-destructive">{publicError}</p>
+              </div>
+            ) : (
+              renderPublicSubmissionsTable()
+            )}
+          </TabsContent>
+        )}
+      </Tabs>
 
       {selectedSubmission && (
         <SubmissionViewDialog

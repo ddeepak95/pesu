@@ -541,6 +541,80 @@ export function hasNonStaleAttempts(submission: Submission): boolean {
 }
 
 /**
+ * Get the highest score across all questions and attempts in a submission
+ * Only considers non-stale attempts
+ */
+export function getHighestScoreFromSubmission(submission: Submission): {
+  highestScore: number;
+  maxScore: number;
+} {
+  if (!submission.answers) {
+    return { highestScore: 0, maxScore: 0 };
+  }
+
+  let answers = submission.answers as
+    | { [key: number]: QuestionAnswers }
+    | SubmissionAnswer[];
+
+  if (!isNewFormat(answers)) {
+    answers = convertToNewFormat(answers);
+  }
+
+  let highestScore = 0;
+  let maxScore = 0;
+
+  Object.values(answers).forEach((questionAnswers) => {
+    const qa = questionAnswers as QuestionAnswers;
+    if (qa && qa.attempts && Array.isArray(qa.attempts)) {
+      // Filter out stale attempts
+      const nonStaleAttempts = qa.attempts.filter((attempt) => !attempt.stale);
+      
+      if (nonStaleAttempts.length > 0) {
+        // Find highest score for this question
+        const questionHighest = Math.max(
+          ...nonStaleAttempts.map((attempt) => attempt.score)
+        );
+        highestScore += questionHighest;
+        
+        // Use max_score from first attempt (should be same for all attempts of same question)
+        maxScore += nonStaleAttempts[0].max_score;
+      }
+    }
+  });
+
+  return { highestScore, maxScore };
+}
+
+/**
+ * Get total count of non-stale attempts across all questions in a submission
+ */
+export function getTotalAttemptCountFromSubmission(submission: Submission): number {
+  if (!submission.answers) {
+    return 0;
+  }
+
+  let answers = submission.answers as
+    | { [key: number]: QuestionAnswers }
+    | SubmissionAnswer[];
+
+  if (!isNewFormat(answers)) {
+    answers = convertToNewFormat(answers);
+  }
+
+  let totalAttempts = 0;
+
+  Object.values(answers).forEach((questionAnswers) => {
+    const qa = questionAnswers as QuestionAnswers;
+    if (qa && qa.attempts && Array.isArray(qa.attempts)) {
+      // Count only non-stale attempts
+      totalAttempts += qa.attempts.filter((attempt) => !attempt.stale).length;
+    }
+  });
+
+  return totalAttempts;
+}
+
+/**
  * Mark all attempts in a submission as stale
  * This allows students to start fresh while preserving history
  */
@@ -604,8 +678,23 @@ export async function markAttemptsAsStale(
 export interface StudentSubmissionStatus {
   student: StudentWithInfo;
   submission: Submission | null;
-  status: "completed" | "in_progress" | "not_started";
+  status: "completed" | "started" | "not_started";
   hasAttempts: boolean;
+  highestScore?: number;
+  maxScore?: number;
+  totalAttempts: number;
+}
+
+/**
+ * Public submission status for teacher view
+ */
+export interface PublicSubmissionStatus {
+  submission: Submission;
+  status: "completed" | "started";
+  hasAttempts: boolean;
+  highestScore?: number;
+  maxScore?: number;
+  totalAttempts: number;
 }
 
 /**
@@ -654,15 +743,25 @@ export async function getSubmissionsByAssignmentWithStudents(
       }
     }
 
-    let status: "completed" | "in_progress" | "not_started";
+    let status: "completed" | "started" | "not_started";
+    let highestScore: number | undefined;
+    let maxScore: number | undefined;
+    let totalAttempts = 0;
+
     if (!submission) {
       status = "not_started";
-    } else if (hasAttempts) {
-      // Student has at least one non-stale attempt - mark as completed
-      status = "completed";
     } else {
-      // Submission exists but no attempts yet
-      status = "in_progress";
+      totalAttempts = getTotalAttemptCountFromSubmission(submission);
+      if (hasAttempts) {
+        // Student has at least one non-stale attempt - mark as completed
+        status = "completed";
+        const scoreData = getHighestScoreFromSubmission(submission);
+        highestScore = scoreData.highestScore;
+        maxScore = scoreData.maxScore;
+      } else {
+        // Submission exists but no attempts yet
+        status = "started";
+      }
     }
 
     return {
@@ -670,6 +769,76 @@ export async function getSubmissionsByAssignmentWithStudents(
       submission,
       status,
       hasAttempts,
+      highestScore,
+      maxScore,
+      totalAttempts,
+    };
+  });
+
+  return result;
+}
+
+/**
+ * Get all public submissions for a specific assignment
+ * Public submissions are identified by student_id IS NULL
+ * Returns submissions with responder details for display
+ */
+export async function getPublicSubmissionsByAssignment(
+  assignmentId: string
+): Promise<PublicSubmissionStatus[]> {
+  const supabase = createClient();
+
+  // Fetch all submissions for this assignment where student_id IS NULL
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("*")
+    .eq("assignment_id", assignmentId)
+    .is("student_id", null)
+    .order("submitted_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching public submissions:", error);
+    throw error;
+  }
+
+  const submissions = data || [];
+
+  // Map submissions to PublicSubmissionStatus
+  const result: PublicSubmissionStatus[] = submissions.map((submission) => {
+    let hasAttempts = false;
+    if (submission) {
+      try {
+        hasAttempts = hasNonStaleAttempts(submission);
+      } catch (error) {
+        console.error("Error checking attempts for submission:", submission.submission_id, error);
+        // If there's an error, check if answers exist at all
+        hasAttempts = !!(submission.answers && typeof submission.answers === 'object' && Object.keys(submission.answers).length > 0);
+      }
+    }
+
+    const totalAttempts = getTotalAttemptCountFromSubmission(submission);
+    let status: "completed" | "started";
+    let highestScore: number | undefined;
+    let maxScore: number | undefined;
+
+    if (hasAttempts) {
+      // Submission has at least one non-stale attempt - mark as completed
+      status = "completed";
+      const scoreData = getHighestScoreFromSubmission(submission);
+      highestScore = scoreData.highestScore;
+      maxScore = scoreData.maxScore;
+    } else {
+      // Submission exists but no attempts yet
+      status = "started";
+    }
+
+    return {
+      submission,
+      status,
+      hasAttempts,
+      highestScore,
+      maxScore,
+      totalAttempts,
     };
   });
 
