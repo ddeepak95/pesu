@@ -147,7 +147,7 @@ export default function QuestionCard({
           });
           
           // Ensure we create a completely new array reference
-          finalRubric = distributedRubric.map((item) => ({ ...item }));
+          finalRubric = distributedRubric.map((item: RubricItem) => ({ ...item }));
           finalTotalPoints = totalPoints;
         } else {
           // Equal distribution if no AI points
@@ -158,7 +158,7 @@ export default function QuestionCard({
             points: pointsPerItem + (idx < remainder ? 1 : 0),
           }));
           // Ensure we create a completely new array reference
-          finalRubric = distributedRubric.map((item) => ({ ...item }));
+          finalRubric = distributedRubric.map((item: RubricItem) => ({ ...item }));
           finalTotalPoints = totalPoints;
         }
       } else {
@@ -168,13 +168,13 @@ export default function QuestionCard({
           0
         );
         // Ensure we create a completely new array reference
-        finalRubric = newRubric.map((item) => ({ ...item }));
+        finalRubric = newRubric.map((item: RubricItem) => ({ ...item }));
       }
 
       // Update all fields - ensure rubric gets a completely new array reference
       // Create fresh objects to ensure React detects the change
       // Don't filter - keep all items from AI (they should all be valid)
-      const rubricCopy = finalRubric.map((item) => ({
+      const rubricCopy = finalRubric.map((item: RubricItem) => ({
         item: String(item.item || ""),
         points: Number(item.points || 0),
       }));
