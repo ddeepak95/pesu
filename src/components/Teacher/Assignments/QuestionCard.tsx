@@ -62,7 +62,7 @@ export default function QuestionCard({
       (item) => item.item.trim() && item.points > 0
     );
     if (validRubricItems.length === 0) return null;
-    
+
     const rubricSum = validRubricItems.reduce(
       (sum, item) => sum + (item.points || 0),
       0
@@ -105,7 +105,9 @@ export default function QuestionCard({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate rubric and answer");
+        throw new Error(
+          errorData.error || "Failed to generate rubric and answer"
+        );
       }
 
       const data = await response.json();
@@ -123,42 +125,52 @@ export default function QuestionCard({
       if (question.total_points > 0) {
         // Distribute user-entered total points across rubric items
         const totalPoints = question.total_points;
-        
+
         // Use AI-generated points as weights for proportional distribution
         const totalAIPoints = newRubric.reduce(
           (sum: number, item: RubricItem) => sum + item.points,
           0
         );
-        
+
         if (totalAIPoints > 0) {
           // Distribute proportionally based on AI weights
           let distributedSum = 0;
-          const distributedRubric = newRubric.map((item: RubricItem, idx: number) => {
-            if (idx === newRubric.length - 1) {
-              // Last item gets remainder to ensure exact total
-              const points = totalPoints - distributedSum;
-              distributedSum += points;
-              return { ...item, points };
-            } else {
-              const points = Math.round((item.points / totalAIPoints) * totalPoints);
-              distributedSum += points;
-              return { ...item, points };
+          const distributedRubric = newRubric.map(
+            (item: RubricItem, idx: number) => {
+              if (idx === newRubric.length - 1) {
+                // Last item gets remainder to ensure exact total
+                const points = totalPoints - distributedSum;
+                distributedSum += points;
+                return { ...item, points };
+              } else {
+                const points = Math.round(
+                  (item.points / totalAIPoints) * totalPoints
+                );
+                distributedSum += points;
+                return { ...item, points };
+              }
             }
-          });
-          
+          );
+
           // Ensure we create a completely new array reference
-          finalRubric = distributedRubric.map((item: RubricItem) => ({ ...item }));
+          finalRubric = distributedRubric.map((item: RubricItem) => ({
+            ...item,
+          }));
           finalTotalPoints = totalPoints;
         } else {
           // Equal distribution if no AI points
           const pointsPerItem = Math.floor(totalPoints / newRubric.length);
           const remainder = totalPoints % newRubric.length;
-          const distributedRubric = newRubric.map((item: RubricItem, idx: number) => ({
-            ...item,
-            points: pointsPerItem + (idx < remainder ? 1 : 0),
-          }));
+          const distributedRubric = newRubric.map(
+            (item: RubricItem, idx: number) => ({
+              ...item,
+              points: pointsPerItem + (idx < remainder ? 1 : 0),
+            })
+          );
           // Ensure we create a completely new array reference
-          finalRubric = distributedRubric.map((item: RubricItem) => ({ ...item }));
+          finalRubric = distributedRubric.map((item: RubricItem) => ({
+            ...item,
+          }));
           finalTotalPoints = totalPoints;
         }
       } else {
@@ -178,19 +190,24 @@ export default function QuestionCard({
         item: String(item.item || ""),
         points: Number(item.points || 0),
       }));
-      
-      console.log("Updating rubric with:", rubricCopy, "for question index:", index);
+
+      console.log(
+        "Updating rubric with:",
+        rubricCopy,
+        "for question index:",
+        index
+      );
       console.log("Current question rubric before update:", question.rubric);
-      
+
       // Update rubric first - this should trigger a re-render
       onChange(index, "rubric", rubricCopy);
-      
+
       // Update other fields immediately - React will batch these
       if (question.total_points !== finalTotalPoints) {
         onChange(index, "total_points", finalTotalPoints);
       }
       onChange(index, "expected_answer", data.expectedAnswer || "");
-      
+
       console.log("State updates called for question", index);
     } catch (error) {
       console.error("Error generating rubric and answer:", error);
@@ -251,7 +268,11 @@ export default function QuestionCard({
           value={question.total_points || ""}
           onChange={(e) => {
             const value = parseInt(e.target.value, 10);
-            onChange(index, "total_points", isNaN(value) ? 0 : Math.max(0, value));
+            onChange(
+              index,
+              "total_points",
+              isNaN(value) ? 0 : Math.max(0, value)
+            );
           }}
           disabled={disabled}
           min={0}
@@ -293,7 +314,9 @@ export default function QuestionCard({
           className="w-full"
         >
           <Sparkles className="h-4 w-4 mr-2" />
-          {isGenerating ? "Generating..." : "Generate Rubric & Expected Answer with AI"}
+          {isGenerating
+            ? "Generating..."
+            : "Generate Rubric & Expected Answer with AI"}
         </Button>
         {isGenerating && (
           <div className="flex items-center gap-2 p-4 border rounded-md bg-muted/30">
@@ -359,15 +382,14 @@ export default function QuestionCard({
         <Textarea
           id={`expectedAnswer-${index}`}
           value={question.expected_answer || ""}
-          onChange={(e) =>
-            onChange(index, "expected_answer", e.target.value)
-          }
+          onChange={(e) => onChange(index, "expected_answer", e.target.value)}
           disabled={disabled}
           placeholder="Enter details about what the answer should cover (optional)"
           rows={4}
         />
         <p className="text-xs text-muted-foreground">
-          Key points the answer should cover. This guides AI evaluation and won't be shown to learners.
+          Key points the answer should cover. This guides AI evaluation and
+          won&apos;t be shown to learners.
         </p>
       </div>
 

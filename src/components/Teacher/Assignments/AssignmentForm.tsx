@@ -250,7 +250,11 @@ export default function AssignmentForm({
       );
       if (rubricSum !== question.total_points) {
         setError(
-          `Question ${i + 1}: Rubric points (${rubricSum}) must equal total points (${question.total_points})`
+          `Question ${
+            i + 1
+          }: Rubric points (${rubricSum}) must equal total points (${
+            question.total_points
+          })`
         );
         return;
       }
@@ -360,7 +364,7 @@ export default function AssignmentForm({
             }`}
           />
         </button>
-        
+
         {isMoreOptionsOpen && (
           <div className="space-y-4 p-4 pt-0 border-t">
             {/* Preferred Language */}
@@ -402,7 +406,8 @@ export default function AssignmentForm({
                 placeholder="3"
               />
               <p className="text-sm text-muted-foreground">
-                Number of attempts students can make for this assignment. Default is 3.
+                Number of attempts students can make for this assignment.
+                Default is 3.
               </p>
             </div>
 
@@ -422,8 +427,8 @@ export default function AssignmentForm({
                   Make this assignment publicly accessible
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Anyone with the link can view and complete this assignment without
-                  logging in
+                  Anyone with the link can view and complete this assignment
+                  without logging in
                 </p>
               </div>
             </div>
@@ -668,7 +673,6 @@ export default function AssignmentForm({
             : "Create Assignment"}
         </Button>
       </div>
-
     </form>
   );
 }
