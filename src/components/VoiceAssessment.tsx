@@ -308,6 +308,10 @@ function VoiceAssessmentContent({
     question_order: question.order,
     submission_id: submissionId, // For server-side audio recording
     attempt_number: attempts.length + 1, // For server-side audio recording
+    // Only pass supabase_env if explicitly set - prevents accidental dev/prod mismatch
+    ...(process.env.NEXT_PUBLIC_SUPABASE_ENV && {
+      supabase_env: process.env.NEXT_PUBLIC_SUPABASE_ENV,
+    }),
   };
 
   const handleBotReady = () => {
