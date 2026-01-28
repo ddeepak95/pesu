@@ -12,6 +12,7 @@ import {
 import {
   createSubmission,
   getSubmissionById,
+  getMaxAttemptCountAcrossQuestions,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
 import {
@@ -73,6 +74,10 @@ const PublicAssignmentResponse = forwardRef<
   const [displayName, setDisplayName] = useState<string>("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [existingAnswers, setExistingAnswers] = useState<{ [key: number]: string }>({});
+  const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
+
+  // Get max attempts from assignment config
+  const maxAttempts = assignmentData.max_attempts ?? 1;
 
   // Get responder fields config or default to name field
   const responderFields = assignmentData.responder_fields_config || [
@@ -149,6 +154,12 @@ const PublicAssignmentResponse = forwardRef<
       setPreferredLanguage(submission.preferred_language);
       if (onDisplayNameChange) {
         onDisplayNameChange(name);
+      }
+
+      // Check if max attempts reached
+      const attemptCount = await getMaxAttemptCountAcrossQuestions(submission.submission_id);
+      if (attemptCount >= maxAttempts) {
+        setMaxAttemptsReached(true);
       }
 
       // Reconstruct answers from submission data (supports both formats)
@@ -304,6 +315,7 @@ const PublicAssignmentResponse = forwardRef<
     setExistingAnswers({});
     setPhase("info");
     setPreferredLanguage(assignmentData.preferred_language || "");
+    setMaxAttemptsReached(false);
     
     // Clear display name in parent
     if (onDisplayNameChange) {
@@ -392,6 +404,8 @@ const PublicAssignmentResponse = forwardRef<
         assignmentId={assignmentId}
         initialQuestionIndex={currentQuestionIndex}
         existingAnswers={existingAnswers}
+        maxAttempts={maxAttempts}
+        maxAttemptsReached={maxAttemptsReached}
       />
     );
   }
@@ -409,6 +423,8 @@ const PublicAssignmentResponse = forwardRef<
         assignmentId={assignmentId}
         initialQuestionIndex={0}
         existingAnswers={{}}
+        maxAttempts={maxAttempts}
+        maxAttemptsReached={maxAttemptsReached}
       />
     );
   }

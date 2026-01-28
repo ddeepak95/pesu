@@ -11,40 +11,36 @@ import { SubmissionAttempt } from "@/types/submission";
 interface AttemptsPanelProps {
   attempts: SubmissionAttempt[];
   maxAttempts?: number;
-  maxAttemptsReached?: boolean;
 }
 
 export function AttemptsPanel({
   attempts,
   maxAttempts,
-  maxAttemptsReached,
 }: AttemptsPanelProps) {
-  const currentQuestionAttemptNumber = attempts.length + 1;
-
   const getScoreColor = (percentage: number) => {
     if (percentage >= 75) return "text-green-600 dark:text-green-400";
     if (percentage >= 50) return "text-yellow-600 dark:text-yellow-400";
     return "text-red-600 dark:text-red-400";
   };
 
+  const remainingAttempts = maxAttempts ? maxAttempts - attempts.length : null;
+
   return (
     <div className="mt-4 border rounded-lg">
       <div className="p-3 bg-muted/30 border-b">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold">Attempts</p>
-            {maxAttempts && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {attempts.length > 0
-                  ? `Attempt ${currentQuestionAttemptNumber} of ${maxAttempts}`
-                  : `Attempt 1 of ${maxAttempts}`}
-                {maxAttemptsReached && " (Maximum reached)"}
-              </p>
-            )}
-          </div>
-          {maxAttempts && (
-            <p className="text-xs text-muted-foreground">
-              Your best attempt will be used for final grading.
+          <p className="text-sm font-semibold">Attempts</p>
+          {maxAttempts && remainingAttempts !== null && (
+            <p
+              className={`text-sm font-semibold ${
+                remainingAttempts === 0
+                  ? "text-red-600 dark:text-red-400"
+                  : remainingAttempts === 1
+                  ? "text-yellow-600 dark:text-yellow-400"
+                  : "text-green-600 dark:text-green-400"
+              }`}
+            >
+              {remainingAttempts} {remainingAttempts === 1 ? "attempt" : "attempts"} remaining
             </p>
           )}
         </div>

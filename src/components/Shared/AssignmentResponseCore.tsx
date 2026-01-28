@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-// No need to import getSubmissionById - no completion status checking
 import { Assignment } from "@/types/assignment";
 import { VoiceAssessment } from "@/components/VoiceAssessment";
 import { ChatAssessment } from "@/components/ChatAssessment";
+import { StaticTextAssessment } from "@/components/StaticTextAssessment";
 import {
   updateQuestionIndex,
 } from "@/utils/sessionStorage";
@@ -160,47 +158,25 @@ export default function AssignmentResponseCore({
         />
       )}
       {assessmentMode === "static_text" && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Prompt</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="whitespace-pre-wrap">
-                {currentQuestion.prompt}
-              </p>
-            </CardContent>
-          </Card>
-          <p className="text-sm text-muted-foreground">
-            Static text assessment is coming soon. Please contact your
-            teacher if you expected an interactive question here.
-          </p>
-          <div className="flex justify-between gap-4">
-            <Button
-              onClick={handlePrevious}
-              disabled={currentQuestionIndex === 0}
-              variant="outline"
-              size="lg"
-            >
-              Previous Question
-            </Button>
-            <div className="flex gap-4">
-              {!isLastQuestion && (
-                <Button onClick={handleNext} size="lg">
-                  Next Question
-                </Button>
-              )}
-              {isLastQuestion && (
-                <Button
-                  onClick={handleNext}
-                  size="lg"
-                >
-                  Finish
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+        <StaticTextAssessment
+          key={currentQuestion.order}
+          question={currentQuestion}
+          language={preferredLanguage}
+          assignmentId={assignmentData.assignment_id}
+          submissionId={submissionId}
+          questionNumber={currentQuestionIndex + 1}
+          totalQuestions={sortedQuestions.length}
+          onAnswerSave={handleAnswerSave}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          isFirstQuestion={currentQuestionIndex === 0}
+          isLastQuestion={isLastQuestion}
+          existingAnswer={answers[currentQuestion.order]}
+          onLanguageChange={handleLanguageChange}
+          currentAttemptNumber={currentAttemptNumber}
+          maxAttempts={maxAttempts}
+          maxAttemptsReached={maxAttemptsReached}
+        />
       )}
     </div>
   );

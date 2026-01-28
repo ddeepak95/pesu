@@ -373,7 +373,6 @@ function VoiceAssessmentContent({
         <AttemptsPanel
           attempts={attempts}
           maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
         />
       </AssessmentQuestionCard>
 

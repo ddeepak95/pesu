@@ -343,7 +343,7 @@ export default function AssignmentForm({
             <SelectItem value="voice">Voice assessment</SelectItem>
             <SelectItem value="text_chat">Text chat assessment</SelectItem>
             <SelectItem value="static_text">
-              Static text assessment (coming soon)
+              Static text assessment
             </SelectItem>
           </SelectContent>
         </Select>

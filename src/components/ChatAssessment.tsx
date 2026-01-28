@@ -641,7 +641,6 @@ export function ChatAssessment({
         <AttemptsPanel
           attempts={attempts}
           maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
         />
       </AssessmentQuestionCard>
 
