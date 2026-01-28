@@ -8,6 +8,7 @@ import { StaticTextAssessment } from "@/components/StaticTextAssessment";
 import {
   updateQuestionIndex,
 } from "@/utils/sessionStorage";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 
 interface AssignmentResponseCoreProps {
   assignmentData: Assignment;
@@ -23,6 +24,7 @@ interface AssignmentResponseCoreProps {
   currentAttemptNumber?: number; // Current attempt number (for student assignments)
   maxAttempts?: number; // Maximum attempts allowed
   maxAttemptsReached?: boolean; // Whether max attempts have been reached
+  // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
 /**
@@ -46,6 +48,13 @@ export default function AssignmentResponseCore({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex);
   const [answers, setAnswers] = useState<{ [key: number]: string }>(existingAnswers);
   const [preferredLanguage, setPreferredLanguage] = useState(initialPreferredLanguage);
+
+  // Activity tracking for assignment-level time
+  // Uses ActivityTrackingContext for userId, classId, submissionId
+  useActivityTracking({
+    componentType: "assignment",
+    componentId: assignmentId,
+  });
 
   const handleAnswerSave = async (transcript: string) => {
     if (!assignmentData || !submissionId) return;

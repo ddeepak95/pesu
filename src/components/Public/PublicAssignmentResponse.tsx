@@ -31,6 +31,7 @@ import {
   updateUrlWithSubmissionId,
   removeSubmissionIdFromUrl,
 } from "@/utils/sessionStorage";
+import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 
 type Phase = "info" | "answering" | "completed";
 
@@ -385,47 +386,58 @@ const PublicAssignmentResponse = forwardRef<
   }
 
   // Phase 2: Question Answering (delegated to core component)
+  // Wrap with ActivityTrackingProvider - userId is undefined for public submissions
   if (phase === "answering" && submissionId) {
     return (
-      <AssignmentResponseCore
-        assignmentData={assignmentData}
+      <ActivityTrackingProvider
         submissionId={submissionId}
-        displayName={displayName}
-        preferredLanguage={preferredLanguage}
-        onComplete={() => {
-          setPhase("completed");
-          clearSession(assignmentId);
-          if (onComplete) {
-            onComplete();
-          }
-        }}
-        onBack={onBack}
-        onLanguageChange={handleLanguageChange}
-        assignmentId={assignmentId}
-        initialQuestionIndex={currentQuestionIndex}
-        existingAnswers={existingAnswers}
-        maxAttempts={maxAttempts}
-        maxAttemptsReached={maxAttemptsReached}
-      />
+        classId={assignmentData.class_id}
+      >
+        <AssignmentResponseCore
+          assignmentData={assignmentData}
+          submissionId={submissionId}
+          displayName={displayName}
+          preferredLanguage={preferredLanguage}
+          onComplete={() => {
+            setPhase("completed");
+            clearSession(assignmentId);
+            if (onComplete) {
+              onComplete();
+            }
+          }}
+          onBack={onBack}
+          onLanguageChange={handleLanguageChange}
+          assignmentId={assignmentId}
+          initialQuestionIndex={currentQuestionIndex}
+          existingAnswers={existingAnswers}
+          maxAttempts={maxAttempts}
+          maxAttemptsReached={maxAttemptsReached}
+        />
+      </ActivityTrackingProvider>
     );
   }
 
   // Phase 3: Completion (delegated to core component)
   if (phase === "completed" && submissionId) {
     return (
-      <AssignmentResponseCore
-        assignmentData={assignmentData}
+      <ActivityTrackingProvider
         submissionId={submissionId}
-        displayName={displayName}
-        preferredLanguage={preferredLanguage}
-        onComplete={onComplete}
-        onBack={onBack}
-        assignmentId={assignmentId}
-        initialQuestionIndex={0}
-        existingAnswers={{}}
-        maxAttempts={maxAttempts}
-        maxAttemptsReached={maxAttemptsReached}
-      />
+        classId={assignmentData.class_id}
+      >
+        <AssignmentResponseCore
+          assignmentData={assignmentData}
+          submissionId={submissionId}
+          displayName={displayName}
+          preferredLanguage={preferredLanguage}
+          onComplete={onComplete}
+          onBack={onBack}
+          assignmentId={assignmentId}
+          initialQuestionIndex={0}
+          existingAnswers={{}}
+          maxAttempts={maxAttempts}
+          maxAttemptsReached={maxAttemptsReached}
+        />
+      </ActivityTrackingProvider>
     );
   }
 

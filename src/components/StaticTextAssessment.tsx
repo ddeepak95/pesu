@@ -12,6 +12,7 @@ import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCa
 import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 
 interface StaticTextAssessmentProps {
   question: Question;
@@ -30,11 +31,13 @@ interface StaticTextAssessmentProps {
   currentAttemptNumber?: number;
   maxAttempts?: number;
   maxAttemptsReached?: boolean;
+  // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
 export function StaticTextAssessment({
   question,
   language,
+  assignmentId,
   submissionId,
   questionNumber,
   totalQuestions,
@@ -51,6 +54,14 @@ export function StaticTextAssessment({
   const [answer, setAnswer] = React.useState("");
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
+
+  // Activity tracking for question-level time
+  // Uses ActivityTrackingContext for userId, classId, submissionId
+  useActivityTracking({
+    componentType: "question",
+    componentId: assignmentId,
+    subComponentId: String(question.order),
+  });
 
   const restoredFromStorageRef = React.useRef(false);
   const storageKey = React.useMemo(
