@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import { getContentItemByRefId } from "@/lib/queries/contentItems";
+import { isContentComplete } from "@/lib/queries/contentCompletions";
+import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
 
 function QuizPageContent() {
   const params = useParams();
@@ -17,6 +20,8 @@ function QuizPageContent() {
   const quizId = params.quizId as string;
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [contentItemId, setContentItemId] = useState<string | null>(null);
+  const [isComplete, setIsComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,8 +40,17 @@ function QuizPageContent() {
       const data = await getQuizByShortId(quizId);
       if (!data) {
         setError("Quiz not found");
-      } else {
-        setQuiz(data);
+        return;
+      }
+      setQuiz(data);
+
+      // Fetch content item ID for completion tracking
+      const contentItem = await getContentItemByRefId(data.id, "quiz");
+      if (contentItem) {
+        setContentItemId(contentItem.id);
+        // Check if already complete
+        const complete = await isContentComplete(contentItem.id);
+        setIsComplete(complete);
       }
     } catch (err) {
       console.error("Error fetching quiz:", err);
@@ -110,6 +124,17 @@ function QuizPageContent() {
                   </CardContent>
                 </Card>
               ))}
+
+            {/* Mark as Complete Button */}
+            {contentItemId && (
+              <div className="flex justify-center pt-4">
+                <MarkAsCompleteButton
+                  contentItemId={contentItemId}
+                  isComplete={isComplete}
+                  onComplete={() => setIsComplete(true)}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

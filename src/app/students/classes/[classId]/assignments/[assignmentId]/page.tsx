@@ -8,6 +8,7 @@ import { getAssignmentById } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
 import { useAuth } from "@/contexts/AuthContext";
 import StudentAssignmentResponse from "@/components/Student/StudentAssignmentResponse";
+import { getContentItemByRefId } from "@/lib/queries/contentItems";
 
 export default function StudentAssignmentPage() {
   const params = useParams();
@@ -17,6 +18,7 @@ export default function StudentAssignmentPage() {
   const assignmentId = params.assignmentId as string;
 
   const [assignmentData, setAssignmentData] = useState<Assignment | null>(null);
+  const [contentItemId, setContentItemId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
@@ -29,8 +31,14 @@ export default function StudentAssignmentPage() {
       const data = await getAssignmentById(assignmentId);
       if (!data) {
         setError("Assignment not found");
-      } else {
-        setAssignmentData(data);
+        return;
+      }
+      setAssignmentData(data);
+
+      // Fetch content item ID for completion tracking
+      const contentItem = await getContentItemByRefId(data.id, "formative_assignment");
+      if (contentItem) {
+        setContentItemId(contentItem.id);
       }
     } catch (err) {
       console.error("Error fetching assignment:", err);
@@ -83,6 +91,7 @@ export default function StudentAssignmentPage() {
           <StudentAssignmentResponse
             assignmentData={assignmentData}
             assignmentId={assignmentId}
+            contentItemId={contentItemId}
             onComplete={() => {
               // Attempts are automatically saved, no action needed
             }}

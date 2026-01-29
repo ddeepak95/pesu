@@ -40,6 +40,8 @@ interface ChatAssessmentProps {
   maxAttemptsReached?: boolean;
   // Bot prompt configuration for custom prompts
   botPromptConfig?: BotPromptConfig;
+  // For marking as complete
+  contentItemId?: string | null;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -60,6 +62,7 @@ export function ChatAssessment({
   maxAttempts,
   maxAttemptsReached,
   botPromptConfig,
+  contentItemId,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -706,6 +709,7 @@ export function ChatAssessment({
         isLastQuestion={isLastQuestion}
         onPrevious={() => handleSaveAndNavigate("previous")}
         onNext={() => handleSaveAndNavigate("next")}
+        contentItemId={contentItemId}
       />
     </div>
   );

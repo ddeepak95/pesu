@@ -42,6 +42,8 @@ interface VoiceAssessmentProps {
   maxAttemptsReached?: boolean;
   // Bot prompt configuration for custom prompts
   botPromptConfig?: BotPromptConfig;
+  // For marking as complete
+  contentItemId?: string | null;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -65,6 +67,7 @@ function VoiceAssessmentContent({
   maxAttempts,
   maxAttemptsReached,
   botPromptConfig,
+  contentItemId,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -427,6 +430,7 @@ function VoiceAssessmentContent({
         onNext={() => handleSaveAndNavigate("next")}
         previousDisabled={isConnected || isEvaluating}
         nextDisabled={isConnected || isEvaluating}
+        contentItemId={contentItemId}
       />
     </div>
   );

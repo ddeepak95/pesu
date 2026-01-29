@@ -15,6 +15,7 @@ interface AssignmentResponseCoreProps {
   submissionId: string; // Required - must be provided by wrapper
   displayName: string; // For display in header - derived from responder_details or user
   preferredLanguage: string;
+  contentItemId?: string | null; // For marking as complete
   onComplete?: () => void;
   onBack?: () => void;
   onLanguageChange?: (lang: string) => void;
@@ -36,6 +37,7 @@ export default function AssignmentResponseCore({
   assignmentData,
   submissionId,
   preferredLanguage: initialPreferredLanguage,
+  contentItemId,
   onComplete,
   onLanguageChange,
   assignmentId,
@@ -144,6 +146,7 @@ export default function AssignmentResponseCore({
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
           botPromptConfig={assignmentData.bot_prompt_config}
+          contentItemId={contentItemId}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -166,6 +169,7 @@ export default function AssignmentResponseCore({
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
           botPromptConfig={assignmentData.bot_prompt_config}
+          contentItemId={contentItemId}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -187,6 +191,7 @@ export default function AssignmentResponseCore({
           currentAttemptNumber={currentAttemptNumber}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
+          contentItemId={contentItemId}
         />
       )}
     </div>
