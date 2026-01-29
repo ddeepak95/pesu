@@ -31,6 +31,8 @@ interface StaticTextAssessmentProps {
   currentAttemptNumber?: number;
   maxAttempts?: number;
   maxAttemptsReached?: boolean;
+  // For marking as complete
+  contentItemId?: string | null;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -50,6 +52,7 @@ export function StaticTextAssessment({
   onLanguageChange,
   maxAttempts,
   maxAttemptsReached,
+  contentItemId,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -372,6 +375,7 @@ export function StaticTextAssessment({
         onNext={() => handleSaveAndNavigate("next")}
         previousDisabled={isEvaluating}
         nextDisabled={isEvaluating}
+        contentItemId={contentItemId}
       />
     </div>
   );

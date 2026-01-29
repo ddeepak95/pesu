@@ -218,6 +218,32 @@ export async function updateContentItemStatusByRef(params: {
   if (error) throw error;
 }
 
+/**
+ * Get a content item by its ref_id (the UUID of the underlying entity)
+ * Used to look up the content_item_id from a learning content, quiz, or assignment UUID
+ */
+export async function getContentItemByRefId(
+  refId: string,
+  type: ContentItem["type"]
+): Promise<ContentItem | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("content_items")
+    .select("*")
+    .eq("ref_id", refId)
+    .eq("type", type)
+    .in("status", ["active", "draft"])
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching content item by ref_id:", error);
+    return null;
+  }
+
+  return data as ContentItem | null;
+}
+
 
 
 

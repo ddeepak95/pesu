@@ -11,6 +11,9 @@ import YouTubeEmbed from "@/components/Shared/YouTubeEmbed";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import { getContentItemByRefId } from "@/lib/queries/contentItems";
+import { isContentComplete } from "@/lib/queries/contentCompletions";
+import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
 
 function LearningContentPageContent() {
   const params = useParams();
@@ -18,6 +21,8 @@ function LearningContentPageContent() {
   const learningContentId = params.learningContentId as string;
 
   const [content, setContent] = useState<LearningContent | null>(null);
+  const [contentItemId, setContentItemId] = useState<string | null>(null);
+  const [isComplete, setIsComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,8 +39,20 @@ function LearningContentPageContent() {
     setError(null);
     try {
       const data = await getLearningContentByShortId(learningContentId);
-      if (!data) setError("Learning content not found");
-      else setContent(data);
+      if (!data) {
+        setError("Learning content not found");
+        return;
+      }
+      setContent(data);
+
+      // Fetch content item ID for completion tracking
+      const contentItem = await getContentItemByRefId(data.id, "learning_content");
+      if (contentItem) {
+        setContentItemId(contentItem.id);
+        // Check if already complete
+        const complete = await isContentComplete(contentItem.id);
+        setIsComplete(complete);
+      }
     } catch (err) {
       console.error("Error fetching learning content:", err);
       setError("Failed to load learning content");
@@ -104,6 +121,17 @@ function LearningContentPageContent() {
                   <div className="whitespace-pre-wrap">{content.body}</div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Mark as Complete Button */}
+            {contentItemId && (
+              <div className="flex justify-center pt-4">
+                <MarkAsCompleteButton
+                  contentItemId={contentItemId}
+                  isComplete={isComplete}
+                  onComplete={() => setIsComplete(true)}
+                />
+              </div>
             )}
           </div>
         </div>

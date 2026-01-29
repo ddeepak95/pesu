@@ -29,6 +29,7 @@ interface StudentAssignmentResponseProps {
   assignmentData: Assignment;
   assignmentId: string;
   classId?: string; // Class ID for activity tracking
+  contentItemId?: string | null; // For marking as complete
   onComplete?: () => void;
   onBack?: () => void;
   onDisplayNameChange?: (name: string) => void;
@@ -42,6 +43,7 @@ export default function StudentAssignmentResponse({
   assignmentData,
   assignmentId,
   classId,
+  contentItemId,
   onComplete,
   onBack,
   onDisplayNameChange,
@@ -421,6 +423,7 @@ export default function StudentAssignmentResponse({
         submissionId={submissionId}
         displayName={displayName}
         preferredLanguage={preferredLanguage}
+        contentItemId={contentItemId}
         onComplete={() => {
           // Attempts are automatically saved, no explicit completion needed
           if (onComplete) {

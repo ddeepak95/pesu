@@ -16,6 +16,7 @@ import { Quiz } from "@/types/quiz";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStudentGroupForClass } from "@/lib/queries/groups";
+import { getCompletionsForStudent } from "@/lib/queries/contentCompletions";
 import ContentCard from "@/components/Student/Classes/ContentParts/ContentCard";
 
 interface ContentProps {
@@ -34,6 +35,7 @@ export default function Content({ classData }: ContentProps) {
     Record<string, LearningContent>
   >({});
   const [quizById, setQuizById] = useState<Record<string, Quiz>>({});
+  const [completedContentIds, setCompletedContentIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -185,6 +187,23 @@ export default function Content({ classData }: ContentProps) {
     }
   }, [quizIds]);
 
+  // Fetch completions for all content items
+  useEffect(() => {
+    const fetchCompletions = async () => {
+      if (items.length === 0) return;
+
+      try {
+        const contentItemIds = items.map((item) => item.id);
+        const completions = await getCompletionsForStudent(contentItemIds);
+        setCompletedContentIds(completions);
+      } catch (err) {
+        console.error("Error fetching completions:", err);
+      }
+    };
+
+    fetchCompletions();
+  }, [items]);
+
   const handleOpen = (item: ContentItem) => {
     if (item.type === "formative_assignment") {
       const a = assignmentById[item.ref_id];
@@ -266,6 +285,7 @@ export default function Content({ classData }: ContentProps) {
                 title={resolvedTitle}
                 titleLoading={titleLoading}
                 assessmentMode={assessmentMode}
+                isComplete={completedContentIds.has(item.id)}
                 onOpen={() => handleOpen(item)}
               />
             );

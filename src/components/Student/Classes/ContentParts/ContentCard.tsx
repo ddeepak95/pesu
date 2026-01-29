@@ -3,18 +3,21 @@
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
+import { Check } from "lucide-react";
 
 export default function ContentCard({
   item,
   title,
   titleLoading,
   assessmentMode,
+  isComplete,
   onOpen,
 }: {
   item: ContentItem;
   title?: string;
   titleLoading?: boolean;
   assessmentMode?: Assignment["assessment_mode"];
+  isComplete?: boolean;
   onOpen: () => void;
 }) {
   const labelForType = (type: ContentItemType) => {
@@ -65,6 +68,12 @@ export default function ContentCard({
             {item.status === "draft" && (
               <span className="text-xs rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-600 dark:text-amber-400">
                 Draft
+              </span>
+            )}
+            {isComplete && (
+              <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 flex items-center gap-1">
+                <Check className="w-3 h-3" />
+                Completed
               </span>
             )}
           </div>
