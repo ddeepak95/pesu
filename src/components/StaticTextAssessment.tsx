@@ -51,13 +51,14 @@ export function StaticTextAssessment({
   maxAttempts,
   maxAttemptsReached,
 }: StaticTextAssessmentProps) {
+  const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
 
   // Activity tracking for question-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
-  useActivityTracking({
+  const { logEvent } = useActivityTracking({
     componentType: "question",
     componentId: assignmentId,
     subComponentId: String(question.order),
@@ -76,6 +77,7 @@ export function StaticTextAssessment({
       if (stored) {
         restoredFromStorageRef.current = true;
         setAnswer(stored);
+        setHasStarted(true); // Auto-show writing area if there's saved content
       }
     } catch {
       // ignore storage errors
@@ -99,9 +101,11 @@ export function StaticTextAssessment({
         if (!restoredFromStorageRef.current) {
           if (existingAnswer && questionAttempts.length === 0) {
             setAnswer(existingAnswer);
+            setHasStarted(true);
           } else {
             // Start with empty textarea for new attempts
             setAnswer("");
+            setHasStarted(false);
           }
         }
       } catch (error) {
@@ -109,6 +113,7 @@ export function StaticTextAssessment({
         // On error, start with empty textarea
         if (!restoredFromStorageRef.current) {
           setAnswer("");
+          setHasStarted(false);
         }
       }
     }
@@ -126,6 +131,17 @@ export function StaticTextAssessment({
       // ignore storage errors
     }
   }, [answer, storageKey]);
+
+  // Handle Start Writing button click
+  const handleStartWriting = () => {
+    if (maxAttemptsReached) {
+      alert("You have reached the maximum number of attempts for this question.");
+      return;
+    }
+    setHasStarted(true);
+    // Log attempt_started event
+    logEvent("attempt_started");
+  };
 
   // Copy/Paste prevention handlers
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -202,8 +218,12 @@ export function StaticTextAssessment({
       setAttempts((prev) => [...prev, newAttempt]);
       onAnswerSave(trimmedAnswer);
 
+      // Log attempt_ended event
+      logEvent("attempt_ended");
+
       // Clear the textarea for a new attempt and remove stored draft
       setAnswer("");
+      setHasStarted(false);
       try {
         window.localStorage.removeItem(storageKey);
       } catch {
@@ -244,80 +264,104 @@ export function StaticTextAssessment({
         totalQuestions={totalQuestions}
         language={language}
         onLanguageChange={onLanguageChange}
-        languageDisabled={isEvaluating}
+        languageDisabled={isEvaluating || hasStarted}
       />
 
       <AssessmentQuestionCard question={question}>
         {/* Static Text Input Area */}
         <div className="mt-4 border rounded-xl bg-background shadow-sm">
-          <div className="p-4">
-            {/* Icon and instructions */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <FileText className="h-4 w-4 text-primary" />
+          {!hasStarted ? (
+            /* Start Writing Button - Similar to Chat's Start Chat */
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <FileText className="h-6 w-6 text-primary" />
               </div>
-              <p className="text-sm text-muted-foreground">
-                Type your answer below. Copy and paste are disabled.
-              </p>
-            </div>
-
-            {/* Textarea */}
-            <Textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              onPaste={handlePaste}
-              onCopy={handleCopy}
-              onCut={handleCut}
-              onContextMenu={handleContextMenu}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                maxAttemptsReached
-                  ? "Maximum attempts reached. You can view your previous attempts below."
-                  : "Type your answer here..."
-              }
-              rows={8}
-              className="resize-none min-h-[200px] focus-visible:ring-primary"
-              disabled={maxAttemptsReached || isEvaluating}
-            />
-
-            {/* Word count and submit button */}
-            <div className="flex items-center justify-between mt-3">
-              <p className="text-xs text-muted-foreground">
-                {wordCount} {wordCount === 1 ? "word" : "words"}
+              <p className="mb-4 text-sm text-muted-foreground text-center max-w-md">
+                Click &quot;Start Writing&quot; to begin typing your answer.
+                Copy and paste are disabled to ensure your work is original.
               </p>
               <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!hasContent || isEvaluating || maxAttemptsReached}
+                onClick={handleStartWriting}
+                disabled={maxAttemptsReached}
               >
-                {isEvaluating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Evaluating...
-                  </>
-                ) : (
-                  "Submit Answer"
-                )}
+                {attempts.length > 0 ? "Try Again" : "Start Writing"}
               </Button>
+              {maxAttemptsReached && (
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Maximum attempts reached. You can view your previous attempts
+                  below.
+                </p>
+              )}
             </div>
+          ) : (
+            /* Writing Area */
+            <div className="p-4">
+              {/* Icon and instructions */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <FileText className="h-4 w-4 text-primary" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Type your answer below. Copy and paste are disabled.
+                </p>
+              </div>
 
-            {maxAttemptsReached && (
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                Maximum attempts reached. You can view your previous attempts
-                below.
-              </p>
-            )}
-          </div>
+              {/* Textarea */}
+              <Textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                onPaste={handlePaste}
+                onCopy={handleCopy}
+                onCut={handleCut}
+                onContextMenu={handleContextMenu}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  maxAttemptsReached
+                    ? "Maximum attempts reached. You can view your previous attempts below."
+                    : "Type your answer here..."
+                }
+                rows={8}
+                className="resize-none min-h-[200px] focus-visible:ring-primary"
+                disabled={maxAttemptsReached || isEvaluating}
+                autoFocus
+              />
+
+              {/* Word count and submit button */}
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-xs text-muted-foreground">
+                  {wordCount} {wordCount === 1 ? "word" : "words"}
+                </p>
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!hasContent || isEvaluating || maxAttemptsReached}
+                >
+                  {isEvaluating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Evaluating...
+                    </>
+                  ) : (
+                    "Submit Answer"
+                  )}
+                </Button>
+              </div>
+
+              {maxAttemptsReached && (
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Maximum attempts reached. You can view your previous attempts
+                  below.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Evaluating State */}
         {isEvaluating && <EvaluatingIndicator />}
 
         {/* Attempts Section */}
-        <AttemptsPanel
-          attempts={attempts}
-          maxAttempts={maxAttempts}
-        />
+        <AttemptsPanel attempts={attempts} maxAttempts={maxAttempts} />
       </AssessmentQuestionCard>
 
       {/* Navigation Buttons */}

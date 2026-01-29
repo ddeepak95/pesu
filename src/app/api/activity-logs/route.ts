@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { ActivityLogInput } from "@/types/activity";
 
 /**
  * POST /api/activity-logs
  * Creates or updates an activity log (upsert based on session_id)
+ * Simplified: only tracks total time
  */
 export async function POST(request: NextRequest) {
   try {
@@ -32,14 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.startedAt || !body.endedAt) {
-      return NextResponse.json(
-        { error: "startedAt and endedAt are required" },
-        { status: 400 }
-      );
-    }
-
-    const supabase = await createClient();
+    const supabase = await createServerSupabaseClient();
 
     // Upsert the activity log (insert or update based on session_id)
     const { data, error } = await supabase
@@ -54,12 +48,6 @@ export async function POST(request: NextRequest) {
           component_id: body.componentId,
           sub_component_id: body.subComponentId || null,
           total_time_ms: body.totalTimeMs,
-          active_time_ms: body.activeTimeMs,
-          idle_time_ms: body.idleTimeMs,
-          hidden_time_ms: body.hiddenTimeMs,
-          started_at: body.startedAt,
-          ended_at: body.endedAt,
-          metadata: body.metadata || null,
         },
         {
           onConflict: "session_id",

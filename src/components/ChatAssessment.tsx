@@ -66,7 +66,7 @@ export function ChatAssessment({
 
   // Activity tracking for question-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
-  useActivityTracking({
+  const { logEvent } = useActivityTracking({
     componentType: "question",
     componentId: assignmentId,
     subComponentId: String(question.order),
@@ -277,6 +277,9 @@ export function ChatAssessment({
         );
       }
 
+      // Log attempt_started event
+      logEvent("attempt_started");
+
       // Ensure input has focus once the first reply has appeared
       setTimeout(() => {
         textareaRef.current?.focus();
@@ -468,6 +471,9 @@ export function ChatAssessment({
 
       setAttempts((prev) => [...prev, newAttempt]);
       onAnswerSave(answerText);
+
+      // Log attempt_ended event
+      logEvent("attempt_ended");
 
       // After an evaluated attempt, reset the chat so the student
       // sees the Start Chat button again for a fresh conversation
