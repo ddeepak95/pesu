@@ -470,6 +470,7 @@ export default function AssignmentResponse({
               isLastQuestion={isLastQuestion}
               existingAnswer={answers[currentQuestion.order]}
               onLanguageChange={handleLanguageChange}
+              botPromptConfig={assignmentData.bot_prompt_config}
             />
         )}
         {assessmentMode === "text_chat" && (
@@ -488,6 +489,7 @@ export default function AssignmentResponse({
               isLastQuestion={isLastQuestion}
               existingAnswer={answers[currentQuestion.order]}
               onLanguageChange={handleLanguageChange}
+              botPromptConfig={assignmentData.bot_prompt_config}
             />
         )}
         {assessmentMode === "static_text" && (

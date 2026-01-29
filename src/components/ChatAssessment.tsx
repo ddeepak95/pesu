@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Bot, Send } from "lucide-react";
-import { Question } from "@/types/assignment";
+import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
 import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
@@ -13,6 +13,7 @@ import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { interpolatePromptsForRuntime } from "@/lib/promptInterpolation";
 
 interface ChatMessage {
   id: string;
@@ -37,6 +38,8 @@ interface ChatAssessmentProps {
   currentAttemptNumber?: number;
   maxAttempts?: number;
   maxAttemptsReached?: boolean;
+  // Bot prompt configuration for custom prompts
+  botPromptConfig?: BotPromptConfig;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -56,6 +59,7 @@ export function ChatAssessment({
   onLanguageChange,
   maxAttempts,
   maxAttemptsReached,
+  botPromptConfig,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -63,6 +67,26 @@ export function ChatAssessment({
   const [isSending, setIsSending] = React.useState(false);
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
+
+  // Interpolate prompts if botPromptConfig is provided
+  // This is computed once when attempts change (since attemptNumber depends on it)
+  const getInterpolatedPrompts = React.useCallback(() => {
+    if (!botPromptConfig) return null;
+
+    // Build a minimal assignment object for interpolation
+    const assignmentForInterpolation = {
+      questions: [question],
+      max_attempts: maxAttempts || 1,
+      bot_prompt_config: botPromptConfig,
+    };
+
+    return interpolatePromptsForRuntime(
+      assignmentForInterpolation as Parameters<typeof interpolatePromptsForRuntime>[0],
+      question,
+      language,
+      attempts.length + 1
+    );
+  }, [botPromptConfig, question, language, maxAttempts, attempts.length]);
 
   // Activity tracking for question-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
@@ -232,6 +256,9 @@ export function ChatAssessment({
       const controller = new AbortController();
       activeRequestAbortRef.current = controller;
 
+      // Get interpolated prompts if available
+      const interpolatedPrompts = getInterpolatedPrompts();
+
       const response = await fetch("/api/chat-assessment", {
         method: "POST",
         headers: {
@@ -247,6 +274,11 @@ export function ChatAssessment({
           attemptNumber,
           // No prior messages – this will generate the first assistant message
           messages: [],
+          // Include interpolated prompts if available (new bot prompt config)
+          ...(interpolatedPrompts && {
+            system_prompt: interpolatedPrompts.system_prompt,
+            greeting: interpolatedPrompts.greeting,
+          }),
         }),
         signal: controller.signal,
       });
@@ -347,6 +379,9 @@ export function ChatAssessment({
     const controller = new AbortController();
     activeRequestAbortRef.current = controller;
     try {
+      // Get interpolated prompts if available
+      const interpolatedPrompts = getInterpolatedPrompts();
+
       const response = await fetch("/api/chat-assessment", {
         method: "POST",
         headers: {
@@ -364,6 +399,11 @@ export function ChatAssessment({
             role: m.role,
             content: m.content,
           })),
+          // Include interpolated prompts if available (new bot prompt config)
+          ...(interpolatedPrompts && {
+            system_prompt: interpolatedPrompts.system_prompt,
+            greeting: interpolatedPrompts.greeting,
+          }),
         }),
         signal: controller.signal,
       });

@@ -5,9 +5,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import RubricItemRow from "@/components/Teacher/Assignments/RubricItemRow";
-import { Question, RubricItem } from "@/types/assignment";
-import { ArrowUp, ArrowDown, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { QuestionPromptOverrideEditor } from "@/components/Teacher/Assignments/QuestionPromptOverrideEditor";
+import { Question, RubricItem, QuestionPromptOverride } from "@/types/assignment";
+import { ArrowUp, ArrowDown, Trash2, Sparkles, Loader2, Bot } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -37,6 +45,15 @@ interface QuestionCardProps {
   onMoveDown: (index: number) => void;
   onDelete: (index: number) => void;
   disabled?: boolean;
+  // Bot prompt override props (optional - only shown when bot config is enabled)
+  showBotOverride?: boolean;
+  questionOverride?: QuestionPromptOverride;
+  onQuestionOverrideChange?: (
+    questionOrder: number,
+    override: QuestionPromptOverride | undefined
+  ) => void;
+  defaultSystemPrompt?: string;
+  defaultConversationStart?: string;
 }
 
 export default function QuestionCard({
@@ -52,9 +69,15 @@ export default function QuestionCard({
   onMoveDown,
   onDelete,
   disabled = false,
+  showBotOverride = false,
+  questionOverride,
+  onQuestionOverrideChange,
+  defaultSystemPrompt = "",
+  defaultConversationStart = "",
 }: QuestionCardProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isBotOverrideOpen, setIsBotOverrideOpen] = useState(false);
 
   // Validate rubric points match total points
   const validateRubricPoints = () => {
@@ -218,12 +241,27 @@ export default function QuestionCard({
       setIsGenerating(false);
     }
   };
+
   return (
     <div className="border rounded-lg p-6 space-y-4 bg-card">
       {/* Question Header with Controls */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Question {index + 1}</h3>
         <div className="flex gap-2">
+          {/* Bot Override Button - Only shown when bot config is enabled */}
+          {showBotOverride && onQuestionOverrideChange && (
+            <Button
+              type="button"
+              variant={questionOverride ? "default" : "ghost"}
+              size="icon"
+              onClick={() => setIsBotOverrideOpen(true)}
+              disabled={disabled}
+              title="Configure bot behavior for this question"
+              className={questionOverride ? "bg-primary/90 hover:bg-primary" : ""}
+            >
+              <Bot className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -413,6 +451,34 @@ export default function QuestionCard({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* Bot Override Dialog */}
+      {showBotOverride && onQuestionOverrideChange && (
+        <Dialog open={isBotOverrideOpen} onOpenChange={setIsBotOverrideOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5" />
+                Bot Behavior for Question {index + 1}
+              </DialogTitle>
+              <DialogDescription>
+                Customize how the AI bot interacts with students for this
+                specific question. Leave disabled to use the assignment-level
+                settings.
+              </DialogDescription>
+            </DialogHeader>
+            <QuestionPromptOverrideEditor
+              override={questionOverride}
+              onChange={(override) =>
+                onQuestionOverrideChange(question.order, override)
+              }
+              defaultSystemPrompt={defaultSystemPrompt}
+              defaultConversationStart={defaultConversationStart}
+              disabled={disabled}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
