@@ -21,6 +21,7 @@ import {
   revokeStudentInvite,
 } from "@/lib/queries/studentInvites";
 import { createClient } from "@/lib/supabase";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 export default function ManageStudentsDialog({
   classData,
@@ -136,9 +137,10 @@ export default function ManageStudentsDialog({
       });
       setNewInviteLink(token);
       await refresh();
+      showSuccessToast("Invite link generated");
     } catch (err) {
       console.error("Error creating invite:", err);
-      setError("Failed to create invite.");
+      showErrorToast("Failed to create invite");
     } finally {
       setLoading(false);
     }
@@ -147,7 +149,7 @@ export default function ManageStudentsDialog({
   const handleCopyInvite = async () => {
     if (!inviteUrl) return;
     await navigator.clipboard.writeText(inviteUrl);
-    alert("Invite link copied to clipboard.");
+    showSuccessToast("Invite link copied to clipboard");
   };
 
   const handleRevokeInvite = async (inviteId: string) => {
@@ -160,9 +162,10 @@ export default function ManageStudentsDialog({
       await revokeStudentInvite(inviteId);
       setNewInviteLink("");
       await refresh();
+      showSuccessToast("Invite revoked successfully");
     } catch (err) {
       console.error("Error revoking invite:", err);
-      alert("Failed to revoke invite.");
+      showErrorToast("Failed to revoke invite");
     } finally {
       setLoading(false);
     }

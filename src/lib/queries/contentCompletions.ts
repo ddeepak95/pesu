@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase";
-import { ContentCompletion } from "@/types/contentCompletion";
+import { ContentCompletion, StudentContentCompletionWithDetails, ContentItemType } from "@/types/contentCompletion";
+import { getContentItemsByClass } from "./contentItems";
+import { getClassStudentsWithInfo } from "./students";
+import { getLearningContentsByIds } from "./learningContent";
+import { getAssignmentsByIdsForTeacher } from "./assignments";
+import { getQuizzesByIds } from "./quizzes";
 
 /**
  * Mark a content item as complete for the current user
@@ -130,4 +135,107 @@ export async function isContentComplete(
   }
 
   return !!data;
+}
+
+/**
+ * Get all content completions for a class (for teacher view)
+ * Returns a flat list of student-content completion status for all students and content items
+ */
+export async function getClassContentCompletions(
+  classDbId: string
+): Promise<StudentContentCompletionWithDetails[]> {
+  const supabase = createClient();
+
+  // Fetch all required data in parallel
+  const [contentItems, students] = await Promise.all([
+    getContentItemsByClass(classDbId),
+    getClassStudentsWithInfo(classDbId),
+  ]);
+
+  if (contentItems.length === 0 || students.length === 0) {
+    return [];
+  }
+
+  // Group content items by type and collect ref_ids
+  const learningContentIds: string[] = [];
+  const assignmentIds: string[] = [];
+  const quizIds: string[] = [];
+
+  for (const item of contentItems) {
+    if (item.type === "learning_content") {
+      learningContentIds.push(item.ref_id);
+    } else if (item.type === "formative_assignment") {
+      assignmentIds.push(item.ref_id);
+    } else if (item.type === "quiz") {
+      quizIds.push(item.ref_id);
+    }
+  }
+
+  // Fetch content names in parallel
+  const [learningContents, assignments, quizzes] = await Promise.all([
+    learningContentIds.length > 0 ? getLearningContentsByIds(learningContentIds) : Promise.resolve([]),
+    assignmentIds.length > 0 ? getAssignmentsByIdsForTeacher(assignmentIds) : Promise.resolve([]),
+    quizIds.length > 0 ? getQuizzesByIds(quizIds) : Promise.resolve([]),
+  ]);
+
+  // Create maps for quick lookup
+  const contentNameMap = new Map<string, string>();
+  
+  for (const lc of learningContents) {
+    contentNameMap.set(lc.id, lc.title);
+  }
+  for (const a of assignments) {
+    contentNameMap.set(a.id, a.title);
+  }
+  for (const q of quizzes) {
+    contentNameMap.set(q.id, q.title);
+  }
+
+  // Fetch all completions for these content items
+  const contentItemIds = contentItems.map((ci) => ci.id);
+  const { data: completionsData, error: completionsError } = await supabase
+    .from("student_content_completions")
+    .select("student_id, content_item_id, completed_at")
+    .in("content_item_id", contentItemIds);
+
+  if (completionsError) {
+    console.error("Error fetching completions:", completionsError);
+    throw completionsError;
+  }
+
+  // Create a set of completion keys for quick lookup
+  const completionMap = new Map<string, string>();
+  for (const c of completionsData || []) {
+    const key = `${c.student_id}:${c.content_item_id}`;
+    completionMap.set(key, c.completed_at);
+  }
+
+  // Build the result array
+  const result: StudentContentCompletionWithDetails[] = [];
+
+  for (const student of students) {
+    const studentName =
+      student.student_display_name ||
+      student.student_email ||
+      student.student_id.substring(0, 8) + "...";
+
+    for (const contentItem of contentItems) {
+      const key = `${student.student_id}:${contentItem.id}`;
+      const completedAt = completionMap.get(key) || null;
+      const contentName = contentNameMap.get(contentItem.ref_id) || "Unknown";
+
+      result.push({
+        studentId: student.student_id,
+        studentName,
+        studentEmail: student.student_email,
+        contentItemId: contentItem.id,
+        contentName,
+        contentType: contentItem.type as ContentItemType,
+        isComplete: !!completedAt,
+        completedAt,
+      });
+    }
+  }
+
+  return result;
 }

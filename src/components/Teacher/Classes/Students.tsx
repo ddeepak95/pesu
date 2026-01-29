@@ -7,19 +7,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase";
 import List from "@/components/ui/List";
 import ManageStudentsDialog from "./ManageStudentsDialog";
+import StudentListItemMenu from "./StudentListItemMenu";
+import ChangeGroupDialog from "./ChangeGroupDialog";
+import StudentProgressDialog from "./StudentProgressDialog";
 import {
   StudentWithInfo,
   getClassStudentsWithInfo,
-  reassignStudentToGroup,
 } from "@/lib/queries/students";
 import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface StudentsProps {
   classData: Class;
@@ -34,7 +29,13 @@ export default function Students({ classData }: StudentsProps) {
   const [groups, setGroups] = useState<ClassGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reassigning, setReassigning] = useState<Record<string, boolean>>({});
+  
+  // Change group dialog state
+  const [changeGroupDialogOpen, setChangeGroupDialogOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<StudentWithInfo | null>(null);
+  
+  // Progress dialog state
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
 
   // Check if user is a co-teacher
   useEffect(() => {
@@ -68,54 +69,42 @@ export default function Students({ classData }: StudentsProps) {
   }, [user, classData.id, isOwner]);
 
   // Fetch enrolled students and groups
+  const fetchData = async () => {
+    if (!isTeacher) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const [studentsData, groupsData] = await Promise.all([
+        getClassStudentsWithInfo(classData.id),
+        getClassGroups(classData.id),
+      ]);
+
+      setStudents(studentsData);
+      setGroups(groupsData);
+    } catch (err) {
+      console.error("Error fetching students:", err);
+      setError("Failed to load students.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      if (!isTeacher) {
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      try {
-        const [studentsData, groupsData] = await Promise.all([
-          getClassStudentsWithInfo(classData.id),
-          getClassGroups(classData.id),
-        ]);
-
-        setStudents(studentsData);
-        setGroups(groupsData);
-      } catch (err) {
-        console.error("Error fetching students:", err);
-        setError("Failed to load students.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher, classData.id]);
 
-  const handleReassignGroup = async (
-    studentId: string,
-    newGroupId: string
-  ) => {
-    setReassigning((prev) => ({ ...prev, [studentId]: true }));
-    try {
-      await reassignStudentToGroup({
-        classDbId: classData.id,
-        studentId,
-        newGroupId,
-      });
-      // Refresh the students list
-      const studentsData = await getClassStudentsWithInfo(classData.id);
-      setStudents(studentsData);
-    } catch (err) {
-      console.error("Error reassigning student:", err);
-      alert("Failed to reassign student to group. Please try again.");
-    } finally {
-      setReassigning((prev) => ({ ...prev, [studentId]: false }));
-    }
+  const handleChangeGroup = (student: StudentWithInfo) => {
+    setSelectedStudent(student);
+    setChangeGroupDialogOpen(true);
+  };
+
+  const handleGroupChanged = () => {
+    fetchData();
   };
 
   return (
@@ -123,9 +112,14 @@ export default function Students({ classData }: StudentsProps) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Students</h2>
         {isTeacher && (
-          <Button onClick={() => setManageDialogOpen(true)}>
-            Invite Students
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setProgressDialogOpen(true)}>
+              View Student Progress
+            </Button>
+            <Button onClick={() => setManageDialogOpen(true)}>
+              Invite Students
+            </Button>
+          </div>
         )}
       </div>
 
@@ -168,28 +162,11 @@ export default function Students({ classData }: StudentsProps) {
                     Joined: {new Date(s.joined_at).toLocaleDateString()} • Group: {groupDisplayName}
                   </div>
                 </div>
-                {groups.length > 0 && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Select
-                      value={s.group_id || ""}
-                      onValueChange={(newGroupId) =>
-                        handleReassignGroup(s.student_id, newGroupId)
-                      }
-                      disabled={reassigning[s.student_id]}
-                    >
-                      <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="Select group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name || `Group ${group.group_index + 1}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                <StudentListItemMenu
+                  student={s}
+                  groups={groups}
+                  onChangeGroup={handleChangeGroup}
+                />
               </div>
             );
           }}
@@ -201,7 +178,21 @@ export default function Students({ classData }: StudentsProps) {
         open={manageDialogOpen}
         onOpenChange={setManageDialogOpen}
       />
+
+      <ChangeGroupDialog
+        open={changeGroupDialogOpen}
+        onOpenChange={setChangeGroupDialogOpen}
+        student={selectedStudent}
+        groups={groups}
+        classDbId={classData.id}
+        onGroupChanged={handleGroupChanged}
+      />
+
+      <StudentProgressDialog
+        open={progressDialogOpen}
+        onOpenChange={setProgressDialogOpen}
+        classDbId={classData.id}
+      />
     </div>
   );
 }
-
