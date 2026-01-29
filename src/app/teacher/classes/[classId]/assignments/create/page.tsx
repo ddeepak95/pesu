@@ -11,7 +11,7 @@ import { createAssignment } from "@/lib/queries/assignments";
 import { getClassByClassId } from "@/lib/queries/classes";
 import { createContentItem } from "@/lib/queries/contentItems";
 import { getClassGroups } from "@/lib/queries/groups";
-import { ResponderFieldConfig } from "@/types/assignment";
+import { ResponderFieldConfig, BotPromptConfig } from "@/types/assignment";
 
 export default function CreateAssignmentPage() {
   const params = useParams();
@@ -92,6 +92,7 @@ export default function CreateAssignmentPage() {
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
+    botPromptConfig?: BotPromptConfig;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -114,6 +115,7 @@ export default function CreateAssignmentPage() {
         status: data.isDraft ? "draft" : "active",
         responder_fields_config: data.responderFieldsConfig,
         max_attempts: data.maxAttempts ?? 1,
+        bot_prompt_config: data.botPromptConfig,
       },
       user.id
     );

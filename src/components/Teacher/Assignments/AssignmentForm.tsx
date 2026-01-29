@@ -14,9 +14,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
-import { Question, RubricItem, ResponderFieldConfig } from "@/types/assignment";
+import { PromptConfigEditor } from "@/components/Teacher/Assignments/PromptConfigEditor";
+import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
+import {
+  Question,
+  RubricItem,
+  ResponderFieldConfig,
+  BotPromptConfig,
+} from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import { Trash2, Plus, ChevronDown } from "lucide-react";
+import { getDefaultBotPromptConfig } from "@/lib/promptTemplates";
+import { Trash2, Plus, ChevronDown, Bot, Eye } from "lucide-react";
 
 interface AssignmentFormProps {
   mode: "create" | "edit";
@@ -29,6 +37,7 @@ interface AssignmentFormProps {
   initialAssessmentMode?: "voice" | "text_chat" | "static_text";
   initialResponderFieldsConfig?: ResponderFieldConfig[];
   initialMaxAttempts?: number;
+  initialBotPromptConfig?: BotPromptConfig;
   onSubmit: (data: {
     title: string;
     questions: Question[];
@@ -39,6 +48,7 @@ interface AssignmentFormProps {
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
+    botPromptConfig?: BotPromptConfig;
   }) => Promise<void>;
 }
 
@@ -65,6 +75,7 @@ export default function AssignmentForm({
   initialAssessmentMode = "voice",
   initialResponderFieldsConfig,
   initialMaxAttempts = 3,
+  initialBotPromptConfig,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -89,9 +100,15 @@ export default function AssignmentForm({
       },
     ]
   );
+  const [botPromptConfig, setBotPromptConfig] = useState<BotPromptConfig>(
+    initialBotPromptConfig || getDefaultBotPromptConfig()
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
+  const [isBotConfigOpen, setIsBotConfigOpen] = useState(false);
+  const [showBotPreview, setShowBotPreview] = useState(false);
+  const [previewQuestionOrder, setPreviewQuestionOrder] = useState<0 | 1>(0);
 
   const handleQuestionChange = (
     questionIndex: number,
@@ -205,7 +222,63 @@ export default function AssignmentForm({
       // Update order
       newQuestions.forEach((q, i) => (q.order = i));
       setQuestions(newQuestions);
+
+      // Also remove any question override for the deleted question
+      if (botPromptConfig.question_overrides?.[index] !== undefined) {
+        const newOverrides = { ...botPromptConfig.question_overrides };
+        // Remove the deleted question's override and re-index higher ones
+        const updatedOverrides: Record<number, typeof newOverrides[number]> = {};
+        for (const [key, value] of Object.entries(newOverrides)) {
+          const order = parseInt(key, 10);
+          if (order < index) {
+            updatedOverrides[order] = value;
+          } else if (order > index) {
+            updatedOverrides[order - 1] = value;
+          }
+          // order === index is skipped (deleted)
+        }
+        setBotPromptConfig({
+          ...botPromptConfig,
+          question_overrides:
+            Object.keys(updatedOverrides).length > 0
+              ? updatedOverrides
+              : undefined,
+        });
+      }
     }
+  };
+
+  // Handle question prompt override changes
+  const handleQuestionOverrideChange = (
+    questionOrder: number,
+    override: import("@/types/assignment").QuestionPromptOverride | undefined
+  ) => {
+    const currentOverrides = botPromptConfig.question_overrides || {};
+
+    if (override === undefined) {
+      // Remove the override for this question
+      const { [questionOrder]: _, ...rest } = currentOverrides;
+      setBotPromptConfig({
+        ...botPromptConfig,
+        question_overrides: Object.keys(rest).length > 0 ? rest : undefined,
+      });
+    } else {
+      // Set or update the override for this question
+      setBotPromptConfig({
+        ...botPromptConfig,
+        question_overrides: {
+          ...currentOverrides,
+          [questionOrder]: override,
+        },
+      });
+    }
+  };
+
+  // Get the default conversation start based on question order
+  const getDefaultConversationStart = (questionOrder: number) => {
+    return questionOrder === 0
+      ? botPromptConfig.conversation_start.first_question
+      : botPromptConfig.conversation_start.subsequent_questions;
   };
 
   const handleSubmit = async (e: React.FormEvent, draft: boolean = false) => {
@@ -285,6 +358,11 @@ export default function AssignmentForm({
         isDraft: draft,
         responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
         maxAttempts,
+        // Only include botPromptConfig for voice and text_chat modes
+        botPromptConfig:
+          assessmentMode === "voice" || assessmentMode === "text_chat"
+            ? botPromptConfig
+            : undefined,
       });
 
       // Navigate based on mode
@@ -432,188 +510,294 @@ export default function AssignmentForm({
                 </p>
               </div>
             </div>
+
+            {/* Responder Fields Configuration (only for public assignments) */}
+            {isPublic && (
+              <div className="space-y-4 p-4 border rounded-md">
+                <div className="space-y-2">
+                  <Label>Responder Information Fields</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Configure what information to collect from public responders
+                  </p>
+                </div>
+
+                {responderFieldsConfig.map((field, index) => (
+                  <div key={index} className="p-4 border rounded-md space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Field {index + 1}</Label>
+                      {responderFieldsConfig.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const newFields = responderFieldsConfig.filter(
+                              (_, i) => i !== index
+                            );
+                            setResponderFieldsConfig(newFields);
+                          }}
+                          disabled={loading}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`field-${index}-label`}>Label</Label>
+                        <Input
+                          id={`field-${index}-label`}
+                          value={field.label}
+                          onChange={(e) => {
+                            const newFields = [...responderFieldsConfig];
+                            newFields[index].label = e.target.value;
+                            setResponderFieldsConfig(newFields);
+                          }}
+                          placeholder="e.g., Full Name"
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`field-${index}-type`}>Type</Label>
+                        <Select
+                          value={field.type}
+                          onValueChange={(value) => {
+                            const newFields = [...responderFieldsConfig];
+                            newFields[index].type =
+                              value as ResponderFieldConfig["type"];
+                            // Clear options if not select type
+                            if (value !== "select") {
+                              delete newFields[index].options;
+                            }
+                            setResponderFieldsConfig(newFields);
+                          }}
+                          disabled={loading}
+                        >
+                          <SelectTrigger id={`field-${index}-type`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="text">Text</SelectItem>
+                            <SelectItem value="email">Email</SelectItem>
+                            <SelectItem value="tel">Phone</SelectItem>
+                            <SelectItem value="select">Select (Dropdown)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`field-${index}-field`}>Field Identifier</Label>
+                      <Input
+                        id={`field-${index}-field`}
+                        value={field.field}
+                        onChange={(e) => {
+                          const newFields = [...responderFieldsConfig];
+                          newFields[index].field = e.target.value;
+                          setResponderFieldsConfig(newFields);
+                        }}
+                        placeholder="e.g., name, email, organization"
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Unique identifier for this field (used in data storage)
+                      </p>
+                    </div>
+
+                    {field.type === "select" && (
+                      <div className="space-y-2">
+                        <Label htmlFor={`field-${index}-options`}>
+                          Options (one per line)
+                        </Label>
+                        <textarea
+                          id={`field-${index}-options`}
+                          className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md"
+                          value={field.options?.join("\n") || ""}
+                          onChange={(e) => {
+                            const newFields = [...responderFieldsConfig];
+                            newFields[index].options = e.target.value
+                              .split("\n")
+                              .map((line) => line.trim())
+                              .filter((line) => line.length > 0);
+                            setResponderFieldsConfig(newFields);
+                          }}
+                          placeholder="Option 1&#10;Option 2&#10;Option 3"
+                          disabled={loading}
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`field-${index}-required`}
+                          checked={field.required}
+                          onCheckedChange={(checked) => {
+                            const newFields = [...responderFieldsConfig];
+                            newFields[index].required = checked === true;
+                            setResponderFieldsConfig(newFields);
+                          }}
+                          disabled={loading}
+                        />
+                        <Label
+                          htmlFor={`field-${index}-required`}
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          Required field
+                        </Label>
+                      </div>
+
+                      {field.type !== "select" && (
+                        <div className="flex-1 space-y-2">
+                          <Label htmlFor={`field-${index}-placeholder`}>
+                            Placeholder
+                          </Label>
+                          <Input
+                            id={`field-${index}-placeholder`}
+                            value={field.placeholder || ""}
+                            onChange={(e) => {
+                              const newFields = [...responderFieldsConfig];
+                              newFields[index].placeholder = e.target.value;
+                              setResponderFieldsConfig(newFields);
+                            }}
+                            placeholder="Optional placeholder text"
+                            disabled={loading}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const newField: ResponderFieldConfig = {
+                      field: `field_${responderFieldsConfig.length + 1}`,
+                      type: "text",
+                      label: "",
+                      required: false,
+                    };
+                    setResponderFieldsConfig([...responderFieldsConfig, newField]);
+                  }}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Field
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Responder Fields Configuration (only for public assignments) */}
-      {isPublic && (
-        <div className="space-y-4 p-4 border rounded-md">
-          <div className="space-y-2">
-            <Label>Responder Information Fields</Label>
-            <p className="text-sm text-muted-foreground">
-              Configure what information to collect from public responders
-            </p>
-          </div>
+      {/* AI Bot Configuration (only for voice and text_chat modes) */}
+      {(assessmentMode === "voice" || assessmentMode === "text_chat") && (
+        <div className="border rounded-md">
+          <button
+            type="button"
+            onClick={() => setIsBotConfigOpen(!isBotConfigOpen)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
+            disabled={loading}
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">AI Bot Configuration</h3>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-muted-foreground transition-transform ${
+                isBotConfigOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
 
-          {responderFieldsConfig.map((field, index) => (
-            <div key={index} className="p-4 border rounded-md space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Field {index + 1}</Label>
-                {responderFieldsConfig.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const newFields = responderFieldsConfig.filter(
-                        (_, i) => i !== index
-                      );
-                      setResponderFieldsConfig(newFields);
-                    }}
-                    disabled={loading}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+          {isBotConfigOpen && (
+            <div className="space-y-4 p-4 pt-0 border-t">
+              <p className="text-sm text-muted-foreground">
+                Customize how the AI bot interacts with students. Use variable
+                placeholders like{" "}
+                <code className="text-xs bg-muted px-1 rounded">
+                  {"{{question_prompt}}"}
+                </code>{" "}
+                to insert dynamic content.
+                {assessmentMode === "voice" && (
+                  <span className="block mt-1 text-xs">
+                    Note: For voice mode, TTS formatting instructions are
+                    automatically added.
+                  </span>
                 )}
+              </p>
+
+              {/* Editor and Preview Toggle */}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant={showBotPreview ? "outline" : "default"}
+                  size="sm"
+                  onClick={() => setShowBotPreview(false)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  type="button"
+                  variant={showBotPreview ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowBotPreview(true)}
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Preview
+                </Button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor={`field-${index}-label`}>Label</Label>
-                  <Input
-                    id={`field-${index}-label`}
-                    value={field.label}
-                    onChange={(e) => {
-                      const newFields = [...responderFieldsConfig];
-                      newFields[index].label = e.target.value;
-                      setResponderFieldsConfig(newFields);
+              {showBotPreview ? (
+                <div className="space-y-3">
+                  {/* Preview Question Order Toggle */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Preview for:</span>
+                    <Button
+                      type="button"
+                      variant={previewQuestionOrder === 0 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewQuestionOrder(0)}
+                    >
+                      First Question
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={previewQuestionOrder === 1 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewQuestionOrder(1)}
+                    >
+                      Subsequent Questions
+                    </Button>
+                  </div>
+
+                  <PromptPreview
+                    config={botPromptConfig}
+                    assignment={{
+                      questions,
+                      preferred_language: preferredLanguage,
+                      max_attempts: maxAttempts,
                     }}
-                    placeholder="e.g., Full Name"
-                    disabled={loading}
+                    question={questions[0]}
+                    languageCode={preferredLanguage}
+                    assessmentMode={assessmentMode}
+                    previewQuestionOrder={previewQuestionOrder}
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor={`field-${index}-type`}>Type</Label>
-                  <Select
-                    value={field.type}
-                    onValueChange={(value) => {
-                      const newFields = [...responderFieldsConfig];
-                      newFields[index].type =
-                        value as ResponderFieldConfig["type"];
-                      // Clear options if not select type
-                      if (value !== "select") {
-                        delete newFields[index].options;
-                      }
-                      setResponderFieldsConfig(newFields);
-                    }}
-                    disabled={loading}
-                  >
-                    <SelectTrigger id={`field-${index}-type`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="tel">Phone</SelectItem>
-                      <SelectItem value="select">Select (Dropdown)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor={`field-${index}-field`}>Field Identifier</Label>
-                <Input
-                  id={`field-${index}-field`}
-                  value={field.field}
-                  onChange={(e) => {
-                    const newFields = [...responderFieldsConfig];
-                    newFields[index].field = e.target.value;
-                    setResponderFieldsConfig(newFields);
-                  }}
-                  placeholder="e.g., name, email, organization"
+              ) : (
+                <PromptConfigEditor
+                  config={botPromptConfig}
+                  onChange={setBotPromptConfig}
                   disabled={loading}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Unique identifier for this field (used in data storage)
-                </p>
-              </div>
-
-              {field.type === "select" && (
-                <div className="space-y-2">
-                  <Label htmlFor={`field-${index}-options`}>
-                    Options (one per line)
-                  </Label>
-                  <textarea
-                    id={`field-${index}-options`}
-                    className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md"
-                    value={field.options?.join("\n") || ""}
-                    onChange={(e) => {
-                      const newFields = [...responderFieldsConfig];
-                      newFields[index].options = e.target.value
-                        .split("\n")
-                        .map((line) => line.trim())
-                        .filter((line) => line.length > 0);
-                      setResponderFieldsConfig(newFields);
-                    }}
-                    placeholder="Option 1&#10;Option 2&#10;Option 3"
-                    disabled={loading}
-                  />
-                </div>
               )}
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`field-${index}-required`}
-                    checked={field.required}
-                    onCheckedChange={(checked) => {
-                      const newFields = [...responderFieldsConfig];
-                      newFields[index].required = checked === true;
-                      setResponderFieldsConfig(newFields);
-                    }}
-                    disabled={loading}
-                  />
-                  <Label
-                    htmlFor={`field-${index}-required`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    Required field
-                  </Label>
-                </div>
-
-                {field.type !== "select" && (
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor={`field-${index}-placeholder`}>
-                      Placeholder
-                    </Label>
-                    <Input
-                      id={`field-${index}-placeholder`}
-                      value={field.placeholder || ""}
-                      onChange={(e) => {
-                        const newFields = [...responderFieldsConfig];
-                        newFields[index].placeholder = e.target.value;
-                        setResponderFieldsConfig(newFields);
-                      }}
-                      placeholder="Optional placeholder text"
-                      disabled={loading}
-                    />
-                  </div>
-                )}
-              </div>
             </div>
-          ))}
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              const newField: ResponderFieldConfig = {
-                field: `field_${responderFieldsConfig.length + 1}`,
-                type: "text",
-                label: "",
-                required: false,
-              };
-              setResponderFieldsConfig([...responderFieldsConfig, newField]);
-            }}
-            disabled={loading}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Field
-          </Button>
+          )}
         </div>
       )}
 
@@ -634,6 +818,16 @@ export default function AssignmentForm({
             onMoveDown={handleMoveQuestionDown}
             onDelete={handleDeleteQuestion}
             disabled={loading}
+            // Bot override props - shown when assessment mode uses AI bot
+            showBotOverride={
+              assessmentMode === "voice" || assessmentMode === "text_chat"
+            }
+            questionOverride={
+              botPromptConfig.question_overrides?.[question.order]
+            }
+            onQuestionOverrideChange={handleQuestionOverrideChange}
+            defaultSystemPrompt={botPromptConfig.system_prompt}
+            defaultConversationStart={getDefaultConversationStart(question.order)}
           />
         ))}
       </div>

@@ -11,7 +11,7 @@ import {
   getAssignmentByIdForTeacher,
   updateAssignment,
 } from "@/lib/queries/assignments";
-import { Question, ResponderFieldConfig } from "@/types/assignment";
+import { Question, ResponderFieldConfig, BotPromptConfig } from "@/types/assignment";
 
 export default function EditAssignmentPage() {
   const params = useParams();
@@ -32,6 +32,9 @@ export default function EditAssignmentPage() {
     ResponderFieldConfig[] | undefined
   >(undefined);
   const [maxAttempts, setMaxAttempts] = useState<number>(1);
+  const [botPromptConfig, setBotPromptConfig] = useState<
+    BotPromptConfig | undefined
+  >(undefined);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -50,6 +53,7 @@ export default function EditAssignmentPage() {
           setAssessmentMode(assignmentData.assessment_mode ?? "voice");
           setResponderFieldsConfig(assignmentData.responder_fields_config);
           setMaxAttempts(assignmentData.max_attempts ?? 1);
+          setBotPromptConfig(assignmentData.bot_prompt_config);
           setAssignmentDbId(assignmentData.id);
         } else {
           setError("Assignment not found");
@@ -84,6 +88,7 @@ export default function EditAssignmentPage() {
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
+    botPromptConfig?: BotPromptConfig;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -102,6 +107,7 @@ export default function EditAssignmentPage() {
       assessment_mode: data.assessmentMode,
       responder_fields_config: data.responderFieldsConfig,
       max_attempts: data.maxAttempts ?? 1,
+      bot_prompt_config: data.botPromptConfig,
     });
   };
 
@@ -143,6 +149,7 @@ export default function EditAssignmentPage() {
           initialAssessmentMode={assessmentMode}
           initialResponderFieldsConfig={responderFieldsConfig}
           initialMaxAttempts={maxAttempts}
+          initialBotPromptConfig={botPromptConfig}
           onSubmit={handleSubmit}
         />
 

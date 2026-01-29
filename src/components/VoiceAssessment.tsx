@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useMemo } from "react";
 import { VoiceClient } from "@/components/VoiceClient";
 import { VoiceConnectButton } from "@/components/VoiceConnectButton";
 import { AgentStatus } from "@/components/AgentStatus";
@@ -7,8 +7,9 @@ import {
   VoiceAssessmentProvider,
   useVoiceTranscript,
 } from "@/contexts/VoiceAssessmentContext";
-import { Question } from "@/types/assignment";
+import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
+import { interpolatePromptsForRuntime } from "@/lib/promptInterpolation";
 import {
   usePipecatClient,
   usePipecatClientTransportState,
@@ -39,6 +40,8 @@ interface VoiceAssessmentProps {
   currentAttemptNumber?: number;
   maxAttempts?: number;
   maxAttemptsReached?: boolean;
+  // Bot prompt configuration for custom prompts
+  botPromptConfig?: BotPromptConfig;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -61,6 +64,7 @@ function VoiceAssessmentContent({
   onLanguageChange,
   maxAttempts,
   maxAttemptsReached,
+  botPromptConfig,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -311,6 +315,25 @@ function VoiceAssessmentContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transportState, transcript, isEvaluating]);
 
+  // Interpolate prompts if botPromptConfig is provided
+  const interpolatedPrompts = useMemo(() => {
+    if (!botPromptConfig) return null;
+
+    // Build a minimal assignment object for interpolation
+    const assignmentForInterpolation = {
+      questions: [question], // Current question
+      max_attempts: maxAttempts || 1,
+      bot_prompt_config: botPromptConfig,
+    };
+
+    return interpolatePromptsForRuntime(
+      assignmentForInterpolation as Parameters<typeof interpolatePromptsForRuntime>[0],
+      question,
+      language,
+      attempts.length + 1
+    );
+  }, [botPromptConfig, question, language, maxAttempts, attempts.length]);
+
   // Prepare connection data to send to server (only used for initial connection)
   // Server-side Pipecat bot handles audio recording via AudioBufferProcessor
   const connectionData = {
@@ -324,6 +347,11 @@ function VoiceAssessmentContent({
     // Only pass supabase_env if explicitly set - prevents accidental dev/prod mismatch
     ...(process.env.NEXT_PUBLIC_SUPABASE_ENV && {
       supabase_env: process.env.NEXT_PUBLIC_SUPABASE_ENV,
+    }),
+    // Include interpolated prompts if available (new bot prompt config)
+    ...(interpolatedPrompts && {
+      system_prompt: interpolatedPrompts.system_prompt,
+      greeting: interpolatedPrompts.greeting,
     }),
   };
 

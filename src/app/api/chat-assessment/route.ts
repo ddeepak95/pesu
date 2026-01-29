@@ -20,8 +20,11 @@ interface ChatAssessmentRequestBody {
   rubric: Array<{ item: string; points: number }>;
   language: string;
   messages: ChatAssessmentMessage[];
-   // Optional, used for grouping messages by evaluated attempt
+  // Optional, used for grouping messages by evaluated attempt
   attemptNumber?: number;
+  // Optional custom prompts (already interpolated by frontend)
+  system_prompt?: string;
+  greeting?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -37,6 +40,8 @@ export async function POST(request: NextRequest) {
       language,
       messages,
       attemptNumber,
+      system_prompt: customSystemPrompt,
+      greeting: customGreeting,
     } = body;
 
     if (
@@ -62,10 +67,15 @@ export async function POST(request: NextRequest) {
       .map((item) => `- ${item.item} (${item.points} points)`)
       .join("\n");
 
-    const chatMessages = [
-      {
-        role: "system" as const,
-        content: `You are a friendly tutoring assistant helping a student answer a question based on a rubric.
+    // Build system prompt: use custom if provided, otherwise use default
+    let systemPromptContent: string;
+    if (customSystemPrompt) {
+      // New path: Use frontend-provided prompt (already interpolated)
+      // For chat mode, we don't append TTS instruction (unlike voice mode)
+      systemPromptContent = customSystemPrompt;
+    } else {
+      // Backward compatibility: Use hardcoded prompt
+      systemPromptContent = `You are a friendly tutoring assistant helping a student answer a question based on a rubric.
 Your job is to have a short, focused conversation that helps the student give a strong answer.
 
 For EVERY RESPONSE you give:
@@ -88,19 +98,42 @@ ${rubricText}
 YOUR VERY FIRST MESSAGE TO THE STUDENT MUST:
 1) Greet the student briefly.
 2) Restate the question in simple, clear language so they understand it.
-3) Clearly explain what kind of answer you expect (for example: “a few sentences explaining…”, “step-by-step reasoning about…”, etc.).
+3) Clearly explain what kind of answer you expect (for example: "a few sentences explaining…", "step-by-step reasoning about…", etc.).
 4) Invite the student to start by sharing what they think or already know about the question.
 
-Do NOT start grading yet. Just explain the task and ask them to begin.`,
+Do NOT start grading yet. Just explain the task and ask them to begin.`;
+    }
+
+    // Build chat messages
+    const chatMessages: {
+      role: "system" | "user" | "assistant";
+      content: string;
+    }[] = [
+      {
+        role: "system" as const,
+        content: systemPromptContent,
       },
+    ];
+
+    // If custom greeting is provided and this is the first message, add it as a system message
+    // to guide the first assistant response
+    if (customGreeting && messages.length === 0) {
+      chatMessages.push({
+        role: "system" as const,
+        content: `[Instructions for your first response]: ${customGreeting}`,
+      });
+    }
+
+    // Add conversation messages
+    chatMessages.push(
       ...messages.map((message) => ({
         role:
           message.role === "student"
             ? ("user" as const)
             : ("assistant" as const),
         content: message.content,
-      })),
-    ];
+      }))
+    );
 
     // Prepare Supabase client for logging
     const supabase = createClient();
@@ -191,4 +224,3 @@ Do NOT start grading yet. Just explain the task and ask them to begin.`,
     );
   }
 }
-

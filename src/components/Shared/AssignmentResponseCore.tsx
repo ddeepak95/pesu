@@ -143,6 +143,7 @@ export default function AssignmentResponseCore({
           currentAttemptNumber={currentAttemptNumber}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
+          botPromptConfig={assignmentData.bot_prompt_config}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -164,6 +165,7 @@ export default function AssignmentResponseCore({
           currentAttemptNumber={currentAttemptNumber}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
+          botPromptConfig={assignmentData.bot_prompt_config}
         />
       )}
       {assessmentMode === "static_text" && (

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase";
-import { Assignment, ResponderFieldConfig } from "@/types/assignment";
+import { Assignment, ResponderFieldConfig, BotPromptConfig } from "@/types/assignment";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
 
@@ -169,6 +169,7 @@ export async function createAssignment(
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
+    bot_prompt_config?: BotPromptConfig; // AI bot configuration for voice/chat modes
   },
   userId: string
 ): Promise<Assignment> {
@@ -191,6 +192,7 @@ export async function createAssignment(
       assessment_mode: assignment.assessment_mode ?? "voice",
       responder_fields_config: assignment.responder_fields_config ?? null,
       max_attempts: assignment.max_attempts ?? 1,
+      bot_prompt_config: assignment.bot_prompt_config ?? null,
     })
     .select()
     .single();
@@ -225,6 +227,7 @@ export async function updateAssignment(
     assessment_mode?: "voice" | "text_chat" | "static_text";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
+    bot_prompt_config?: BotPromptConfig; // AI bot configuration for voice/chat modes
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -240,6 +243,7 @@ export async function updateAssignment(
       assessment_mode: assignment.assessment_mode ?? "voice",
       responder_fields_config: assignment.responder_fields_config ?? null,
       max_attempts: assignment.max_attempts ?? 1,
+      bot_prompt_config: assignment.bot_prompt_config ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)
