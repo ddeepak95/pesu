@@ -21,12 +21,14 @@ import {
   updateUrlWithSubmissionId,
 } from "@/utils/sessionStorage";
 import { useAuth } from "@/contexts/AuthContext";
+import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 
 // No phase needed - students can always view and attempt questions
 
 interface StudentAssignmentResponseProps {
   assignmentData: Assignment;
   assignmentId: string;
+  classId?: string; // Class ID for activity tracking
   onComplete?: () => void;
   onBack?: () => void;
   onDisplayNameChange?: (name: string) => void;
@@ -39,6 +41,7 @@ interface StudentAssignmentResponseProps {
 export default function StudentAssignmentResponse({
   assignmentData,
   assignmentId,
+  classId,
   onComplete,
   onBack,
   onDisplayNameChange,
@@ -406,27 +409,34 @@ export default function StudentAssignmentResponse({
   const maxAttempts = assignmentData.max_attempts ?? 1;
 
   // Phase: Question Answering or Completion (delegated to core component)
+  // Wrap with ActivityTrackingProvider to provide context for activity tracking
   return (
-    <AssignmentResponseCore
-      assignmentData={assignmentData}
+    <ActivityTrackingProvider
+      userId={user?.id}
+      classId={classId}
       submissionId={submissionId}
-      displayName={displayName}
-      preferredLanguage={preferredLanguage}
-      onComplete={() => {
-        // Attempts are automatically saved, no explicit completion needed
-        if (onComplete) {
-          onComplete();
-        }
-      }}
-      onBack={onBack}
-      onLanguageChange={handleLanguageChange}
-      assignmentId={assignmentId}
-      initialQuestionIndex={currentQuestionIndex}
-      existingAnswers={existingAnswers}
-      currentAttemptNumber={currentAttemptNumber}
-      maxAttempts={maxAttempts}
-      maxAttemptsReached={maxAttemptsReached}
-    />
+    >
+      <AssignmentResponseCore
+        assignmentData={assignmentData}
+        submissionId={submissionId}
+        displayName={displayName}
+        preferredLanguage={preferredLanguage}
+        onComplete={() => {
+          // Attempts are automatically saved, no explicit completion needed
+          if (onComplete) {
+            onComplete();
+          }
+        }}
+        onBack={onBack}
+        onLanguageChange={handleLanguageChange}
+        assignmentId={assignmentId}
+        initialQuestionIndex={currentQuestionIndex}
+        existingAnswers={existingAnswers}
+        currentAttemptNumber={currentAttemptNumber}
+        maxAttempts={maxAttempts}
+        maxAttemptsReached={maxAttemptsReached}
+      />
+    </ActivityTrackingProvider>
   );
 }
 

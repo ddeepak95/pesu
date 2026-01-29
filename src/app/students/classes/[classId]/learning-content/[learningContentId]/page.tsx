@@ -8,8 +8,11 @@ import { getLearningContentByShortId } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import YouTubeEmbed from "@/components/Shared/YouTubeEmbed";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { useAuth } from "@/contexts/AuthContext";
+import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 
-export default function StudentLearningContentPage() {
+function LearningContentPageContent() {
   const params = useParams();
   const classId = params.classId as string;
   const learningContentId = params.learningContentId as string;
@@ -17,6 +20,14 @@ export default function StudentLearningContentPage() {
   const [content, setContent] = useState<LearningContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Activity tracking for learning content viewing time
+  // Uses ActivityTrackingContext for userId and classId
+  useActivityTracking({
+    componentType: "learning_content",
+    componentId: learningContentId,
+    enabled: !loading && !!content, // Only track when content is loaded
+  });
 
   const fetchContent = async () => {
     setLoading(true);
@@ -101,3 +112,14 @@ export default function StudentLearningContentPage() {
   );
 }
 
+export default function StudentLearningContentPage() {
+  const params = useParams();
+  const classId = params.classId as string;
+  const { user } = useAuth();
+
+  return (
+    <ActivityTrackingProvider userId={user?.id} classId={classId}>
+      <LearningContentPageContent />
+    </ActivityTrackingProvider>
+  );
+}

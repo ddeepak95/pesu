@@ -12,6 +12,7 @@ import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCa
 import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 
 interface ChatMessage {
   id: string;
@@ -36,6 +37,7 @@ interface ChatAssessmentProps {
   currentAttemptNumber?: number;
   maxAttempts?: number;
   maxAttemptsReached?: boolean;
+  // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
 export function ChatAssessment({
@@ -61,6 +63,14 @@ export function ChatAssessment({
   const [isSending, setIsSending] = React.useState(false);
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
+
+  // Activity tracking for question-level time
+  // Uses ActivityTrackingContext for userId, classId, submissionId
+  const { logEvent } = useActivityTracking({
+    componentType: "question",
+    componentId: assignmentId,
+    subComponentId: String(question.order),
+  });
   
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const messagesContainerRef = React.useRef<HTMLDivElement>(null);
@@ -267,6 +277,9 @@ export function ChatAssessment({
         );
       }
 
+      // Log attempt_started event
+      logEvent("attempt_started");
+
       // Ensure input has focus once the first reply has appeared
       setTimeout(() => {
         textareaRef.current?.focus();
@@ -458,6 +471,9 @@ export function ChatAssessment({
 
       setAttempts((prev) => [...prev, newAttempt]);
       onAnswerSave(answerText);
+
+      // Log attempt_ended event
+      logEvent("attempt_ended");
 
       // After an evaluated attempt, reset the chat so the student
       // sees the Start Chat button again for a fresh conversation

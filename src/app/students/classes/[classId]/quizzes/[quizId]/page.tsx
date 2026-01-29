@@ -7,8 +7,11 @@ import BackButton from "@/components/ui/back-button";
 import { getQuizByShortId } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { useAuth } from "@/contexts/AuthContext";
+import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 
-export default function StudentQuizPage() {
+function QuizPageContent() {
   const params = useParams();
   const classId = params.classId as string;
   const quizId = params.quizId as string;
@@ -16,6 +19,14 @@ export default function StudentQuizPage() {
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Activity tracking for quiz viewing time
+  // Uses ActivityTrackingContext for userId and classId
+  useActivityTracking({
+    componentType: "quiz",
+    componentId: quizId,
+    enabled: !loading && !!quiz, // Only track when quiz is loaded
+  });
 
   const fetchQuiz = async () => {
     setLoading(true);
@@ -106,3 +117,14 @@ export default function StudentQuizPage() {
   );
 }
 
+export default function StudentQuizPage() {
+  const params = useParams();
+  const classId = params.classId as string;
+  const { user } = useAuth();
+
+  return (
+    <ActivityTrackingProvider userId={user?.id} classId={classId}>
+      <QuizPageContent />
+    </ActivityTrackingProvider>
+  );
+}

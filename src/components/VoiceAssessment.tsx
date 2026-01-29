@@ -20,6 +20,7 @@ import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCa
 import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 
 interface VoiceAssessmentProps {
   question: Question;
@@ -38,6 +39,7 @@ interface VoiceAssessmentProps {
   currentAttemptNumber?: number;
   maxAttempts?: number;
   maxAttemptsReached?: boolean;
+  // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
 /**
@@ -68,6 +70,14 @@ function VoiceAssessmentContent({
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
   const evaluationTriggeredRef = React.useRef(false);
+
+  // Activity tracking for question-level time
+  // Uses ActivityTrackingContext for userId, classId, submissionId
+  const { logEvent } = useActivityTracking({
+    componentType: "question",
+    componentId: assignmentId,
+    subComponentId: String(question.order),
+  });
 
   const transportStateRef = React.useRef(transportState);
   React.useEffect(() => {
@@ -208,6 +218,9 @@ function VoiceAssessmentContent({
       // Note: Evaluation API already saved the attempt to database
       // Audio recording is handled server-side by Pipecat
 
+      // Log attempt_ended event
+      logEvent("attempt_ended");
+
       console.log("=== Evaluation complete ===");
     } catch (error) {
       console.error("Error evaluating answer:", error);
@@ -321,6 +334,8 @@ function VoiceAssessmentContent({
     clearTranscript();
     // Reset evaluation trigger flag for new conversation
     evaluationTriggeredRef.current = false;
+    // Log attempt_started event
+    logEvent("attempt_started");
   };
 
   return (
