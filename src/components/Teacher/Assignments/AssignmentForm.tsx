@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -39,6 +40,9 @@ interface AssignmentFormProps {
   initialResponderFieldsConfig?: ResponderFieldConfig[];
   initialMaxAttempts?: number;
   initialBotPromptConfig?: BotPromptConfig;
+  initialStudentInstructions?: string;
+  initialShowRubric?: boolean;
+  initialShowRubricPoints?: boolean;
   onSubmit: (data: {
     title: string;
     questions: Question[];
@@ -51,6 +55,9 @@ interface AssignmentFormProps {
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
     botPromptConfig?: BotPromptConfig;
+    studentInstructions?: string;
+    showRubric?: boolean;
+    showRubricPoints?: boolean;
   }) => Promise<void>;
 }
 
@@ -79,6 +86,9 @@ export default function AssignmentForm({
   initialResponderFieldsConfig,
   initialMaxAttempts = 3,
   initialBotPromptConfig,
+  initialStudentInstructions = "",
+  initialShowRubric = true,
+  initialShowRubricPoints = true,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -106,6 +116,13 @@ export default function AssignmentForm({
   );
   const [botPromptConfig, setBotPromptConfig] = useState<BotPromptConfig>(
     initialBotPromptConfig || getDefaultBotPromptConfig()
+  );
+  const [studentInstructions, setStudentInstructions] = useState(
+    initialStudentInstructions
+  );
+  const [showRubric, setShowRubric] = useState(initialShowRubric);
+  const [showRubricPoints, setShowRubricPoints] = useState(
+    initialShowRubricPoints
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -369,6 +386,9 @@ export default function AssignmentForm({
           assessmentMode === "voice" || assessmentMode === "text_chat"
             ? botPromptConfig
             : undefined,
+        studentInstructions: studentInstructions.trim() || undefined,
+        showRubric,
+        showRubricPoints,
       });
 
       // Navigate based on mode
@@ -513,6 +533,81 @@ export default function AssignmentForm({
                 Number of attempts students can make for this assignment.
                 Default is 3.
               </p>
+            </div>
+
+            {/* Student Instructions */}
+            <div className="space-y-2">
+              <Label htmlFor="studentInstructions">
+                Instructions for Students
+              </Label>
+              <Textarea
+                id="studentInstructions"
+                value={studentInstructions}
+                onChange={(e) => setStudentInstructions(e.target.value)}
+                disabled={loading}
+                placeholder="Enter any additional instructions to display to students before they start the assessment..."
+                rows={4}
+              />
+              <p className="text-sm text-muted-foreground">
+                These instructions will be displayed to students but not passed
+                to the AI. Use this for logistical info, tips, or context.
+              </p>
+            </div>
+
+            {/* Rubric Visibility Settings */}
+            <div className="space-y-3 p-4 border rounded-md">
+              <Label className="text-sm font-medium">Rubric Visibility</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="showRubric"
+                  checked={showRubric}
+                  onCheckedChange={(checked) => {
+                    setShowRubric(checked === true);
+                    // If hiding rubric, also hide points
+                    if (!checked) {
+                      setShowRubricPoints(false);
+                    }
+                  }}
+                  disabled={loading}
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="showRubric"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Show rubric to students
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, students can view the rubric criteria during
+                    the assessment
+                  </p>
+                </div>
+              </div>
+
+              {showRubric && (
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox
+                    id="showRubricPoints"
+                    checked={showRubricPoints}
+                    onCheckedChange={(checked) =>
+                      setShowRubricPoints(checked === true)
+                    }
+                    disabled={loading}
+                  />
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="showRubricPoints"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Show point values
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, students can see how many points each rubric
+                      item is worth
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Public Access Toggle */}

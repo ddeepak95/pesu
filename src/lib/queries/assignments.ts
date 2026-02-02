@@ -171,6 +171,9 @@ export async function createAssignment(
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
     bot_prompt_config?: BotPromptConfig; // AI bot configuration for voice/chat modes
+    student_instructions?: string; // Display-only instructions for students
+    show_rubric?: boolean; // Whether to show rubric to students
+    show_rubric_points?: boolean; // Whether to show rubric points to students
   },
   userId: string
 ): Promise<Assignment> {
@@ -195,6 +198,9 @@ export async function createAssignment(
       responder_fields_config: assignment.responder_fields_config ?? null,
       max_attempts: assignment.max_attempts ?? 1,
       bot_prompt_config: assignment.bot_prompt_config ?? null,
+      student_instructions: assignment.student_instructions ?? null,
+      show_rubric: assignment.show_rubric ?? true,
+      show_rubric_points: assignment.show_rubric_points ?? true,
     })
     .select()
     .single();
@@ -231,6 +237,9 @@ export async function updateAssignment(
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
     bot_prompt_config?: BotPromptConfig; // AI bot configuration for voice/chat modes
+    student_instructions?: string; // Display-only instructions for students
+    show_rubric?: boolean; // Whether to show rubric to students
+    show_rubric_points?: boolean; // Whether to show rubric points to students
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -248,6 +257,9 @@ export async function updateAssignment(
       responder_fields_config: assignment.responder_fields_config ?? null,
       max_attempts: assignment.max_attempts ?? 1,
       bot_prompt_config: assignment.bot_prompt_config ?? null,
+      student_instructions: assignment.student_instructions ?? null,
+      show_rubric: assignment.show_rubric ?? true,
+      show_rubric_points: assignment.show_rubric_points ?? true,
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)

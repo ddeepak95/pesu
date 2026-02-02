@@ -93,5 +93,21 @@ export interface Assignment {
    * The language is fixed to preferred_language.
    */
   lock_language?: boolean;
+  /**
+   * Display-only instructions shown to students before they start the assessment.
+   * Not passed to the AI prompt - purely for student information.
+   */
+  student_instructions?: string;
+  /**
+   * Whether to show the rubric to students during the assessment.
+   * Defaults to true for backwards compatibility.
+   */
+  show_rubric?: boolean;
+  /**
+   * Whether to show rubric point values to students.
+   * Only applies when show_rubric is true.
+   * Defaults to true for backwards compatibility.
+   */
+  show_rubric_points?: boolean;
 }
 

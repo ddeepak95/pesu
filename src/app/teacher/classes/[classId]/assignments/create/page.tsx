@@ -94,6 +94,9 @@ export default function CreateAssignmentPage() {
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
     botPromptConfig?: BotPromptConfig;
+    studentInstructions?: string;
+    showRubric?: boolean;
+    showRubricPoints?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -118,6 +121,9 @@ export default function CreateAssignmentPage() {
         responder_fields_config: data.responderFieldsConfig,
         max_attempts: data.maxAttempts ?? 1,
         bot_prompt_config: data.botPromptConfig,
+        student_instructions: data.studentInstructions,
+        show_rubric: data.showRubric ?? true,
+        show_rubric_points: data.showRubricPoints ?? true,
       },
       user.id
     );

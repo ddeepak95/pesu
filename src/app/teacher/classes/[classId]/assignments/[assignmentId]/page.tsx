@@ -221,6 +221,30 @@ export default function AssignmentDetailPage() {
             )}
           </div>
 
+          {/* Student Instructions */}
+          {assignmentData.student_instructions && (
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                Instructions for Students
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300 whitespace-pre-wrap">
+                {assignmentData.student_instructions}
+              </p>
+            </div>
+          )}
+
+          {/* Rubric Display Settings */}
+          <div className="flex flex-wrap items-center gap-2 mb-6 text-xs text-muted-foreground">
+            <span className="font-medium">Rubric visibility:</span>
+            <span>
+              {assignmentData.show_rubric ?? true
+                ? assignmentData.show_rubric_points ?? true
+                  ? "Shown with points"
+                  : "Shown without points"
+                : "Hidden from students"}
+            </span>
+          </div>
+
           <Tabs defaultValue="questions" className="w-full">
             <TabsList>
               <TabsTrigger value="questions">Questions</TabsTrigger>

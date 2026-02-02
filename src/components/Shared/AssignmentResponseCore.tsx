@@ -156,6 +156,9 @@ export default function AssignmentResponseCore({
           maxAttemptsReached={maxAttemptsReached}
           botPromptConfig={assignmentData.bot_prompt_config}
           contentItemId={contentItemId}
+          studentInstructions={assignmentData.student_instructions}
+          showRubric={assignmentData.show_rubric ?? true}
+          showRubricPoints={assignmentData.show_rubric_points ?? true}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -179,6 +182,9 @@ export default function AssignmentResponseCore({
           maxAttemptsReached={maxAttemptsReached}
           botPromptConfig={assignmentData.bot_prompt_config}
           contentItemId={contentItemId}
+          studentInstructions={assignmentData.student_instructions}
+          showRubric={assignmentData.show_rubric ?? true}
+          showRubricPoints={assignmentData.show_rubric_points ?? true}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -201,6 +207,9 @@ export default function AssignmentResponseCore({
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
           contentItemId={contentItemId}
+          studentInstructions={assignmentData.student_instructions}
+          showRubric={assignmentData.show_rubric ?? true}
+          showRubricPoints={assignmentData.show_rubric_points ?? true}
         />
       )}
     </div>

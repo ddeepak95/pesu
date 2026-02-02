@@ -33,6 +33,10 @@ interface StaticTextAssessmentProps {
   maxAttemptsReached?: boolean;
   // For marking as complete
   contentItemId?: string | null;
+  // Display settings
+  studentInstructions?: string;
+  showRubric?: boolean;
+  showRubricPoints?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -53,6 +57,9 @@ export function StaticTextAssessment({
   maxAttempts,
   maxAttemptsReached,
   contentItemId,
+  studentInstructions,
+  showRubric = true,
+  showRubricPoints = true,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -138,7 +145,9 @@ export function StaticTextAssessment({
   // Handle Start Writing button click
   const handleStartWriting = () => {
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question."
+      );
       return;
     }
     setHasStarted(true);
@@ -270,7 +279,12 @@ export function StaticTextAssessment({
         languageDisabled={isEvaluating || hasStarted}
       />
 
-      <AssessmentQuestionCard question={question}>
+      <AssessmentQuestionCard
+        question={question}
+        studentInstructions={studentInstructions}
+        showRubric={showRubric}
+        showRubricPoints={showRubricPoints}
+      >
         {/* Static Text Input Area */}
         <div className="mt-4 border rounded-xl bg-background shadow-sm">
           {!hasStarted ? (
