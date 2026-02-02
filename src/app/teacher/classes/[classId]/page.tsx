@@ -9,6 +9,7 @@ import Content from "@/components/Teacher/Classes/Content";
 import Students from "@/components/Teacher/Classes/Students";
 import ManageTeachersDialog from "@/components/Teacher/Classes/ManageTeachersDialog";
 import GroupSettingsDialog from "@/components/Teacher/Classes/GroupSettingsDialog";
+import ManageMandatoryFieldsDialog from "@/components/Teacher/Classes/ManageMandatoryFieldsDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,6 +34,7 @@ export default function ClassDetailPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [manageTeachersOpen, setManageTeachersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [mandatoryFieldsOpen, setMandatoryFieldsOpen] = useState(false);
 
   const activeTab = useMemo(() => {
     const t = searchParams.get("tab");
@@ -175,6 +177,11 @@ export default function ClassDetailPage() {
                     >
                       Group settings
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setMandatoryFieldsOpen(true)}
+                    >
+                      Mandatory info fields
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleEdit}>
                       Edit
                     </DropdownMenuItem>
@@ -243,6 +250,14 @@ export default function ClassDetailPage() {
           open={groupSettingsOpen}
           onOpenChange={setGroupSettingsOpen}
           onUpdated={fetchClass}
+        />
+      )}
+
+      {classData && (
+        <ManageMandatoryFieldsDialog
+          classData={classData}
+          open={mandatoryFieldsOpen}
+          onOpenChange={setMandatoryFieldsOpen}
         />
       )}
     </PageLayout>
