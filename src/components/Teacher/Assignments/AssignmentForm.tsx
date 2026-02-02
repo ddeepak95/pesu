@@ -33,6 +33,7 @@ interface AssignmentFormProps {
   initialTitle?: string;
   initialQuestions?: Question[];
   initialLanguage?: string;
+  initialLockLanguage?: boolean;
   initialIsPublic?: boolean;
   initialAssessmentMode?: "voice" | "text_chat" | "static_text";
   initialResponderFieldsConfig?: ResponderFieldConfig[];
@@ -43,6 +44,7 @@ interface AssignmentFormProps {
     questions: Question[];
     totalPoints: number;
     preferredLanguage: string;
+    lockLanguage: boolean;
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
@@ -71,6 +73,7 @@ export default function AssignmentForm({
     },
   ],
   initialLanguage = "en",
+  initialLockLanguage = false,
   initialIsPublic = false,
   initialAssessmentMode = "voice",
   initialResponderFieldsConfig,
@@ -82,6 +85,7 @@ export default function AssignmentForm({
   const [title, setTitle] = useState(initialTitle);
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
+  const [lockLanguage, setLockLanguage] = useState(initialLockLanguage);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
@@ -227,7 +231,8 @@ export default function AssignmentForm({
       if (botPromptConfig.question_overrides?.[index] !== undefined) {
         const newOverrides = { ...botPromptConfig.question_overrides };
         // Remove the deleted question's override and re-index higher ones
-        const updatedOverrides: Record<number, typeof newOverrides[number]> = {};
+        const updatedOverrides: Record<number, (typeof newOverrides)[number]> =
+          {};
         for (const [key, value] of Object.entries(newOverrides)) {
           const order = parseInt(key, 10);
           if (order < index) {
@@ -353,6 +358,7 @@ export default function AssignmentForm({
         questions: cleanedQuestions,
         totalPoints,
         preferredLanguage,
+        lockLanguage,
         isPublic,
         assessmentMode,
         isDraft: draft,
@@ -420,9 +426,7 @@ export default function AssignmentForm({
           <SelectContent>
             <SelectItem value="voice">Voice assessment</SelectItem>
             <SelectItem value="text_chat">Text chat assessment</SelectItem>
-            <SelectItem value="static_text">
-              Static text assessment
-            </SelectItem>
+            <SelectItem value="static_text">Static text assessment</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -464,6 +468,28 @@ export default function AssignmentForm({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Lock Language */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="lockLanguage"
+                checked={lockLanguage}
+                onCheckedChange={(checked) => setLockLanguage(checked === true)}
+                disabled={loading}
+              />
+              <div className="space-y-1">
+                <Label
+                  htmlFor="lockLanguage"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Lock language for students
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, students cannot change the interaction language
+                  during the assessment
+                </p>
+              </div>
             </div>
 
             {/* Max Attempts */}
@@ -524,7 +550,9 @@ export default function AssignmentForm({
                 {responderFieldsConfig.map((field, index) => (
                   <div key={index} className="p-4 border rounded-md space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Field {index + 1}</Label>
+                      <Label className="text-sm font-medium">
+                        Field {index + 1}
+                      </Label>
                       {responderFieldsConfig.length > 1 && (
                         <Button
                           type="button"
@@ -582,14 +610,18 @@ export default function AssignmentForm({
                             <SelectItem value="text">Text</SelectItem>
                             <SelectItem value="email">Email</SelectItem>
                             <SelectItem value="tel">Phone</SelectItem>
-                            <SelectItem value="select">Select (Dropdown)</SelectItem>
+                            <SelectItem value="select">
+                              Select (Dropdown)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor={`field-${index}-field`}>Field Identifier</Label>
+                      <Label htmlFor={`field-${index}-field`}>
+                        Field Identifier
+                      </Label>
                       <Input
                         id={`field-${index}-field`}
                         value={field.field}
@@ -681,7 +713,10 @@ export default function AssignmentForm({
                       label: "",
                       required: false,
                     };
-                    setResponderFieldsConfig([...responderFieldsConfig, newField]);
+                    setResponderFieldsConfig([
+                      ...responderFieldsConfig,
+                      newField,
+                    ]);
                   }}
                   disabled={loading}
                   className="w-full"
@@ -760,7 +795,9 @@ export default function AssignmentForm({
                     <span className="text-muted-foreground">Preview for:</span>
                     <Button
                       type="button"
-                      variant={previewQuestionOrder === 0 ? "default" : "outline"}
+                      variant={
+                        previewQuestionOrder === 0 ? "default" : "outline"
+                      }
                       size="sm"
                       onClick={() => setPreviewQuestionOrder(0)}
                     >
@@ -768,7 +805,9 @@ export default function AssignmentForm({
                     </Button>
                     <Button
                       type="button"
-                      variant={previewQuestionOrder === 1 ? "default" : "outline"}
+                      variant={
+                        previewQuestionOrder === 1 ? "default" : "outline"
+                      }
                       size="sm"
                       onClick={() => setPreviewQuestionOrder(1)}
                     >
@@ -827,7 +866,9 @@ export default function AssignmentForm({
             }
             onQuestionOverrideChange={handleQuestionOverrideChange}
             defaultSystemPrompt={botPromptConfig.system_prompt}
-            defaultConversationStart={getDefaultConversationStart(question.order)}
+            defaultConversationStart={getDefaultConversationStart(
+              question.order
+            )}
           />
         ))}
       </div>

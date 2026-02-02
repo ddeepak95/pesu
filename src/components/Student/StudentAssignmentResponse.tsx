@@ -51,12 +51,14 @@ export default function StudentAssignmentResponse({
   const { user } = useAuth();
   const [restoringSession, setRestoringSession] = useState(true);
   const [preferredLanguage, setPreferredLanguage] = useState(
-    assignmentData.preferred_language || ""
+    assignmentData.preferred_language || "en"
   );
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [existingAnswers, setExistingAnswers] = useState<{ [key: number]: string }>({});
+  const [existingAnswers, setExistingAnswers] = useState<{
+    [key: number]: string;
+  }>({});
   const [currentAttemptNumber, setCurrentAttemptNumber] = useState<number>(1);
   const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
 
@@ -97,7 +99,10 @@ export default function StudentAssignmentResponse({
         // Fetch the submission from database
         const submission = await getSubmissionById(sessionSubmissionId);
 
-        if (!submission || submission.assignment_id !== assignmentData.assignment_id) {
+        if (
+          !submission ||
+          submission.assignment_id !== assignmentData.assignment_id
+        ) {
           // Invalid or mismatched submission, only create new if no existing submission found
           if (!existingSubmission) {
             await createNewSubmission();
@@ -107,9 +112,11 @@ export default function StudentAssignmentResponse({
 
         // Get max attempts from assignment (default to 1)
         const maxAttempts = assignmentData.max_attempts ?? 1;
-        
+
         // Get current attempt count
-        const attemptCount = await getMaxAttemptCountAcrossQuestions(submission.submission_id);
+        const attemptCount = await getMaxAttemptCountAcrossQuestions(
+          submission.submission_id
+        );
         const nextAttemptNumber = attemptCount + 1;
         setCurrentAttemptNumber(nextAttemptNumber);
 
@@ -227,7 +234,7 @@ export default function StudentAssignmentResponse({
       user.id,
       assignmentData.assignment_id
     );
-    
+
     if (existing) {
       // Reuse existing submission instead of creating new one
       const submission = await getSubmissionById(existing.submission_id);
@@ -275,7 +282,13 @@ export default function StudentAssignmentResponse({
     }
   };
 
-  const restoreSubmission = async (submission: { submission_id: string; preferred_language: string; responder_details?: Record<string, string>; student_name?: string; answers?: { [key: number]: QuestionAnswers } | SubmissionAnswer[] }) => {
+  const restoreSubmission = async (submission: {
+    submission_id: string;
+    preferred_language: string;
+    responder_details?: Record<string, string>;
+    student_name?: string;
+    answers?: { [key: number]: QuestionAnswers } | SubmissionAnswer[];
+  }) => {
     setSubmissionId(submission.submission_id);
     const name = getDisplayName(submission);
     setDisplayName(name);
@@ -285,7 +298,9 @@ export default function StudentAssignmentResponse({
     }
 
     // Get attempt count (for display purposes, but actual attempt number is per question)
-    const attemptCount = await getMaxAttemptCountAcrossQuestions(submission.submission_id);
+    const attemptCount = await getMaxAttemptCountAcrossQuestions(
+      submission.submission_id
+    );
     // Set to 1 if no attempts yet, otherwise attemptCount + 1 for next attempt
     setCurrentAttemptNumber(attemptCount === 0 ? 1 : attemptCount + 1);
 
@@ -351,7 +366,7 @@ export default function StudentAssignmentResponse({
       questionIndex = 0;
     }
 
-        setCurrentQuestionIndex(questionIndex);
+    setCurrentQuestionIndex(questionIndex);
 
     // Ensure URL has the submission ID
     updateUrlWithSubmissionId(assignmentId, submission.submission_id);
@@ -366,7 +381,10 @@ export default function StudentAssignmentResponse({
     });
   };
 
-  const getDisplayName = (submission: { responder_details?: Record<string, string>; student_name?: string }): string => {
+  const getDisplayName = (submission: {
+    responder_details?: Record<string, string>;
+    student_name?: string;
+  }): string => {
     if (submission.responder_details?.name) {
       return submission.responder_details.name;
     }
@@ -442,4 +460,3 @@ export default function StudentAssignmentResponse({
     </ActivityTrackingProvider>
   );
 }
-

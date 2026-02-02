@@ -69,12 +69,14 @@ const PublicAssignmentResponse = forwardRef<
   const [phase, setPhase] = useState<Phase>("info");
   const [restoringSession, setRestoringSession] = useState(true);
   const [preferredLanguage, setPreferredLanguage] = useState(
-    assignmentData.preferred_language || ""
+    assignmentData.preferred_language || "en"
   );
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [existingAnswers, setExistingAnswers] = useState<{ [key: number]: string }>({});
+  const [existingAnswers, setExistingAnswers] = useState<{
+    [key: number]: string;
+  }>({});
   const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
 
   // Get max attempts from assignment config
@@ -158,7 +160,9 @@ const PublicAssignmentResponse = forwardRef<
       }
 
       // Check if max attempts reached
-      const attemptCount = await getMaxAttemptCountAcrossQuestions(submission.submission_id);
+      const attemptCount = await getMaxAttemptCountAcrossQuestions(
+        submission.submission_id
+      );
       if (attemptCount >= maxAttempts) {
         setMaxAttemptsReached(true);
       }
@@ -240,7 +244,10 @@ const PublicAssignmentResponse = forwardRef<
     }
   };
 
-  const getDisplayName = (submission: { responder_details?: Record<string, string>; student_name?: string }): string => {
+  const getDisplayName = (submission: {
+    responder_details?: Record<string, string>;
+    student_name?: string;
+  }): string => {
     if (submission.responder_details?.name) {
       return submission.responder_details.name;
     }
@@ -250,7 +257,9 @@ const PublicAssignmentResponse = forwardRef<
     return "Responder";
   };
 
-  const handleBeginAssignment = async (responderDetails: Record<string, string>) => {
+  const handleBeginAssignment = async (
+    responderDetails: Record<string, string>
+  ) => {
     if (!assignmentData) return;
 
     try {
@@ -305,24 +314,24 @@ const PublicAssignmentResponse = forwardRef<
   const resetSubmission = () => {
     // Clear localStorage session
     clearSession(assignmentId);
-    
+
     // Remove submission ID from URL
     removeSubmissionIdFromUrl();
-    
+
     // Reset component state
     setSubmissionId(null);
     setDisplayName("");
     setCurrentQuestionIndex(0);
     setExistingAnswers({});
     setPhase("info");
-    setPreferredLanguage(assignmentData.preferred_language || "");
+    setPreferredLanguage(assignmentData.preferred_language || "en");
     setMaxAttemptsReached(false);
-    
+
     // Clear display name in parent
     if (onDisplayNameChange) {
       onDisplayNameChange("");
     }
-    
+
     // Notify parent that submission is cleared
     if (onSubmissionStateChange) {
       onSubmissionStateChange(false);
@@ -353,26 +362,29 @@ const PublicAssignmentResponse = forwardRef<
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <label htmlFor="language" className="text-sm font-medium">
-                Preferred Language
-              </label>
-              <Select
-                value={preferredLanguage}
-                onValueChange={setPreferredLanguage}
-              >
-                <SelectTrigger id="language">
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  {supportedLanguages.map((lang) => (
-                    <SelectItem key={lang.code} value={lang.code}>
-                      {lang.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Only show language selector if language is not locked */}
+            {!assignmentData.lock_language && (
+              <div className="space-y-2">
+                <label htmlFor="language" className="text-sm font-medium">
+                  Preferred Language
+                </label>
+                <Select
+                  value={preferredLanguage}
+                  onValueChange={setPreferredLanguage}
+                >
+                  <SelectTrigger id="language">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {supportedLanguages.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <ResponderDetailsForm
               fields={responderFields}
@@ -445,4 +457,3 @@ const PublicAssignmentResponse = forwardRef<
 });
 
 export default PublicAssignmentResponse;
-
