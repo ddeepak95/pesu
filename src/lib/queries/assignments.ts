@@ -164,6 +164,7 @@ export async function createAssignment(
     }[];
     total_points: number;
     preferred_language: string;
+    lock_language?: boolean;
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
     status?: "draft" | "active";
@@ -188,6 +189,7 @@ export async function createAssignment(
       created_by: userId,
       status: assignment.status ?? "active",
       preferred_language: assignment.preferred_language,
+      lock_language: assignment.lock_language ?? false,
       is_public: assignment.is_public ?? false,
       assessment_mode: assignment.assessment_mode ?? "voice",
       responder_fields_config: assignment.responder_fields_config ?? null,
@@ -223,6 +225,7 @@ export async function updateAssignment(
     }[];
     total_points: number;
     preferred_language: string;
+    lock_language?: boolean;
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
@@ -239,6 +242,7 @@ export async function updateAssignment(
       questions: assignment.questions,
       total_points: assignment.total_points,
       preferred_language: assignment.preferred_language,
+      lock_language: assignment.lock_language ?? false,
       is_public: assignment.is_public ?? false,
       assessment_mode: assignment.assessment_mode ?? "voice",
       responder_fields_config: assignment.responder_fields_config ?? null,

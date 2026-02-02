@@ -22,7 +22,15 @@ import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
-import { Share2 } from "lucide-react";
+import {
+  Share2,
+  Mic,
+  MessageSquare,
+  FileText,
+  Lock,
+  Globe,
+  RotateCcw,
+} from "lucide-react";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -98,6 +106,19 @@ export default function AssignmentDetailPage() {
     }
   };
 
+  const getAssessmentModeInfo = (mode: string | undefined) => {
+    switch (mode) {
+      case "voice":
+        return { label: "Voice Assessment", icon: Mic };
+      case "text_chat":
+        return { label: "Text Chat Assessment", icon: MessageSquare };
+      case "static_text":
+        return { label: "Static Text Assessment", icon: FileText };
+      default:
+        return { label: "Voice Assessment", icon: Mic };
+    }
+  };
+
   if (loading) {
     return (
       <PageLayout>
@@ -125,19 +146,12 @@ export default function AssignmentDetailPage() {
           <div className="mb-4">
             <BackButton />
           </div>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
-              <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-                <p>{assignmentData.total_points} points total</p>
-                <span>•</span>
-                <p>
-                  Language:{" "}
-                  {supportedLanguages.find(
-                    (lang) => lang.code === assignmentData.preferred_language
-                  )?.name || assignmentData.preferred_language}
-                </p>
-              </div>
+              <p className="text-muted-foreground mt-1">
+                {assignmentData.total_points} points total
+              </p>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -157,6 +171,54 @@ export default function AssignmentDetailPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+
+          {/* Assignment Configuration */}
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            {/* Assessment Type */}
+            {(() => {
+              const modeInfo = getAssessmentModeInfo(
+                assignmentData.assessment_mode
+              );
+              const ModeIcon = modeInfo.icon;
+              return (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                  <ModeIcon className="h-4 w-4" />
+                  <span>{modeInfo.label}</span>
+                </div>
+              );
+            })()}
+
+            {/* Language */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full text-sm">
+              <span>
+                {supportedLanguages.find(
+                  (lang) => lang.code === assignmentData.preferred_language
+                )?.name || assignmentData.preferred_language}
+              </span>
+              {assignmentData.lock_language && (
+                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </div>
+
+            {/* Max Attempts */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full text-sm">
+              <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>
+                {assignmentData.max_attempts ?? 1}{" "}
+                {(assignmentData.max_attempts ?? 1) === 1
+                  ? "attempt"
+                  : "attempts"}
+              </span>
+            </div>
+
+            {/* Public Access */}
+            {assignmentData.is_public && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm">
+                <Globe className="h-3.5 w-3.5" />
+                <span>Public</span>
+              </div>
+            )}
           </div>
 
           <Tabs defaultValue="questions" className="w-full">

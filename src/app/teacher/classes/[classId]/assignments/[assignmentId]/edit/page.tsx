@@ -11,7 +11,11 @@ import {
   getAssignmentByIdForTeacher,
   updateAssignment,
 } from "@/lib/queries/assignments";
-import { Question, ResponderFieldConfig, BotPromptConfig } from "@/types/assignment";
+import {
+  Question,
+  ResponderFieldConfig,
+  BotPromptConfig,
+} from "@/types/assignment";
 
 export default function EditAssignmentPage() {
   const params = useParams();
@@ -24,6 +28,7 @@ export default function EditAssignmentPage() {
   const [title, setTitle] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [preferredLanguage, setPreferredLanguage] = useState("en");
+  const [lockLanguage, setLockLanguage] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
@@ -49,6 +54,7 @@ export default function EditAssignmentPage() {
           setTitle(assignmentData.title);
           setQuestions(assignmentData.questions);
           setPreferredLanguage(assignmentData.preferred_language);
+          setLockLanguage(assignmentData.lock_language ?? false);
           setIsPublic(assignmentData.is_public);
           setAssessmentMode(assignmentData.assessment_mode ?? "voice");
           setResponderFieldsConfig(assignmentData.responder_fields_config);
@@ -83,6 +89,7 @@ export default function EditAssignmentPage() {
     }[];
     totalPoints: number;
     preferredLanguage: string;
+    lockLanguage: boolean;
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
@@ -103,6 +110,7 @@ export default function EditAssignmentPage() {
       questions: data.questions,
       total_points: data.totalPoints,
       preferred_language: data.preferredLanguage,
+      lock_language: data.lockLanguage,
       is_public: data.isPublic,
       assessment_mode: data.assessmentMode,
       responder_fields_config: data.responderFieldsConfig,
@@ -145,6 +153,7 @@ export default function EditAssignmentPage() {
           initialTitle={title}
           initialQuestions={questions}
           initialLanguage={preferredLanguage}
+          initialLockLanguage={lockLanguage}
           initialIsPublic={isPublic}
           initialAssessmentMode={assessmentMode}
           initialResponderFieldsConfig={responderFieldsConfig}

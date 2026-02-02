@@ -5,9 +5,7 @@ import { Assignment } from "@/types/assignment";
 import { VoiceAssessment } from "@/components/VoiceAssessment";
 import { ChatAssessment } from "@/components/ChatAssessment";
 import { StaticTextAssessment } from "@/components/StaticTextAssessment";
-import {
-  updateQuestionIndex,
-} from "@/utils/sessionStorage";
+import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 
 interface AssignmentResponseCoreProps {
@@ -47,9 +45,15 @@ export default function AssignmentResponseCore({
   maxAttempts,
   maxAttemptsReached,
 }: AssignmentResponseCoreProps) {
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex);
-  const [answers, setAnswers] = useState<{ [key: number]: string }>(existingAnswers);
-  const [preferredLanguage, setPreferredLanguage] = useState(initialPreferredLanguage);
+  const [currentQuestionIndex, setCurrentQuestionIndex] =
+    useState(initialQuestionIndex);
+  const [answers, setAnswers] = useState<{ [key: number]: string }>(
+    existingAnswers
+  );
+  // Use assignment's preferred_language as fallback if initialPreferredLanguage is empty
+  const [preferredLanguage, setPreferredLanguage] = useState(
+    initialPreferredLanguage || assignmentData.preferred_language || "en"
+  );
 
   // Activity tracking for assignment-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
@@ -118,6 +122,11 @@ export default function AssignmentResponseCore({
 
   const assessmentMode = assignmentData.assessment_mode ?? "voice";
 
+  // If language is locked, don't allow students to change it
+  const languageChangeHandler = assignmentData.lock_language
+    ? undefined
+    : handleLanguageChange;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Assignment Title and Language Selector */}
@@ -141,7 +150,7 @@ export default function AssignmentResponseCore({
           isFirstQuestion={currentQuestionIndex === 0}
           isLastQuestion={isLastQuestion}
           existingAnswer={answers[currentQuestion.order]}
-          onLanguageChange={handleLanguageChange}
+          onLanguageChange={languageChangeHandler}
           currentAttemptNumber={currentAttemptNumber}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
@@ -164,7 +173,7 @@ export default function AssignmentResponseCore({
           isFirstQuestion={currentQuestionIndex === 0}
           isLastQuestion={isLastQuestion}
           existingAnswer={answers[currentQuestion.order]}
-          onLanguageChange={handleLanguageChange}
+          onLanguageChange={languageChangeHandler}
           currentAttemptNumber={currentAttemptNumber}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
@@ -187,7 +196,7 @@ export default function AssignmentResponseCore({
           isFirstQuestion={currentQuestionIndex === 0}
           isLastQuestion={isLastQuestion}
           existingAnswer={answers[currentQuestion.order]}
-          onLanguageChange={handleLanguageChange}
+          onLanguageChange={languageChangeHandler}
           currentAttemptNumber={currentAttemptNumber}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
@@ -197,4 +206,3 @@ export default function AssignmentResponseCore({
     </div>
   );
 }
-

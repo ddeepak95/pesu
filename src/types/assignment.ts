@@ -88,5 +88,10 @@ export interface Assignment {
    * If not set, server uses default hardcoded prompts.
    */
   bot_prompt_config?: BotPromptConfig;
+  /**
+   * When true, students cannot change the interaction language during the assessment.
+   * The language is fixed to preferred_language.
+   */
+  lock_language?: boolean;
 }
 

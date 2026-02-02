@@ -87,6 +87,7 @@ export default function CreateAssignmentPage() {
     }[];
     totalPoints: number;
     preferredLanguage: string;
+    lockLanguage: boolean;
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
@@ -110,6 +111,7 @@ export default function CreateAssignmentPage() {
         questions: data.questions,
         total_points: data.totalPoints,
         preferred_language: data.preferredLanguage,
+        lock_language: data.lockLanguage,
         is_public: data.isPublic,
         assessment_mode: data.assessmentMode,
         status: data.isDraft ? "draft" : "active",
