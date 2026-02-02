@@ -42,6 +42,10 @@ interface ChatAssessmentProps {
   botPromptConfig?: BotPromptConfig;
   // For marking as complete
   contentItemId?: string | null;
+  // Display settings
+  studentInstructions?: string;
+  showRubric?: boolean;
+  showRubricPoints?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -63,6 +67,9 @@ export function ChatAssessment({
   maxAttemptsReached,
   botPromptConfig,
   contentItemId,
+  studentInstructions,
+  showRubric = true,
+  showRubricPoints = true,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -84,7 +91,9 @@ export function ChatAssessment({
     };
 
     return interpolatePromptsForRuntime(
-      assignmentForInterpolation as Parameters<typeof interpolatePromptsForRuntime>[0],
+      assignmentForInterpolation as Parameters<
+        typeof interpolatePromptsForRuntime
+      >[0],
       question,
       language,
       attempts.length + 1
@@ -98,7 +107,7 @@ export function ChatAssessment({
     componentId: assignmentId,
     subComponentId: String(question.order),
   });
-  
+
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const messagesContainerRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -152,7 +161,7 @@ export function ChatAssessment({
       // ignore storage errors
     }
   }, [storageKey]);
-  
+
   // Load existing attempts for this question
   React.useEffect(() => {
     setAttempts([]);
@@ -224,7 +233,9 @@ export function ChatAssessment({
   const handleStartChat = async () => {
     // Prevent starting new chat if max attempts reached
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question."
+      );
       return;
     }
 
@@ -347,7 +358,9 @@ export function ChatAssessment({
 
     // Prevent sending messages if max attempts reached
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question."
+      );
       return;
     }
 
@@ -479,7 +492,9 @@ export function ChatAssessment({
 
     // Prevent evaluating if max attempts reached
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question."
+      );
       return;
     }
 
@@ -565,7 +580,12 @@ export function ChatAssessment({
         languageDisabled={hasStarted}
       />
 
-      <AssessmentQuestionCard question={question}>
+      <AssessmentQuestionCard
+        question={question}
+        studentInstructions={studentInstructions}
+        showRubric={showRubric}
+        showRubricPoints={showRubricPoints}
+      >
         {/* Chat Area */}
         <div className="mt-4 border rounded-xl bg-background shadow-sm">
           {!hasStarted ? (
@@ -578,15 +598,16 @@ export function ChatAssessment({
                 tutor about this question. You can type your answer and get
                 feedback step by step.
               </p>
-              <Button 
-                onClick={handleStartChat} 
+              <Button
+                onClick={handleStartChat}
                 disabled={isStarting || maxAttemptsReached}
               >
                 {isStarting ? "Starting..." : "Start Chat"}
               </Button>
               {maxAttemptsReached && (
                 <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Maximum attempts reached. You can view your previous attempts below.
+                  Maximum attempts reached. You can view your previous attempts
+                  below.
                 </p>
               )}
             </div>
@@ -684,7 +705,8 @@ export function ChatAssessment({
                   </Button>
                   {maxAttemptsReached && (
                     <p className="text-xs text-muted-foreground mt-2 text-center">
-                      Maximum attempts reached. You can view your previous attempts below.
+                      Maximum attempts reached. You can view your previous
+                      attempts below.
                     </p>
                   )}
                 </div>
@@ -697,10 +719,7 @@ export function ChatAssessment({
         {isEvaluating && <EvaluatingIndicator />}
 
         {/* Attempts Section */}
-        <AttemptsPanel
-          attempts={attempts}
-          maxAttempts={maxAttempts}
-        />
+        <AttemptsPanel attempts={attempts} maxAttempts={maxAttempts} />
       </AssessmentQuestionCard>
 
       {/* Navigation Buttons */}

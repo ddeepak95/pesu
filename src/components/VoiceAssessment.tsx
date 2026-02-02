@@ -44,6 +44,10 @@ interface VoiceAssessmentProps {
   botPromptConfig?: BotPromptConfig;
   // For marking as complete
   contentItemId?: string | null;
+  // Display settings
+  studentInstructions?: string;
+  showRubric?: boolean;
+  showRubricPoints?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -68,6 +72,9 @@ function VoiceAssessmentContent({
   maxAttemptsReached,
   botPromptConfig,
   contentItemId,
+  studentInstructions,
+  showRubric = true,
+  showRubricPoints = true,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -330,7 +337,9 @@ function VoiceAssessmentContent({
     };
 
     return interpolatePromptsForRuntime(
-      assignmentForInterpolation as Parameters<typeof interpolatePromptsForRuntime>[0],
+      assignmentForInterpolation as Parameters<
+        typeof interpolatePromptsForRuntime
+      >[0],
       question,
       language,
       attempts.length + 1
@@ -379,7 +388,12 @@ function VoiceAssessmentContent({
         languageDisabled={isConnected}
       />
 
-      <AssessmentQuestionCard question={question}>
+      <AssessmentQuestionCard
+        question={question}
+        studentInstructions={studentInstructions}
+        showRubric={showRubric}
+        showRubricPoints={showRubricPoints}
+      >
         {/* Agent Status Display */}
         <AgentStatus className="py-2" />
 
@@ -416,10 +430,7 @@ function VoiceAssessmentContent({
         {isEvaluating && <EvaluatingIndicator />}
 
         {/* Attempts Section */}
-        <AttemptsPanel
-          attempts={attempts}
-          maxAttempts={maxAttempts}
-        />
+        <AttemptsPanel attempts={attempts} maxAttempts={maxAttempts} />
       </AssessmentQuestionCard>
 
       {/* Navigation Buttons */}

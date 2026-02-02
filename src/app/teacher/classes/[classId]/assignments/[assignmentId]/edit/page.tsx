@@ -40,6 +40,9 @@ export default function EditAssignmentPage() {
   const [botPromptConfig, setBotPromptConfig] = useState<
     BotPromptConfig | undefined
   >(undefined);
+  const [studentInstructions, setStudentInstructions] = useState<string>("");
+  const [showRubric, setShowRubric] = useState<boolean>(true);
+  const [showRubricPoints, setShowRubricPoints] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -60,6 +63,9 @@ export default function EditAssignmentPage() {
           setResponderFieldsConfig(assignmentData.responder_fields_config);
           setMaxAttempts(assignmentData.max_attempts ?? 1);
           setBotPromptConfig(assignmentData.bot_prompt_config);
+          setStudentInstructions(assignmentData.student_instructions ?? "");
+          setShowRubric(assignmentData.show_rubric ?? true);
+          setShowRubricPoints(assignmentData.show_rubric_points ?? true);
           setAssignmentDbId(assignmentData.id);
         } else {
           setError("Assignment not found");
@@ -96,6 +102,9 @@ export default function EditAssignmentPage() {
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
     botPromptConfig?: BotPromptConfig;
+    studentInstructions?: string;
+    showRubric?: boolean;
+    showRubricPoints?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -116,6 +125,9 @@ export default function EditAssignmentPage() {
       responder_fields_config: data.responderFieldsConfig,
       max_attempts: data.maxAttempts ?? 1,
       bot_prompt_config: data.botPromptConfig,
+      student_instructions: data.studentInstructions,
+      show_rubric: data.showRubric ?? true,
+      show_rubric_points: data.showRubricPoints ?? true,
     });
   };
 
@@ -159,6 +171,9 @@ export default function EditAssignmentPage() {
           initialResponderFieldsConfig={responderFieldsConfig}
           initialMaxAttempts={maxAttempts}
           initialBotPromptConfig={botPromptConfig}
+          initialStudentInstructions={studentInstructions}
+          initialShowRubric={showRubric}
+          initialShowRubricPoints={showRubricPoints}
           onSubmit={handleSubmit}
         />
 
