@@ -239,3 +239,45 @@ export async function getClassContentCompletions(
 
   return result;
 }
+
+/**
+ * Reset all content completion progress for a student in a specific class
+ * This deletes all completion marks, causing content to lock again if progressive unlock is enabled
+ */
+export async function resetStudentProgress(
+  classId: string,
+  studentId: string
+): Promise<void> {
+  const supabase = createClient();
+
+  // Get all content items in this class
+  const { data: contentItems, error: fetchError } = await supabase
+    .from("content_items")
+    .select("id")
+    .eq("class_id", classId)
+    .in("status", ["active", "draft"]);
+
+  if (fetchError) {
+    console.error("Error fetching content items:", fetchError);
+    throw fetchError;
+  }
+
+  if (!contentItems || contentItems.length === 0) {
+    // No content items to reset
+    return;
+  }
+
+  const contentItemIds = contentItems.map((item) => item.id);
+
+  // Delete all completions for this student in this class
+  const { error: deleteError } = await supabase
+    .from("student_content_completions")
+    .delete()
+    .eq("student_id", studentId)
+    .in("content_item_id", contentItemIds);
+
+  if (deleteError) {
+    console.error("Error resetting student progress:", deleteError);
+    throw deleteError;
+  }
+}

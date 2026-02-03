@@ -17,9 +17,12 @@ import {
   Copy,
   Trash2,
   Share2,
+  Lock,
 } from "lucide-react";
 import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 export default function ContentCard({
   item,
@@ -35,6 +38,7 @@ export default function ContentCard({
   onDuplicate,
   onDelete,
   onShareLinks,
+  onToggleLockAfterComplete,
 }: {
   item: ContentItem;
   index: number;
@@ -49,6 +53,10 @@ export default function ContentCard({
   onDuplicate: () => void;
   onDelete: () => void;
   onShareLinks?: () => void;
+  onToggleLockAfterComplete?: (
+    itemId: string,
+    lockAfterComplete: boolean
+  ) => void;
 }) {
   const labelForType = (type: ContentItemType) => {
     switch (type) {
@@ -100,6 +108,12 @@ export default function ContentCard({
                 Draft
               </span>
             )}
+            {item.lock_after_complete && (
+              <span className="text-xs rounded-full border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                Locks After Complete
+              </span>
+            )}
           </div>
 
           {/* Title row */}
@@ -146,6 +160,37 @@ export default function ContentCard({
                 Duplicate to…
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              {onToggleLockAfterComplete && (
+                <>
+                  <div
+                    className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleLockAfterComplete(
+                        item.id,
+                        !(item.lock_after_complete ?? false)
+                      );
+                    }}
+                  >
+                    <Label
+                      htmlFor={`lock-${item.id}`}
+                      className="cursor-pointer flex items-center gap-2"
+                    >
+                      <Lock className="h-4 w-4" />
+                      Lock after complete
+                    </Label>
+                    <Switch
+                      id={`lock-${item.id}`}
+                      checked={item.lock_after_complete ?? false}
+                      onCheckedChange={(checked) => {
+                        onToggleLockAfterComplete(item.id, checked);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem
                 disabled={savingOrder || index === 0}
                 onClick={() => onMove("up")}
@@ -175,6 +220,3 @@ export default function ContentCard({
     </Card>
   );
 }
-
-
-

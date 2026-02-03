@@ -83,6 +83,32 @@ export async function getNextContentItemPositionByGroup(params: {
   return typeof maxPos === "number" ? maxPos + 1 : 0;
 }
 
+/**
+ * Update an existing content item
+ */
+export async function updateContentItem(
+  id: string,
+  updates: Partial<Pick<ContentItem, "lock_after_complete" | "position" | "status" | "due_at">>
+): Promise<ContentItem> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("content_items")
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as ContentItem;
+}
+
 export async function createContentItem(
   payload: {
     class_id: string;

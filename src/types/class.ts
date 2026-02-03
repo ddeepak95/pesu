@@ -8,6 +8,7 @@ export interface Class {
   status: "active" | "deleted";
   preferred_language: string;
   group_count?: number;
+  enable_progressive_unlock?: boolean;
 }
 
 export interface ClassTeacher {

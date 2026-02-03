@@ -109,38 +109,75 @@ export async function createClass(
 
 /**
  * Update a class name and/or preferred language
+ * @deprecated Use the overload that accepts an updates object instead
  */
 export async function updateClass(
   classId: string,
   name: string,
   userId: string,
   preferredLanguage?: string
+): Promise<Class>;
+
+/**
+ * Update class properties
+ */
+export async function updateClass(
+  classId: string,
+  updates: Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock">>
+): Promise<Class>;
+
+export async function updateClass(
+  classId: string,
+  nameOrUpdates: string | Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock">>,
+  userId?: string,
+  preferredLanguage?: string
 ): Promise<Class> {
   const supabase = createClient();
 
-  const updateData: { name: string; updated_at: string; preferred_language?: string } = {
-    name,
+  let updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
 
-  if (preferredLanguage !== undefined) {
-    updateData.preferred_language = preferredLanguage;
+  // Handle both old and new function signatures
+  if (typeof nameOrUpdates === "string") {
+    // Old signature: updateClass(classId, name, userId, preferredLanguage?)
+    updateData.name = nameOrUpdates;
+    if (preferredLanguage !== undefined) {
+      updateData.preferred_language = preferredLanguage;
+    }
+
+    const { data, error } = await supabase
+      .from("classes")
+      .update(updateData)
+      .eq("id", classId)
+      .eq("created_by", userId!) // Ensure user owns the class
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating class:", error);
+      throw error;
+    }
+
+    return data;
+  } else {
+    // New signature: updateClass(classId, updates)
+    updateData = { ...updateData, ...nameOrUpdates };
+
+    const { data, error } = await supabase
+      .from("classes")
+      .update(updateData)
+      .eq("id", classId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating class:", error);
+      throw error;
+    }
+
+    return data;
   }
-
-  const { data, error } = await supabase
-    .from("classes")
-    .update(updateData)
-    .eq("id", classId)
-    .eq("created_by", userId) // Ensure user owns the class
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error updating class:", error);
-    throw error;
-  }
-
-  return data;
 }
 
 /**
