@@ -10,6 +10,8 @@ import Students from "@/components/Teacher/Classes/Students";
 import ManageTeachersDialog from "@/components/Teacher/Classes/ManageTeachersDialog";
 import GroupSettingsDialog from "@/components/Teacher/Classes/GroupSettingsDialog";
 import ManageMandatoryFieldsDialog from "@/components/Teacher/Classes/ManageMandatoryFieldsDialog";
+import ProgressiveUnlockDialog from "@/components/Teacher/Classes/ProgressiveUnlockDialog";
+import ResetStudentProgressDialog from "@/components/Teacher/Classes/ResetStudentProgressDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,6 +37,8 @@ export default function ClassDetailPage() {
   const [manageTeachersOpen, setManageTeachersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [mandatoryFieldsOpen, setMandatoryFieldsOpen] = useState(false);
+  const [progressiveUnlockOpen, setProgressiveUnlockOpen] = useState(false);
+  const [resetProgressOpen, setResetProgressOpen] = useState(false);
 
   const activeTab = useMemo(() => {
     const t = searchParams.get("tab");
@@ -182,6 +186,16 @@ export default function ClassDetailPage() {
                     >
                       Mandatory info fields
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setProgressiveUnlockOpen(true)}
+                    >
+                      Progressive unlock settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setResetProgressOpen(true)}
+                    >
+                      Reset student progress
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleEdit}>
                       Edit
                     </DropdownMenuItem>
@@ -258,6 +272,26 @@ export default function ClassDetailPage() {
           classData={classData}
           open={mandatoryFieldsOpen}
           onOpenChange={setMandatoryFieldsOpen}
+        />
+      )}
+
+      {classData && (
+        <ProgressiveUnlockDialog
+          classData={classData}
+          open={progressiveUnlockOpen}
+          onOpenChange={setProgressiveUnlockOpen}
+          onSuccess={fetchClass}
+        />
+      )}
+
+      {classData && (
+        <ResetStudentProgressDialog
+          classId={classData.id}
+          open={resetProgressOpen}
+          onOpenChange={setResetProgressOpen}
+          onSuccess={() => {
+            // Optionally refresh content or show success message
+          }}
         />
       )}
     </PageLayout>

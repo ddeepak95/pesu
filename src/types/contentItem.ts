@@ -13,6 +13,7 @@ export interface ContentItem {
   created_at: string;
   updated_at: string;
   status: "draft" | "active" | "deleted";
+  lock_after_complete?: boolean;
 }
 
 

@@ -8,6 +8,7 @@ import {
   getContentItemsByGroup,
   updateContentItemPositions,
   softDeleteContentItem,
+  updateContentItem,
 } from "@/lib/queries/contentItems";
 import { getAssignmentsByIdsForTeacher } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
@@ -46,7 +47,8 @@ export default function Content({ classData }: ContentProps) {
   const [savingOrder, setSavingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [selectedAssignment, setSelectedAssignment] =
+    useState<Assignment | null>(null);
 
   const setGroupIdInUrl = (groupId: string) => {
     // Maintain param order: tab first, then groupId, then everything else.
@@ -368,6 +370,28 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
+  const handleToggleLockAfterComplete = async (
+    itemId: string,
+    lockAfterComplete: boolean
+  ) => {
+    try {
+      await updateContentItem(itemId, {
+        lock_after_complete: lockAfterComplete,
+      });
+      // Update local state
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === itemId
+            ? { ...item, lock_after_complete: lockAfterComplete }
+            : item
+        )
+      );
+    } catch (err) {
+      console.error("Error updating lock_after_complete:", err);
+      alert("Failed to update lock setting. Please try again.");
+    }
+  };
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
@@ -440,6 +464,7 @@ export default function Content({ classData }: ContentProps) {
                       onDelete={() => handleDelete(item)}
                       onMove={(direction) => handleMove(index, direction)}
                       onShareLinks={() => handleShareLinks(item)}
+                      onToggleLockAfterComplete={handleToggleLockAfterComplete}
                     />
                   );
                 }}

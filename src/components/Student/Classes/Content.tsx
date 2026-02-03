@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
-import {
-  getContentItemsByGroup,
-} from "@/lib/queries/contentItems";
+import { getContentItemsByGroup } from "@/lib/queries/contentItems";
 import { getAssignmentsByIdsForTeacher } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
 import { getLearningContentsByIds } from "@/lib/queries/learningContent";
@@ -18,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getStudentGroupForClass } from "@/lib/queries/groups";
 import { getCompletionsForStudent } from "@/lib/queries/contentCompletions";
 import ContentCard from "@/components/Student/Classes/ContentParts/ContentCard";
+import { calculateUnlockStates, UnlockState } from "@/lib/utils/unlockLogic";
 
 interface ContentProps {
   classData: Class;
@@ -35,7 +34,12 @@ export default function Content({ classData }: ContentProps) {
     Record<string, LearningContent>
   >({});
   const [quizById, setQuizById] = useState<Record<string, Quiz>>({});
-  const [completedContentIds, setCompletedContentIds] = useState<Set<string>>(new Set());
+  const [completedContentIds, setCompletedContentIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [unlockStates, setUnlockStates] = useState<Map<string, UnlockState>>(
+    new Map()
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -204,6 +208,23 @@ export default function Content({ classData }: ContentProps) {
     fetchCompletions();
   }, [items]);
 
+  // Calculate unlock states when items or completions change
+  useEffect(() => {
+    if (items.length === 0) {
+      setUnlockStates(new Map());
+      return;
+    }
+
+    const progressiveUnlockEnabled =
+      classData.enable_progressive_unlock ?? false;
+    const states = calculateUnlockStates(
+      items,
+      completedContentIds,
+      progressiveUnlockEnabled
+    );
+    setUnlockStates(states);
+  }, [items, completedContentIds, classData.enable_progressive_unlock]);
+
   const handleOpen = (item: ContentItem) => {
     if (item.type === "formative_assignment") {
       const a = assignmentById[item.ref_id];
@@ -286,6 +307,7 @@ export default function Content({ classData }: ContentProps) {
                 titleLoading={titleLoading}
                 assessmentMode={assessmentMode}
                 isComplete={completedContentIds.has(item.id)}
+                unlockState={unlockStates.get(item.id)}
                 onOpen={() => handleOpen(item)}
               />
             );
@@ -295,4 +317,3 @@ export default function Content({ classData }: ContentProps) {
     </div>
   );
 }
-
