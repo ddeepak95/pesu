@@ -48,6 +48,8 @@ interface VoiceAssessmentProps {
   studentInstructions?: string;
   showRubric?: boolean;
   showRubricPoints?: boolean;
+  useStarDisplay?: boolean;
+  starScale?: number;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -75,6 +77,8 @@ function VoiceAssessmentContent({
   studentInstructions,
   showRubric = true,
   showRubricPoints = true,
+  useStarDisplay = false,
+  starScale = 5,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -430,7 +434,12 @@ function VoiceAssessmentContent({
         {isEvaluating && <EvaluatingIndicator />}
 
         {/* Attempts Section */}
-        <AttemptsPanel attempts={attempts} maxAttempts={maxAttempts} />
+        <AttemptsPanel
+          attempts={attempts}
+          maxAttempts={maxAttempts}
+          useStarDisplay={useStarDisplay}
+          starScale={starScale}
+        />
       </AssessmentQuestionCard>
 
       {/* Navigation Buttons */}

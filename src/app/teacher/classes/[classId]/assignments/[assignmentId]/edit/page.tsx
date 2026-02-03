@@ -43,6 +43,8 @@ export default function EditAssignmentPage() {
   const [studentInstructions, setStudentInstructions] = useState<string>("");
   const [showRubric, setShowRubric] = useState<boolean>(true);
   const [showRubricPoints, setShowRubricPoints] = useState<boolean>(true);
+  const [useStarDisplay, setUseStarDisplay] = useState<boolean>(false);
+  const [starScale, setStarScale] = useState<number>(5);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -66,6 +68,8 @@ export default function EditAssignmentPage() {
           setStudentInstructions(assignmentData.student_instructions ?? "");
           setShowRubric(assignmentData.show_rubric ?? true);
           setShowRubricPoints(assignmentData.show_rubric_points ?? true);
+          setUseStarDisplay(assignmentData.use_star_display ?? false);
+          setStarScale(assignmentData.star_scale ?? 5);
           setAssignmentDbId(assignmentData.id);
         } else {
           setError("Assignment not found");
@@ -105,6 +109,8 @@ export default function EditAssignmentPage() {
     studentInstructions?: string;
     showRubric?: boolean;
     showRubricPoints?: boolean;
+    useStarDisplay?: boolean;
+    starScale?: number;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -128,6 +134,8 @@ export default function EditAssignmentPage() {
       student_instructions: data.studentInstructions,
       show_rubric: data.showRubric ?? true,
       show_rubric_points: data.showRubricPoints ?? true,
+      use_star_display: data.useStarDisplay ?? false,
+      star_scale: data.starScale ?? 5,
     });
   };
 
@@ -174,6 +182,8 @@ export default function EditAssignmentPage() {
           initialStudentInstructions={studentInstructions}
           initialShowRubric={showRubric}
           initialShowRubricPoints={showRubricPoints}
+          initialUseStarDisplay={useStarDisplay}
+          initialStarScale={starScale}
           onSubmit={handleSubmit}
         />
 

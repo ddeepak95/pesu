@@ -159,6 +159,8 @@ export default function AssignmentResponseCore({
           studentInstructions={assignmentData.student_instructions}
           showRubric={assignmentData.show_rubric ?? true}
           showRubricPoints={assignmentData.show_rubric_points ?? true}
+          useStarDisplay={assignmentData.use_star_display ?? false}
+          starScale={assignmentData.star_scale ?? 5}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -210,6 +212,8 @@ export default function AssignmentResponseCore({
           studentInstructions={assignmentData.student_instructions}
           showRubric={assignmentData.show_rubric ?? true}
           showRubricPoints={assignmentData.show_rubric_points ?? true}
+          useStarDisplay={assignmentData.use_star_display ?? false}
+          starScale={assignmentData.star_scale ?? 5}
         />
       )}
     </div>

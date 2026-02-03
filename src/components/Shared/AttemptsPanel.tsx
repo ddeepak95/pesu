@@ -7,15 +7,20 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { SubmissionAttempt } from "@/types/submission";
+import { StarRatingDisplay } from "../StarRatingDisplay";
 
 interface AttemptsPanelProps {
   attempts: SubmissionAttempt[];
   maxAttempts?: number;
+  useStarDisplay?: boolean;
+  starScale?: number;
 }
 
 export function AttemptsPanel({
   attempts,
   maxAttempts,
+  useStarDisplay = false,
+  starScale = 5,
 }: AttemptsPanelProps) {
   const getScoreColor = (percentage: number) => {
     if (percentage >= 75) return "text-green-600 dark:text-green-400";
@@ -40,7 +45,8 @@ export function AttemptsPanel({
                   : "text-green-600 dark:text-green-400"
               }`}
             >
-              {remainingAttempts} {remainingAttempts === 1 ? "attempt" : "attempts"} remaining
+              {remainingAttempts}{" "}
+              {remainingAttempts === 1 ? "attempt" : "attempts"} remaining
             </p>
           )}
         </div>
@@ -67,16 +73,30 @@ export function AttemptsPanel({
                       </span>
                     )}
                   </div>
-                  <span
-                    className={`text-sm font-semibold ${getScoreColor(
-                      scorePercentage
-                    )} ${attempt.stale ? "opacity-50" : ""}`}
-                  >
-                    {attempt.score}/{attempt.max_score}
-                  </span>
+                  {useStarDisplay ? (
+                    <div className={attempt.stale ? "opacity-50" : ""}>
+                      <StarRatingDisplay
+                        points={attempt.score}
+                        maxPoints={attempt.max_score}
+                        starScale={starScale}
+                        size="small"
+                        showNumeric={false}
+                      />
+                    </div>
+                  ) : (
+                    <span
+                      className={`text-sm font-semibold ${getScoreColor(
+                        scorePercentage
+                      )} ${attempt.stale ? "opacity-50" : ""}`}
+                    >
+                      {attempt.score}/{attempt.max_score}
+                    </span>
+                  )}
                 </div>
               </AccordionTrigger>
-              <AccordionContent className={`px-4 pb-4 ${attempt.stale ? "opacity-60" : ""}`}>
+              <AccordionContent
+                className={`px-4 pb-4 ${attempt.stale ? "opacity-60" : ""}`}
+              >
                 {attempt.stale && (
                   <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
                     <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-200">
@@ -114,18 +134,28 @@ export function AttemptsPanel({
                             <span className="text-sm font-medium">
                               {rubricItem.item}
                             </span>
-                            <span
-                              className={`text-sm font-semibold ${
-                                itemPercentage >= 75
-                                  ? "text-green-600 dark:text-green-400"
-                                  : itemPercentage >= 50
-                                  ? "text-yellow-600 dark:text-yellow-400"
-                                  : "text-red-600 dark:text-red-400"
-                              }`}
-                            >
-                              {rubricItem.points_earned}/
-                              {rubricItem.points_possible} pts
-                            </span>
+                            {useStarDisplay ? (
+                              <StarRatingDisplay
+                                points={rubricItem.points_earned}
+                                maxPoints={rubricItem.points_possible}
+                                starScale={starScale}
+                                size="small"
+                                showNumeric={false}
+                              />
+                            ) : (
+                              <span
+                                className={`text-sm font-semibold ${
+                                  itemPercentage >= 75
+                                    ? "text-green-600 dark:text-green-400"
+                                    : itemPercentage >= 50
+                                    ? "text-yellow-600 dark:text-yellow-400"
+                                    : "text-red-600 dark:text-red-400"
+                                }`}
+                              >
+                                {rubricItem.points_earned}/
+                                {rubricItem.points_possible} pts
+                              </span>
+                            )}
                           </div>
                           {rubricItem.feedback && (
                             <p className="text-xs text-muted-foreground">
@@ -150,4 +180,3 @@ export function AttemptsPanel({
     </div>
   );
 }
-

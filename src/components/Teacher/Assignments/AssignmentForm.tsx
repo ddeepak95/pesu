@@ -43,6 +43,8 @@ interface AssignmentFormProps {
   initialStudentInstructions?: string;
   initialShowRubric?: boolean;
   initialShowRubricPoints?: boolean;
+  initialUseStarDisplay?: boolean;
+  initialStarScale?: number;
   onSubmit: (data: {
     title: string;
     questions: Question[];
@@ -89,6 +91,8 @@ export default function AssignmentForm({
   initialStudentInstructions = "",
   initialShowRubric = true,
   initialShowRubricPoints = true,
+  initialUseStarDisplay = false,
+  initialStarScale = 5,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -124,6 +128,8 @@ export default function AssignmentForm({
   const [showRubricPoints, setShowRubricPoints] = useState(
     initialShowRubricPoints
   );
+  const [useStarDisplay, setUseStarDisplay] = useState(initialUseStarDisplay);
+  const [starScale, setStarScale] = useState(initialStarScale);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
@@ -389,6 +395,8 @@ export default function AssignmentForm({
         studentInstructions: studentInstructions.trim() || undefined,
         showRubric,
         showRubricPoints,
+        useStarDisplay,
+        starScale,
       });
 
       // Navigate based on mode
@@ -606,6 +614,60 @@ export default function AssignmentForm({
                       item is worth
                     </p>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Star Display Settings */}
+            <div className="space-y-3 p-4 border rounded-md">
+              <Label className="text-sm font-medium">
+                Student Score Display
+              </Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="useStarDisplay"
+                  checked={useStarDisplay}
+                  onCheckedChange={(checked) =>
+                    setUseStarDisplay(checked === true)
+                  }
+                  disabled={loading}
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="useStarDisplay"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Show scores as stars to students
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, students see star ratings instead of point
+                    scores
+                  </p>
+                </div>
+              </div>
+
+              {useStarDisplay && (
+                <div className="ml-6 space-y-2">
+                  <Label htmlFor="starScale" className="text-sm">
+                    Star Scale
+                  </Label>
+                  <Input
+                    id="starScale"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={starScale}
+                    onChange={(e) =>
+                      setStarScale(parseInt(e.target.value) || 5)
+                    }
+                    disabled={loading}
+                    className="w-32"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Number of stars in the rating scale (e.g., 5 for a 5-star
+                    scale). Students will see scores converted to this star
+                    scale, while rubrics remain in points.
+                  </p>
                 </div>
               )}
             </div>

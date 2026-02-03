@@ -174,6 +174,8 @@ export async function createAssignment(
     student_instructions?: string; // Display-only instructions for students
     show_rubric?: boolean; // Whether to show rubric to students
     show_rubric_points?: boolean; // Whether to show rubric points to students
+    use_star_display?: boolean; // Whether to show stars instead of points to students
+    star_scale?: number; // Number of stars in the rating scale
   },
   userId: string
 ): Promise<Assignment> {
@@ -201,6 +203,8 @@ export async function createAssignment(
       student_instructions: assignment.student_instructions ?? null,
       show_rubric: assignment.show_rubric ?? true,
       show_rubric_points: assignment.show_rubric_points ?? true,
+      use_star_display: assignment.use_star_display ?? false,
+      star_scale: assignment.star_scale ?? 5,
     })
     .select()
     .single();
@@ -260,6 +264,8 @@ export async function updateAssignment(
       student_instructions: assignment.student_instructions ?? null,
       show_rubric: assignment.show_rubric ?? true,
       show_rubric_points: assignment.show_rubric_points ?? true,
+      use_star_display: assignment.use_star_display ?? false,
+      star_scale: assignment.star_scale ?? 5,
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)

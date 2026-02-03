@@ -1,3 +1,10 @@
+// Star rating conversion result
+export interface StarRating {
+  stars: number;
+  maxStars: number;
+  percentage: number;
+}
+
 // Legacy format - kept for backward compatibility
 export interface SubmissionAnswer {
   question_order: number;
