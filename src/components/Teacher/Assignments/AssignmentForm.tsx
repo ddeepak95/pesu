@@ -60,6 +60,8 @@ interface AssignmentFormProps {
     studentInstructions?: string;
     showRubric?: boolean;
     showRubricPoints?: boolean;
+    useStarDisplay?: boolean;
+    starScale?: number;
   }) => Promise<void>;
 }
 

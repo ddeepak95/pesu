@@ -244,6 +244,8 @@ export async function updateAssignment(
     student_instructions?: string; // Display-only instructions for students
     show_rubric?: boolean; // Whether to show rubric to students
     show_rubric_points?: boolean; // Whether to show rubric points to students
+    use_star_display?: boolean; // Whether to show stars instead of points to students
+    star_scale?: number; // Number of stars in the rating scale
   }
 ): Promise<Assignment> {
   const supabase = createClient();
