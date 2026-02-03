@@ -8,10 +8,13 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { SubmissionAttempt } from "@/types/submission";
+import { StarRatingDisplay } from "./StarRatingDisplay";
 
 interface EvaluationDisplayProps {
   attempt: SubmissionAttempt;
   className?: string;
+  useStarDisplay?: boolean;
+  starScale?: number;
 }
 
 /**
@@ -20,6 +23,8 @@ interface EvaluationDisplayProps {
 export function EvaluationDisplay({
   attempt,
   className = "",
+  useStarDisplay = false,
+  starScale = 5,
 }: EvaluationDisplayProps) {
   const scorePercentage = (attempt.score / attempt.max_score) * 100;
 
@@ -48,7 +53,9 @@ export function EvaluationDisplay({
               scorePercentage
             )}`}
           >
-            <span className={`text-2xl font-bold ${getScoreColor(scorePercentage)}`}>
+            <span
+              className={`text-2xl font-bold ${getScoreColor(scorePercentage)}`}
+            >
               {attempt.score}/{attempt.max_score}
             </span>
             <span className="text-sm ml-2 text-muted-foreground">
@@ -88,17 +95,28 @@ export function EvaluationDisplay({
                           <span className="flex-1 font-medium">
                             {rubricItem.item}
                           </span>
-                          <span
-                            className={`font-semibold whitespace-nowrap ${
-                              itemPercentage >= 75
-                                ? "text-green-600 dark:text-green-400"
-                                : itemPercentage >= 50
-                                ? "text-yellow-600 dark:text-yellow-400"
-                                : "text-red-600 dark:text-red-400"
-                            }`}
-                          >
-                            {rubricItem.points_earned}/{rubricItem.points_possible} pts
-                          </span>
+                          {useStarDisplay ? (
+                            <StarRatingDisplay
+                              points={rubricItem.points_earned}
+                              maxPoints={rubricItem.points_possible}
+                              starScale={starScale}
+                              size="small"
+                              showNumeric={false}
+                            />
+                          ) : (
+                            <span
+                              className={`font-semibold whitespace-nowrap ${
+                                itemPercentage >= 75
+                                  ? "text-green-600 dark:text-green-400"
+                                  : itemPercentage >= 50
+                                  ? "text-yellow-600 dark:text-yellow-400"
+                                  : "text-red-600 dark:text-red-400"
+                              }`}
+                            >
+                              {rubricItem.points_earned}/
+                              {rubricItem.points_possible} pts
+                            </span>
+                          )}
                         </div>
                         {rubricItem.feedback && (
                           <p className="text-sm text-muted-foreground">
@@ -123,4 +141,3 @@ export function EvaluationDisplay({
     </Card>
   );
 }
-

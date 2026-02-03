@@ -46,6 +46,8 @@ interface ChatAssessmentProps {
   studentInstructions?: string;
   showRubric?: boolean;
   showRubricPoints?: boolean;
+  useStarDisplay?: boolean;
+  starScale?: number;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -70,6 +72,8 @@ export function ChatAssessment({
   studentInstructions,
   showRubric = true,
   showRubricPoints = true,
+  useStarDisplay = false,
+  starScale = 5,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -719,7 +723,12 @@ export function ChatAssessment({
         {isEvaluating && <EvaluatingIndicator />}
 
         {/* Attempts Section */}
-        <AttemptsPanel attempts={attempts} maxAttempts={maxAttempts} />
+        <AttemptsPanel
+          attempts={attempts}
+          maxAttempts={maxAttempts}
+          useStarDisplay={useStarDisplay}
+          starScale={starScale}
+        />
       </AssessmentQuestionCard>
 
       {/* Navigation Buttons */}

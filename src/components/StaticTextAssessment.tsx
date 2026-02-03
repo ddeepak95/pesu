@@ -37,6 +37,8 @@ interface StaticTextAssessmentProps {
   studentInstructions?: string;
   showRubric?: boolean;
   showRubricPoints?: boolean;
+  useStarDisplay?: boolean;
+  starScale?: number;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -60,6 +62,8 @@ export function StaticTextAssessment({
   studentInstructions,
   showRubric = true,
   showRubricPoints = true,
+  useStarDisplay = false,
+  starScale = 5,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -378,7 +382,12 @@ export function StaticTextAssessment({
         {isEvaluating && <EvaluatingIndicator />}
 
         {/* Attempts Section */}
-        <AttemptsPanel attempts={attempts} maxAttempts={maxAttempts} />
+        <AttemptsPanel
+          attempts={attempts}
+          maxAttempts={maxAttempts}
+          useStarDisplay={useStarDisplay}
+          starScale={starScale}
+        />
       </AssessmentQuestionCard>
 
       {/* Navigation Buttons */}

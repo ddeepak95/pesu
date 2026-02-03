@@ -109,5 +109,21 @@ export interface Assignment {
    * Defaults to true for backwards compatibility.
    */
   show_rubric_points?: boolean;
+  /**
+   * Whether to show star ratings instead of points to students.
+   * Defaults to false for backwards compatibility.
+   */
+  use_star_display?: boolean;
+  /**
+   * Number of stars in the rating scale (e.g., 5, 10, 20).
+   * Only applies when use_star_display is true.
+   * Defaults to 5.
+   */
+  star_scale?: number;
+  /**
+   * Whether the teacher views stars or points in their submissions view.
+   * Defaults to false (points).
+   */
+  teacher_view_stars?: boolean;
 }
 
