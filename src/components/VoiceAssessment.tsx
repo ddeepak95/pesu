@@ -419,12 +419,6 @@ function VoiceAssessmentContent({
       >
         {/* Agent Status Display */}
         <AgentStatus className="py-2" />
-
-        {/* Voice Visualizer */}
-        <div className="flex justify-center py-4">
-          <VoiceVisualizer participantType="bot" barColor="currentColor" />
-        </div>
-
         <div className="flex flex-col items-center gap-2">
           <VoiceConnectButton
             connectionData={connectionData}
@@ -440,6 +434,11 @@ function VoiceAssessmentContent({
               below.
             </p>
           )}
+        </div>
+
+        {/* Voice Visualizer */}
+        <div className="flex justify-center py-4">
+          <VoiceVisualizer participantType="bot" barColor="currentColor" />
         </div>
 
         {/* Transcript Display (when recording/not evaluated yet) */}

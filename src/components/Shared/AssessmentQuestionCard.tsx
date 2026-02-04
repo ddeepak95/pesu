@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Question } from "@/types/assignment";
+import InfoCallout from "@/components/Shared/InfoCallout";
 
 interface AssessmentQuestionCardProps {
   question: Question;
@@ -39,14 +40,9 @@ export function AssessmentQuestionCard({
 
         {/* Student Instructions */}
         {studentInstructions && (
-          <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">
-            <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
-              Instructions
-            </p>
-            <p className="text-sm text-blue-700 dark:text-blue-300 whitespace-pre-wrap">
-              {studentInstructions}
-            </p>
-          </div>
+          <InfoCallout title="Instructions">
+            <p className="whitespace-pre-wrap">{studentInstructions}</p>
+          </InfoCallout>
         )}
 
         {/* View Rubric Accordion */}
