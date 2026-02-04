@@ -25,19 +25,16 @@ export function AssessmentQuestionCard({
   studentInstructions,
   showRubric = true,
   showRubricPoints = true,
-  className,
 }: AssessmentQuestionCardProps) {
   const shouldShowRubric =
     showRubric && question.rubric && question.rubric.length > 0;
 
   return (
-    <Card className={className}>
+    <Card className="w-full bg-gray-300/5">
       <CardHeader>
-        <CardTitle className="text-lg">Prompt</CardTitle>
+        <CardTitle className="text-lg">{question.prompt}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="whitespace-pre-wrap">{question.prompt}</p>
-
         {/* Student Instructions */}
         {studentInstructions && (
           <InfoCallout title="Instructions">
