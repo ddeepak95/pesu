@@ -1,0 +1,287 @@
+"use client";
+
+import { useState } from "react";
+import { nanoid } from "nanoid";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  SurveyQuestion,
+  LikertQuestion,
+  OpenEndedQuestion,
+  LIKERT_PRESETS,
+} from "@/types/survey";
+import LikertQuestionCard from "@/components/Teacher/Surveys/LikertQuestionCard";
+import OpenEndedQuestionCard from "@/components/Teacher/Surveys/OpenEndedQuestionCard";
+
+function newLikertQuestion(order: number): LikertQuestion {
+  // Default to 5-point agreement scale
+  const options = LIKERT_PRESETS.agreement_5.map((p) => ({
+    id: nanoid(8),
+    text: p.text,
+    value: p.value,
+  }));
+  return {
+    order,
+    type: "likert",
+    prompt: "",
+    options,
+    required: true,
+  };
+}
+
+function newOpenEndedQuestion(order: number): OpenEndedQuestion {
+  return {
+    order,
+    type: "open_ended",
+    prompt: "",
+    placeholder: "",
+    required: false,
+  };
+}
+
+export default function SurveyForm({
+  onSubmit,
+  submitLabel = "Create Survey",
+  initialTitle = "",
+  initialDescription = "",
+  initialQuestions,
+  initialIsDraft = false,
+}: {
+  onSubmit: (data: {
+    title: string;
+    description: string;
+    questions: SurveyQuestion[];
+    isDraft: boolean;
+  }) => Promise<void>;
+  submitLabel?: string;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialQuestions?: SurveyQuestion[];
+  initialIsDraft?: boolean;
+}) {
+  const [title, setTitle] = useState(initialTitle);
+  const [description, setDescription] = useState(initialDescription);
+  const [questions, setQuestions] = useState<SurveyQuestion[]>(
+    initialQuestions && initialQuestions.length > 0
+      ? initialQuestions
+      : [newLikertQuestion(0)]
+  );
+  const [isDraft, setIsDraft] = useState(initialIsDraft);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setQuestion = (index: number, next: SurveyQuestion) => {
+    const copy = [...questions];
+    copy[index] = next;
+    copy.forEach((q, i) => (q.order = i));
+    setQuestions(copy);
+  };
+
+  const addLikertQuestion = () =>
+    setQuestions([...questions, newLikertQuestion(questions.length)]);
+
+  const addOpenEndedQuestion = () =>
+    setQuestions([...questions, newOpenEndedQuestion(questions.length)]);
+
+  const deleteQuestion = (index: number) => {
+    if (questions.length <= 1) return;
+    const next = questions.filter((_, i) => i !== index);
+    next.forEach((q, i) => (q.order = i));
+    setQuestions(next);
+  };
+
+  const move = (index: number, dir: "up" | "down") => {
+    const j = dir === "up" ? index - 1 : index + 1;
+    if (j < 0 || j >= questions.length) return;
+    const next = [...questions];
+    [next[index], next[j]] = [next[j], next[index]];
+    next.forEach((q, i) => (q.order = i));
+    setQuestions(next);
+  };
+
+  const validate = (): string | null => {
+    if (!title.trim()) return "Survey title is required";
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.prompt.trim())
+        return `Question ${i + 1}: question text is required`;
+
+      if (q.type === "likert") {
+        if (!q.options || q.options.length < 2) {
+          return `Question ${i + 1}: at least 2 scale options required`;
+        }
+        const filled = q.options.filter((o) => o.text.trim());
+        if (filled.length < 2) {
+          return `Question ${i + 1}: at least 2 options must have text`;
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Clean up questions
+      const cleaned = questions.map((q, idx) => {
+        if (q.type === "likert") {
+          // Filter out empty options but keep at least 2
+          const options = q.options.filter((o) => o.text.trim());
+          const finalOptions =
+            options.length >= 2 ? options : q.options.slice(0, 2);
+          return {
+            ...q,
+            order: idx,
+            options: finalOptions,
+            prompt: q.prompt.trim(),
+          };
+        } else {
+          return {
+            ...q,
+            order: idx,
+            prompt: q.prompt.trim(),
+            placeholder: q.placeholder?.trim() || undefined,
+          };
+        }
+      });
+
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim(),
+        questions: cleaned,
+        isDraft,
+      });
+    } catch (err) {
+      console.error("Error saving survey:", err);
+      setError("Failed to save survey. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="title">Survey title</Label>
+        <Input
+          id="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={loading}
+          placeholder="e.g., Course Feedback Survey"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="description">Description (optional)</Label>
+        <Textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={loading}
+          placeholder="Instructions or context for the survey…"
+          rows={3}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {questions.length} question{questions.length === 1 ? "" : "s"}
+        </p>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" disabled={loading}>
+              + Add question
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={addLikertQuestion}>
+              Likert Scale
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={addOpenEndedQuestion}>
+              Open-Ended Response
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="space-y-4">
+        {questions.map((q, idx) =>
+          q.type === "likert" ? (
+            <LikertQuestionCard
+              key={idx}
+              question={q}
+              index={idx}
+              totalQuestions={questions.length}
+              disabled={loading}
+              onChange={(i, next) => setQuestion(i, next)}
+              onDelete={deleteQuestion}
+              onMoveUp={(i) => move(i, "up")}
+              onMoveDown={(i) => move(i, "down")}
+            />
+          ) : (
+            <OpenEndedQuestionCard
+              key={idx}
+              question={q as OpenEndedQuestion}
+              index={idx}
+              totalQuestions={questions.length}
+              disabled={loading}
+              onChange={(i, next) => setQuestion(i, next)}
+              onDelete={deleteQuestion}
+              onMoveUp={(i) => move(i, "up")}
+              onMoveDown={(i) => move(i, "down")}
+            />
+          )
+        )}
+      </div>
+
+      <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
+        <Checkbox
+          id="isDraft"
+          checked={isDraft}
+          onCheckedChange={(checked) => setIsDraft(checked === true)}
+          disabled={loading}
+        />
+        <div className="space-y-1">
+          <Label
+            htmlFor="isDraft"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Save as draft
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Draft items are visible to teachers but not available to students
+            yet.
+          </p>
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div className="flex gap-3">
+        <Button type="submit" disabled={loading}>
+          {loading ? "Saving…" : submitLabel}
+        </Button>
+      </div>
+    </form>
+  );
+}

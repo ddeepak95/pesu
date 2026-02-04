@@ -10,6 +10,12 @@ import {
 } from "@/types/activity";
 import { useActivityTrackingContext } from "@/contexts/ActivityTrackingContext";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const isValidUuid = (value?: string | null) =>
+  !!value && UUID_REGEX.test(value);
+
 // Generate a stable session ID based on component identity and browser session
 function generateSessionId(
   componentType: string,
@@ -67,6 +73,10 @@ export function useActivityTracking(
   const hasInitializedRef = useRef(false); // Prevent double-init in React Strict Mode
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const safeUserId = isValidUuid(userId) ? userId : undefined;
+  const safeClassId = classId || undefined;
+  const safeSubmissionId = submissionId || undefined;
+
   // Calculate total time
   const getTotalTimeMs = useCallback(() => {
     if (!startTimeRef.current) return 0;
@@ -79,9 +89,9 @@ export function useActivityTracking(
 
     const data: ActivityLogInput = {
       sessionId: sessionIdRef.current,
-      userId,
-      submissionId,
-      classId,
+      userId: safeUserId,
+      submissionId: safeSubmissionId,
+      classId: safeClassId,
       componentType,
       componentId,
       subComponentId,
@@ -103,9 +113,9 @@ export function useActivityTracking(
     componentType,
     componentId,
     subComponentId,
-    submissionId,
-    classId,
-    userId,
+    safeSubmissionId,
+    safeClassId,
+    safeUserId,
     getTotalTimeMs,
   ]);
 
@@ -113,9 +123,9 @@ export function useActivityTracking(
   const logEvent = useCallback(
     async (eventType: EventType) => {
       const data: ActivityEventInput = {
-        userId,
-        submissionId,
-        classId,
+        userId: safeUserId,
+        submissionId: safeSubmissionId,
+        classId: safeClassId,
         componentType,
         componentId,
         subComponentId,
@@ -134,7 +144,14 @@ export function useActivityTracking(
         console.error("Failed to log activity event:", error);
       }
     },
-    [componentType, componentId, subComponentId, submissionId, classId, userId]
+    [
+      componentType,
+      componentId,
+      subComponentId,
+      safeSubmissionId,
+      safeClassId,
+      safeUserId,
+    ]
   );
 
   // Start tracking

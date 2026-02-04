@@ -43,6 +43,8 @@ export default function ContentCard({
         return "Learning Content";
       case "formative_assignment":
         return "Formative Assessment";
+      case "survey":
+        return "Survey";
       default:
         return "Content";
     }

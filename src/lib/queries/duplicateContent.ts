@@ -2,6 +2,7 @@ import { ContentItem } from "@/types/contentItem";
 import { createAssignment, getAssignmentsByIdsForTeacher } from "@/lib/queries/assignments";
 import { createLearningContent, getLearningContentsByIds } from "@/lib/queries/learningContent";
 import { createQuiz, getQuizzesByIds } from "@/lib/queries/quizzes";
+import { createSurvey, getSurveysByIds } from "@/lib/queries/surveys";
 import { createContentItem } from "@/lib/queries/contentItems";
 
 export async function duplicateContentItem(params: {
@@ -93,6 +94,35 @@ export async function duplicateContentItem(params: {
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
         type: "quiz",
+        ref_id: next.id,
+        status: item.status,
+      },
+      userId
+    );
+    return;
+  }
+
+  if (item.type === "survey") {
+    const [s] = await getSurveysByIds([item.ref_id]);
+    if (!s) throw new Error("Source survey not found");
+
+    const next = await createSurvey(
+      {
+        class_id: destinationClassDbId,
+        class_group_id: destinationClassGroupId,
+        title: s.title,
+        description: s.description,
+        questions: s.questions,
+        status: item.status === "draft" ? "draft" : "active",
+      },
+      userId
+    );
+
+    await createContentItem(
+      {
+        class_id: destinationClassDbId,
+        class_group_id: destinationClassGroupId,
+        type: "survey",
         ref_id: next.id,
         status: item.status,
       },

@@ -53,10 +53,14 @@ export default function CreateContentMenu({
         >
           Create Learning Content
         </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() =>
+            router.push(`/teacher/classes/${classPublicId}/surveys/create${qs}`)
+          }
+        >
+          Create Survey
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
-
-
-
