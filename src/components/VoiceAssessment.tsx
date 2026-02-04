@@ -401,7 +401,7 @@ function VoiceAssessmentContent({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <AssessmentQuestionHeader
         questionNumber={questionNumber}
         totalQuestions={totalQuestions}
@@ -415,6 +415,7 @@ function VoiceAssessmentContent({
         studentInstructions={studentInstructions}
         showRubric={showRubric}
         showRubricPoints={showRubricPoints}
+        className="w-full"
       >
         {/* Agent Status Display */}
         <AgentStatus className="py-2" />

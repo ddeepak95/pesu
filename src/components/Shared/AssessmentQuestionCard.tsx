@@ -15,6 +15,7 @@ interface AssessmentQuestionCardProps {
   studentInstructions?: string; // Display-only instructions for students
   showRubric?: boolean; // Whether to show the rubric (default: true)
   showRubricPoints?: boolean; // Whether to show points in rubric (default: true)
+  className?: string;
 }
 
 export function AssessmentQuestionCard({
@@ -23,12 +24,13 @@ export function AssessmentQuestionCard({
   studentInstructions,
   showRubric = true,
   showRubricPoints = true,
+  className,
 }: AssessmentQuestionCardProps) {
   const shouldShowRubric =
     showRubric && question.rubric && question.rubric.length > 0;
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle className="text-lg">Prompt</CardTitle>
       </CardHeader>

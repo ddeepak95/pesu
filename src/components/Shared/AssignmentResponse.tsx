@@ -57,7 +57,7 @@ interface AssignmentResponseProps {
 
 /**
  * @deprecated This component is deprecated. Use PublicAssignmentResponse or StudentAssignmentResponse instead.
- * 
+ *
  * Shared component for assignment response UI
  * Can be used by both public assignments and authenticated student portal
  */
@@ -74,9 +74,7 @@ export default function AssignmentResponse({
   const [restoringSession, setRestoringSession] = useState(true);
 
   // Student info
-  const [studentName, setStudentName] = useState(
-    authenticatedUser?.name || ""
-  );
+  const [studentName, setStudentName] = useState(authenticatedUser?.name || "");
   const [preferredLanguage, setPreferredLanguage] = useState(
     assignmentData.preferred_language || ""
   );
@@ -86,7 +84,10 @@ export default function AssignmentResponse({
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<{ [key: number]: string }>({});
 
-  const handleBeginAssignmentWithValues = async (name: string, lang: string) => {
+  const handleBeginAssignmentWithValues = async (
+    name: string,
+    lang: string
+  ) => {
     if (!name.trim()) {
       return;
     }
@@ -149,7 +150,7 @@ export default function AssignmentResponse({
       // Use authenticated user's name and assignment's preferred language
       const nameToUse = authenticatedUser.name || "";
       const langToUse = assignmentData.preferred_language || "";
-      
+
       if (nameToUse) {
         // Set state first, then start assignment
         setStudentName(nameToUse);
@@ -159,7 +160,14 @@ export default function AssignmentResponse({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart, authenticatedUser, assignmentData, restoringSession, phase, submissionId]);
+  }, [
+    autoStart,
+    authenticatedUser,
+    assignmentData,
+    restoringSession,
+    phase,
+    submissionId,
+  ]);
 
   const restoreSession = async () => {
     try {
@@ -293,7 +301,10 @@ export default function AssignmentResponse({
       return;
     }
 
-    await handleBeginAssignmentWithValues(studentName.trim(), preferredLanguage);
+    await handleBeginAssignmentWithValues(
+      studentName.trim(),
+      preferredLanguage
+    );
   };
 
   const handleAnswerSave = async (transcript: string) => {
@@ -427,7 +438,7 @@ export default function AssignmentResponse({
     // Wait for submission to be created
     if (!submissionId) {
       return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
           </div>
@@ -447,7 +458,7 @@ export default function AssignmentResponse({
     const assessmentMode = assignmentData.assessment_mode ?? "voice";
 
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         {/* Assignment Title and Language Selector */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
@@ -455,87 +466,81 @@ export default function AssignmentResponse({
 
         {/* Assessment Component based on mode */}
         {assessmentMode === "voice" && (
-            <VoiceAssessment
-              key={currentQuestion.order}
-              question={currentQuestion}
-              language={preferredLanguage}
-              assignmentId={assignmentData.assignment_id}
-              submissionId={submissionId}
-              questionNumber={currentQuestionIndex + 1}
-              totalQuestions={sortedQuestions.length}
-              onAnswerSave={handleAnswerSave}
-              onPrevious={handlePrevious}
-              onNext={handleNext}
-              isFirstQuestion={currentQuestionIndex === 0}
-              isLastQuestion={isLastQuestion}
-              existingAnswer={answers[currentQuestion.order]}
-              onLanguageChange={handleLanguageChange}
-              botPromptConfig={assignmentData.bot_prompt_config}
-            />
+          <VoiceAssessment
+            key={currentQuestion.order}
+            question={currentQuestion}
+            language={preferredLanguage}
+            assignmentId={assignmentData.assignment_id}
+            submissionId={submissionId}
+            questionNumber={currentQuestionIndex + 1}
+            totalQuestions={sortedQuestions.length}
+            onAnswerSave={handleAnswerSave}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            isFirstQuestion={currentQuestionIndex === 0}
+            isLastQuestion={isLastQuestion}
+            existingAnswer={answers[currentQuestion.order]}
+            onLanguageChange={handleLanguageChange}
+            botPromptConfig={assignmentData.bot_prompt_config}
+          />
         )}
         {assessmentMode === "text_chat" && (
-            <ChatAssessment
-              key={currentQuestion.order}
-              question={currentQuestion}
-              language={preferredLanguage}
-              assignmentId={assignmentData.assignment_id}
-              submissionId={submissionId}
-              questionNumber={currentQuestionIndex + 1}
-              totalQuestions={sortedQuestions.length}
-              onAnswerSave={handleAnswerSave}
-              onPrevious={handlePrevious}
-              onNext={handleNext}
-              isFirstQuestion={currentQuestionIndex === 0}
-              isLastQuestion={isLastQuestion}
-              existingAnswer={answers[currentQuestion.order]}
-              onLanguageChange={handleLanguageChange}
-              botPromptConfig={assignmentData.bot_prompt_config}
-            />
+          <ChatAssessment
+            key={currentQuestion.order}
+            question={currentQuestion}
+            language={preferredLanguage}
+            assignmentId={assignmentData.assignment_id}
+            submissionId={submissionId}
+            questionNumber={currentQuestionIndex + 1}
+            totalQuestions={sortedQuestions.length}
+            onAnswerSave={handleAnswerSave}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            isFirstQuestion={currentQuestionIndex === 0}
+            isLastQuestion={isLastQuestion}
+            existingAnswer={answers[currentQuestion.order]}
+            onLanguageChange={handleLanguageChange}
+            botPromptConfig={assignmentData.bot_prompt_config}
+          />
         )}
         {assessmentMode === "static_text" && (
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Prompt</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap">
-                    {currentQuestion.prompt}
-                  </p>
-                </CardContent>
-              </Card>
-              <p className="text-sm text-muted-foreground">
-                Static text assessment is coming soon. Please contact your
-                teacher if you expected an interactive question here.
-              </p>
-              <div className="flex justify-between gap-4">
-                <Button
-                  onClick={handlePrevious}
-                  disabled={currentQuestionIndex === 0}
-                  variant="outline"
-                  size="lg"
-                >
-                  Previous Question
-                </Button>
-                <div className="flex gap-4">
-                  {!isLastQuestion && (
-                    <Button onClick={handleNext} size="lg">
-                      Next Question
-                    </Button>
-                  )}
-                  {isLastQuestion && (
-                    <Button
-                      onClick={handleSubmit}
-                      size="lg"
-                      variant="default"
-                    >
-                      Submit Assignment
-                    </Button>
-                  )}
-                </div>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Prompt</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{currentQuestion.prompt}</p>
+              </CardContent>
+            </Card>
+            <p className="text-sm text-muted-foreground">
+              Static text assessment is coming soon. Please contact your teacher
+              if you expected an interactive question here.
+            </p>
+            <div className="flex justify-between gap-4">
+              <Button
+                onClick={handlePrevious}
+                disabled={currentQuestionIndex === 0}
+                variant="outline"
+                size="lg"
+              >
+                Previous Question
+              </Button>
+              <div className="flex gap-4">
+                {!isLastQuestion && (
+                  <Button onClick={handleNext} size="lg">
+                    Next Question
+                  </Button>
+                )}
+                {isLastQuestion && (
+                  <Button onClick={handleSubmit} size="lg" variant="default">
+                    Submit Assignment
+                  </Button>
+                )}
               </div>
             </div>
-          )}
+          </div>
+        )}
       </div>
     );
   }
@@ -564,4 +569,3 @@ export default function AssignmentResponse({
     </div>
   );
 }
-
