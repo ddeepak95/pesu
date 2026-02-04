@@ -202,9 +202,6 @@ function LearningContentPageContent({
           </div>
           <div className="mb-6">
             <h1 className="text-3xl font-bold">{content.title}</h1>
-            <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-              <p className="capitalize">Type: {content.content_type}</p>
-            </div>
           </div>
 
           <div className="space-y-6 pb-8">

@@ -113,14 +113,12 @@ export default function LearningContentDetailPage() {
       <div className="border-b">
         <div className="p-8 pb-0">
           <div className="mb-4">
-            <BackButton />
+            <BackButton href={`/teacher/classes/${classId}`} />
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold">{content.title}</h1>
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-                <p className="capitalize">Type: {content.content_type}</p>
-                <span>•</span>
                 <p className="capitalize">Status: {content.status}</p>
               </div>
             </div>
