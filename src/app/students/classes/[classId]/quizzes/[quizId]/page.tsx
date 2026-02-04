@@ -24,7 +24,11 @@ import { getStudentGroupForClass } from "@/lib/queries/groups";
 import { getUnlockState } from "@/lib/utils/unlockLogic";
 import { ContentItem } from "@/types/contentItem";
 
-function QuizPageContent() {
+function QuizPageContent({
+  onClassUuid,
+}: {
+  onClassUuid?: (id: string) => void;
+}) {
   const params = useParams();
   const classId = params.classId as string;
   const quizId = params.quizId as string;
@@ -73,6 +77,9 @@ function QuizPageContent() {
           try {
             // Get class data to check progressive unlock setting
             const classData = await getClassByClassId(classId);
+            if (classData?.id) {
+              onClassUuid?.(classData.id);
+            }
             if (classData?.enable_progressive_unlock) {
               // Get student's group
               const groupId = await getStudentGroupForClass(
@@ -243,10 +250,11 @@ export default function StudentQuizPage() {
   const params = useParams();
   const classId = params.classId as string;
   const { user } = useAuth();
+  const [classUuid, setClassUuid] = useState<string | null>(null);
 
   return (
-    <ActivityTrackingProvider userId={user?.id} classId={classId}>
-      <QuizPageContent />
+    <ActivityTrackingProvider userId={user?.id} classId={classUuid ?? classId}>
+      <QuizPageContent onClassUuid={setClassUuid} />
     </ActivityTrackingProvider>
   );
 }

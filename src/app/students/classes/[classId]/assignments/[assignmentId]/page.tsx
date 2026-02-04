@@ -33,6 +33,7 @@ export default function StudentAssignmentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
+  const [classUuid, setClassUuid] = useState<string | null>(null);
 
   const fetchAssignment = async () => {
     setLoading(true);
@@ -60,6 +61,9 @@ export default function StudentAssignmentPage() {
           try {
             // Get class data to check progressive unlock setting
             const classData = await getClassByClassId(classId);
+            if (classData?.id) {
+              setClassUuid(classData.id);
+            }
             if (classData?.enable_progressive_unlock) {
               // Get student's group
               const groupId = await getStudentGroupForClass(
@@ -187,6 +191,7 @@ export default function StudentAssignmentPage() {
           <StudentAssignmentResponse
             assignmentData={assignmentData}
             assignmentId={assignmentId}
+            classId={classUuid ?? classId}
             contentItemId={contentItemId}
             onComplete={() => {
               // Attempts are automatically saved, no action needed

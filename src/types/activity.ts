@@ -6,7 +6,8 @@ export type ComponentType =
   | "assignment"
   | "question"
   | "learning_content"
-  | "quiz";
+  | "quiz"
+  | "survey";
 
 export type EventType = "attempt_started" | "attempt_ended";
 

@@ -11,6 +11,8 @@ import { getLearningContentsByIds } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
 import { getQuizzesByIds } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
+import { getSurveysByIds } from "@/lib/queries/surveys";
+import { Survey } from "@/types/survey";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStudentGroupForClass } from "@/lib/queries/groups";
@@ -34,6 +36,7 @@ export default function Content({ classData }: ContentProps) {
     Record<string, LearningContent>
   >({});
   const [quizById, setQuizById] = useState<Record<string, Quiz>>({});
+  const [surveyById, setSurveyById] = useState<Record<string, Survey>>({});
   const [completedContentIds, setCompletedContentIds] = useState<Set<string>>(
     new Set()
   );
@@ -59,6 +62,11 @@ export default function Content({ classData }: ContentProps) {
 
   const quizIds = useMemo(
     () => items.filter((i) => i.type === "quiz").map((i) => i.ref_id),
+    [items]
+  );
+
+  const surveyIds = useMemo(
+    () => items.filter((i) => i.type === "survey").map((i) => i.ref_id),
     [items]
   );
 
@@ -191,6 +199,25 @@ export default function Content({ classData }: ContentProps) {
     }
   }, [quizIds]);
 
+  useEffect(() => {
+    const hydrateSurveys = async () => {
+      try {
+        const data = await getSurveysByIds(surveyIds);
+        setSurveyById((prev) => {
+          const next = { ...prev };
+          for (const s of data) next[s.id] = s;
+          return next;
+        });
+      } catch (err) {
+        console.error("Error hydrating surveys for content feed:", err);
+      }
+    };
+
+    if (surveyIds.length > 0) {
+      hydrateSurveys();
+    }
+  }, [surveyIds]);
+
   // Fetch completions for all content items
   useEffect(() => {
     const fetchCompletions = async () => {
@@ -253,6 +280,15 @@ export default function Content({ classData }: ContentProps) {
         );
       }
     }
+
+    if (item.type === "survey") {
+      const s = surveyById[item.ref_id];
+      if (s) {
+        router.push(
+          `/students/classes/${classData.class_id}/surveys/${s.survey_id}`
+        );
+      }
+    }
   };
 
   return (
@@ -291,6 +327,8 @@ export default function Content({ classData }: ContentProps) {
                 ? assignmentById[item.ref_id]?.title
                 : item.type === "quiz"
                 ? quizById[item.ref_id]?.title
+                : item.type === "survey"
+                ? surveyById[item.ref_id]?.title
                 : learningContentById[item.ref_id]?.title;
 
             const titleLoading = !resolvedTitle;

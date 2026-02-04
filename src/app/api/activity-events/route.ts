@@ -2,6 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { ActivityEventInput } from "@/types/activity";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const isValidUuid = (value?: string | null) =>
+  !!value && UUID_REGEX.test(value);
+
+const resolveClassId = async (
+  classId: string | undefined,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
+) => {
+  if (!classId) {
+    return null;
+  }
+
+  if (isValidUuid(classId)) {
+    return classId;
+  }
+
+  const { data } = await supabase
+    .from("classes")
+    .select("id")
+    .eq("class_id", classId)
+    .maybeSingle();
+
+  return data?.id ?? null;
+};
+
 /**
  * POST /api/activity-events
  * Creates an activity event (INSERT-only, no upsert)
@@ -42,14 +69,16 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createServerSupabaseClient();
+    const resolvedClassId = await resolveClassId(body.classId, supabase);
+    const resolvedUserId = isValidUuid(body.userId) ? body.userId : null;
 
     // Insert the activity event (no upsert - each event is a new row)
     const { data, error } = await supabase
       .from("activity_events")
       .insert({
-        user_id: body.userId || null,
+        user_id: resolvedUserId,
         submission_id: body.submissionId || null,
-        class_id: body.classId || null,
+        class_id: resolvedClassId,
         component_type: body.componentType,
         component_id: body.componentId,
         sub_component_id: body.subComponentId || null,

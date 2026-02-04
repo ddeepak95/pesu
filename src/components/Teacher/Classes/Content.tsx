@@ -16,6 +16,8 @@ import { getLearningContentsByIds } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
 import { getQuizzesByIds } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
+import { getSurveysByIds } from "@/lib/queries/surveys";
+import { Survey } from "@/types/survey";
 import List from "@/components/ui/List";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
@@ -43,6 +45,7 @@ export default function Content({ classData }: ContentProps) {
     Record<string, LearningContent>
   >({});
   const [quizById, setQuizById] = useState<Record<string, Quiz>>({});
+  const [surveyById, setSurveyById] = useState<Record<string, Survey>>({});
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +86,11 @@ export default function Content({ classData }: ContentProps) {
 
   const quizIds = useMemo(
     () => items.filter((i) => i.type === "quiz").map((i) => i.ref_id),
+    [items]
+  );
+
+  const surveyIds = useMemo(
+    () => items.filter((i) => i.type === "survey").map((i) => i.ref_id),
     [items]
   );
 
@@ -230,6 +238,25 @@ export default function Content({ classData }: ContentProps) {
     }
   }, [quizIds]);
 
+  useEffect(() => {
+    const hydrateSurveys = async () => {
+      try {
+        const data = await getSurveysByIds(surveyIds);
+        setSurveyById((prev) => {
+          const next = { ...prev };
+          for (const s of data) next[s.id] = s;
+          return next;
+        });
+      } catch (err) {
+        console.error("Error hydrating surveys for content feed:", err);
+      }
+    };
+
+    if (surveyIds.length > 0) {
+      hydrateSurveys();
+    }
+  }, [surveyIds]);
+
   const handleMove = async (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= items.length) return;
@@ -342,6 +369,15 @@ export default function Content({ classData }: ContentProps) {
         );
       }
     }
+
+    if (item.type === "survey") {
+      const s = surveyById[item.ref_id];
+      if (s) {
+        router.push(
+          `/teacher/classes/${classData.class_id}/surveys/${s.survey_id}/edit${backQs}`
+        );
+      }
+    }
   };
 
   const handleDelete = async (item: ContentItem) => {
@@ -433,7 +469,7 @@ export default function Content({ classData }: ContentProps) {
               <List
                 items={items}
                 keyExtractor={(item) => item.id}
-                emptyMessage="No content yet. Use the Create button to add a quiz, learning content, or formative assignment."
+                emptyMessage="No content yet. Use the Create button to add a quiz, survey, learning content, or formative assignment."
                 renderItem={(item, index) => {
                   const resolvedTitle =
                     item.type === "formative_assignment"
