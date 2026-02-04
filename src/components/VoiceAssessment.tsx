@@ -55,6 +55,8 @@ interface VoiceAssessmentProps {
   allQuestionsHaveAttempts?: boolean;
   questionsWithAttempts?: Set<number>;
   onAttemptCreated?: () => void;
+  onMarkedComplete?: () => void;
+  isComplete?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -88,6 +90,8 @@ function VoiceAssessmentContent({
   allQuestionsHaveAttempts = true,
   questionsWithAttempts,
   onAttemptCreated,
+  onMarkedComplete,
+  isComplete = false,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -469,6 +473,8 @@ function VoiceAssessmentContent({
         allQuestionsHaveAttempts={allQuestionsHaveAttempts}
         questionsWithAttempts={questionsWithAttempts}
         totalQuestions={totalQuestions}
+        onMarkedComplete={onMarkedComplete}
+        isComplete={isComplete}
       />
     </div>
   );

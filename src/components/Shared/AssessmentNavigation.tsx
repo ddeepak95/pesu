@@ -26,6 +26,8 @@ interface AssessmentNavigationProps {
   allQuestionsHaveAttempts?: boolean;
   questionsWithAttempts?: Set<number>;
   totalQuestions?: number;
+  onMarkedComplete?: () => void;
+  isComplete?: boolean;
 }
 
 export function AssessmentNavigation({
@@ -40,11 +42,19 @@ export function AssessmentNavigation({
   allQuestionsHaveAttempts = true,
   questionsWithAttempts,
   totalQuestions = 0,
+  onMarkedComplete,
+  isComplete = false,
 }: AssessmentNavigationProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFinishClick = () => {
+    if (isComplete) {
+      showSuccessToast("This assessment is already completed.");
+      if (onNext) onNext();
+      return;
+    }
+
     // Validate if require_all_attempts is enabled
     if (requireAllAttempts && !allQuestionsHaveAttempts) {
       const attemptedCount = questionsWithAttempts?.size ?? 0;
@@ -71,9 +81,16 @@ export function AssessmentNavigation({
 
     setIsLoading(true);
     try {
+      if (isComplete) {
+        if (onNext) onNext();
+        return;
+      }
       await markContentAsComplete(contentItemId);
       showSuccessToast("Assessment marked as complete!");
       setIsDialogOpen(false);
+      if (onMarkedComplete) {
+        onMarkedComplete();
+      }
       if (onNext) onNext();
     } catch (error) {
       console.error("Error marking assessment as complete:", error);
@@ -107,7 +124,11 @@ export function AssessmentNavigation({
               disabled={nextDisabled}
               size="lg"
             >
-              {contentItemId ? "Finish & Mark Complete" : "Finish"}
+              {isComplete
+                ? "Already Completed"
+                : contentItemId
+                ? "Finish & Mark Complete"
+                : "Finish"}
             </Button>
           )}
         </div>

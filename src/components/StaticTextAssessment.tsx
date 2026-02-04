@@ -44,6 +44,8 @@ interface StaticTextAssessmentProps {
   allQuestionsHaveAttempts?: boolean;
   questionsWithAttempts?: Set<number>;
   onAttemptCreated?: () => void;
+  onMarkedComplete?: () => void;
+  isComplete?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -73,6 +75,8 @@ export function StaticTextAssessment({
   allQuestionsHaveAttempts = true,
   questionsWithAttempts,
   onAttemptCreated,
+  onMarkedComplete,
+  isComplete = false,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -417,6 +421,8 @@ export function StaticTextAssessment({
         allQuestionsHaveAttempts={allQuestionsHaveAttempts}
         questionsWithAttempts={questionsWithAttempts}
         totalQuestions={totalQuestions}
+        onMarkedComplete={onMarkedComplete}
+        isComplete={isComplete}
       />
     </div>
   );

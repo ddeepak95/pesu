@@ -53,6 +53,8 @@ interface ChatAssessmentProps {
   allQuestionsHaveAttempts?: boolean;
   questionsWithAttempts?: Set<number>;
   onAttemptCreated?: () => void;
+  onMarkedComplete?: () => void;
+  isComplete?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -83,6 +85,8 @@ export function ChatAssessment({
   allQuestionsHaveAttempts = true,
   questionsWithAttempts,
   onAttemptCreated,
+  onMarkedComplete,
+  isComplete = false,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -756,6 +760,8 @@ export function ChatAssessment({
         allQuestionsHaveAttempts={allQuestionsHaveAttempts}
         questionsWithAttempts={questionsWithAttempts}
         totalQuestions={totalQuestions}
+        onMarkedComplete={onMarkedComplete}
+        isComplete={isComplete}
       />
     </div>
   );
