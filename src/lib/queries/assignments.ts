@@ -176,6 +176,7 @@ export async function createAssignment(
     show_rubric_points?: boolean; // Whether to show rubric points to students
     use_star_display?: boolean; // Whether to show stars instead of points to students
     star_scale?: number; // Number of stars in the rating scale
+    require_all_attempts?: boolean; // Whether students must attempt all questions before completing
   },
   userId: string
 ): Promise<Assignment> {
@@ -205,6 +206,7 @@ export async function createAssignment(
       show_rubric_points: assignment.show_rubric_points ?? true,
       use_star_display: assignment.use_star_display ?? false,
       star_scale: assignment.star_scale ?? 5,
+      require_all_attempts: assignment.require_all_attempts ?? false,
     })
     .select()
     .single();
@@ -246,6 +248,7 @@ export async function updateAssignment(
     show_rubric_points?: boolean; // Whether to show rubric points to students
     use_star_display?: boolean; // Whether to show stars instead of points to students
     star_scale?: number; // Number of stars in the rating scale
+    require_all_attempts?: boolean; // Whether students must attempt all questions before completing
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -268,6 +271,7 @@ export async function updateAssignment(
       show_rubric_points: assignment.show_rubric_points ?? true,
       use_star_display: assignment.use_star_display ?? false,
       star_scale: assignment.star_scale ?? 5,
+      require_all_attempts: assignment.require_all_attempts ?? false,
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignmentId)

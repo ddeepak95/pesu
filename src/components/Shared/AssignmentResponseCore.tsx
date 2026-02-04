@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Assignment } from "@/types/assignment";
 import { VoiceAssessment } from "@/components/VoiceAssessment";
 import { ChatAssessment } from "@/components/ChatAssessment";
 import { StaticTextAssessment } from "@/components/StaticTextAssessment";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { getQuestionAttempts } from "@/lib/queries/submissions";
 
 interface AssignmentResponseCoreProps {
   assignmentData: Assignment;
@@ -54,6 +55,55 @@ export default function AssignmentResponseCore({
   const [preferredLanguage, setPreferredLanguage] = useState(
     initialPreferredLanguage || assignmentData.preferred_language || "en"
   );
+
+  // Track which questions have at least one attempt
+  const [questionsWithAttempts, setQuestionsWithAttempts] = useState<
+    Set<number>
+  >(new Set());
+
+  // Sorted questions for reference
+  const sortedQuestions = [...assignmentData.questions].sort(
+    (a, b) => a.order - b.order
+  );
+
+  // Function to check attempts for all questions
+  const checkAttempts = useCallback(async () => {
+    if (!submissionId) return;
+
+    const withAttempts = new Set<number>();
+    for (const question of sortedQuestions) {
+      try {
+        const attempts = await getQuestionAttempts(
+          submissionId,
+          question.order,
+          true // Exclude stale attempts
+        );
+        if (attempts.length > 0) {
+          withAttempts.add(question.order);
+        }
+      } catch (error) {
+        console.error(
+          `Error checking attempts for question ${question.order}:`,
+          error
+        );
+      }
+    }
+    setQuestionsWithAttempts(withAttempts);
+  }, [submissionId, sortedQuestions]);
+
+  // Check attempts when component mounts and when navigating between questions
+  useEffect(() => {
+    checkAttempts();
+  }, [checkAttempts, currentQuestionIndex]);
+
+  // Callback for assessment components to trigger re-check after new attempt
+  const handleAttemptCreated = useCallback(() => {
+    checkAttempts();
+  }, [checkAttempts]);
+
+  // Determine if all questions have attempts
+  const allQuestionsHaveAttempts =
+    questionsWithAttempts.size === sortedQuestions.length;
 
   // Activity tracking for assignment-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
@@ -114,9 +164,6 @@ export default function AssignmentResponseCore({
 
   // Always show question answering interface - no completion phase needed
   // Attempts are automatically saved as students answer questions
-  const sortedQuestions = [...assignmentData.questions].sort(
-    (a, b) => a.order - b.order
-  );
   const currentQuestion = sortedQuestions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === sortedQuestions.length - 1;
 
@@ -161,6 +208,10 @@ export default function AssignmentResponseCore({
           showRubricPoints={assignmentData.show_rubric_points ?? true}
           useStarDisplay={assignmentData.use_star_display ?? false}
           starScale={assignmentData.star_scale ?? 5}
+          requireAllAttempts={assignmentData.require_all_attempts ?? false}
+          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+          questionsWithAttempts={questionsWithAttempts}
+          onAttemptCreated={handleAttemptCreated}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -187,6 +238,10 @@ export default function AssignmentResponseCore({
           studentInstructions={assignmentData.student_instructions}
           showRubric={assignmentData.show_rubric ?? true}
           showRubricPoints={assignmentData.show_rubric_points ?? true}
+          requireAllAttempts={assignmentData.require_all_attempts ?? false}
+          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+          questionsWithAttempts={questionsWithAttempts}
+          onAttemptCreated={handleAttemptCreated}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -214,6 +269,10 @@ export default function AssignmentResponseCore({
           showRubricPoints={assignmentData.show_rubric_points ?? true}
           useStarDisplay={assignmentData.use_star_display ?? false}
           starScale={assignmentData.star_scale ?? 5}
+          requireAllAttempts={assignmentData.require_all_attempts ?? false}
+          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+          questionsWithAttempts={questionsWithAttempts}
+          onAttemptCreated={handleAttemptCreated}
         />
       )}
     </div>

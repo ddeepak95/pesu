@@ -45,6 +45,7 @@ export default function EditAssignmentPage() {
   const [showRubricPoints, setShowRubricPoints] = useState<boolean>(true);
   const [useStarDisplay, setUseStarDisplay] = useState<boolean>(false);
   const [starScale, setStarScale] = useState<number>(5);
+  const [requireAllAttempts, setRequireAllAttempts] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -70,6 +71,7 @@ export default function EditAssignmentPage() {
           setShowRubricPoints(assignmentData.show_rubric_points ?? true);
           setUseStarDisplay(assignmentData.use_star_display ?? false);
           setStarScale(assignmentData.star_scale ?? 5);
+          setRequireAllAttempts(assignmentData.require_all_attempts ?? false);
           setAssignmentDbId(assignmentData.id);
         } else {
           setError("Assignment not found");
@@ -111,6 +113,7 @@ export default function EditAssignmentPage() {
     showRubricPoints?: boolean;
     useStarDisplay?: boolean;
     starScale?: number;
+    requireAllAttempts?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -136,6 +139,7 @@ export default function EditAssignmentPage() {
       show_rubric_points: data.showRubricPoints ?? true,
       use_star_display: data.useStarDisplay ?? false,
       star_scale: data.starScale ?? 5,
+      require_all_attempts: data.requireAllAttempts ?? false,
     });
   };
 
@@ -184,6 +188,7 @@ export default function EditAssignmentPage() {
           initialShowRubricPoints={showRubricPoints}
           initialUseStarDisplay={useStarDisplay}
           initialStarScale={starScale}
+          initialRequireAllAttempts={requireAllAttempts}
           onSubmit={handleSubmit}
         />
 

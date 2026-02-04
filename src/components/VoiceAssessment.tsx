@@ -50,6 +50,11 @@ interface VoiceAssessmentProps {
   showRubricPoints?: boolean;
   useStarDisplay?: boolean;
   starScale?: number;
+  // Attempt validation props
+  requireAllAttempts?: boolean;
+  allQuestionsHaveAttempts?: boolean;
+  questionsWithAttempts?: Set<number>;
+  onAttemptCreated?: () => void;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -79,6 +84,10 @@ function VoiceAssessmentContent({
   showRubricPoints = true,
   useStarDisplay = false,
   starScale = 5,
+  requireAllAttempts = false,
+  allQuestionsHaveAttempts = true,
+  questionsWithAttempts,
+  onAttemptCreated,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -238,6 +247,11 @@ function VoiceAssessmentContent({
 
       // Log attempt_ended event
       logEvent("attempt_ended");
+
+      // Notify parent to refresh attempt tracking
+      if (onAttemptCreated) {
+        onAttemptCreated();
+      }
 
       console.log("=== Evaluation complete ===");
     } catch (error) {
@@ -451,6 +465,10 @@ function VoiceAssessmentContent({
         previousDisabled={isConnected || isEvaluating}
         nextDisabled={isConnected || isEvaluating}
         contentItemId={contentItemId}
+        requireAllAttempts={requireAllAttempts}
+        allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+        questionsWithAttempts={questionsWithAttempts}
+        totalQuestions={totalQuestions}
       />
     </div>
   );

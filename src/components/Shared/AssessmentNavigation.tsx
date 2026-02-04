@@ -21,6 +21,11 @@ interface AssessmentNavigationProps {
   previousDisabled?: boolean;
   nextDisabled?: boolean;
   contentItemId?: string | null;
+  // Attempt validation props
+  requireAllAttempts?: boolean;
+  allQuestionsHaveAttempts?: boolean;
+  questionsWithAttempts?: Set<number>;
+  totalQuestions?: number;
 }
 
 export function AssessmentNavigation({
@@ -31,11 +36,24 @@ export function AssessmentNavigation({
   previousDisabled = false,
   nextDisabled = false,
   contentItemId,
+  requireAllAttempts = false,
+  allQuestionsHaveAttempts = true,
+  questionsWithAttempts,
+  totalQuestions = 0,
 }: AssessmentNavigationProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFinishClick = () => {
+    // Validate if require_all_attempts is enabled
+    if (requireAllAttempts && !allQuestionsHaveAttempts) {
+      const attemptedCount = questionsWithAttempts?.size ?? 0;
+      showErrorToast(
+        `Please attempt all questions for this assessment to be marked as complete. You have attempted ${attemptedCount} of ${totalQuestions} questions.`
+      );
+      return;
+    }
+
     if (contentItemId) {
       // Show confirmation dialog
       setIsDialogOpen(true);
@@ -84,7 +102,11 @@ export function AssessmentNavigation({
             </Button>
           )}
           {isLastQuestion && (
-            <Button onClick={handleFinishClick} disabled={nextDisabled} size="lg">
+            <Button
+              onClick={handleFinishClick}
+              disabled={nextDisabled}
+              size="lg"
+            >
               {contentItemId ? "Finish & Mark Complete" : "Finish"}
             </Button>
           )}
@@ -96,7 +118,8 @@ export function AssessmentNavigation({
           <DialogHeader>
             <DialogTitle>Finish Assessment</DialogTitle>
             <DialogDescription>
-              Are you sure you want to finish and mark this assessment as complete?
+              Are you sure you want to finish and mark this assessment as
+              complete?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -116,7 +139,3 @@ export function AssessmentNavigation({
     </>
   );
 }
-
-
-
-

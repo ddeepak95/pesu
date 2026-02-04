@@ -99,6 +99,7 @@ export default function CreateAssignmentPage() {
     showRubricPoints?: boolean;
     useStarDisplay?: boolean;
     starScale?: number;
+    requireAllAttempts?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -128,6 +129,7 @@ export default function CreateAssignmentPage() {
         show_rubric_points: data.showRubricPoints ?? true,
         use_star_display: data.useStarDisplay ?? false,
         star_scale: data.starScale ?? 5,
+        require_all_attempts: data.requireAllAttempts ?? false,
       },
       user.id
     );
