@@ -43,9 +43,6 @@ export default function ClassCard({
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex-1">
           <CardTitle className="text-xl">{classData.name}</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Class ID: {classData.class_id}
-          </p>
         </div>
         <div onClick={handleMenuClick}>
           <DropdownMenu>

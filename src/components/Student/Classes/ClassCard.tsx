@@ -22,14 +22,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
     >
       <CardHeader>
         <CardTitle className="text-xl">{classData.name}</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          Class ID: {classData.class_id}
-        </p>
       </CardHeader>
     </Card>
   );
 }
-
-
-
-
