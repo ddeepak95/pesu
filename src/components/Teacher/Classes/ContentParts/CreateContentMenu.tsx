@@ -34,7 +34,7 @@ export default function CreateContentMenu({
             )
           }
         >
-          Create Formative Assessment
+          Create Learning Activity
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
