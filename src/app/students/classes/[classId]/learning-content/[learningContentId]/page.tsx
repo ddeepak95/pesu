@@ -6,8 +6,7 @@ import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { getLearningContentByShortId } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import YouTubeEmbed from "@/components/Shared/YouTubeEmbed";
+import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
@@ -23,7 +22,6 @@ import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
 import { getClassByClassId } from "@/lib/queries/classes";
 import { getStudentGroupForClass } from "@/lib/queries/groups";
 import { getUnlockState } from "@/lib/utils/unlockLogic";
-import { ContentItem } from "@/types/contentItem";
 
 function LearningContentPageContent({
   onClassUuid,
@@ -37,7 +35,6 @@ function LearningContentPageContent({
 
   const [content, setContent] = useState<LearningContent | null>(null);
   const [contentItemId, setContentItemId] = useState<string | null>(null);
-  const [contentItem, setContentItem] = useState<ContentItem | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [isContentLocked, setIsContentLocked] = useState<boolean>(false);
   const [lockReason, setLockReason] = useState<string | null>(null);
@@ -70,7 +67,6 @@ function LearningContentPageContent({
       );
       if (fetchedContentItem) {
         setContentItemId(fetchedContentItem.id);
-        setContentItem(fetchedContentItem);
 
         // Check if already complete
         const complete = await isContentComplete(fetchedContentItem.id);
@@ -205,30 +201,11 @@ function LearningContentPageContent({
           </div>
 
           <div className="space-y-6 pb-8">
-            {content.video_url && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Video</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <YouTubeEmbed
-                    videoUrl={content.video_url}
-                    title={content.title}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {content.body && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Text</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="whitespace-pre-wrap">{content.body}</div>
-                </CardContent>
-              </Card>
-            )}
+            <LearningContentViewer
+              title={content.title}
+              body={content.body}
+              videoUrl={content.video_url}
+            />
 
             {/* Mark as Complete Button */}
             {contentItemId && (

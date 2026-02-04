@@ -18,9 +18,7 @@ import {
 } from "@/lib/queries/learningContent";
 import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
 import { LearningContent } from "@/types/learningContent";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-import YouTubeEmbed from "@/components/Shared/YouTubeEmbed";
+import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 
 export default function LearningContentDetailPage() {
   const params = useParams();
@@ -139,30 +137,11 @@ export default function LearningContentDetailPage() {
           </div>
 
           <div className="space-y-6 pb-8">
-            {content.video_url && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Video</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <YouTubeEmbed
-                    videoUrl={content.video_url}
-                    title={content.title}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {content.body && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Text</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="whitespace-pre-wrap">{content.body}</div>
-                </CardContent>
-              </Card>
-            )}
+            <LearningContentViewer
+              title={content.title}
+              body={content.body}
+              videoUrl={content.video_url}
+            />
           </div>
         </div>
       </div>
