@@ -8,6 +8,7 @@ import { StaticTextAssessment } from "@/components/StaticTextAssessment";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
+import { isContentComplete } from "@/lib/queries/contentCompletions";
 
 interface AssignmentResponseCoreProps {
   assignmentData: Assignment;
@@ -51,6 +52,7 @@ export default function AssignmentResponseCore({
   const [answers, setAnswers] = useState<{ [key: number]: string }>(
     existingAnswers
   );
+  const [isComplete, setIsComplete] = useState(false);
   // Use assignment's preferred_language as fallback if initialPreferredLanguage is empty
   const [preferredLanguage, setPreferredLanguage] = useState(
     initialPreferredLanguage || assignmentData.preferred_language || "en"
@@ -95,6 +97,34 @@ export default function AssignmentResponseCore({
   useEffect(() => {
     checkAttempts();
   }, [checkAttempts, currentQuestionIndex]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkCompletion = async () => {
+      if (!contentItemId) {
+        if (isMounted) {
+          setIsComplete(false);
+        }
+        return;
+      }
+
+      try {
+        const completed = await isContentComplete(contentItemId);
+        if (isMounted) {
+          setIsComplete(completed);
+        }
+      } catch (error) {
+        console.error("Error checking completion status:", error);
+      }
+    };
+
+    checkCompletion();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [contentItemId]);
 
   // Callback for assessment components to trigger re-check after new attempt
   const handleAttemptCreated = useCallback(() => {
@@ -178,7 +208,14 @@ export default function AssignmentResponseCore({
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Assignment Title and Language Selector */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
+          {isComplete && (
+            <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400">
+              Completed
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Assessment Component based on mode */}
@@ -212,6 +249,8 @@ export default function AssignmentResponseCore({
           allQuestionsHaveAttempts={allQuestionsHaveAttempts}
           questionsWithAttempts={questionsWithAttempts}
           onAttemptCreated={handleAttemptCreated}
+          onMarkedComplete={() => setIsComplete(true)}
+          isComplete={isComplete}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -242,6 +281,8 @@ export default function AssignmentResponseCore({
           allQuestionsHaveAttempts={allQuestionsHaveAttempts}
           questionsWithAttempts={questionsWithAttempts}
           onAttemptCreated={handleAttemptCreated}
+          onMarkedComplete={() => setIsComplete(true)}
+          isComplete={isComplete}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -273,6 +314,8 @@ export default function AssignmentResponseCore({
           allQuestionsHaveAttempts={allQuestionsHaveAttempts}
           questionsWithAttempts={questionsWithAttempts}
           onAttemptCreated={handleAttemptCreated}
+          onMarkedComplete={() => setIsComplete(true)}
+          isComplete={isComplete}
         />
       )}
     </div>
