@@ -45,6 +45,7 @@ interface AssignmentFormProps {
   initialShowRubricPoints?: boolean;
   initialUseStarDisplay?: boolean;
   initialStarScale?: number;
+  initialRequireAllAttempts?: boolean;
   onSubmit: (data: {
     title: string;
     questions: Question[];
@@ -62,6 +63,7 @@ interface AssignmentFormProps {
     showRubricPoints?: boolean;
     useStarDisplay?: boolean;
     starScale?: number;
+    requireAllAttempts?: boolean;
   }) => Promise<void>;
 }
 
@@ -95,6 +97,7 @@ export default function AssignmentForm({
   initialShowRubricPoints = true,
   initialUseStarDisplay = false,
   initialStarScale = 5,
+  initialRequireAllAttempts = false,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -132,6 +135,9 @@ export default function AssignmentForm({
   );
   const [useStarDisplay, setUseStarDisplay] = useState(initialUseStarDisplay);
   const [starScale, setStarScale] = useState(initialStarScale);
+  const [requireAllAttempts, setRequireAllAttempts] = useState(
+    initialRequireAllAttempts
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
@@ -399,6 +405,7 @@ export default function AssignmentForm({
         showRubricPoints,
         useStarDisplay,
         starScale,
+        requireAllAttempts,
       });
 
       // Navigate based on mode
@@ -672,6 +679,30 @@ export default function AssignmentForm({
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Completion Requirements */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="requireAllAttempts"
+                checked={requireAllAttempts}
+                onCheckedChange={(checked) =>
+                  setRequireAllAttempts(checked === true)
+                }
+                disabled={loading}
+              />
+              <div className="space-y-1">
+                <Label
+                  htmlFor="requireAllAttempts"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Require all questions attempted to complete
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, students must attempt all questions before they
+                  can mark the assessment as complete
+                </p>
+              </div>
             </div>
 
             {/* Public Access Toggle */}

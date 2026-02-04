@@ -39,6 +39,11 @@ interface StaticTextAssessmentProps {
   showRubricPoints?: boolean;
   useStarDisplay?: boolean;
   starScale?: number;
+  // Attempt validation props
+  requireAllAttempts?: boolean;
+  allQuestionsHaveAttempts?: boolean;
+  questionsWithAttempts?: Set<number>;
+  onAttemptCreated?: () => void;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -64,6 +69,10 @@ export function StaticTextAssessment({
   showRubricPoints = true,
   useStarDisplay = false,
   starScale = 5,
+  requireAllAttempts = false,
+  allQuestionsHaveAttempts = true,
+  questionsWithAttempts,
+  onAttemptCreated,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -237,6 +246,11 @@ export function StaticTextAssessment({
       // Log attempt_ended event
       logEvent("attempt_ended");
 
+      // Notify parent to refresh attempt tracking
+      if (onAttemptCreated) {
+        onAttemptCreated();
+      }
+
       // Clear the textarea for a new attempt and remove stored draft
       setAnswer("");
       setHasStarted(false);
@@ -399,6 +413,10 @@ export function StaticTextAssessment({
         previousDisabled={isEvaluating}
         nextDisabled={isEvaluating}
         contentItemId={contentItemId}
+        requireAllAttempts={requireAllAttempts}
+        allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+        questionsWithAttempts={questionsWithAttempts}
+        totalQuestions={totalQuestions}
       />
     </div>
   );

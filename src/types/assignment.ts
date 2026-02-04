@@ -125,5 +125,10 @@ export interface Assignment {
    * Defaults to false (points).
    */
   teacher_view_stars?: boolean;
+  /**
+   * When true, students must attempt all questions before marking complete.
+   * Defaults to false for backwards compatibility.
+   */
+  require_all_attempts?: boolean;
 }
 
