@@ -50,7 +50,10 @@ interface YouTubeEmbedProps {
  * Shared component for displaying YouTube video embeds
  * Can be used by both teachers and students
  */
-export default function YouTubeEmbed({ videoUrl, title = "YouTube video" }: YouTubeEmbedProps) {
+export default function YouTubeEmbed({
+  videoUrl,
+  title = "YouTube video",
+}: YouTubeEmbedProps) {
   const embedUrl = getYouTubeEmbedUrl(videoUrl);
 
   if (!embedUrl) {
@@ -77,18 +80,6 @@ export default function YouTubeEmbed({ videoUrl, title = "YouTube video" }: YouT
           allowFullScreen
         />
       </div>
-      <a
-        className="text-sm underline underline-offset-4"
-        href={videoUrl}
-        target="_blank"
-        rel="noreferrer"
-      >
-        Open on YouTube
-      </a>
     </div>
   );
 }
-
-
-
-
