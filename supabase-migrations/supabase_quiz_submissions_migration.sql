@@ -19,7 +19,7 @@ COMMENT ON TABLE quiz_submissions IS 'Stores student submissions for quizzes';
 COMMENT ON COLUMN quiz_submissions.quiz_id IS 'References quizzes.id';
 COMMENT ON COLUMN quiz_submissions.class_id IS 'References classes.id';
 COMMENT ON COLUMN quiz_submissions.student_id IS 'Authenticated student id';
-COMMENT ON COLUMN quiz_submissions.answers IS 'Array of answers: [{ question_order: number, selected_option_id: string }]';
+COMMENT ON COLUMN quiz_submissions.answers IS 'Array of answers: [{ question_id: string, selected_option_id: string }]';
 COMMENT ON COLUMN quiz_submissions.submitted_at IS 'Timestamp when the submission was completed';
 
 ALTER TABLE quiz_submissions ENABLE ROW LEVEL SECURITY;

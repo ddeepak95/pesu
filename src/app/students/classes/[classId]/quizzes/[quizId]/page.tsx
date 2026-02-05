@@ -49,7 +49,7 @@ function QuizPageContent({
   const [lockReason, setLockReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submission, setSubmission] = useState<QuizSubmission | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const seedKey = useMemo(
@@ -65,6 +65,7 @@ function QuizPageContent({
       : baseQuestions;
     return orderedQuestions.map((q) => ({
       ...q,
+      id: q.id || `order-${q.order}`,
       options: quiz.randomize_options
         ? shuffleWithSeed(q.options, `${sessionSeed}:${q.order}`)
         : q.options,
@@ -154,9 +155,9 @@ function QuizPageContent({
       const existingSubmission = await getQuizSubmissionForStudent(data.id);
       if (existingSubmission) {
         setSubmission(existingSubmission);
-        const nextAnswers: Record<number, string> = {};
+        const nextAnswers: Record<string, string> = {};
         for (const answer of existingSubmission.answers || []) {
-          nextAnswers[answer.question_order] = answer.selected_option_id;
+          nextAnswers[answer.question_id] = answer.selected_option_id;
         }
         setAnswers(nextAnswers);
       }
@@ -168,21 +169,21 @@ function QuizPageContent({
     }
   };
 
-  const handleSelectAnswer = (questionOrder: number, optionId: string) => {
-    setAnswers((prev) => ({ ...prev, [questionOrder]: optionId }));
+  const handleSelectAnswer = (questionId: string, optionId: string) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
   };
 
   const handleSubmit = async () => {
     if (!quiz || submission) return;
-    const allAnswered = quiz.questions.every((q) => answers[q.order]);
+    const allAnswered = displayQuestions.every((q) => answers[q.id]);
     if (!allAnswered) {
       showErrorToast("Please answer all questions before submitting.");
       return;
     }
 
-    const payload: QuizSubmissionAnswer[] = quiz.questions.map((q) => ({
-      question_order: q.order,
-      selected_option_id: answers[q.order],
+    const payload: QuizSubmissionAnswer[] = displayQuestions.map((q) => ({
+      question_id: q.id,
+      selected_option_id: answers[q.id],
     }));
 
     setIsSubmitting(true);
@@ -268,7 +269,7 @@ function QuizPageContent({
   const scoreSummary = submission
     ? calculateQuizScore(quiz, submission.answers || [])
     : null;
-  const canSubmit = displayQuestions.every((q) => !!answers[q.order]);
+  const canSubmit = displayQuestions.every((q) => !!answers[q.id]);
 
   return (
     <PageLayout>
@@ -298,12 +299,12 @@ function QuizPageContent({
           <div className="space-y-4 pb-8">
             {displayQuestions.map((q, idx) => (
               <QuizQuestionCard
-                key={q.order}
+                key={q.id}
                 question={q}
-                selectedOptionId={answers[q.order]}
+                selectedOptionId={answers[q.id]}
                 showPoints={showPoints}
                 disabled={!!submission}
-                onSelect={(optionId) => handleSelectAnswer(q.order, optionId)}
+                onSelect={(optionId) => handleSelectAnswer(q.id, optionId)}
               />
             ))}
 

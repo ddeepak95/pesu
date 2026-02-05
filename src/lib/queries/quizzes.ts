@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase";
 import { nanoid } from "nanoid";
 import { MCQQuestion, Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types/quiz";
+import { getClassStudentsWithInfo, StudentWithInfo } from "@/lib/queries/students";
+import { calculateQuizScore } from "@/utils/quizScoring";
 
 function generateQuizId(): string {
   return nanoid(8);
@@ -148,6 +150,15 @@ export async function deleteQuiz(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export interface QuizSubmissionStatus {
+  student: StudentWithInfo;
+  submission: QuizSubmission | null;
+  status: "completed" | "not_started";
+  earnedPoints?: number;
+  totalPoints?: number;
+  submittedAt?: string | null;
+}
+
 export async function getQuizSubmissionForStudent(
   quizId: string
 ): Promise<QuizSubmission | null> {
@@ -203,6 +214,84 @@ export async function createQuizSubmission(payload: {
 
   if (error) throw error;
   return data as QuizSubmission;
+}
+
+export async function getQuizSubmissionsByQuizWithStudents(
+  quiz: Quiz
+): Promise<QuizSubmissionStatus[]> {
+  const supabase = createClient();
+
+  const students = await getClassStudentsWithInfo(quiz.class_id);
+  if (students.length === 0) {
+    return [];
+  }
+
+  const { data: submissions, error } = await supabase
+    .from("quiz_submissions")
+    .select("*")
+    .eq("quiz_id", quiz.id)
+    .eq("class_id", quiz.class_id);
+
+  if (error) {
+    console.error("Error fetching quiz submissions:", error);
+    throw error;
+  }
+
+  const submissionMap = new Map<string, QuizSubmission>();
+  for (const submission of (submissions || []) as QuizSubmission[]) {
+    submissionMap.set(submission.student_id, submission);
+  }
+
+  return students.map((student) => {
+    const submission = submissionMap.get(student.student_id) || null;
+    if (!submission) {
+      return {
+        student,
+        submission: null,
+        status: "not_started",
+        submittedAt: null,
+      };
+    }
+
+    const score = calculateQuizScore(quiz, submission.answers || []);
+
+    return {
+      student,
+      submission,
+      status: "completed",
+      earnedPoints: score.earnedPoints,
+      totalPoints: score.totalPoints,
+      submittedAt: submission.submitted_at ?? null,
+    };
+  });
+}
+
+export async function deleteQuizSubmissionForStudent(params: {
+  quizId: string;
+  studentId: string;
+}): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("quiz_submissions")
+    .delete()
+    .eq("quiz_id", params.quizId)
+    .eq("student_id", params.studentId);
+
+  if (error) throw error;
+}
+
+export async function deleteQuizCompletionForStudent(params: {
+  contentItemId: string;
+  studentId: string;
+}): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("student_content_completions")
+    .delete()
+    .eq("content_item_id", params.contentItemId)
+    .eq("student_id", params.studentId);
+
+  if (error) throw error;
 }
 
 

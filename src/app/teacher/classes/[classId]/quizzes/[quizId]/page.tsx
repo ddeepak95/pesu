@@ -18,6 +18,7 @@ import { getQuizByShortIdForTeacher, deleteQuiz } from "@/lib/queries/quizzes";
 import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
 import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import QuizSubmissionsTab from "@/components/Teacher/Quizzes/QuizSubmissionsTab";
 
 export default function QuizDetailPage() {
   const params = useParams();
@@ -185,11 +186,7 @@ export default function QuizDetailPage() {
             </TabsContent>
 
             <TabsContent value="submissions" className="py-6">
-              <div className="text-center p-12">
-                <p className="text-muted-foreground text-lg">
-                  Submissions feature coming soon
-                </p>
-              </div>
+              <QuizSubmissionsTab quiz={quiz} />
             </TabsContent>
           </Tabs>
         </div>

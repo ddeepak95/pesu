@@ -10,15 +10,24 @@ import { MCQQuestion } from "@/types/quiz";
 import MCQQuestionCard from "@/components/Teacher/Quizzes/MCQQuestionCard";
 
 function newQuestion(order: number): MCQQuestion {
+  const id = nanoid(10);
   const a = { id: nanoid(8), text: "" };
   const b = { id: nanoid(8), text: "" };
   return {
+    id,
     order,
     prompt: "",
     options: [a, b],
     correct_option_id: a.id,
     points: 1,
   };
+}
+
+function ensureQuestionIds(questions: MCQQuestion[]): MCQQuestion[] {
+  return questions.map((q) => ({
+    ...q,
+    id: q.id || nanoid(10),
+  }));
 }
 
 export default function QuizForm({
@@ -50,7 +59,7 @@ export default function QuizForm({
   const [title, setTitle] = useState(initialTitle);
   const [questions, setQuestions] = useState<MCQQuestion[]>(
     initialQuestions && initialQuestions.length > 0
-      ? initialQuestions
+      ? ensureQuestionIds(initialQuestions)
       : [newQuestion(0)]
   );
   const [isDraft, setIsDraft] = useState(initialIsDraft);
@@ -138,6 +147,7 @@ export default function QuizForm({
           : finalOptions[0].id;
         return {
           ...q,
+          id: q.id || nanoid(10),
           order: idx,
           options: finalOptions,
           correct_option_id: correct,

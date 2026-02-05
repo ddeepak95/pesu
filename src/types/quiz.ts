@@ -4,6 +4,7 @@ export interface MCQOption {
 }
 
 export interface MCQQuestion {
+  id: string;
   order: number;
   prompt: string;
   options: MCQOption[];
@@ -29,7 +30,7 @@ export interface Quiz {
 }
 
 export interface QuizSubmissionAnswer {
-  question_order: number;
+  question_id: string;
   selected_option_id: string;
 }
 

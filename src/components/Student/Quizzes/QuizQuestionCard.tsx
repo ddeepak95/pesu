@@ -42,7 +42,7 @@ export default function QuizQuestionCard({
               >
                 <input
                   type="radio"
-                  name={`question-${question.order}`}
+                  name={`question-${question.id}`}
                   value={option.id}
                   checked={checked}
                   onChange={() => onSelect(option.id)}
