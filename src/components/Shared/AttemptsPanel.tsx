@@ -32,7 +32,7 @@ export function AttemptsPanel({
 
   return (
     <div className="mt-4 border rounded-lg">
-      <div className="p-3 bg-muted/30 border-b">
+      <div className="p-3 bg-muted/30">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold">Attempts</p>
           {maxAttempts && remainingAttempts !== null && (
