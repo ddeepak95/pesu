@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { StudentWithInfo, reassignStudentToGroup } from "@/lib/queries/students";
+import { getStudentDisplayName } from "@/lib/utils/displayName";
 import { ClassGroup } from "@/lib/queries/groups";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
@@ -75,10 +76,7 @@ export default function ChangeGroupDialog({
 
   if (!student) return null;
 
-  const displayName =
-    student.student_display_name ||
-    student.student_email ||
-    student.student_id.substring(0, 8) + "...";
+  const displayName = getStudentDisplayName(student);
 
   const currentGroupName =
     student.group_name ||

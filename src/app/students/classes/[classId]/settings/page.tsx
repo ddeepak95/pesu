@@ -2,28 +2,21 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
-import Content from "@/components/Student/Classes/Content";
-import ProfileDetailsDialog from "@/components/Student/Classes/ProfileDetailsDialog";
-import { Button } from "@/components/ui/button";
+import StudentProfileForm from "@/components/Student/Classes/StudentProfileForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { getClassByClassId } from "@/lib/queries/classes";
 import { Class } from "@/types/class";
 import { useStudentProfile } from "@/hooks/useStudentProfile";
-import { Settings } from "lucide-react";
 
-export default function ClassDetailPage() {
+export default function StudentSettingsPage() {
   const params = useParams();
   const { user, loading: authLoading } = useAuth();
   const classId = params.classId as string;
   const [classData, setClassData] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Profile dialog state
-  const [showProfileDialog, setShowProfileDialog] = useState(false);
 
   const fetchClass = useCallback(async () => {
     setLoading(true);
@@ -50,28 +43,13 @@ export default function ClassDetailPage() {
     }
   }, [classId, fetchClass]);
 
-  // Use the profile hook to fetch fields and check completion
   const {
     fields: profileFields,
     responses: existingResponses,
-    hasCompletedRequired,
     loading: profileLoading,
+    refetch: refetchProfile,
   } = useStudentProfile(classData?.id ?? "", user?.id ?? "");
 
-  // Show profile dialog if mandatory fields are not completed
-  useEffect(() => {
-    if (profileLoading || !classData || !user) return;
-
-    if (profileFields.length > 0 && !hasCompletedRequired) {
-      setShowProfileDialog(true);
-    }
-  }, [profileLoading, classData, user, profileFields, hasCompletedRequired]);
-
-  const handleProfileComplete = () => {
-    setShowProfileDialog(false);
-  };
-
-  // Show loading while checking auth (middleware handles redirect if not authenticated)
   if (authLoading || !user) {
     return (
       <PageLayout>
@@ -86,7 +64,7 @@ export default function ClassDetailPage() {
     return (
       <PageLayout>
         <div className="text-center">
-          <p className="text-muted-foreground">Loading class details...</p>
+          <p className="text-muted-foreground">Loading settings...</p>
         </div>
       </PageLayout>
     );
@@ -104,35 +82,29 @@ export default function ClassDetailPage() {
 
   return (
     <PageLayout>
-      {/* Profile details dialog - shows if student hasn't completed required fields */}
-      {profileFields.length > 0 && (
-        <ProfileDetailsDialog
-          classDbId={classData.id}
-          className={classData.name}
-          studentId={user.id}
-          fields={profileFields}
-          existingResponses={existingResponses}
-          open={showProfileDialog}
-          onComplete={handleProfileComplete}
-        />
-      )}
-
       <div>
-        <div>
-          <div className="mb-4">
-            <BackButton href="/students/classes" />
-          </div>
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-3xl font-bold">{classData.name}</h1>
-            <Button variant="outline" className="gap-2" asChild>
-              <Link href={`/students/classes/${classId}/settings`}>
-                <Settings className="h-4 w-4" />
-                Settings
-              </Link>
-            </Button>
-          </div>
+        <div className="mb-4">
+          <BackButton href={`/students/classes/${classId}`} />
+        </div>
+        <h1 className="text-3xl font-bold mb-2">{classData.name}</h1>
+        <p className="text-muted-foreground mb-8">
+          Manage your settings for this class.
+        </p>
 
-          <Content classData={classData} />
+        <div className="space-y-6">
+          {profileLoading ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Loading profile...</p>
+            </div>
+          ) : (
+            <StudentProfileForm
+              classDbId={classData.id}
+              studentId={user.id}
+              fields={profileFields}
+              existingResponses={existingResponses}
+              onSaved={refetchProfile}
+            />
+          )}
         </div>
       </div>
     </PageLayout>

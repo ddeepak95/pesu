@@ -1,16 +1,16 @@
 import { createClient } from "@/lib/supabase";
 import {
-  MandatoryField,
-  MandatoryFieldInput,
-  StudentClassInfo,
-} from "@/types/mandatoryFields";
+  ProfileField,
+  ProfileFieldInput,
+  StudentProfile,
+} from "@/types/profileFields";
 
 /**
- * Get all mandatory fields for a class (ordered by position)
+ * Get all profile fields for a class (ordered by position)
  */
-export async function getMandatoryFieldsForClass(
+export async function getProfileFieldsForClass(
   classDbId: string
-): Promise<MandatoryField[]> {
+): Promise<ProfileField[]> {
   const supabase = createClient();
 
   const { data, error } = await supabase
@@ -21,16 +21,16 @@ export async function getMandatoryFieldsForClass(
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data || []) as MandatoryField[];
+  return (data || []) as ProfileField[];
 }
 
 /**
- * Create a new mandatory field for a class
+ * Create a new profile field for a class
  */
-export async function createMandatoryField(
+export async function createProfileField(
   classDbId: string,
-  field: MandatoryFieldInput
-): Promise<MandatoryField> {
+  field: ProfileFieldInput
+): Promise<ProfileField> {
   const supabase = createClient();
 
   const { data, error } = await supabase
@@ -41,21 +41,23 @@ export async function createMandatoryField(
       field_type: field.field_type,
       options: field.field_type === "dropdown" ? field.options || [] : null,
       position: field.position,
+      is_mandatory: field.is_mandatory,
+      is_display_name: field.is_display_name,
     })
     .select()
     .single();
 
   if (error) throw error;
-  return data as MandatoryField;
+  return data as ProfileField;
 }
 
 /**
- * Update an existing mandatory field
+ * Update an existing profile field
  */
-export async function updateMandatoryField(
+export async function updateProfileField(
   fieldId: string,
-  updates: Partial<MandatoryFieldInput>
-): Promise<MandatoryField> {
+  updates: Partial<ProfileFieldInput>
+): Promise<ProfileField> {
   const supabase = createClient();
 
   const updateData: Record<string, unknown> = {};
@@ -63,6 +65,8 @@ export async function updateMandatoryField(
   if (updates.field_type !== undefined) updateData.field_type = updates.field_type;
   if (updates.options !== undefined) updateData.options = updates.options;
   if (updates.position !== undefined) updateData.position = updates.position;
+  if (updates.is_mandatory !== undefined) updateData.is_mandatory = updates.is_mandatory;
+  if (updates.is_display_name !== undefined) updateData.is_display_name = updates.is_display_name;
 
   const { data, error } = await supabase
     .from("class_mandatory_fields")
@@ -72,13 +76,13 @@ export async function updateMandatoryField(
     .single();
 
   if (error) throw error;
-  return data as MandatoryField;
+  return data as ProfileField;
 }
 
 /**
- * Delete a mandatory field
+ * Delete a profile field
  */
-export async function deleteMandatoryField(fieldId: string): Promise<void> {
+export async function deleteProfileField(fieldId: string): Promise<void> {
   const supabase = createClient();
 
   const { error } = await supabase
@@ -92,12 +96,11 @@ export async function deleteMandatoryField(fieldId: string): Promise<void> {
 /**
  * Batch update field positions (for reordering)
  */
-export async function updateFieldPositions(
+export async function updateProfileFieldPositions(
   fields: { id: string; position: number }[]
 ): Promise<void> {
   const supabase = createClient();
 
-  // Update each field's position
   for (const field of fields) {
     const { error } = await supabase
       .from("class_mandatory_fields")
@@ -109,12 +112,12 @@ export async function updateFieldPositions(
 }
 
 /**
- * Get student's submitted info for a class
+ * Get a student's profile for a class
  */
-export async function getStudentClassInfo(
+export async function getStudentProfile(
   classDbId: string,
   studentId: string
-): Promise<StudentClassInfo | null> {
+): Promise<StudentProfile | null> {
   const supabase = createClient();
 
   const { data, error } = await supabase
@@ -125,24 +128,23 @@ export async function getStudentClassInfo(
     .single();
 
   if (error) {
-    // If no record found, return null (not an error)
     if (error.code === "PGRST116") {
       return null;
     }
     throw error;
   }
 
-  return data as StudentClassInfo;
+  return data as StudentProfile;
 }
 
 /**
- * Save or update student's class info
+ * Save or update a student's profile for a class
  */
-export async function upsertStudentClassInfo(
+export async function upsertStudentProfile(
   classDbId: string,
   studentId: string,
   fieldResponses: Record<string, string>
-): Promise<StudentClassInfo> {
+): Promise<StudentProfile> {
   const supabase = createClient();
 
   const { data, error } = await supabase
@@ -161,13 +163,30 @@ export async function upsertStudentClassInfo(
     .single();
 
   if (error) throw error;
-  return data as StudentClassInfo;
+  return data as StudentProfile;
 }
 
 /**
- * Check if a student has completed all mandatory info for a class
+ * Get all student profiles for a class (teacher view)
  */
-export async function hasCompletedMandatoryInfo(
+export async function getAllStudentProfiles(
+  classDbId: string
+): Promise<StudentProfile[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("student_class_info")
+    .select("*")
+    .eq("class_id", classDbId);
+
+  if (error) throw error;
+  return (data || []) as StudentProfile[];
+}
+
+/**
+ * Check if a student has completed all required profile fields for a class
+ */
+export async function hasCompletedRequiredProfile(
   classDbId: string,
   studentId: string
 ): Promise<boolean> {
@@ -180,38 +199,37 @@ export async function hasCompletedMandatoryInfo(
   });
 
   if (error) {
-    // If function doesn't exist, fall back to manual check
     console.warn("has_completed_mandatory_info RPC failed, using fallback:", error);
-    return await checkMandatoryInfoManually(classDbId, studentId);
+    return await checkRequiredProfileManually(classDbId, studentId);
   }
 
   return data as boolean;
 }
 
 /**
- * Fallback manual check for mandatory info completion
+ * Fallback manual check for required profile completion
  */
-async function checkMandatoryInfoManually(
+async function checkRequiredProfileManually(
   classDbId: string,
   studentId: string
 ): Promise<boolean> {
-  const fields = await getMandatoryFieldsForClass(classDbId);
-  
-  // If no mandatory fields, return true
-  if (fields.length === 0) {
+  const fields = await getProfileFieldsForClass(classDbId);
+
+  // Only check mandatory fields
+  const mandatoryFields = fields.filter((f) => f.is_mandatory);
+
+  if (mandatoryFields.length === 0) {
     return true;
   }
 
-  const studentInfo = await getStudentClassInfo(classDbId, studentId);
-  
-  // If no info submitted, return false
-  if (!studentInfo) {
+  const studentProfile = await getStudentProfile(classDbId, studentId);
+
+  if (!studentProfile) {
     return false;
   }
 
-  // Check if all fields have non-empty responses
-  const responses = studentInfo.field_responses;
-  for (const field of fields) {
+  const responses = studentProfile.field_responses;
+  for (const field of mandatoryFields) {
     const response = responses[field.id];
     if (!response || response.trim() === "") {
       return false;

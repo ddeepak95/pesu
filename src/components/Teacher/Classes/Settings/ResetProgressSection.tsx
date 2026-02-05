@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle } from "lucide-react";
 import { getClassStudentsWithInfo } from "@/lib/queries/students";
+import { getStudentDisplayName } from "@/lib/utils/displayName";
 import { resetStudentProgress } from "@/lib/queries/contentCompletions";
 
 interface ResetProgressSectionProps {
@@ -84,12 +85,8 @@ export default function ResetProgressSection({
     }
   };
 
-  const getStudentDisplayName = (student: (typeof students)[0]) => {
-    return (
-      student.student_display_name ||
-      student.student_email ||
-      student.student_id.substring(0, 8) + "..."
-    );
+  const getDisplayName = (student: (typeof students)[0]) => {
+    return getStudentDisplayName(student);
   };
 
   return (
@@ -117,7 +114,7 @@ export default function ResetProgressSection({
                   key={student.student_id}
                   value={student.student_id}
                 >
-                  {getStudentDisplayName(student)}
+                  {getDisplayName(student)}
                 </SelectItem>
               ))}
             </SelectContent>

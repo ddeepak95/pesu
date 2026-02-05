@@ -19,12 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
-  getMandatoryFieldsForClass,
-  createMandatoryField,
-  updateMandatoryField,
-  deleteMandatoryField,
-} from "@/lib/queries/mandatoryFields";
+  getProfileFieldsForClass,
+  createProfileField,
+  updateProfileField,
+  deleteProfileField,
+} from "@/lib/queries/profileFields";
 import {
   Plus,
   Trash2,
@@ -40,18 +41,20 @@ interface LocalField {
   field_type: "text" | "dropdown";
   options: string[];
   position: number;
+  is_mandatory: boolean;
+  is_display_name: boolean;
   isNew?: boolean;
 }
 
-interface MandatoryFieldsSectionProps {
+interface ProfileFieldsSectionProps {
   classData: Class;
   isOwner: boolean;
 }
 
-export default function MandatoryFieldsSection({
+export default function ProfileFieldsSection({
   classData,
   isOwner,
-}: MandatoryFieldsSectionProps) {
+}: ProfileFieldsSectionProps) {
   const [fields, setFields] = useState<LocalField[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,7 +70,7 @@ export default function MandatoryFieldsSection({
       setDeletedFieldIds([]);
 
       try {
-        const existingFields = await getMandatoryFieldsForClass(classData.id);
+        const existingFields = await getProfileFieldsForClass(classData.id);
         setFields(
           existingFields.map((f) => ({
             id: f.id,
@@ -75,12 +78,14 @@ export default function MandatoryFieldsSection({
             field_type: f.field_type,
             options: f.options || [],
             position: f.position,
+            is_mandatory: f.is_mandatory,
+            is_display_name: f.is_display_name,
             isNew: false,
           }))
         );
       } catch (err) {
-        console.error("Error loading mandatory fields:", err);
-        setError("Failed to load mandatory fields");
+        console.error("Error loading profile fields:", err);
+        setError("Failed to load profile fields");
       } finally {
         setLoading(false);
       }
@@ -101,6 +106,8 @@ export default function MandatoryFieldsSection({
         field_type: "text",
         options: [],
         position: newPosition,
+        is_mandatory: true,
+        is_display_name: false,
         isNew: true,
       },
     ]);
@@ -117,7 +124,7 @@ export default function MandatoryFieldsSection({
   const handleFieldChange = (
     index: number,
     key: keyof LocalField,
-    value: string | string[]
+    value: string | string[] | boolean
   ) => {
     const updated = [...fields];
     if (key === "field_type" && value === "text") {
@@ -125,6 +132,14 @@ export default function MandatoryFieldsSection({
     } else {
       updated[index] = { ...updated[index], [key]: value };
     }
+    setFields(updated);
+  };
+
+  const handleDisplayNameChange = (index: number) => {
+    const updated = fields.map((f, i) => ({
+      ...f,
+      is_display_name: i === index ? !f.is_display_name : false,
+    }));
     setFields(updated);
   };
 
@@ -202,23 +217,27 @@ export default function MandatoryFieldsSection({
 
     try {
       for (const id of deletedFieldIds) {
-        await deleteMandatoryField(id);
+        await deleteProfileField(id);
       }
 
       for (const field of fields) {
         if (field.isNew) {
-          await createMandatoryField(classData.id, {
+          await createProfileField(classData.id, {
             field_name: field.field_name,
             field_type: field.field_type,
             options: field.options,
             position: field.position,
+            is_mandatory: field.is_mandatory,
+            is_display_name: field.is_display_name,
           });
         } else {
-          await updateMandatoryField(field.id, {
+          await updateProfileField(field.id, {
             field_name: field.field_name,
             field_type: field.field_type,
             options: field.options,
             position: field.position,
+            is_mandatory: field.is_mandatory,
+            is_display_name: field.is_display_name,
           });
         }
       }
@@ -228,7 +247,7 @@ export default function MandatoryFieldsSection({
       setTimeout(() => setSuccess(false), 3000);
 
       // Reload to get fresh IDs for newly created fields
-      const existingFields = await getMandatoryFieldsForClass(classData.id);
+      const existingFields = await getProfileFieldsForClass(classData.id);
       setFields(
         existingFields.map((f) => ({
           id: f.id,
@@ -236,12 +255,14 @@ export default function MandatoryFieldsSection({
           field_type: f.field_type,
           options: f.options || [],
           position: f.position,
+          is_mandatory: f.is_mandatory,
+          is_display_name: f.is_display_name,
           isNew: false,
         }))
       );
     } catch (err) {
-      console.error("Error saving mandatory fields:", err);
-      setError("Failed to save mandatory fields. Please try again.");
+      console.error("Error saving profile fields:", err);
+      setError("Failed to save profile fields. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -250,11 +271,11 @@ export default function MandatoryFieldsSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Mandatory Student Information</CardTitle>
+        <CardTitle>Student Profile Fields</CardTitle>
         <CardDescription>
-          Configure the information fields that students must fill out before
-          accessing class content. Leave empty if no mandatory information is
-          required.
+          Configure the profile fields students will fill out. Mark fields as
+          mandatory to require them before class access. Select one field to use
+          as the student display name.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -266,10 +287,10 @@ export default function MandatoryFieldsSection({
           <div className="space-y-4">
             {fields.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
-                <p>No mandatory fields configured.</p>
+                <p>No profile fields configured.</p>
                 <p className="text-sm mt-1">
-                  Students can access class content without additional
-                  information.
+                  Add fields to collect student information like name,
+                  department, or student ID.
                 </p>
               </div>
             ) : (
@@ -414,6 +435,43 @@ export default function MandatoryFieldsSection({
                           </p>
                         </div>
                       )}
+
+                      {/* Mandatory toggle and Display Name radio */}
+                      <div className="flex flex-col gap-3 pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <Label
+                            htmlFor={`field-mandatory-${index}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            Required
+                          </Label>
+                          <Switch
+                            id={`field-mandatory-${index}`}
+                            checked={field.is_mandatory}
+                            onCheckedChange={(checked) =>
+                              handleFieldChange(index, "is_mandatory", checked)
+                            }
+                            disabled={saving}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label
+                            htmlFor={`field-display-name-${index}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            Use as display name
+                          </Label>
+                          <input
+                            type="radio"
+                            id={`field-display-name-${index}`}
+                            name="display-name-field"
+                            checked={field.is_display_name}
+                            onChange={() => handleDisplayNameChange(index)}
+                            disabled={saving}
+                            className="h-4 w-4 accent-primary cursor-pointer"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -434,7 +492,7 @@ export default function MandatoryFieldsSection({
             {error && <p className="text-sm text-destructive">{error}</p>}
             {success && (
               <p className="text-sm text-green-600">
-                Mandatory fields saved successfully.
+                Profile fields saved successfully.
               </p>
             )}
 

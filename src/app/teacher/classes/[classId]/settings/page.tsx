@@ -7,7 +7,7 @@ import BackButton from "@/components/ui/back-button";
 import GeneralSettingsSection from "@/components/Teacher/Classes/Settings/GeneralSettingsSection";
 import ManageTeachersSection from "@/components/Teacher/Classes/Settings/ManageTeachersSection";
 import GroupSettingsSection from "@/components/Teacher/Classes/Settings/GroupSettingsSection";
-import MandatoryFieldsSection from "@/components/Teacher/Classes/Settings/MandatoryFieldsSection";
+import ProfileFieldsSection from "@/components/Teacher/Classes/Settings/ProfileFieldsSection";
 import ProgressiveUnlockSection from "@/components/Teacher/Classes/Settings/ProgressiveUnlockSection";
 import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetProgressSection";
 import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneSection";
@@ -116,7 +116,7 @@ export default function ClassSettingsPage() {
             onUpdated={fetchClass}
           />
 
-          <MandatoryFieldsSection
+          <ProfileFieldsSection
             classData={classData}
             isOwner={isOwner}
           />

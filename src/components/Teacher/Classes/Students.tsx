@@ -14,6 +14,7 @@ import {
   StudentWithInfo,
   getClassStudentsWithInfo,
 } from "@/lib/queries/students";
+import { getStudentDisplayName } from "@/lib/utils/displayName";
 import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
 
 interface StudentsProps {
@@ -140,10 +141,7 @@ export default function Students({ classData }: StudentsProps) {
           items={students}
           emptyMessage="No students enrolled yet. Use the 'Invite Students' button to generate an invite link."
           renderItem={(s) => {
-            const displayName =
-              s.student_display_name ||
-              s.student_email ||
-              s.student_id.substring(0, 8) + "...";
+            const displayName = getStudentDisplayName(s);
             const groupDisplayName =
               s.group_name || (s.group_index !== null ? `Group ${s.group_index + 1}` : "No group");
 
