@@ -81,12 +81,25 @@ export default function EditQuizPage() {
           initialTitle={quiz.title}
           initialQuestions={quiz.questions}
           initialIsDraft={quiz.status === "draft"}
-          onSubmit={async ({ title, questions, isDraft }) => {
+          initialRandomizeQuestions={quiz.randomize_questions ?? false}
+          initialRandomizeOptions={quiz.randomize_options ?? false}
+          initialShowPointsToStudents={quiz.show_points_to_students ?? true}
+          onSubmit={async ({
+            title,
+            questions,
+            isDraft,
+            randomizeQuestions,
+            randomizeOptions,
+            showPointsToStudents,
+          }) => {
             if (!user) throw new Error("You must be logged in");
 
             const updated = await updateQuiz(quiz.id, {
               title,
               questions,
+              randomize_questions: randomizeQuestions,
+              randomize_options: randomizeOptions,
+              show_points_to_students: showPointsToStudents,
               status: isDraft ? "draft" : "active",
             });
 

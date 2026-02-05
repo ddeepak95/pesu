@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
-import { getQuizByShortId } from "@/lib/queries/quizzes";
-import { Quiz } from "@/types/quiz";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  createQuizSubmission,
+  getQuizByShortId,
+  getQuizSubmissionForStudent,
+} from "@/lib/queries/quizzes";
+import { Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types/quiz";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
@@ -17,13 +20,17 @@ import {
 } from "@/lib/queries/contentItems";
 import {
   isContentComplete,
+  markContentAsComplete,
   getCompletionsForStudent,
 } from "@/lib/queries/contentCompletions";
-import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
 import { getClassByClassId } from "@/lib/queries/classes";
 import { getStudentGroupForClass } from "@/lib/queries/groups";
 import { getUnlockState } from "@/lib/utils/unlockLogic";
-import { ContentItem } from "@/types/contentItem";
+import { getSessionSeed, shuffleWithSeed } from "@/utils/quizRandomization";
+import { calculateQuizScore } from "@/utils/quizScoring";
+import QuizQuestionCard from "@/components/Student/Quizzes/QuizQuestionCard";
+import QuizSubmissionBar from "@/components/Student/Quizzes/QuizSubmissionBar";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 
 function QuizPageContent({
   onClassUuid,
@@ -37,12 +44,33 @@ function QuizPageContent({
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [contentItemId, setContentItemId] = useState<string | null>(null);
-  const [contentItem, setContentItem] = useState<ContentItem | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [isContentLocked, setIsContentLocked] = useState<boolean>(false);
   const [lockReason, setLockReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submission, setSubmission] = useState<QuizSubmission | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const seedKey = useMemo(
+    () => `quiz_session_seed_${quizId}_${user?.id ?? "anon"}`,
+    [quizId, user?.id]
+  );
+  const sessionSeed = useMemo(() => getSessionSeed(seedKey), [seedKey]);
+  const displayQuestions = useMemo(() => {
+    if (!quiz) return [];
+    const baseQuestions = [...quiz.questions].sort((a, b) => a.order - b.order);
+    const orderedQuestions = quiz.randomize_questions
+      ? shuffleWithSeed(baseQuestions, sessionSeed)
+      : baseQuestions;
+    return orderedQuestions.map((q) => ({
+      ...q,
+      id: q.id || `order-${q.order}`,
+      options: quiz.randomize_options
+        ? shuffleWithSeed(q.options, `${sessionSeed}:${q.order}`)
+        : q.options,
+    }));
+  }, [quiz, sessionSeed]);
 
   // Activity tracking for quiz viewing time
   // Uses ActivityTrackingContext for userId and classId
@@ -67,7 +95,6 @@ function QuizPageContent({
       const fetchedContentItem = await getContentItemByRefId(data.id, "quiz");
       if (fetchedContentItem) {
         setContentItemId(fetchedContentItem.id);
-        setContentItem(fetchedContentItem);
 
         // Check if already complete
         const complete = await isContentComplete(fetchedContentItem.id);
@@ -124,11 +151,59 @@ function QuizPageContent({
           }
         }
       }
+
+      const existingSubmission = await getQuizSubmissionForStudent(data.id);
+      if (existingSubmission) {
+        setSubmission(existingSubmission);
+        const nextAnswers: Record<string, string> = {};
+        for (const answer of existingSubmission.answers || []) {
+          nextAnswers[answer.question_id] = answer.selected_option_id;
+        }
+        setAnswers(nextAnswers);
+      }
     } catch (err) {
       console.error("Error fetching quiz:", err);
       setError("Failed to load quiz");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectAnswer = (questionId: string, optionId: string) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
+  };
+
+  const handleSubmit = async () => {
+    if (!quiz || submission) return;
+    const allAnswered = displayQuestions.every((q) => answers[q.id]);
+    if (!allAnswered) {
+      showErrorToast("Please answer all questions before submitting.");
+      return;
+    }
+
+    const payload: QuizSubmissionAnswer[] = displayQuestions.map((q) => ({
+      question_id: q.id,
+      selected_option_id: answers[q.id],
+    }));
+
+    setIsSubmitting(true);
+    try {
+      const created = await createQuizSubmission({
+        quiz_id: quiz.id,
+        class_id: quiz.class_id,
+        answers: payload,
+      });
+      setSubmission(created);
+      setIsComplete(true);
+      if (contentItemId) {
+        await markContentAsComplete(contentItemId);
+      }
+      showSuccessToast("Quiz submitted!");
+    } catch (submitErr) {
+      console.error("Error submitting quiz:", submitErr);
+      showErrorToast("Failed to submit quiz. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -190,6 +265,12 @@ function QuizPageContent({
     );
   }
 
+  const showPoints = quiz.show_points_to_students ?? true;
+  const scoreSummary = submission
+    ? calculateQuizScore(quiz, submission.answers || [])
+    : null;
+  const canSubmit = displayQuestions.every((q) => !!answers[q.id]);
+
   return (
     <PageLayout>
       <div>
@@ -208,47 +289,34 @@ function QuizPageContent({
                 ) : null
               }
             />
-            <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-              <p>{quiz.total_points} points total</p>
-            </div>
+            {showPoints ? (
+              <div className="flex items-center gap-4 mt-1 text-muted-foreground">
+                <p>{quiz.total_points} points total</p>
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-4 pb-8">
-            {quiz.questions
-              .sort((a, b) => a.order - b.order)
-              .map((q, idx) => (
-                <Card key={idx}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Question {idx + 1} • {q.points} pts
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="whitespace-pre-wrap">{q.prompt}</p>
-                    <div className="space-y-2">
-                      {q.options.map((o) => (
-                        <div
-                          key={o.id}
-                          className="flex items-center rounded-md border px-3 py-2"
-                        >
-                          <span>{o.text}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            {displayQuestions.map((q, idx) => (
+              <QuizQuestionCard
+                key={q.id}
+                question={q}
+                selectedOptionId={answers[q.id]}
+                showPoints={showPoints}
+                disabled={!!submission}
+                onSelect={(optionId) => handleSelectAnswer(q.id, optionId)}
+              />
+            ))}
 
-            {/* Mark as Complete Button */}
-            {contentItemId && (
-              <div className="flex justify-center pt-4">
-                <MarkAsCompleteButton
-                  contentItemId={contentItemId}
-                  isComplete={isComplete}
-                  onComplete={() => setIsComplete(true)}
-                />
-              </div>
-            )}
+            <QuizSubmissionBar
+              isSubmitted={!!submission}
+              isSubmitting={isSubmitting}
+              canSubmit={canSubmit}
+              showPoints={showPoints}
+              earnedPoints={scoreSummary?.earnedPoints ?? null}
+              totalPoints={scoreSummary?.totalPoints ?? null}
+              onSubmit={handleSubmit}
+            />
           </div>
         </div>
       </div>

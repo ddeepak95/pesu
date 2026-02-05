@@ -10,9 +10,11 @@ import { MCQQuestion } from "@/types/quiz";
 import MCQQuestionCard from "@/components/Teacher/Quizzes/MCQQuestionCard";
 
 function newQuestion(order: number): MCQQuestion {
+  const id = nanoid(10);
   const a = { id: nanoid(8), text: "" };
   const b = { id: nanoid(8), text: "" };
   return {
+    id,
     order,
     prompt: "",
     options: [a, b],
@@ -21,30 +23,55 @@ function newQuestion(order: number): MCQQuestion {
   };
 }
 
+function ensureQuestionIds(questions: MCQQuestion[]): MCQQuestion[] {
+  return questions.map((q) => ({
+    ...q,
+    id: q.id || nanoid(10),
+  }));
+}
+
 export default function QuizForm({
   onSubmit,
   submitLabel = "Create Quiz",
   initialTitle = "",
   initialQuestions,
   initialIsDraft = false,
+  initialRandomizeQuestions = false,
+  initialRandomizeOptions = false,
+  initialShowPointsToStudents = true,
 }: {
   onSubmit: (data: {
     title: string;
     questions: MCQQuestion[];
     isDraft: boolean;
+    randomizeQuestions: boolean;
+    randomizeOptions: boolean;
+    showPointsToStudents: boolean;
   }) => Promise<void>;
   submitLabel?: string;
   initialTitle?: string;
   initialQuestions?: MCQQuestion[];
   initialIsDraft?: boolean;
+  initialRandomizeQuestions?: boolean;
+  initialRandomizeOptions?: boolean;
+  initialShowPointsToStudents?: boolean;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [questions, setQuestions] = useState<MCQQuestion[]>(
     initialQuestions && initialQuestions.length > 0
-      ? initialQuestions
+      ? ensureQuestionIds(initialQuestions)
       : [newQuestion(0)]
   );
   const [isDraft, setIsDraft] = useState(initialIsDraft);
+  const [randomizeQuestions, setRandomizeQuestions] = useState(
+    initialRandomizeQuestions
+  );
+  const [randomizeOptions, setRandomizeOptions] = useState(
+    initialRandomizeOptions
+  );
+  const [showPointsToStudents, setShowPointsToStudents] = useState(
+    initialShowPointsToStudents
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +147,7 @@ export default function QuizForm({
           : finalOptions[0].id;
         return {
           ...q,
+          id: q.id || nanoid(10),
           order: idx,
           options: finalOptions,
           correct_option_id: correct,
@@ -127,7 +155,14 @@ export default function QuizForm({
         };
       });
 
-      await onSubmit({ title: title.trim(), questions: cleaned, isDraft });
+      await onSubmit({
+        title: title.trim(),
+        questions: cleaned,
+        isDraft,
+        randomizeQuestions,
+        randomizeOptions,
+        showPointsToStudents,
+      });
     } catch (err) {
       console.error("Error creating quiz:", err);
       setError("Failed to create quiz. Please try again.");
@@ -178,6 +213,61 @@ export default function QuizForm({
             onMoveDown={(i) => move(i, "down")}
           />
         ))}
+      </div>
+
+      <div className="space-y-3 p-4 border rounded-md bg-muted/30">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="randomizeQuestions"
+            checked={randomizeQuestions}
+            onCheckedChange={(checked) => setRandomizeQuestions(checked === true)}
+            disabled={loading}
+          />
+          <Label
+            htmlFor="randomizeQuestions"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Randomize question order for students
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="randomizeOptions"
+            checked={randomizeOptions}
+            onCheckedChange={(checked) => setRandomizeOptions(checked === true)}
+            disabled={loading}
+          />
+          <Label
+            htmlFor="randomizeOptions"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Randomize option order for students
+          </Label>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Randomization applies per session and does not change the correct
+          answers.
+        </p>
+      </div>
+
+      <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
+        <Checkbox
+          id="showPointsToStudents"
+          checked={showPointsToStudents}
+          onCheckedChange={(checked) => setShowPointsToStudents(checked === true)}
+          disabled={loading}
+        />
+        <div className="space-y-1">
+          <Label
+            htmlFor="showPointsToStudents"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Show points to students
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Controls whether students see point values and scores.
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">

@@ -1,0 +1,3 @@
+ALTER TABLE quizzes
+ADD COLUMN IF NOT EXISTS show_points_to_students BOOLEAN NOT NULL DEFAULT TRUE;
+
