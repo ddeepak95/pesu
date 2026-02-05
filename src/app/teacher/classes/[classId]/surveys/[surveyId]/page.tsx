@@ -115,8 +115,8 @@ export default function SurveyDetailPage() {
 
   return (
     <PageLayout>
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
             <BackButton />
           </div>

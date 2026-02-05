@@ -105,8 +105,8 @@ export default function QuizDetailPage() {
 
   return (
     <PageLayout>
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
             <BackButton />
           </div>
@@ -196,6 +196,3 @@ export default function QuizDetailPage() {
     </PageLayout>
   );
 }
-
-
-

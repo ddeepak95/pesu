@@ -148,8 +148,8 @@ export default function ClassDetailPage() {
         />
       )}
 
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
             <BackButton href="/students/classes" />
           </div>
