@@ -11,7 +11,11 @@ export interface ContentCompletionInput {
   studentId?: string; // Optional - will use auth.uid() if not provided
 }
 
-export type ContentItemType = "quiz" | "learning_content" | "formative_assignment";
+export type ContentItemType =
+  | "quiz"
+  | "learning_content"
+  | "formative_assignment"
+  | "survey";
 
 export interface StudentContentCompletionWithDetails {
   studentId: string;
