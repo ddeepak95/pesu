@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import { nanoid } from "nanoid";
-import { MCQQuestion, Quiz } from "@/types/quiz";
+import { MCQQuestion, Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types/quiz";
 
 function generateQuizId(): string {
   return nanoid(8);
@@ -58,6 +58,9 @@ export async function createQuiz(
     class_group_id?: string | null;
     title: string;
     questions: MCQQuestion[];
+    randomize_questions?: boolean;
+    randomize_options?: boolean;
+    show_points_to_students?: boolean;
     status?: "draft" | "active";
   },
   userId: string
@@ -80,6 +83,9 @@ export async function createQuiz(
       class_group_id: payload.class_group_id ?? null,
       title: payload.title.trim(),
       questions: cleanedQuestions,
+      randomize_questions: payload.randomize_questions ?? false,
+      randomize_options: payload.randomize_options ?? false,
+      show_points_to_students: payload.show_points_to_students ?? true,
       total_points: totalPoints,
       created_by: userId,
       status: payload.status ?? "active",
@@ -96,6 +102,9 @@ export async function updateQuiz(
   payload: {
     title: string;
     questions: MCQQuestion[];
+    randomize_questions?: boolean;
+    randomize_options?: boolean;
+    show_points_to_students?: boolean;
     status?: "draft" | "active";
   }
 ): Promise<Quiz> {
@@ -113,6 +122,9 @@ export async function updateQuiz(
     .update({
       title: payload.title.trim(),
       questions: cleanedQuestions,
+      randomize_questions: payload.randomize_questions ?? false,
+      randomize_options: payload.randomize_options ?? false,
+      show_points_to_students: payload.show_points_to_students ?? true,
       total_points: totalPoints,
       status: payload.status ?? "active",
       updated_at: new Date().toISOString(),
@@ -134,6 +146,63 @@ export async function deleteQuiz(id: string): Promise<void> {
     .eq("id", id);
 
   if (error) throw error;
+}
+
+export async function getQuizSubmissionForStudent(
+  quizId: string
+): Promise<QuizSubmission | null> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("quiz_submissions")
+    .select("*")
+    .eq("quiz_id", quizId)
+    .eq("student_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching quiz submission:", error);
+    return null;
+  }
+
+  return data as QuizSubmission | null;
+}
+
+export async function createQuizSubmission(payload: {
+  quiz_id: string;
+  class_id: string;
+  answers: QuizSubmissionAnswer[];
+}): Promise<QuizSubmission> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  const { data, error } = await supabase
+    .from("quiz_submissions")
+    .insert({
+      quiz_id: payload.quiz_id,
+      class_id: payload.class_id,
+      student_id: user.id,
+      answers: payload.answers,
+      submitted_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as QuizSubmission;
 }
 
 

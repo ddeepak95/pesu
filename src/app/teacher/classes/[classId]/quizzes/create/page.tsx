@@ -105,7 +105,14 @@ export default function CreateQuizPage() {
         </p>
 
         <QuizForm
-          onSubmit={async ({ title, questions, isDraft }) => {
+          onSubmit={async ({
+            title,
+            questions,
+            isDraft,
+            randomizeQuestions,
+            randomizeOptions,
+            showPointsToStudents,
+          }) => {
             if (!user) throw new Error("You must be logged in");
 
             const quiz = await createQuiz(
@@ -114,6 +121,9 @@ export default function CreateQuizPage() {
                 class_group_id: classGroupId,
                 title,
                 questions,
+                randomize_questions: randomizeQuestions,
+                randomize_options: randomizeOptions,
+                show_points_to_students: showPointsToStudents,
                 status: isDraft ? "draft" : "active",
               },
               user.id
