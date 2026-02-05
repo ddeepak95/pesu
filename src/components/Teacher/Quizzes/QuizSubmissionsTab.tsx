@@ -10,6 +10,7 @@ import {
   getQuizSubmissionsByQuizWithStudents,
   QuizSubmissionStatus,
 } from "@/lib/queries/quizzes";
+import { getStudentDisplayName } from "@/lib/utils/displayName";
 
 interface QuizSubmissionsTabProps {
   quiz: Quiz;
@@ -45,19 +46,14 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiz.id]);
 
-  const getStudentDisplayName = (item: QuizSubmissionStatus) => {
-    const student = item.student;
-    return (
-      student.student_display_name ||
-      student.student_email ||
-      student.student_id.substring(0, 8) + "..."
-    );
+  const getDisplayName = (item: QuizSubmissionStatus) => {
+    return getStudentDisplayName(item.student);
   };
 
   const handleReset = async (item: QuizSubmissionStatus) => {
     if (!item.submission) return;
     const confirmed = window.confirm(
-      `Reset submission for ${getStudentDisplayName(item)}? This will delete their submission and allow them to resubmit.`
+      `Reset submission for ${getDisplayName(item)}? This will delete their submission and allow them to resubmit.`
     );
     if (!confirmed) return;
 
@@ -134,7 +130,7 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
               >
                 <td className="p-4">
                   <div className="text-sm font-medium truncate max-w-[200px]">
-                    {getStudentDisplayName(item)}
+                    {getDisplayName(item)}
                   </div>
                 </td>
                 <td className="p-4">

@@ -4,6 +4,7 @@ import {
   StudentSubmissionStatus,
   PublicSubmissionStatus,
 } from "@/lib/queries/submissions";
+import { getStudentDisplayName } from "@/lib/utils/displayName";
 
 interface SubmissionDisplayNameProps {
   submission: StudentSubmissionStatus | PublicSubmissionStatus;
@@ -11,17 +12,8 @@ interface SubmissionDisplayNameProps {
 
 export function SubmissionDisplayName({ submission }: SubmissionDisplayNameProps) {
   if ('student' in submission) {
-    // Student submission
-    const student = submission.student;
-    return (
-      <>
-        {student.student_display_name ||
-          student.student_email ||
-          student.student_id.substring(0, 8) + "..."}
-      </>
-    );
+    return <>{getStudentDisplayName(submission.student)}</>;
   } else {
-    // Public submission
     const sub = submission.submission;
     if (sub.responder_details) {
       return (

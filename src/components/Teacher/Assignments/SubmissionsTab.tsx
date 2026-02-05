@@ -12,6 +12,7 @@ import {
 } from "@/lib/queries/submissions";
 import { getClassByClassId } from "@/lib/queries/classes";
 import SubmissionViewDialog from "./SubmissionViewDialog";
+import { getStudentDisplayName } from "@/lib/utils/displayName";
 
 interface SubmissionsTabProps {
   assignmentId: string;
@@ -102,7 +103,7 @@ export default function SubmissionsTab({
     if (!item.submission) return;
 
     const displayName = 'student' in item 
-      ? getStudentDisplayName(item.student)
+      ? getStudentName(item.student)
       : getPublicResponderDisplayName(item.submission);
 
     const confirmed = window.confirm(
@@ -141,12 +142,8 @@ export default function SubmissionsTab({
     }
   };
 
-  const getStudentDisplayName = (student: StudentSubmissionStatus["student"]) => {
-    return (
-      student.student_display_name ||
-      student.student_email ||
-      student.student_id.substring(0, 8) + "..."
-    );
+  const getStudentName = (student: StudentSubmissionStatus["student"]) => {
+    return getStudentDisplayName(student);
   };
 
   const getPublicResponderDisplayName = (submission: PublicSubmissionStatus["submission"]) => {
@@ -208,7 +205,7 @@ export default function SubmissionsTab({
           </thead>
           <tbody>
             {classSubmissions.map((item) => {
-              const displayName = getStudentDisplayName(item.student);
+              const displayName = getStudentName(item.student);
               const scoreDisplay = item.highestScore !== undefined && item.maxScore !== undefined
                 ? `${item.highestScore}/${item.maxScore}`
                 : "-";
