@@ -9,6 +9,7 @@ export interface Class {
   preferred_language: string;
   group_count?: number;
   enable_progressive_unlock?: boolean;
+  student_assignment_strategy?: "round_robin" | "default_group";
 }
 
 export interface ClassTeacher {

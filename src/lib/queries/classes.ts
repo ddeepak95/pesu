@@ -123,12 +123,12 @@ export async function updateClass(
  */
 export async function updateClass(
   classId: string,
-  updates: Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock">>
+  updates: Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock" | "student_assignment_strategy">>
 ): Promise<Class>;
 
 export async function updateClass(
   classId: string,
-  nameOrUpdates: string | Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock">>,
+  nameOrUpdates: string | Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock" | "student_assignment_strategy">>,
   userId?: string,
   preferredLanguage?: string
 ): Promise<Class> {

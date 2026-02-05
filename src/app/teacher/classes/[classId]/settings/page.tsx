@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import GeneralSettingsSection from "@/components/Teacher/Classes/Settings/GeneralSettingsSection";
@@ -17,11 +17,14 @@ import { Class } from "@/types/class";
 
 export default function ClassSettingsPage() {
   const params = useParams();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const classId = params.classId as string;
   const [classData, setClassData] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isOwner = !!(user && classData && user.id === classData.created_by);
 
   const fetchClass = useCallback(async () => {
     setLoading(true);
@@ -47,6 +50,12 @@ export default function ClassSettingsPage() {
       fetchClass();
     }
   }, [classId, fetchClass]);
+
+  useEffect(() => {
+    if (classData && user && !isOwner) {
+      router.replace(`/teacher/classes/${classId}`);
+    }
+  }, [classData, user, isOwner, router, classId]);
 
   if (authLoading || !user) {
     return (
@@ -78,7 +87,15 @@ export default function ClassSettingsPage() {
     );
   }
 
-  const isOwner = user?.id === classData.created_by;
+  if (!isOwner) {
+    return (
+      <PageLayout>
+        <div className="text-center">
+          <p className="text-muted-foreground">Access denied. Redirecting...</p>
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout>
@@ -90,13 +107,6 @@ export default function ClassSettingsPage() {
         <p className="text-muted-foreground mb-8">
           Manage settings for this class.
         </p>
-
-        {!isOwner && (
-          <div className="rounded-md border p-4 mb-6 text-sm text-muted-foreground bg-muted/50">
-            You are viewing settings as a co-teacher. Only the class owner can
-            modify most settings.
-          </div>
-        )}
 
         <div className="space-y-6">
           <GeneralSettingsSection
