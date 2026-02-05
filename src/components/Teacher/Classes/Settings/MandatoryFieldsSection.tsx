@@ -2,16 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Class } from "@/types/class";
-import { MandatoryField } from "@/types/mandatoryFields";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,28 +43,25 @@ interface LocalField {
   isNew?: boolean;
 }
 
-export default function ManageMandatoryFieldsDialog({
-  classData,
-  open,
-  onOpenChange,
-}: {
+interface MandatoryFieldsSectionProps {
   classData: Class;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+  isOwner: boolean;
+}
+
+export default function MandatoryFieldsSection({
+  classData,
+  isOwner,
+}: MandatoryFieldsSectionProps) {
   const [fields, setFields] = useState<LocalField[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [deletedFieldIds, setDeletedFieldIds] = useState<string[]>([]);
-  // Track option input per field (keyed by field index)
   const [optionInputs, setOptionInputs] = useState<Record<number, string>>({});
 
-  // Load existing fields when dialog opens
   useEffect(() => {
     const loadFields = async () => {
-      if (!open) return;
-
       setLoading(true);
       setError(null);
       setDeletedFieldIds([]);
@@ -92,7 +87,7 @@ export default function ManageMandatoryFieldsDialog({
     };
 
     loadFields();
-  }, [open, classData.id]);
+  }, [classData.id]);
 
   const handleAddField = () => {
     const newPosition =
@@ -138,7 +133,6 @@ export default function ManageMandatoryFieldsDialog({
     if (!optionValue) return;
 
     const field = fields[index];
-    // Don't add duplicate options
     if (field.options.includes(optionValue)) {
       return;
     }
@@ -178,12 +172,10 @@ export default function ManageMandatoryFieldsDialog({
     const newFields = [...fields];
     const targetIndex = direction === "up" ? index - 1 : index + 1;
 
-    // Swap positions
     const tempPosition = newFields[index].position;
     newFields[index].position = newFields[targetIndex].position;
     newFields[targetIndex].position = tempPosition;
 
-    // Swap array elements
     [newFields[index], newFields[targetIndex]] = [
       newFields[targetIndex],
       newFields[index],
@@ -193,7 +185,6 @@ export default function ManageMandatoryFieldsDialog({
   };
 
   const handleSave = async () => {
-    // Validate fields
     for (const field of fields) {
       if (!field.field_name.trim()) {
         setError("All fields must have a name");
@@ -207,15 +198,12 @@ export default function ManageMandatoryFieldsDialog({
 
     setSaving(true);
     setError(null);
+    setSuccess(false);
 
     try {
-      // Delete removed fields
       for (const id of deletedFieldIds) {
         await deleteMandatoryField(id);
       }
-
-      // Create new fields and update existing ones
-      const existingFieldIds = new Set<string>();
 
       for (const field of fields) {
         if (field.isNew) {
@@ -226,7 +214,6 @@ export default function ManageMandatoryFieldsDialog({
             position: field.position,
           });
         } else {
-          existingFieldIds.add(field.id);
           await updateMandatoryField(field.id, {
             field_name: field.field_name,
             field_type: field.field_type,
@@ -236,7 +223,22 @@ export default function ManageMandatoryFieldsDialog({
         }
       }
 
-      onOpenChange(false);
+      setDeletedFieldIds([]);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+
+      // Reload to get fresh IDs for newly created fields
+      const existingFields = await getMandatoryFieldsForClass(classData.id);
+      setFields(
+        existingFields.map((f) => ({
+          id: f.id,
+          field_name: f.field_name,
+          field_type: f.field_type,
+          options: f.options || [],
+          position: f.position,
+          isNew: false,
+        }))
+      );
     } catch (err) {
       console.error("Error saving mandatory fields:", err);
       setError("Failed to save mandatory fields. Please try again.");
@@ -246,23 +248,22 @@ export default function ManageMandatoryFieldsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Mandatory Student Information</DialogTitle>
-          <DialogDescription>
-            Configure the information fields that students must fill out before
-            accessing class content. Leave empty if no mandatory information is
-            required.
-          </DialogDescription>
-        </DialogHeader>
-
+    <Card>
+      <CardHeader>
+        <CardTitle>Mandatory Student Information</CardTitle>
+        <CardDescription>
+          Configure the information fields that students must fill out before
+          accessing class content. Leave empty if no mandatory information is
+          required.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
         {loading ? (
           <div className="py-8 text-center text-muted-foreground">
             Loading fields...
           </div>
         ) : (
-          <div className="space-y-4 py-4">
+          <div className="space-y-4">
             {fields.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
                 <p>No mandatory fields configured.</p>
@@ -362,7 +363,6 @@ export default function ManageMandatoryFieldsDialog({
                         <div className="space-y-2">
                           <Label>Options</Label>
 
-                          {/* Display existing options as tags */}
                           {field.options.length > 0 && (
                             <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-background">
                               {field.options.map((option, optionIndex) => (
@@ -386,7 +386,6 @@ export default function ManageMandatoryFieldsDialog({
                             </div>
                           )}
 
-                          {/* Input for adding new option */}
                           <div className="flex gap-2">
                             <Input
                               id={`field-options-${index}`}
@@ -433,27 +432,24 @@ export default function ManageMandatoryFieldsDialog({
             </Button>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
+            {success && (
+              <p className="text-sm text-green-600">
+                Mandatory fields saved successfully.
+              </p>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={loading || saving}
+              >
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
           </div>
         )}
-
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={loading || saving}
-          >
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </CardContent>
+    </Card>
   );
 }

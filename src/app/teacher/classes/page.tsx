@@ -4,11 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 import PageLayout from "@/components/PageLayout";
 import InnerPageLayout from "@/components/Layout/InnerPageLayout";
 import CreateClass from "@/components/Teacher/Classes/CreateClass";
-import EditClass from "@/components/Teacher/Classes/EditClass";
 import ClassCard from "@/components/Teacher/Classes/ClassCard";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
-import { getClassesByUser, deleteClass } from "@/lib/queries/classes";
+import { getClassesByUser } from "@/lib/queries/classes";
 import { Class } from "@/types/class";
 
 export default function ClassesPage() {
@@ -16,8 +15,6 @@ export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingClass, setEditingClass] = useState<Class | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const fetchClasses = useCallback(async () => {
     if (!user) {
@@ -44,35 +41,6 @@ export default function ClassesPage() {
   useEffect(() => {
     fetchClasses();
   }, [fetchClasses]);
-
-  const handleDelete = async (classId: string) => {
-    if (!user) return;
-
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this class? This action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
-    try {
-      await deleteClass(classId, user.id);
-      // Refresh the list after deletion
-      await fetchClasses();
-    } catch (err) {
-      console.error("Error deleting class:", err);
-      alert("Failed to delete class. Please try again.");
-    }
-  };
-
-  const handleEdit = (classData: Class) => {
-    setEditingClass(classData);
-    setEditDialogOpen(true);
-  };
-
-  const handleInviteLink = (classId: string) => {
-    // TODO: Implement invite link feature later
-    alert(`Invite link feature coming soon! Class ID: ${classId}`);
-  };
 
   // Show loading while checking auth (middleware handles redirect if not authenticated)
   if (authLoading || !user) {
@@ -106,22 +74,12 @@ export default function ClassesPage() {
               <ClassCard
                 key={classItem.id}
                 classData={classItem}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onInviteLink={handleInviteLink}
               />
             )}
             emptyMessage="No classes yet. Create your first class to get started!"
           />
         )}
       </InnerPageLayout>
-
-      <EditClass
-        classData={editingClass}
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        onClassUpdated={fetchClasses}
-      />
     </PageLayout>
   );
 }

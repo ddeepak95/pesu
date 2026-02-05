@@ -4,13 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import List from "@/components/ui/List";
@@ -27,17 +26,16 @@ import {
   revokeTeacherInvite,
 } from "@/lib/queries/teacherInvites";
 
-export default function ManageTeachersDialog({
-  classData,
-  open,
-  onOpenChange,
-}: {
+interface ManageTeachersSectionProps {
   classData: Class;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+  isOwner: boolean;
+}
+
+export default function ManageTeachersSection({
+  classData,
+  isOwner,
+}: ManageTeachersSectionProps) {
   const { user } = useAuth();
-  const isOwner = user?.id === classData.created_by;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +53,6 @@ export default function ManageTeachersDialog({
   }, [invites]);
 
   const inviteUrl = useMemo(() => {
-    // Use token from activeInvite if available, otherwise use newly generated token
     const token = activeInvite?.token || newInviteLink;
     if (!token) return "";
     return `${window.location.origin}/teacher/invites/${token}`;
@@ -99,12 +96,10 @@ export default function ManageTeachersDialog({
   };
 
   useEffect(() => {
-    if (open) {
-      setNewInviteLink(""); // Clear newly generated token when dialog opens
-      refresh();
-    }
+    setNewInviteLink("");
+    refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [classData.id]);
 
   const handleGenerateInvite = async () => {
     if (!isOwner) return;
@@ -166,16 +161,15 @@ export default function ManageTeachersDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Manage teachers</DialogTitle>
-          <DialogDescription>
-            Add co-teachers via a single reusable invite link, and remove
-            existing co-teachers.
-          </DialogDescription>
-        </DialogHeader>
-
+    <Card>
+      <CardHeader>
+        <CardTitle>Teachers</CardTitle>
+        <CardDescription>
+          Add co-teachers via a single reusable invite link, and remove existing
+          co-teachers.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
         {!isOwner && (
           <div className="rounded-md border p-3 text-sm text-muted-foreground">
             Only the class owner can manage teachers.
@@ -299,17 +293,7 @@ export default function ManageTeachersDialog({
             }}
           />
         </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,47 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { reconfigureClassGroups } from "@/lib/queries/groups";
-import { useAuth } from "@/contexts/AuthContext";
 
-export default function GroupSettingsDialog({
-  classData,
-  open,
-  onOpenChange,
-  onUpdated,
-}: {
+interface GroupSettingsSectionProps {
   classData: Class;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onUpdated?: () => void;
-}) {
-  const { user } = useAuth();
-  const isOwner = user?.id === classData.created_by;
+  isOwner: boolean;
+  onUpdated: () => void;
+}
 
+export default function GroupSettingsSection({
+  classData,
+  isOwner,
+  onUpdated,
+}: GroupSettingsSectionProps) {
   const [groupCount, setGroupCount] = useState<number>(
     classData.group_count ?? 1
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setGroupCount(classData.group_count ?? 1);
-      setError(null);
-    }
-  }, [open, classData.group_count]);
+  const hasChanges = groupCount !== (classData.group_count ?? 1);
 
   const handleSave = async () => {
     if (!isOwner) return;
@@ -52,13 +43,15 @@ export default function GroupSettingsDialog({
 
     setLoading(true);
     setError(null);
+    setSuccess(false);
     try {
       await reconfigureClassGroups({
         classDbId: classData.id,
         newGroupCount: groupCount,
       });
-      onOpenChange(false);
-      onUpdated?.();
+      setSuccess(true);
+      onUpdated();
+      setTimeout(() => setSuccess(false), 3000);
     } catch (err: unknown) {
       console.error("Error updating group count:", err);
       setError(
@@ -70,16 +63,15 @@ export default function GroupSettingsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Group settings</DialogTitle>
-          <DialogDescription>
-            Set how many groups this class has. When decreasing, students in
-            removed groups are reassigned.
-          </DialogDescription>
-        </DialogHeader>
-
+    <Card>
+      <CardHeader>
+        <CardTitle>Groups</CardTitle>
+        <CardDescription>
+          Set how many groups this class has. When decreasing, students in
+          removed groups are reassigned.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
         {!isOwner && (
           <div className="rounded-md border p-3 text-sm text-muted-foreground">
             Only the class owner can change group settings.
@@ -99,28 +91,24 @@ export default function GroupSettingsDialog({
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
+        {success && (
+          <p className="text-sm text-green-600">
+            Group settings updated successfully.
+          </p>
+        )}
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={!isOwner || loading}
-          >
-            {loading ? "Saving…" : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {isOwner && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={!isOwner || loading || !hasChanges}
+            >
+              {loading ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
-
-
-

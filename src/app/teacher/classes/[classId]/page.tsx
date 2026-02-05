@@ -2,27 +2,17 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
-import EditClass from "@/components/Teacher/Classes/EditClass";
 import Content from "@/components/Teacher/Classes/Content";
 import Students from "@/components/Teacher/Classes/Students";
-import ManageTeachersDialog from "@/components/Teacher/Classes/ManageTeachersDialog";
-import GroupSettingsDialog from "@/components/Teacher/Classes/GroupSettingsDialog";
-import ManageMandatoryFieldsDialog from "@/components/Teacher/Classes/ManageMandatoryFieldsDialog";
-import ProgressiveUnlockDialog from "@/components/Teacher/Classes/ProgressiveUnlockDialog";
-import ResetStudentProgressDialog from "@/components/Teacher/Classes/ResetStudentProgressDialog";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { getClassByClassId, deleteClass } from "@/lib/queries/classes";
+import { getClassByClassId } from "@/lib/queries/classes";
 import { Class } from "@/types/class";
+import { Settings } from "lucide-react";
 
 export default function ClassDetailPage() {
   const params = useParams();
@@ -33,12 +23,6 @@ export default function ClassDetailPage() {
   const [classData, setClassData] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [manageTeachersOpen, setManageTeachersOpen] = useState(false);
-  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
-  const [mandatoryFieldsOpen, setMandatoryFieldsOpen] = useState(false);
-  const [progressiveUnlockOpen, setProgressiveUnlockOpen] = useState(false);
-  const [resetProgressOpen, setResetProgressOpen] = useState(false);
 
   const activeTab = useMemo(() => {
     const t = searchParams.get("tab");
@@ -100,28 +84,6 @@ export default function ClassDetailPage() {
     }
   }, [classId, fetchClass]);
 
-  const handleEdit = () => {
-    setEditDialogOpen(true);
-  };
-
-  const handleDelete = async () => {
-    if (!user || !classData) return;
-
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this class? This action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
-    try {
-      await deleteClass(classData.id, user.id);
-      router.push("/teacher/classes");
-    } catch (err) {
-      console.error("Error deleting class:", err);
-      alert("Failed to delete class. Please try again.");
-    }
-  };
-
   // Show loading while checking auth (middleware handles redirect if not authenticated)
   if (authLoading || !user) {
     return (
@@ -153,8 +115,6 @@ export default function ClassDetailPage() {
     );
   }
 
-  const isOwner = user?.id === classData.created_by;
-
   return (
     <PageLayout>
       <div>
@@ -164,55 +124,12 @@ export default function ClassDetailPage() {
           </div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">{classData.name}</h1>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">Options</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isOwner ? (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => setManageTeachersOpen(true)}
-                    >
-                      Manage teachers
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setGroupSettingsOpen(true)}
-                    >
-                      Group settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setMandatoryFieldsOpen(true)}
-                    >
-                      Mandatory info fields
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setProgressiveUnlockOpen(true)}
-                    >
-                      Progressive unlock settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setResetProgressOpen(true)}
-                    >
-                      Reset student progress
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleEdit}>
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleDelete}
-                      className="text-destructive"
-                    >
-                      Delete
-                    </DropdownMenuItem>
-                  </>
-                ) : (
-                  <DropdownMenuItem disabled>
-                    Owner-only options
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button variant="outline" className="gap-2" asChild>
+              <Link href={`/teacher/classes/${classId}/settings`}>
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </Button>
           </div>
 
           <Tabs
@@ -242,58 +159,6 @@ export default function ClassDetailPage() {
           </Tabs>
         </div>
       </div>
-
-      <EditClass
-        classData={classData}
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        onClassUpdated={fetchClass}
-      />
-
-      {classData && (
-        <ManageTeachersDialog
-          classData={classData}
-          open={manageTeachersOpen}
-          onOpenChange={setManageTeachersOpen}
-        />
-      )}
-
-      {classData && (
-        <GroupSettingsDialog
-          classData={classData}
-          open={groupSettingsOpen}
-          onOpenChange={setGroupSettingsOpen}
-          onUpdated={fetchClass}
-        />
-      )}
-
-      {classData && (
-        <ManageMandatoryFieldsDialog
-          classData={classData}
-          open={mandatoryFieldsOpen}
-          onOpenChange={setMandatoryFieldsOpen}
-        />
-      )}
-
-      {classData && (
-        <ProgressiveUnlockDialog
-          classData={classData}
-          open={progressiveUnlockOpen}
-          onOpenChange={setProgressiveUnlockOpen}
-          onSuccess={fetchClass}
-        />
-      )}
-
-      {classData && (
-        <ResetStudentProgressDialog
-          classId={classData.id}
-          open={resetProgressOpen}
-          onOpenChange={setResetProgressOpen}
-          onSuccess={() => {
-            // Optionally refresh content or show success message
-          }}
-        />
-      )}
     </PageLayout>
   );
 }
