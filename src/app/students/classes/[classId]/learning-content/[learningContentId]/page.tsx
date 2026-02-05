@@ -198,7 +198,16 @@ function LearningContentPageContent({
             <BackButton href={`/students/classes/${classId}`} />
           </div>
           <div className="mb-6">
-            <PageTitle title={content.title} />
+            <PageTitle
+              title={content.title}
+              badge={
+                isComplete ? (
+                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
+                    Completed
+                  </span>
+                ) : null
+              }
+            />
           </div>
 
           <div className="space-y-6 pb-8">

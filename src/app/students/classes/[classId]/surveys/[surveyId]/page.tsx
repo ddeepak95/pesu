@@ -288,7 +288,16 @@ function SurveyPageContent({
             <BackButton href={`/students/classes/${classId}`} />
           </div>
           <div className="mb-6">
-            <PageTitle title={survey.title} />
+            <PageTitle
+              title={survey.title}
+              badge={
+                isSubmitted ? (
+                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
+                    Completed
+                  </span>
+                ) : null
+              }
+            />
             {survey.description && (
               <p className="mt-2 text-muted-foreground">{survey.description}</p>
             )}

@@ -96,6 +96,7 @@ export default function AssignmentResponseCore({
 
   // Check attempts when component mounts and when navigating between questions
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAttempts();
   }, [checkAttempts, currentQuestionIndex]);
 

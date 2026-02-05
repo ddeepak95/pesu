@@ -198,7 +198,16 @@ function QuizPageContent({
             <BackButton href={`/students/classes/${classId}`} />
           </div>
           <div className="mb-6">
-            <PageTitle title={quiz.title} />
+            <PageTitle
+              title={quiz.title}
+              badge={
+                isComplete ? (
+                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
+                    Completed
+                  </span>
+                ) : null
+              }
+            />
             <div className="flex items-center gap-4 mt-1 text-muted-foreground">
               <p>{quiz.total_points} points total</p>
             </div>
