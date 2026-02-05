@@ -300,7 +300,6 @@ function QuizPageContent({
               <QuizQuestionCard
                 key={q.order}
                 question={q}
-                index={idx}
                 selectedOptionId={answers[q.order]}
                 showPoints={showPoints}
                 disabled={!!submission}
