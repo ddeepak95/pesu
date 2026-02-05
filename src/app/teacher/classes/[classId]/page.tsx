@@ -126,7 +126,7 @@ export default function ClassDetailPage() {
   if (authLoading || !user) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </PageLayout>
@@ -136,7 +136,7 @@ export default function ClassDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading class details...</p>
         </div>
       </PageLayout>
@@ -146,7 +146,7 @@ export default function ClassDetailPage() {
   if (error || !classData) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Class not found"}</p>
         </div>
       </PageLayout>
@@ -157,8 +157,8 @@ export default function ClassDetailPage() {
 
   return (
     <PageLayout>
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
             <BackButton href="/teacher/classes" />
           </div>

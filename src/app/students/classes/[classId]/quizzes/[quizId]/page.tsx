@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { getQuizByShortId } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,7 +140,7 @@ function QuizPageContent({
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading quiz...</p>
         </div>
       </PageLayout>
@@ -149,7 +150,7 @@ function QuizPageContent({
   if (error || !quiz) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Quiz not found"}</p>
         </div>
       </PageLayout>
@@ -159,7 +160,7 @@ function QuizPageContent({
   if (isContentLocked) {
     return (
       <PageLayout>
-        <div className="p-8">
+        <div>
           <div className="mb-4">
             <BackButton href={`/students/classes/${classId}`} />
           </div>
@@ -191,13 +192,22 @@ function QuizPageContent({
 
   return (
     <PageLayout>
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
             <BackButton href={`/students/classes/${classId}`} />
           </div>
           <div className="mb-6">
-            <h1 className="text-3xl font-bold">{quiz.title}</h1>
+            <PageTitle
+              title={quiz.title}
+              badge={
+                isComplete ? (
+                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
+                    Completed
+                  </span>
+                ) : null
+              }
+            />
             <div className="flex items-center gap-4 mt-1 text-muted-foreground">
               <p>{quiz.total_points} points total</p>
             </div>

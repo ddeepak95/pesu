@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -86,7 +87,7 @@ export default function QuizDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading quiz...</p>
         </div>
       </PageLayout>
@@ -96,7 +97,7 @@ export default function QuizDetailPage() {
   if (error || !quiz) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Quiz not found"}</p>
         </div>
       </PageLayout>
@@ -105,14 +106,14 @@ export default function QuizDetailPage() {
 
   return (
     <PageLayout>
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
             <BackButton />
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold">{quiz.title}</h1>
+              <PageTitle title={quiz.title} />
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
                 <p>{quiz.total_points} points total</p>
                 <span>•</span>
@@ -196,6 +197,3 @@ export default function QuizDetailPage() {
     </PageLayout>
   );
 }
-
-
-

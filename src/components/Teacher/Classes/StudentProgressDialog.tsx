@@ -54,9 +54,10 @@ interface StudentRow {
 }
 
 const CONTENT_TYPE_LABELS: Record<ContentItemType, string> = {
-  learning_content: "Learning",
+  learning_content: "Learning Content",
   quiz: "Quiz",
-  formative_assignment: "Assignment",
+  formative_assignment: "Activity",
+  survey: "Survey",
 };
 
 export default function StudentProgressDialog({
@@ -70,9 +71,14 @@ export default function StudentProgressDialog({
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
-  const [completionFilter, setCompletionFilter] = useState<CompletionFilter>("all");
-  const [contentTypeFilter, setContentTypeFilter] = useState<ContentItemType | "all">("all");
-  const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set());
+  const [completionFilter, setCompletionFilter] =
+    useState<CompletionFilter>("all");
+  const [contentTypeFilter, setContentTypeFilter] = useState<
+    ContentItemType | "all"
+  >("all");
+  const [selectedColumns, setSelectedColumns] = useState<Set<string>>(
+    new Set()
+  );
 
   // Fetch data when dialog opens
   useEffect(() => {
@@ -113,7 +119,7 @@ export default function StudentProgressDialog({
   // Get all unique content columns
   const allContentColumns = useMemo(() => {
     const columnsMap = new Map<string, ContentColumn>();
-    
+
     data.forEach((item) => {
       if (!columnsMap.has(item.contentItemId)) {
         columnsMap.set(item.contentItemId, {
@@ -131,7 +137,10 @@ export default function StudentProgressDialog({
   const contentColumns = useMemo(() => {
     return allContentColumns.filter((col) => {
       // Filter by type
-      if (contentTypeFilter !== "all" && col.contentType !== contentTypeFilter) {
+      if (
+        contentTypeFilter !== "all" &&
+        col.contentType !== contentTypeFilter
+      ) {
         return false;
       }
       // Filter by column selection
@@ -158,7 +167,10 @@ export default function StudentProgressDialog({
   // Select/deselect all columns (respecting type filter)
   const selectAllColumns = () => {
     const columnsToSelect = allContentColumns
-      .filter((col) => contentTypeFilter === "all" || col.contentType === contentTypeFilter)
+      .filter(
+        (col) =>
+          contentTypeFilter === "all" || col.contentType === contentTypeFilter
+      )
       .map((col) => col.contentItemId);
     setSelectedColumns((prev) => {
       const next = new Set(prev);
@@ -169,7 +181,10 @@ export default function StudentProgressDialog({
 
   const deselectAllColumns = () => {
     const columnsToDeselect = allContentColumns
-      .filter((col) => contentTypeFilter === "all" || col.contentType === contentTypeFilter)
+      .filter(
+        (col) =>
+          contentTypeFilter === "all" || col.contentType === contentTypeFilter
+      )
       .map((col) => col.contentItemId);
     setSelectedColumns((prev) => {
       const next = new Set(prev);
@@ -181,9 +196,12 @@ export default function StudentProgressDialog({
   // Check if all visible columns are selected
   const allVisibleSelected = useMemo(() => {
     const visibleColumns = allContentColumns.filter(
-      (col) => contentTypeFilter === "all" || col.contentType === contentTypeFilter
+      (col) =>
+        contentTypeFilter === "all" || col.contentType === contentTypeFilter
     );
-    return visibleColumns.every((col) => selectedColumns.has(col.contentItemId));
+    return visibleColumns.every((col) =>
+      selectedColumns.has(col.contentItemId)
+    );
   }, [allContentColumns, contentTypeFilter, selectedColumns]);
 
   // Transform flat data into student rows with completion map
@@ -217,7 +235,8 @@ export default function StudentProgressDialog({
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesName = row.studentName.toLowerCase().includes(query);
-        const matchesEmail = row.studentEmail?.toLowerCase().includes(query) || false;
+        const matchesEmail =
+          row.studentEmail?.toLowerCase().includes(query) || false;
         if (!matchesName && !matchesEmail) {
           return false;
         }
@@ -274,7 +293,8 @@ export default function StudentProgressDialog({
   // Get columns available for selection (filtered by type)
   const selectableColumns = useMemo(() => {
     return allContentColumns.filter(
-      (col) => contentTypeFilter === "all" || col.contentType === contentTypeFilter
+      (col) =>
+        contentTypeFilter === "all" || col.contentType === contentTypeFilter
     );
   }, [allContentColumns, contentTypeFilter]);
 
@@ -300,7 +320,9 @@ export default function StudentProgressDialog({
 
           <Select
             value={completionFilter}
-            onValueChange={(value) => setCompletionFilter(value as CompletionFilter)}
+            onValueChange={(value) =>
+              setCompletionFilter(value as CompletionFilter)
+            }
           >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Status" />
@@ -314,7 +336,9 @@ export default function StudentProgressDialog({
 
           <Select
             value={contentTypeFilter}
-            onValueChange={(value) => setContentTypeFilter(value as ContentItemType | "all")}
+            onValueChange={(value) =>
+              setContentTypeFilter(value as ContentItemType | "all")
+            }
           >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Content Type" />
@@ -323,7 +347,8 @@ export default function StudentProgressDialog({
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="learning_content">Learning Content</SelectItem>
               <SelectItem value="quiz">Quiz</SelectItem>
-              <SelectItem value="formative_assignment">Assignment</SelectItem>
+              <SelectItem value="formative_assignment">Activity</SelectItem>
+              <SelectItem value="survey">Survey</SelectItem>
             </SelectContent>
           </Select>
 
@@ -335,7 +360,10 @@ export default function StudentProgressDialog({
                 Columns ({contentColumns.length}/{selectableColumns.length})
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[250px] max-h-[300px] overflow-y-auto">
+            <DropdownMenuContent
+              align="end"
+              className="w-[250px] max-h-[300px] overflow-y-auto"
+            >
               <DropdownMenuLabel>Select Columns</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
@@ -358,7 +386,9 @@ export default function StudentProgressDialog({
                   onCheckedChange={() => toggleColumn(col.contentItemId)}
                 >
                   <div className="flex flex-col">
-                    <span className="truncate max-w-[200px]">{col.contentName}</span>
+                    <span className="truncate max-w-[200px]">
+                      {col.contentName}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {CONTENT_TYPE_LABELS[col.contentType]}
                     </span>
@@ -381,17 +411,22 @@ export default function StudentProgressDialog({
             </div>
           ) : allContentColumns.length === 0 || studentRows.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No content items or students found.</p>
+              <p className="text-muted-foreground">
+                No content items or students found.
+              </p>
             </div>
           ) : contentColumns.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
-                No columns selected. Use the &quot;Columns&quot; button to select content to display.
+                No columns selected. Use the &quot;Columns&quot; button to
+                select content to display.
               </p>
             </div>
           ) : filteredRows.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No students match your filters.</p>
+              <p className="text-muted-foreground">
+                No students match your filters.
+              </p>
             </div>
           ) : (
             <div className="rounded-md border">
@@ -406,7 +441,10 @@ export default function StudentProgressDialog({
                         key={col.contentItemId}
                         className="text-left p-3 font-medium text-sm min-w-[120px]"
                       >
-                        <div className="truncate max-w-[150px]" title={col.contentName}>
+                        <div
+                          className="truncate max-w-[150px]"
+                          title={col.contentName}
+                        >
                           {col.contentName}
                         </div>
                         <div className="text-xs font-normal text-muted-foreground">
@@ -420,16 +458,25 @@ export default function StudentProgressDialog({
                   {filteredRows.map((row, index) => (
                     <tr
                       key={row.studentId}
-                      className={index < filteredRows.length - 1 ? "border-b" : ""}
+                      className={
+                        index < filteredRows.length - 1 ? "border-b" : ""
+                      }
                     >
                       <td className="p-3 sticky left-0 bg-background">
-                        <div className="text-sm font-medium">{row.studentName}</div>
-                        {row.studentEmail && row.studentEmail !== row.studentName && (
-                          <div className="text-xs text-muted-foreground">{row.studentEmail}</div>
-                        )}
+                        <div className="text-sm font-medium">
+                          {row.studentName}
+                        </div>
+                        {row.studentEmail &&
+                          row.studentEmail !== row.studentName && (
+                            <div className="text-xs text-muted-foreground">
+                              {row.studentEmail}
+                            </div>
+                          )}
                       </td>
                       {contentColumns.map((col) => {
-                        const completion = row.completions.get(col.contentItemId);
+                        const completion = row.completions.get(
+                          col.contentItemId
+                        );
                         const isComplete = completion?.isComplete ?? false;
 
                         return (
@@ -438,7 +485,9 @@ export default function StudentProgressDialog({
                             className="p-3"
                             title={
                               isComplete && completion?.completedAt
-                                ? `Completed: ${new Date(completion.completedAt).toLocaleDateString()}`
+                                ? `Completed: ${new Date(
+                                    completion.completedAt
+                                  ).toLocaleDateString()}`
                                 : "Not completed"
                             }
                           >
@@ -462,11 +511,13 @@ export default function StudentProgressDialog({
         {!loading && !error && stats && (
           <div className="pt-4 border-t text-sm text-muted-foreground flex justify-between">
             <span>
-              {filteredRows.length} student{filteredRows.length !== 1 ? "s" : ""} •{" "}
-              {contentColumns.length} content item{contentColumns.length !== 1 ? "s" : ""}
+              {filteredRows.length} student
+              {filteredRows.length !== 1 ? "s" : ""} • {contentColumns.length}{" "}
+              content item{contentColumns.length !== 1 ? "s" : ""}
             </span>
             <span>
-              Overall completion: {stats.totalComplete}/{stats.totalCells} ({stats.percentage}%)
+              Overall completion: {stats.totalComplete}/{stats.totalCells} (
+              {stats.percentage}%)
             </span>
           </div>
         )}

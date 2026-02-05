@@ -401,7 +401,7 @@ function VoiceAssessmentContent({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <AssessmentQuestionHeader
         questionNumber={questionNumber}
         totalQuestions={totalQuestions}
@@ -415,15 +415,10 @@ function VoiceAssessmentContent({
         studentInstructions={studentInstructions}
         showRubric={showRubric}
         showRubricPoints={showRubricPoints}
+        className="w-full"
       >
         {/* Agent Status Display */}
         <AgentStatus className="py-2" />
-
-        {/* Voice Visualizer */}
-        <div className="flex justify-center py-4">
-          <VoiceVisualizer participantType="bot" barColor="currentColor" />
-        </div>
-
         <div className="flex flex-col items-center gap-2">
           <VoiceConnectButton
             connectionData={connectionData}
@@ -439,6 +434,11 @@ function VoiceAssessmentContent({
               below.
             </p>
           )}
+        </div>
+
+        {/* Voice Visualizer */}
+        <div className="flex justify-center py-4">
+          <VoiceVisualizer participantType="bot" barColor="currentColor" />
         </div>
 
         {/* Transcript Display (when recording/not evaluated yet) */}

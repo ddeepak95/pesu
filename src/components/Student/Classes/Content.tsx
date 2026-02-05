@@ -293,15 +293,6 @@ export default function Content({ classData }: ContentProps) {
 
   return (
     <div className="py-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Content</h2>
-        {studentGroupId && (
-          <p className="text-sm text-muted-foreground mt-1">
-            Showing content for your assigned group
-          </p>
-        )}
-      </div>
-
       {loading ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading content…</p>

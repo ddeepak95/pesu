@@ -5,6 +5,7 @@ import { getClassStudentsWithInfo } from "./students";
 import { getLearningContentsByIds } from "./learningContent";
 import { getAssignmentsByIdsForTeacher } from "./assignments";
 import { getQuizzesByIds } from "./quizzes";
+import { getSurveysByIds } from "./surveys";
 
 /**
  * Mark a content item as complete for the current user
@@ -160,6 +161,7 @@ export async function getClassContentCompletions(
   const learningContentIds: string[] = [];
   const assignmentIds: string[] = [];
   const quizIds: string[] = [];
+  const surveyIds: string[] = [];
 
   for (const item of contentItems) {
     if (item.type === "learning_content") {
@@ -168,14 +170,17 @@ export async function getClassContentCompletions(
       assignmentIds.push(item.ref_id);
     } else if (item.type === "quiz") {
       quizIds.push(item.ref_id);
+    } else if (item.type === "survey") {
+      surveyIds.push(item.ref_id);
     }
   }
 
   // Fetch content names in parallel
-  const [learningContents, assignments, quizzes] = await Promise.all([
+  const [learningContents, assignments, quizzes, surveys] = await Promise.all([
     learningContentIds.length > 0 ? getLearningContentsByIds(learningContentIds) : Promise.resolve([]),
     assignmentIds.length > 0 ? getAssignmentsByIdsForTeacher(assignmentIds) : Promise.resolve([]),
     quizIds.length > 0 ? getQuizzesByIds(quizIds) : Promise.resolve([]),
+    surveyIds.length > 0 ? getSurveysByIds(surveyIds) : Promise.resolve([]),
   ]);
 
   // Create maps for quick lookup
@@ -189,6 +194,9 @@ export async function getClassContentCompletions(
   }
   for (const q of quizzes) {
     contentNameMap.set(q.id, q.title);
+  }
+  for (const s of surveys) {
+    contentNameMap.set(s.id, s.title);
   }
 
   // Fetch all completions for these content items

@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Question } from "@/types/assignment";
+import InfoCallout from "@/components/Shared/InfoCallout";
 
 interface AssessmentQuestionCardProps {
   question: Question;
@@ -15,6 +16,7 @@ interface AssessmentQuestionCardProps {
   studentInstructions?: string; // Display-only instructions for students
   showRubric?: boolean; // Whether to show the rubric (default: true)
   showRubricPoints?: boolean; // Whether to show points in rubric (default: true)
+  className?: string;
 }
 
 export function AssessmentQuestionCard({
@@ -28,23 +30,16 @@ export function AssessmentQuestionCard({
     showRubric && question.rubric && question.rubric.length > 0;
 
   return (
-    <Card>
+    <Card className="w-full bg-gray-300/5">
       <CardHeader>
-        <CardTitle className="text-lg">Prompt</CardTitle>
+        <CardTitle className="text-lg">{question.prompt}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="whitespace-pre-wrap">{question.prompt}</p>
-
         {/* Student Instructions */}
         {studentInstructions && (
-          <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">
-            <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
-              Instructions
-            </p>
-            <p className="text-sm text-blue-700 dark:text-blue-300 whitespace-pre-wrap">
-              {studentInstructions}
-            </p>
-          </div>
+          <InfoCallout title="Instructions">
+            <p className="whitespace-pre-wrap">{studentInstructions}</p>
+          </InfoCallout>
         )}
 
         {/* View Rubric Accordion */}

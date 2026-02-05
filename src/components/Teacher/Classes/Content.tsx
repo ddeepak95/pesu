@@ -330,6 +330,15 @@ export default function Content({ classData }: ContentProps) {
         );
       }
     }
+
+    if (item.type === "survey") {
+      const s = surveyById[item.ref_id];
+      if (s) {
+        router.push(
+          `/teacher/classes/${classData.class_id}/surveys/${s.survey_id}${backQs}`
+        );
+      }
+    }
   };
 
   const openDuplicate = (item: ContentItem) => {
@@ -476,6 +485,8 @@ export default function Content({ classData }: ContentProps) {
                       ? assignmentById[item.ref_id]?.title
                       : item.type === "quiz"
                       ? quizById[item.ref_id]?.title
+                      : item.type === "survey"
+                      ? surveyById[item.ref_id]?.title
                       : learningContentById[item.ref_id]?.title;
 
                   const titleLoading = !resolvedTitle;

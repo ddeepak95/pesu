@@ -19,6 +19,7 @@ import {
 } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
+import InfoCallout from "@/components/Shared/InfoCallout";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
@@ -122,7 +123,7 @@ export default function AssignmentDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading assignment details...</p>
         </div>
       </PageLayout>
@@ -132,7 +133,7 @@ export default function AssignmentDetailPage() {
   if (error || !assignmentData) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Assignment not found"}</p>
         </div>
       </PageLayout>
@@ -141,8 +142,8 @@ export default function AssignmentDetailPage() {
 
   return (
     <PageLayout>
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
             <BackButton />
           </div>
@@ -223,14 +224,11 @@ export default function AssignmentDetailPage() {
 
           {/* Student Instructions */}
           {assignmentData.student_instructions && (
-            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
-                Instructions for Students
-              </h3>
-              <p className="text-sm text-blue-700 dark:text-blue-300 whitespace-pre-wrap">
+            <InfoCallout title="Instructions for Students" className="mb-6">
+              <p className="whitespace-pre-wrap">
                 {assignmentData.student_instructions}
               </p>
-            </div>
+            </InfoCallout>
           )}
 
           {/* Rubric Display Settings */}

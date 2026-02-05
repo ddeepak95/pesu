@@ -354,7 +354,7 @@ const PublicAssignmentResponse = forwardRef<
   // Phase 1: Responder Details Form
   if (phase === "info") {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] p-8">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-center text-2xl">

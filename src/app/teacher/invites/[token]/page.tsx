@@ -58,7 +58,7 @@ export default function AcceptTeacherInvitePage() {
   if (authLoading || !user) {
     return (
       <PageLayout>
-        <div className="min-h-[60vh] flex items-center justify-center p-8">
+        <div className="min-h-[60vh] flex items-center justify-center">
           <p className="text-muted-foreground">Loading…</p>
         </div>
       </PageLayout>
@@ -67,7 +67,7 @@ export default function AcceptTeacherInvitePage() {
 
   return (
     <PageLayout>
-      <div className="min-h-[60vh] flex items-center justify-center p-8">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <Card className="w-full max-w-md">
           {status === "pending" && (
             <>

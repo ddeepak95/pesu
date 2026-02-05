@@ -150,7 +150,7 @@ export default function CreateAssignmentPage() {
   if (loadingClass) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </PageLayout>
@@ -160,7 +160,7 @@ export default function CreateAssignmentPage() {
   if (error && (!classDbId || !classGroupId)) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error}</p>
         </div>
       </PageLayout>
@@ -169,7 +169,7 @@ export default function CreateAssignmentPage() {
 
   return (
     <PageLayout>
-      <div className="max-w-4xl mx-auto p-8">
+      <div>
         <div className="mb-4">
           <BackButton />
         </div>

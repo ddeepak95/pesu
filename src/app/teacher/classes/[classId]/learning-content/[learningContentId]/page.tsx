@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,9 +19,7 @@ import {
 } from "@/lib/queries/learningContent";
 import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
 import { LearningContent } from "@/types/learningContent";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-import YouTubeEmbed from "@/components/Shared/YouTubeEmbed";
+import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 
 export default function LearningContentDetailPage() {
   const params = useParams();
@@ -91,7 +90,7 @@ export default function LearningContentDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading learning content…</p>
         </div>
       </PageLayout>
@@ -101,7 +100,7 @@ export default function LearningContentDetailPage() {
   if (error || !content) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Not found"}</p>
         </div>
       </PageLayout>
@@ -110,17 +109,15 @@ export default function LearningContentDetailPage() {
 
   return (
     <PageLayout>
-      <div className="border-b">
-        <div className="p-8 pb-0">
+      <div>
+        <div>
           <div className="mb-4">
-            <BackButton />
+            <BackButton href={`/teacher/classes/${classId}`} />
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold">{content.title}</h1>
+              <PageTitle title={content.title} />
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-                <p className="capitalize">Type: {content.content_type}</p>
-                <span>•</span>
                 <p className="capitalize">Status: {content.status}</p>
               </div>
             </div>
@@ -141,30 +138,11 @@ export default function LearningContentDetailPage() {
           </div>
 
           <div className="space-y-6 pb-8">
-            {content.video_url && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Video</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <YouTubeEmbed
-                    videoUrl={content.video_url}
-                    title={content.title}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {content.body && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Text</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="whitespace-pre-wrap">{content.body}</div>
-                </CardContent>
-              </Card>
-            )}
+            <LearningContentViewer
+              title={content.title}
+              body={content.body}
+              videoUrl={content.video_url}
+            />
           </div>
         </div>
       </div>

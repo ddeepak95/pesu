@@ -9,6 +9,7 @@ import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
 import { isContentComplete } from "@/lib/queries/contentCompletions";
+import PageTitle from "@/components/Shared/PageTitle";
 
 interface AssignmentResponseCoreProps {
   assignmentData: Assignment;
@@ -95,6 +96,7 @@ export default function AssignmentResponseCore({
 
   // Check attempts when component mounts and when navigating between questions
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAttempts();
   }, [checkAttempts, currentQuestionIndex]);
 
@@ -205,18 +207,18 @@ export default function AssignmentResponseCore({
     : handleLanguageChange;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       {/* Assignment Title and Language Selector */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
-          {isComplete && (
-            <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400">
+      <PageTitle
+        title={assignmentData.title}
+        badge={
+          isComplete ? (
+            <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
               Completed
             </span>
-          )}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {/* Assessment Component based on mode */}
       {assessmentMode === "voice" && (
