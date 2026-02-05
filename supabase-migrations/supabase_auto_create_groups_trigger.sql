@@ -87,21 +87,3 @@ BEGIN
   ON CONFLICT (class_id, student_id) DO NOTHING;
 END;
 $$;
-
--- =====================================================
--- 4. Backfill: create groups for existing classes missing them
--- =====================================================
-DO $$
-DECLARE
-  c RECORD;
-BEGIN
-  FOR c IN
-    SELECT id FROM classes
-    WHERE NOT EXISTS (
-      SELECT 1 FROM class_groups WHERE class_id = c.id
-    )
-  LOOP
-    PERFORM ensure_class_groups(c.id);
-  END LOOP;
-END;
-$$;
