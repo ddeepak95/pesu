@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { getLearningContentByShortId } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
@@ -197,7 +198,7 @@ function LearningContentPageContent({
             <BackButton href={`/students/classes/${classId}`} />
           </div>
           <div className="mb-6">
-            <h1 className="text-3xl font-bold">{content.title}</h1>
+            <PageTitle title={content.title} />
           </div>
 
           <div className="space-y-6 pb-8">

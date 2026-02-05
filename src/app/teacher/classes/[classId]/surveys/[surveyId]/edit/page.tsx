@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getSurveyByShortIdForTeacher,
@@ -73,7 +74,7 @@ export default function EditSurveyPage() {
         <div className="mb-4">
           <BackButton />
         </div>
-        <h1 className="text-3xl font-bold mb-2">Edit Survey</h1>
+        <PageTitle title="Edit Survey" className="mb-2" />
         <p className="text-muted-foreground mb-8">
           Update questions and draft status.
         </p>

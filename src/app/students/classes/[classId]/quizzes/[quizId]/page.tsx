@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { getQuizByShortId } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -197,7 +198,7 @@ function QuizPageContent({
             <BackButton href={`/students/classes/${classId}`} />
           </div>
           <div className="mb-6">
-            <h1 className="text-3xl font-bold">{quiz.title}</h1>
+            <PageTitle title={quiz.title} />
             <div className="flex items-center gap-4 mt-1 text-muted-foreground">
               <p>{quiz.total_points} points total</p>
             </div>

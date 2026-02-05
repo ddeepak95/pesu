@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getLearningContentByShortIdForTeacher,
@@ -73,7 +74,7 @@ export default function EditLearningContentPage() {
         <div className="mb-4">
           <BackButton />
         </div>
-        <h1 className="text-3xl font-bold mb-2">Edit Learning Content</h1>
+        <PageTitle title="Edit Learning Content" className="mb-2" />
         <p className="text-muted-foreground mb-8">
           Update the title, link, text, and draft status.
         </p>

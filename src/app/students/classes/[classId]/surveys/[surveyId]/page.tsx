@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -287,7 +288,7 @@ function SurveyPageContent({
             <BackButton href={`/students/classes/${classId}`} />
           </div>
           <div className="mb-6">
-            <h1 className="text-3xl font-bold">{survey.title}</h1>
+            <PageTitle title={survey.title} />
             {survey.description && (
               <p className="mt-2 text-muted-foreground">{survey.description}</p>
             )}

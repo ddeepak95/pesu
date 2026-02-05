@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -115,7 +116,7 @@ export default function LearningContentDetailPage() {
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold">{content.title}</h1>
+              <PageTitle title={content.title} />
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
                 <p className="capitalize">Status: {content.status}</p>
               </div>

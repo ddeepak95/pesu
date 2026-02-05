@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import { getQuizByShortIdForTeacher, updateQuiz } from "@/lib/queries/quizzes";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
@@ -70,7 +71,7 @@ export default function EditQuizPage() {
         <div className="mb-4">
           <BackButton />
         </div>
-        <h1 className="text-3xl font-bold mb-2">Edit Quiz</h1>
+        <PageTitle title="Edit Quiz" className="mb-2" />
         <p className="text-muted-foreground mb-8">
           Update questions, answers, and draft status.
         </p>
