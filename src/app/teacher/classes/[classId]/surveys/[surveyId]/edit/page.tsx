@@ -50,7 +50,7 @@ export default function EditSurveyPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading…</p>
         </div>
       </PageLayout>
@@ -60,7 +60,7 @@ export default function EditSurveyPage() {
   if (error || !survey) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Survey not found"}</p>
         </div>
       </PageLayout>
@@ -69,7 +69,7 @@ export default function EditSurveyPage() {
 
   return (
     <PageLayout>
-      <div className="max-w-4xl mx-auto p-8">
+      <div>
         <div className="mb-4">
           <BackButton />
         </div>

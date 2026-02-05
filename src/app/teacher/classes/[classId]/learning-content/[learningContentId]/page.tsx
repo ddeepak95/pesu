@@ -89,7 +89,7 @@ export default function LearningContentDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading learning content…</p>
         </div>
       </PageLayout>
@@ -99,7 +99,7 @@ export default function LearningContentDetailPage() {
   if (error || !content) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Not found"}</p>
         </div>
       </PageLayout>

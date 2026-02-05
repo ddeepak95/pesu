@@ -123,7 +123,7 @@ export default function AssignmentDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading assignment details...</p>
         </div>
       </PageLayout>
@@ -133,7 +133,7 @@ export default function AssignmentDetailPage() {
   if (error || !assignmentData) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Assignment not found"}</p>
         </div>
       </PageLayout>

@@ -139,7 +139,7 @@ function LearningContentPageContent({
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading learning content…</p>
         </div>
       </PageLayout>
@@ -149,7 +149,7 @@ function LearningContentPageContent({
   if (error || !content) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Not found"}</p>
         </div>
       </PageLayout>
@@ -159,7 +159,7 @@ function LearningContentPageContent({
   if (isContentLocked) {
     return (
       <PageLayout>
-        <div className="p-8">
+        <div>
           <div className="mb-4">
             <BackButton href={`/students/classes/${classId}`} />
           </div>

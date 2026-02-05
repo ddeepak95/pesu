@@ -12,7 +12,7 @@ export default function InnerPageLayout({
   children,
 }: InnerPageLayoutProps) {
   return (
-    <div className="p-6 md:p-8 lg:p-10">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">{title}</h1>
         {action && <div>{action}</div>}

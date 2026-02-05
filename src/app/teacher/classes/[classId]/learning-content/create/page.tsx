@@ -73,7 +73,7 @@ export default function CreateLearningContentPage() {
   if (loadingClass) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading…</p>
         </div>
       </PageLayout>
@@ -83,7 +83,7 @@ export default function CreateLearningContentPage() {
   if (error || !classDbId || !classGroupId) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">
             {error || "Class/groups not found"}
           </p>
@@ -94,7 +94,7 @@ export default function CreateLearningContentPage() {
 
   return (
     <PageLayout>
-      <div className="max-w-3xl mx-auto p-8">
+      <div>
         <div className="mb-4">
           <BackButton />
         </div>
@@ -149,6 +149,3 @@ export default function CreateLearningContentPage() {
     </PageLayout>
   );
 }
-
-
-

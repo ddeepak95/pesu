@@ -139,7 +139,7 @@ function QuizPageContent({
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading quiz...</p>
         </div>
       </PageLayout>
@@ -149,7 +149,7 @@ function QuizPageContent({
   if (error || !quiz) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Quiz not found"}</p>
         </div>
       </PageLayout>
@@ -159,7 +159,7 @@ function QuizPageContent({
   if (isContentLocked) {
     return (
       <PageLayout>
-        <div className="p-8">
+        <div>
           <div className="mb-4">
             <BackButton href={`/students/classes/${classId}`} />
           </div>

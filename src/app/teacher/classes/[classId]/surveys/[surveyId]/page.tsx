@@ -96,7 +96,7 @@ export default function SurveyDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading survey...</p>
         </div>
       </PageLayout>
@@ -106,7 +106,7 @@ export default function SurveyDetailPage() {
   if (error || !survey) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Survey not found"}</p>
         </div>
       </PageLayout>

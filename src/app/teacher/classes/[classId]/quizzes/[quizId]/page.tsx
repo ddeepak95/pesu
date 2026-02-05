@@ -86,7 +86,7 @@ export default function QuizDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading quiz...</p>
         </div>
       </PageLayout>
@@ -96,7 +96,7 @@ export default function QuizDetailPage() {
   if (error || !quiz) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Quiz not found"}</p>
         </div>
       </PageLayout>

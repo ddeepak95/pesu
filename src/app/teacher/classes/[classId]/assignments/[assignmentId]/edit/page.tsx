@@ -146,7 +146,7 @@ export default function EditAssignmentPage() {
   if (loadingAssignment) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading assignment...</p>
         </div>
       </PageLayout>
@@ -156,7 +156,7 @@ export default function EditAssignmentPage() {
   if (error && !assignmentDbId) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error}</p>
         </div>
       </PageLayout>
@@ -165,7 +165,7 @@ export default function EditAssignmentPage() {
 
   return (
     <PageLayout>
-      <div className="max-w-4xl mx-auto p-8">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-4">
           <BackButton />
         </div>

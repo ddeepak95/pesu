@@ -227,7 +227,7 @@ function SurveyPageContent({
   if (loading) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-muted-foreground">Loading survey...</p>
         </div>
       </PageLayout>
@@ -237,7 +237,7 @@ function SurveyPageContent({
   if (error || !survey) {
     return (
       <PageLayout>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <p className="text-destructive">{error || "Survey not found"}</p>
         </div>
       </PageLayout>
@@ -247,7 +247,7 @@ function SurveyPageContent({
   if (isContentLocked) {
     return (
       <PageLayout>
-        <div className="p-8">
+        <div>
           <div className="mb-4">
             <BackButton href={`/students/classes/${classId}`} />
           </div>

@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import { getAssignmentById } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
-import PublicAssignmentResponse, { PublicAssignmentResponseRef } from "@/components/Public/PublicAssignmentResponse";
+import PublicAssignmentResponse, {
+  PublicAssignmentResponseRef,
+} from "@/components/Public/PublicAssignmentResponse";
 
 export default function PublicAssignmentPage() {
   const params = useParams();
@@ -82,11 +84,13 @@ export default function PublicAssignmentPage() {
   };
 
   return (
-    <PageLayout 
+    <PageLayout
       userName={displayName}
-      onLogoutSubmission={hasActiveSubmission ? handleLogoutSubmission : undefined}
+      onLogoutSubmission={
+        hasActiveSubmission ? handleLogoutSubmission : undefined
+      }
     >
-      <div className="p-8">
+      <div>
         <PublicAssignmentResponse
           ref={assignmentResponseRef}
           assignmentData={assignmentData}
