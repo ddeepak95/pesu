@@ -97,7 +97,7 @@ export default function ProfileDetailsDialog({
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
-        className="max-w-lg"
+        className="max-w-lg max-h-[85vh] flex flex-col"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
@@ -118,7 +118,7 @@ export default function ProfileDetailsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2 pr-2 overflow-y-auto flex-1">
           {sortedFields.map((field) => (
             <div key={field.id} className="space-y-2">
               <Label htmlFor={`field-${field.id}`}>
