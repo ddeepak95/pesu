@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { nanoid } from "nanoid";
+import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -191,15 +191,21 @@ export default function SurveyForm({
         />
       </div>
 
+      {/* Instructions (markdown) */}
       <div className="space-y-2">
-        <Label htmlFor="description">Description (optional)</Label>
-        <Textarea
+        <div className="flex items-center justify-between">
+          <Label htmlFor="description">Instructions (optional)</Label>
+          <span className="text-xs text-muted-foreground">
+            Markdown supported
+          </span>
+        </div>
+        <MarkdownEditor
           id="description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
           disabled={loading}
-          placeholder="Instructions or context for the survey…"
-          rows={3}
+          placeholder="Enter instructions to display to students below the title..."
+          rows={4}
         />
       </div>
 

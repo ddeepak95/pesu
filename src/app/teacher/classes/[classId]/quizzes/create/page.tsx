@@ -107,6 +107,7 @@ export default function CreateQuizPage() {
         <QuizForm
           onSubmit={async ({
             title,
+            instructions,
             questions,
             isDraft,
             randomizeQuestions,
@@ -120,6 +121,7 @@ export default function CreateQuizPage() {
                 class_id: classDbId,
                 class_group_id: classGroupId,
                 title,
+                instructions: instructions || null,
                 questions,
                 randomize_questions: randomizeQuestions,
                 randomize_options: randomizeOptions,

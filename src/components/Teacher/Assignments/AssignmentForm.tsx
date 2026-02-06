@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -445,6 +445,28 @@ export default function AssignmentForm({
         />
       </div>
 
+      {/* Instructions (markdown) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="studentInstructions">Instructions (optional)</Label>
+          <span className="text-xs text-muted-foreground">
+            Markdown supported
+          </span>
+        </div>
+        <MarkdownEditor
+          id="studentInstructions"
+          value={studentInstructions}
+          onChange={setStudentInstructions}
+          disabled={loading}
+          placeholder="Enter instructions to display to students below the title..."
+          rows={4}
+        />
+        <p className="text-sm text-muted-foreground">
+          These instructions will be displayed to students below the title.
+          Not passed to the AI.
+        </p>
+      </div>
+
       {/* Assessment Mode */}
       <div className="space-y-2">
         <Label htmlFor="assessmentMode">
@@ -549,25 +571,6 @@ export default function AssignmentForm({
               <p className="text-sm text-muted-foreground">
                 Number of attempts students can make for this assignment.
                 Default is 3.
-              </p>
-            </div>
-
-            {/* Student Instructions */}
-            <div className="space-y-2">
-              <Label htmlFor="studentInstructions">
-                Instructions for Students
-              </Label>
-              <Textarea
-                id="studentInstructions"
-                value={studentInstructions}
-                onChange={(e) => setStudentInstructions(e.target.value)}
-                disabled={loading}
-                placeholder="Enter any additional instructions to display to students before they start the assessment..."
-                rows={4}
-              />
-              <p className="text-sm text-muted-foreground">
-                These instructions will be displayed to students but not passed
-                to the AI. Use this for logistical info, tips, or context.
               </p>
             </div>
 

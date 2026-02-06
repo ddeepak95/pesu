@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Question } from "@/types/assignment";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 import InfoCallout from "@/components/Shared/InfoCallout";
 
 interface AssessmentQuestionCardProps {
@@ -38,7 +39,7 @@ export function AssessmentQuestionCard({
         {/* Student Instructions */}
         {studentInstructions && (
           <InfoCallout title="Instructions">
-            <p className="whitespace-pre-wrap">{studentInstructions}</p>
+            <MarkdownContent content={studentInstructions} />
           </InfoCallout>
         )}
 

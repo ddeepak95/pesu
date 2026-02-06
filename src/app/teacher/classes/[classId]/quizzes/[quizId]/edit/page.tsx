@@ -79,6 +79,7 @@ export default function EditQuizPage() {
         <QuizForm
           submitLabel="Save changes"
           initialTitle={quiz.title}
+          initialInstructions={quiz.instructions ?? ""}
           initialQuestions={quiz.questions}
           initialIsDraft={quiz.status === "draft"}
           initialRandomizeQuestions={quiz.randomize_questions ?? false}
@@ -86,6 +87,7 @@ export default function EditQuizPage() {
           initialShowPointsToStudents={quiz.show_points_to_students ?? true}
           onSubmit={async ({
             title,
+            instructions,
             questions,
             isDraft,
             randomizeQuestions,
@@ -96,6 +98,7 @@ export default function EditQuizPage() {
 
             const updated = await updateQuiz(quiz.id, {
               title,
+              instructions: instructions || null,
               questions,
               randomize_questions: randomizeQuestions,
               randomize_options: randomizeOptions,

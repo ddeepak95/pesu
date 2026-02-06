@@ -59,6 +59,7 @@ export async function createQuiz(
     class_id: string;
     class_group_id?: string | null;
     title: string;
+    instructions?: string | null;
     questions: MCQQuestion[];
     randomize_questions?: boolean;
     randomize_options?: boolean;
@@ -84,6 +85,7 @@ export async function createQuiz(
       class_id: payload.class_id,
       class_group_id: payload.class_group_id ?? null,
       title: payload.title.trim(),
+      instructions: payload.instructions?.trim() || null,
       questions: cleanedQuestions,
       randomize_questions: payload.randomize_questions ?? false,
       randomize_options: payload.randomize_options ?? false,
@@ -103,6 +105,7 @@ export async function updateQuiz(
   id: string,
   payload: {
     title: string;
+    instructions?: string | null;
     questions: MCQQuestion[];
     randomize_questions?: boolean;
     randomize_options?: boolean;
@@ -123,6 +126,7 @@ export async function updateQuiz(
     .from("quizzes")
     .update({
       title: payload.title.trim(),
+      instructions: payload.instructions?.trim() || null,
       questions: cleanedQuestions,
       randomize_questions: payload.randomize_questions ?? false,
       randomize_options: payload.randomize_options ?? false,

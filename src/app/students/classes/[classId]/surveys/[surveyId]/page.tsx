@@ -38,6 +38,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 import LikertInput from "@/components/Student/Surveys/LikertInput";
 
 function SurveyPageContent({
@@ -299,7 +300,9 @@ function SurveyPageContent({
               }
             />
             {survey.description && (
-              <p className="mt-2 text-muted-foreground">{survey.description}</p>
+              <div className="mt-3">
+                <MarkdownContent content={survey.description} />
+              </div>
             )}
             {isSubmitted && (
               <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
