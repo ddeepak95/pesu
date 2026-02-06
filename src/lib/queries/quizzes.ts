@@ -23,6 +23,24 @@ export async function getQuizzesByIds(ids: string[]): Promise<Quiz[]> {
 }
 
 /**
+ * Get quizzes by their database UUID primary keys (student view).
+ * Only returns active quizzes (excludes draft and deleted).
+ */
+export async function getQuizzesByIdsForStudent(ids: string[]): Promise<Quiz[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("quizzes")
+    .select("*")
+    .in("id", ids)
+    .eq("status", "active");
+
+  if (error) throw error;
+  return (data || []) as Quiz[];
+}
+
+/**
  * Get a single quiz by its unique quiz_id (student view)
  * Only returns active quizzes (excludes deleted and draft ones)
  */

@@ -9,6 +9,7 @@ import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
 import { isContentComplete } from "@/lib/queries/contentCompletions";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 import PageTitle from "@/components/Shared/PageTitle";
 
 interface AssignmentResponseCoreProps {
@@ -220,6 +221,13 @@ export default function AssignmentResponseCore({
         }
       />
 
+      {/* Instructions (markdown) - shown below the title */}
+      {assignmentData.student_instructions && (
+        <div className="mt-1">
+          <MarkdownContent content={assignmentData.student_instructions} />
+        </div>
+      )}
+
       {/* Assessment Component based on mode */}
       {assessmentMode === "voice" && (
         <VoiceAssessment
@@ -242,7 +250,6 @@ export default function AssignmentResponseCore({
           maxAttemptsReached={maxAttemptsReached}
           botPromptConfig={assignmentData.bot_prompt_config}
           contentItemId={contentItemId}
-          studentInstructions={assignmentData.student_instructions}
           showRubric={assignmentData.show_rubric ?? true}
           showRubricPoints={assignmentData.show_rubric_points ?? true}
           useStarDisplay={assignmentData.use_star_display ?? false}
@@ -276,7 +283,6 @@ export default function AssignmentResponseCore({
           maxAttemptsReached={maxAttemptsReached}
           botPromptConfig={assignmentData.bot_prompt_config}
           contentItemId={contentItemId}
-          studentInstructions={assignmentData.student_instructions}
           showRubric={assignmentData.show_rubric ?? true}
           showRubricPoints={assignmentData.show_rubric_points ?? true}
           requireAllAttempts={assignmentData.require_all_attempts ?? false}
@@ -307,7 +313,6 @@ export default function AssignmentResponseCore({
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
           contentItemId={contentItemId}
-          studentInstructions={assignmentData.student_instructions}
           showRubric={assignmentData.show_rubric ?? true}
           showRubricPoints={assignmentData.show_rubric_points ?? true}
           useStarDisplay={assignmentData.use_star_display ?? false}

@@ -319,7 +319,7 @@ export default function QuizForm({
 
       <div className="flex gap-3">
         <Button type="submit" disabled={loading}>
-          {loading ? "Creating…" : submitLabel}
+          {loading ? "Saving…" : isDraft ? submitLabel : "Publish"}
         </Button>
       </div>
     </form>

@@ -46,6 +46,7 @@ interface AssignmentFormProps {
   initialUseStarDisplay?: boolean;
   initialStarScale?: number;
   initialRequireAllAttempts?: boolean;
+  initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
     questions: Question[];
@@ -98,6 +99,7 @@ export default function AssignmentForm({
   initialUseStarDisplay = false,
   initialStarScale = 5,
   initialRequireAllAttempts = false,
+  initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
   const router = useRouter();
@@ -1094,10 +1096,14 @@ export default function AssignmentForm({
         <Button type="submit" disabled={loading}>
           {loading
             ? mode === "edit"
-              ? "Updating..."
+              ? initialIsDraft
+                ? "Publishing..."
+                : "Updating..."
               : "Creating..."
             : mode === "edit"
-            ? "Update Assignment"
+            ? initialIsDraft
+              ? "Publish"
+              : "Update Assignment"
             : "Create Assignment"}
         </Button>
       </div>

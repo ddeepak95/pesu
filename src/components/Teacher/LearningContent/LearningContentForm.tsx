@@ -129,7 +129,7 @@ export default function LearningContentForm({
 
       <div className="flex gap-3">
         <Button type="submit" disabled={loading}>
-          {loading ? "Saving…" : submitLabel}
+          {loading ? "Saving…" : isDraft ? submitLabel : "Publish"}
         </Button>
       </div>
     </form>

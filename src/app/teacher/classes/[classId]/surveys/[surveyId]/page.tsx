@@ -16,10 +16,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getSurveyByShortIdForTeacher,
+  updateSurvey,
   deleteSurvey,
 } from "@/lib/queries/surveys";
 import { getSurveyResponseCount } from "@/lib/queries/surveyResponses";
-import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
+import {
+  softDeleteContentItemByRef,
+  updateContentItemStatusByRef,
+} from "@/lib/queries/contentItems";
 import { Survey } from "@/types/survey";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -94,6 +98,31 @@ export default function SurveyDetailPage() {
     }
   };
 
+  const handlePublish = async () => {
+    if (!survey) return;
+
+    try {
+      const updated = await updateSurvey(survey.id, {
+        title: survey.title,
+        description: survey.description,
+        questions: survey.questions,
+        status: "active",
+      });
+
+      await updateContentItemStatusByRef({
+        class_id: survey.class_id,
+        type: "survey",
+        ref_id: survey.id,
+        status: updated.status,
+      });
+
+      setSurvey(updated);
+    } catch (err) {
+      console.error("Error publishing survey:", err);
+      alert("Failed to publish survey. Please try again.");
+    }
+  };
+
   if (loading) {
     return (
       <PageLayout>
@@ -147,6 +176,11 @@ export default function SurveyDetailPage() {
                 <Button variant="outline">Options</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {survey.status === "draft" && (
+                  <DropdownMenuItem onClick={handlePublish}>
+                    Publish
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleDelete}

@@ -14,8 +14,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { getQuizByShortIdForTeacher, deleteQuiz } from "@/lib/queries/quizzes";
-import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
+import { getQuizByShortIdForTeacher, updateQuiz, deleteQuiz } from "@/lib/queries/quizzes";
+import {
+  softDeleteContentItemByRef,
+  updateContentItemStatusByRef,
+} from "@/lib/queries/contentItems";
 import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import QuizSubmissionsTab from "@/components/Teacher/Quizzes/QuizSubmissionsTab";
@@ -85,6 +88,34 @@ export default function QuizDetailPage() {
     }
   };
 
+  const handlePublish = async () => {
+    if (!quiz) return;
+
+    try {
+      const updated = await updateQuiz(quiz.id, {
+        title: quiz.title,
+        instructions: quiz.instructions,
+        questions: quiz.questions,
+        randomize_questions: quiz.randomize_questions,
+        randomize_options: quiz.randomize_options,
+        show_points_to_students: quiz.show_points_to_students,
+        status: "active",
+      });
+
+      await updateContentItemStatusByRef({
+        class_id: quiz.class_id,
+        type: "quiz",
+        ref_id: quiz.id,
+        status: updated.status,
+      });
+
+      setQuiz(updated);
+    } catch (err) {
+      console.error("Error publishing quiz:", err);
+      alert("Failed to publish quiz. Please try again.");
+    }
+  };
+
   if (loading) {
     return (
       <PageLayout>
@@ -126,6 +157,11 @@ export default function QuizDetailPage() {
                 <Button variant="outline">Options</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {quiz.status === "draft" && (
+                  <DropdownMenuItem onClick={handlePublish}>
+                    Publish
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleDelete}

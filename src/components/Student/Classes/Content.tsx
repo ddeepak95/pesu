@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
 import { getContentItemsByGroup } from "@/lib/queries/contentItems";
-import { getAssignmentsByIdsForTeacher } from "@/lib/queries/assignments";
+import { getAssignmentsByIds } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
-import { getLearningContentsByIds } from "@/lib/queries/learningContent";
+import { getLearningContentsByIdsForStudent } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
-import { getQuizzesByIds } from "@/lib/queries/quizzes";
+import { getQuizzesByIdsForStudent } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
-import { getSurveysByIds } from "@/lib/queries/surveys";
+import { getSurveysByIdsForStudent } from "@/lib/queries/surveys";
 import { Survey } from "@/types/survey";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
@@ -113,7 +113,8 @@ export default function Content({ classData }: ContentProps) {
           classGroupId: studentGroupId,
         });
         console.log("Fetched content items:", contentItems);
-        setItems(contentItems);
+        // Defense in depth: only show active items to students
+        setItems(contentItems.filter((ci) => ci.status === "active"));
       } catch (err: unknown) {
         const code =
           typeof err === "object" && err !== null
@@ -140,7 +141,7 @@ export default function Content({ classData }: ContentProps) {
   useEffect(() => {
     const hydrateAssignments = async () => {
       try {
-        const data = await getAssignmentsByIdsForTeacher(
+        const data = await getAssignmentsByIds(
           formativeAssignmentIds
         );
         setAssignmentById((prev) => {
@@ -161,7 +162,7 @@ export default function Content({ classData }: ContentProps) {
   useEffect(() => {
     const hydrateLearningContent = async () => {
       try {
-        const data = await getLearningContentsByIds(learningContentIds);
+        const data = await getLearningContentsByIdsForStudent(learningContentIds);
         setLearningContentById((prev) => {
           const next = { ...prev };
           for (const lc of data) next[lc.id] = lc;
@@ -183,7 +184,7 @@ export default function Content({ classData }: ContentProps) {
   useEffect(() => {
     const hydrateQuizzes = async () => {
       try {
-        const data = await getQuizzesByIds(quizIds);
+        const data = await getQuizzesByIdsForStudent(quizIds);
         setQuizById((prev) => {
           const next = { ...prev };
           for (const q of data) next[q.id] = q;
@@ -202,7 +203,7 @@ export default function Content({ classData }: ContentProps) {
   useEffect(() => {
     const hydrateSurveys = async () => {
       try {
-        const data = await getSurveysByIds(surveyIds);
+        const data = await getSurveysByIdsForStudent(surveyIds);
         setSurveyById((prev) => {
           const next = { ...prev };
           for (const s of data) next[s.id] = s;

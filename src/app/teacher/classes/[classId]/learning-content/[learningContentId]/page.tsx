@@ -15,9 +15,13 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getLearningContentByShortIdForTeacher,
+  updateLearningContent,
   deleteLearningContent,
 } from "@/lib/queries/learningContent";
-import { softDeleteContentItemByRef } from "@/lib/queries/contentItems";
+import {
+  softDeleteContentItemByRef,
+  updateContentItemStatusByRef,
+} from "@/lib/queries/contentItems";
 import { LearningContent } from "@/types/learningContent";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 
@@ -87,6 +91,31 @@ export default function LearningContentDetailPage() {
     }
   };
 
+  const handlePublish = async () => {
+    if (!content) return;
+
+    try {
+      const updated = await updateLearningContent(content.id, {
+        title: content.title,
+        video_url: content.video_url,
+        body: content.body,
+        status: "active",
+      });
+
+      await updateContentItemStatusByRef({
+        class_id: content.class_id,
+        type: "learning_content",
+        ref_id: content.id,
+        status: updated.status,
+      });
+
+      setContent(updated);
+    } catch (err) {
+      console.error("Error publishing learning content:", err);
+      alert("Failed to publish learning content. Please try again.");
+    }
+  };
+
   if (loading) {
     return (
       <PageLayout>
@@ -126,6 +155,11 @@ export default function LearningContentDetailPage() {
                 <Button variant="outline">Options</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {content.status === "draft" && (
+                  <DropdownMenuItem onClick={handlePublish}>
+                    Publish
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleDelete}

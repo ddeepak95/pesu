@@ -8,13 +8,10 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Question } from "@/types/assignment";
-import MarkdownContent from "@/components/Shared/MarkdownContent";
-import InfoCallout from "@/components/Shared/InfoCallout";
 
 interface AssessmentQuestionCardProps {
   question: Question;
   children?: React.ReactNode; // For assessment-specific content (voice controls, chat area, etc.)
-  studentInstructions?: string; // Display-only instructions for students
   showRubric?: boolean; // Whether to show the rubric (default: true)
   showRubricPoints?: boolean; // Whether to show points in rubric (default: true)
   className?: string;
@@ -23,7 +20,6 @@ interface AssessmentQuestionCardProps {
 export function AssessmentQuestionCard({
   question,
   children,
-  studentInstructions,
   showRubric = true,
   showRubricPoints = true,
 }: AssessmentQuestionCardProps) {
@@ -36,13 +32,6 @@ export function AssessmentQuestionCard({
         <CardTitle className="text-lg">{question.prompt}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Student Instructions */}
-        {studentInstructions && (
-          <InfoCallout title="Instructions">
-            <MarkdownContent content={studentInstructions} />
-          </InfoCallout>
-        )}
-
         {/* View Rubric Accordion */}
         {shouldShowRubric && (
           <Accordion type="single" collapsible>

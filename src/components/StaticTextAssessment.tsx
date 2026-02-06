@@ -34,7 +34,6 @@ interface StaticTextAssessmentProps {
   // For marking as complete
   contentItemId?: string | null;
   // Display settings
-  studentInstructions?: string;
   showRubric?: boolean;
   showRubricPoints?: boolean;
   useStarDisplay?: boolean;
@@ -66,7 +65,6 @@ export function StaticTextAssessment({
   maxAttempts,
   maxAttemptsReached,
   contentItemId,
-  studentInstructions,
   showRubric = true,
   showRubricPoints = true,
   useStarDisplay = false,
@@ -303,7 +301,6 @@ export function StaticTextAssessment({
 
       <AssessmentQuestionCard
         question={question}
-        studentInstructions={studentInstructions}
         showRubric={showRubric}
         showRubricPoints={showRubricPoints}
       >

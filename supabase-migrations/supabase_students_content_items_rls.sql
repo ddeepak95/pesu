@@ -28,7 +28,7 @@ CREATE POLICY "Students can view content items for their group" ON content_items
   USING (
     class_group_id IS NOT NULL
     AND is_student_in_group(class_id, class_group_id)
-    AND status IN ('active', 'draft')
+    AND status = 'active'
   );
 
 -- Grant execute permission to authenticated users

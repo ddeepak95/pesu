@@ -21,6 +21,24 @@ export async function getSurveysByIds(ids: string[]): Promise<Survey[]> {
 }
 
 /**
+ * Get surveys by their database UUID primary keys (student view).
+ * Only returns active surveys (excludes draft and deleted).
+ */
+export async function getSurveysByIdsForStudent(ids: string[]): Promise<Survey[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("surveys")
+    .select("*")
+    .in("id", ids)
+    .eq("status", "active");
+
+  if (error) throw error;
+  return (data || []) as Survey[];
+}
+
+/**
  * Get a single survey by its unique survey_id (student view)
  * Only returns active surveys (excludes deleted and draft ones)
  */
