@@ -27,6 +27,7 @@ import { supportedLanguages } from "@/utils/supportedLanguages";
 import { getDefaultBotPromptConfig, getDefaultEvaluationPrompt } from "@/lib/promptTemplates";
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, ChevronDown, Bot, Eye } from "lucide-react";
+import { showSuccessToast } from "@/lib/toast";
 
 interface AssignmentFormProps {
   mode: "create" | "edit";
@@ -434,8 +435,8 @@ export default function AssignmentForm({
       });
 
       // Navigate based on mode
-      if (mode === "edit" && assignmentId) {
-        router.push(`/teacher/classes/${classId}/assignments/${assignmentId}`);
+      if (mode === "edit") {
+        showSuccessToast("Assignment updated successfully");
       } else {
         router.push(`/teacher/classes/${classId}`);
       }

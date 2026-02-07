@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ import {
 export default function EditAssignmentPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
   const classId = params.classId as string;
   const assignmentId = params.assignmentId as string;
@@ -197,7 +196,7 @@ export default function EditAssignmentPage() {
     <PageLayout>
       <div className="max-w-4xl mx-auto">
         <div className="mb-4">
-          <BackButton href={`/teacher/classes/${classId}/assignments/${assignmentId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} />
+          <BackButton />
         </div>
         <h1 className="text-3xl font-bold mb-8">Edit Assignment</h1>
         <AssignmentForm
@@ -230,16 +229,9 @@ export default function EditAssignmentPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              const qs = searchParams.toString();
-              router.push(
-                `/teacher/classes/${classId}/assignments/${assignmentId}${
-                  qs ? `?${qs}` : ""
-                }`
-              );
-            }}
+            onClick={() => router.back()}
           >
-            Cancel
+            Close
           </Button>
         </div>
       </div>

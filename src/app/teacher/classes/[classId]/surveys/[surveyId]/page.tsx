@@ -148,7 +148,7 @@ export default function SurveyDetailPage() {
       <div>
         <div>
           <div className="mb-4">
-            <BackButton href={`/teacher/classes/${classId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} />
+            <BackButton />
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>

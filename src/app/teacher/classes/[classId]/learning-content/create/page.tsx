@@ -97,7 +97,7 @@ export default function CreateLearningContentPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton href={backToContentHref} />
+          <BackButton />
         </div>
         <PageTitle title="Create Learning Content" className="mb-2" />
         <p className="text-muted-foreground mb-8">

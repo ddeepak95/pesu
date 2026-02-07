@@ -97,7 +97,7 @@ export default function CreateSurveyPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton href={backToContentHref} />
+          <BackButton />
         </div>
         <PageTitle title="Create Survey" className="mb-2" />
         <p className="text-muted-foreground mb-8">

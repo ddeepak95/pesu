@@ -120,7 +120,7 @@ export default function ClassDetailPage() {
       <div>
         <div>
           <div className="mb-4">
-            <BackButton href="/teacher/classes" />
+            <BackButton />
           </div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">{classData.name}</h1>

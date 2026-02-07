@@ -171,7 +171,7 @@ export default function CreateAssignmentPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton href={backToContentHref} />
+          <BackButton />
         </div>
         <h1 className="text-3xl font-bold mb-8">Create Learning Assignment</h1>
         <AssignmentForm

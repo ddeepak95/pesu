@@ -147,7 +147,7 @@ export default function StudentAssignmentPage() {
       <PageLayout userName={displayName}>
         <div>
           <div className="mb-4">
-            <BackButton href={`/students/classes/${classId}`} />
+            <BackButton />
           </div>
           <div className="text-center py-12">
             <div className="inline-block p-4 rounded-full bg-muted mb-4">
@@ -168,7 +168,7 @@ export default function StudentAssignmentPage() {
             </div>
             <h2 className="text-2xl font-bold mb-2">Content Locked</h2>
             <p className="text-muted-foreground mb-4">{lockReason}</p>
-            <BackButton href={`/students/classes/${classId}`} />
+            <BackButton />
           </div>
         </div>
       </PageLayout>
@@ -185,7 +185,7 @@ export default function StudentAssignmentPage() {
     <PageLayout userName={displayName || studentName}>
       <div>
         <div className="mb-4">
-          <BackButton href={`/students/classes/${classId}`} />
+          <BackButton />
         </div>
         <div className="w-full">
           <StudentAssignmentResponse

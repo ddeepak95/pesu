@@ -4,19 +4,20 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import { Button } from "@/components/ui/button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import { getQuizByShortIdForTeacher, updateQuiz } from "@/lib/queries/quizzes";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import QuizForm from "@/components/Teacher/Quizzes/QuizForm";
 import { Quiz } from "@/types/quiz";
+import { showSuccessToast } from "@/lib/toast";
 
 export default function EditQuizPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
 
-  const classId = params.classId as string;
   const quizId = params.quizId as string;
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -69,7 +70,7 @@ export default function EditQuizPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton href={`/teacher/classes/${classId}/quizzes/${quizId}`} />
+          <BackButton />
         </div>
         <PageTitle title="Edit Quiz" className="mb-2" />
         <p className="text-muted-foreground mb-8">
@@ -113,9 +114,19 @@ export default function EditQuizPage() {
               status: updated.status,
             });
 
-            router.push(`/teacher/classes/${classId}/quizzes/${quizId}`);
+            showSuccessToast("Quiz updated successfully");
           }}
         />
+
+        <div className="mt-6 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+          >
+            Close
+          </Button>
+        </div>
       </div>
     </PageLayout>
   );
