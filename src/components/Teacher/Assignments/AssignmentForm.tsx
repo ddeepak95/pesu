@@ -420,11 +420,8 @@ export default function AssignmentForm({
         isDraft: draft,
         responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
         maxAttempts,
-        // Only include botPromptConfig for voice and text_chat modes
-        botPromptConfig:
-          assessmentMode === "voice" || assessmentMode === "text_chat"
-            ? botPromptConfig
-            : undefined,
+        // Always retain botPromptConfig so switching modes doesn't lose it
+        botPromptConfig,
         studentInstructions: studentInstructions.trim() || undefined,
         showRubric,
         showRubricPoints,
