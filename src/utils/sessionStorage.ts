@@ -97,7 +97,7 @@ export function updateUrlWithSubmissionId(
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
   url.searchParams.set("sid", submissionId);
-  window.history.pushState({}, "", url.toString());
+  window.history.replaceState({}, "", url.toString());
 }
 
 /**
@@ -107,6 +107,6 @@ export function removeSubmissionIdFromUrl(): void {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
   url.searchParams.delete("sid");
-  window.history.pushState({}, "", url.toString());
+  window.history.replaceState({}, "", url.toString());
 }
 
