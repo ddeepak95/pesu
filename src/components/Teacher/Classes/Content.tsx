@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
-import { CheckSquare, X, Copy, MoreVertical } from "lucide-react";
+import { CheckSquare, X, Copy, MoreVertical, Trash2 } from "lucide-react";
 import DuplicateContentDialog from "@/components/Teacher/Classes/DuplicateContentDialog";
 import BulkDuplicateContentDialog from "@/components/Teacher/Classes/BulkDuplicateContentDialog";
 import CreateContentMenu from "@/components/Teacher/Classes/ContentParts/CreateContentMenu";
@@ -65,6 +65,7 @@ export default function Content({ classData }: ContentProps) {
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"duplicate" | "delete" | null>(null);
   const [bulkDuplicateOpen, setBulkDuplicateOpen] = useState(false);
 
   const selectedItems = useMemo(
@@ -87,6 +88,7 @@ export default function Content({ classData }: ContentProps) {
   const exitSelectionMode = useCallback(() => {
     setSelectionMode(false);
     setSelectedIds(new Set());
+    setBulkAction(null);
   }, []);
 
   const setGroupIdInUrl = (groupId: string) => {
@@ -441,6 +443,25 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
+  const handleBulkDelete = async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${count} item(s)? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map((id) => softDeleteContentItem(id))
+      );
+      setItems((prev) => prev.filter((i) => !selectedIds.has(i.id)));
+      exitSelectionMode();
+    } catch (err) {
+      console.error("Error bulk deleting content items:", err);
+      alert("Failed to delete some items. Please try again.");
+    }
+  };
+
   const handleShareLinks = (item: ContentItem) => {
     if (item.type === "formative_assignment") {
       const assignment = assignmentById[item.ref_id];
@@ -483,21 +504,6 @@ export default function Content({ classData }: ContentProps) {
             classPublicId={classData.class_id}
             selectedGroupId={selectedGroupId}
           />
-          {!selectionMode && items.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setSelectionMode(true)}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Duplicate items
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
         </div>
       </div>
 
@@ -519,14 +525,27 @@ export default function Content({ classData }: ContentProps) {
           >
             {selectedIds.size === items.length ? "Deselect All" : "Select All"}
           </Button>
-          <Button
-            size="sm"
-            disabled={selectedIds.size === 0}
-            onClick={() => setBulkDuplicateOpen(true)}
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            Duplicate to...
-          </Button>
+          {bulkAction === "duplicate" && (
+            <Button
+              size="sm"
+              disabled={selectedIds.size === 0}
+              onClick={() => setBulkDuplicateOpen(true)}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Duplicate to...
+            </Button>
+          )}
+          {bulkAction === "delete" && (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selectedIds.size === 0}
+              onClick={handleBulkDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete selected
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
             <X className="h-4 w-4 mr-2" />
             Cancel
@@ -543,13 +562,34 @@ export default function Content({ classData }: ContentProps) {
         }}
         className="w-full"
       >
-        <TabsList>
-          {groups.map((g) => (
-            <TabsTrigger key={g.id} value={g.id}>
-              {g.name || `Group ${g.group_index + 1}`}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            {groups.map((g) => (
+              <TabsTrigger key={g.id} value={g.id}>
+                {g.name || `Group ${g.group_index + 1}`}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {!selectionMode && items.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setBulkAction("duplicate"); setSelectionMode(true); }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate items
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setBulkAction("delete"); setSelectionMode(true); }}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete items
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
 
         {groups.map((g) => (
           <TabsContent key={g.id} value={g.id} className="pt-4">
