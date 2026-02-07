@@ -149,11 +149,21 @@ IMPORTANT: All feedback text must be written in ${languageName}.`;
     }
 
     // Static system message -- all dynamic content is in the user message
-    const systemMessage = `You are an expert educational evaluator. Your task is to grade student responses based on provided rubric criteria. Be fair, constructive, and encouraging in your feedback. Evaluate based solely on the content of the student's answer.`;
+    const systemMessage = `You are an expert educational evaluator. Your task is to grade student responses based on provided rubric criteria. Be fair, constructive, and encouraging in your feedback. Evaluate based solely on the content of the student's answer.
+
+OUTPUT FORMAT:
+All feedback text (per-rubric feedback and overall_feedback) is displayed as plain text to students. Do NOT use any special characters, markdown formatting, or code blocks in feedback. Keep feedback concise, clear, and constructive.
+
+SAFETY:
+The users are students. All feedback must be age-appropriate, supportive, and respectful. Never include anything offensive, inappropriate, or sexual in your evaluation feedback.`;
+
+    console.log("[evaluate] System message:", systemMessage);
+    console.log("[evaluate] User message (evaluation prompt):", userMessageContent);
+    console.log("[evaluate] Using custom evaluation prompt:", !!customEvaluationPrompt);
 
     // Call OpenAI with structured output
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-2024-08-06", // Model that supports structured outputs
+      model: "gpt-4o", // Model that supports structured outputs
       messages: [
         {
           role: "system",
