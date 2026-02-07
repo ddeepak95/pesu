@@ -198,24 +198,17 @@ export function ChatAssessment({
         );
         setAttempts(questionAttempts);
         // If we already restored from storage, never overwrite that state here.
-        // Otherwise, fall back to existingAnswer (if any), or empty chat.
+        // Otherwise, show a clean slate (Start Chat button).
+        // Note: we intentionally do NOT hydrate from existingAnswer because it
+        // can contain unreliable data (e.g. voice transcripts from a mode switch).
+        // localStorage drafts handle the refresh case correctly.
         if (!restoredFromStorageRef.current) {
-          if (existingAnswer && questionAttempts.length === 0) {
-            hydrateMessagesFromAnswer(existingAnswer);
-          } else {
-            setMessages([]);
-          }
+          setMessages([]);
         }
       } catch (error) {
         console.error("Error loading attempts for chat assessment:", error);
-        // On error, fall back to existingAnswer if available and not already
-        // restored from storage
         if (!restoredFromStorageRef.current) {
-          if (existingAnswer) {
-            hydrateMessagesFromAnswer(existingAnswer);
-          } else {
-            setMessages([]);
-          }
+          setMessages([]);
         }
       }
     }
@@ -233,26 +226,6 @@ export function ChatAssessment({
       // ignore storage errors
     }
   }, [messages, storageKey]);
-
-  const hydrateMessagesFromAnswer = (answerText: string) => {
-    if (!answerText) {
-      setMessages([]);
-      return;
-    }
-    setMessages([
-      {
-        id: "assistant-initial",
-        role: "assistant",
-        content:
-          "Here is a summary of your previous response. You can review it below and try again if you like:",
-      },
-      {
-        id: "student-existing",
-        role: "student",
-        content: answerText,
-      },
-    ]);
-  };
 
   /**
    * Stream an SSE response from the chat-assessment API into a message bubble.

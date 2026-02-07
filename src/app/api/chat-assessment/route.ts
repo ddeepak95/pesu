@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     const outputInstructions = `
 OUTPUT FORMAT:
-Your output is rendered as a plain text chat message. Do NOT use any special characters, markdown formatting, or code blocks. User only the characters from ${languageName}. Keep responses concise and conversational.`;
+Your output is rendered as a plain text chat message. Do NOT use any special characters, markdown formatting, or code blocks. User only the characters from the languages specified in the system prompt. Keep responses concise and conversational.`;
 
     const safetyInstructions = `
 SAFETY:
@@ -256,12 +256,12 @@ ${greetingInstructions}${expectedAnswerSection}${universalInstructions}`;
     }
 
     console.log("[chat-assessment] System prompt length:", systemPromptContent.length);
-    console.log("[chat-assessment] System prompt preview:", systemPromptContent.slice(0, 200) + "...");
+    console.log("[chat-assessment] System prompt:", systemPromptContent);
     console.log("[chat-assessment] Total chat messages being sent to OpenAI:", chatMessages.length);
 
     // Create streaming completion with tool calling
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: chatMessages,
       tools: [END_CONVERSATION_TOOL],
       stream: true,
