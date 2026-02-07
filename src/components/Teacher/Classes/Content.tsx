@@ -583,6 +583,11 @@ export default function Content({ classData }: ContentProps) {
                       ? assignmentById[item.ref_id]?.assessment_mode
                       : undefined;
 
+                  const language =
+                    item.type === "formative_assignment"
+                      ? assignmentById[item.ref_id]?.preferred_language
+                      : undefined;
+
                   return (
                     <ContentCard
                       item={item}
@@ -592,6 +597,7 @@ export default function Content({ classData }: ContentProps) {
                       titleLoading={titleLoading}
                       savingOrder={savingOrder}
                       assessmentMode={assessmentMode}
+                      language={language}
                       selectionMode={selectionMode}
                       selected={selectedIds.has(item.id)}
                       onToggleSelect={() => toggleSelectItem(item.id)}
