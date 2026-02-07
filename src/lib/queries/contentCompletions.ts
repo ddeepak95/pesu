@@ -241,6 +241,8 @@ export async function getClassContentCompletions(
         contentType: contentItem.type as ContentItemType,
         isComplete: !!completedAt,
         completedAt,
+        contentGroupId: contentItem.class_group_id ?? null,
+        studentGroupId: student.group_id ?? null,
       });
     }
   }

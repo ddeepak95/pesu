@@ -26,4 +26,6 @@ export interface StudentContentCompletionWithDetails {
   contentType: ContentItemType;
   isComplete: boolean;
   completedAt: string | null;
+  contentGroupId: string | null;
+  studentGroupId: string | null;
 }

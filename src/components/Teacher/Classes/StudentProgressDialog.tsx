@@ -31,6 +31,7 @@ import {
   ContentItemType,
 } from "@/types/contentCompletion";
 import { CheckCircle2, XCircle, Columns3 } from "lucide-react";
+import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
 
 interface StudentProgressDialogProps {
   open: boolean;
@@ -44,12 +45,14 @@ interface ContentColumn {
   contentItemId: string;
   contentName: string;
   contentType: ContentItemType;
+  contentGroupId: string | null;
 }
 
 interface StudentRow {
   studentId: string;
   studentName: string;
   studentEmail: string | null;
+  studentGroupId: string | null;
   completions: Map<string, { isComplete: boolean; completedAt: string | null }>;
 }
 
@@ -68,6 +71,8 @@ export default function StudentProgressDialog({
   const [data, setData] = useState<StudentContentCompletionWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [groups, setGroups] = useState<ClassGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,8 +93,16 @@ export default function StudentProgressDialog({
       setLoading(true);
       setError(null);
       try {
-        const completions = await getClassContentCompletions(classDbId);
+        const [completions, classGroups] = await Promise.all([
+          getClassContentCompletions(classDbId),
+          getClassGroups(classDbId),
+        ]);
         setData(completions);
+        setGroups(classGroups);
+        // Default to first group
+        if (classGroups.length > 0) {
+          setSelectedGroupId(classGroups[0].id);
+        }
         // Initialize all columns as selected
         const allColumnIds = new Set<string>();
         completions.forEach((item) => allColumnIds.add(item.contentItemId));
@@ -112,26 +125,33 @@ export default function StudentProgressDialog({
       setCompletionFilter("all");
       setContentTypeFilter("all");
       setSelectedColumns(new Set());
+      setSelectedGroupId(null);
+      setGroups([]);
     }
     onOpenChange(newOpen);
   };
 
-  // Get all unique content columns
+  // Get all unique content columns (filtered by selected group)
   const allContentColumns = useMemo(() => {
     const columnsMap = new Map<string, ContentColumn>();
 
     data.forEach((item) => {
+      // Filter by selected group
+      if (selectedGroupId && item.contentGroupId !== selectedGroupId) {
+        return;
+      }
       if (!columnsMap.has(item.contentItemId)) {
         columnsMap.set(item.contentItemId, {
           contentItemId: item.contentItemId,
           contentName: item.contentName,
           contentType: item.contentType,
+          contentGroupId: item.contentGroupId,
         });
       }
     });
 
     return Array.from(columnsMap.values());
-  }, [data]);
+  }, [data, selectedGroupId]);
 
   // Filter columns by type and selection
   const contentColumns = useMemo(() => {
@@ -204,16 +224,21 @@ export default function StudentProgressDialog({
     );
   }, [allContentColumns, contentTypeFilter, selectedColumns]);
 
-  // Transform flat data into student rows with completion map
+  // Transform flat data into student rows with completion map (filtered by selected group)
   const studentRows = useMemo(() => {
     const rowsMap = new Map<string, StudentRow>();
 
     data.forEach((item) => {
+      // Filter students by selected group
+      if (selectedGroupId && item.studentGroupId !== selectedGroupId) {
+        return;
+      }
       if (!rowsMap.has(item.studentId)) {
         rowsMap.set(item.studentId, {
           studentId: item.studentId,
           studentName: item.studentName,
           studentEmail: item.studentEmail,
+          studentGroupId: item.studentGroupId,
           completions: new Map(),
         });
       }
@@ -226,7 +251,7 @@ export default function StudentProgressDialog({
     });
 
     return Array.from(rowsMap.values());
-  }, [data]);
+  }, [data, selectedGroupId]);
 
   // Apply filters to student rows
   const filteredRows = useMemo(() => {
@@ -307,6 +332,25 @@ export default function StudentProgressDialog({
             View content completion status for all students in this class.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Group Tabs */}
+        {groups.length > 0 && (
+          <div className="flex gap-1 border-b overflow-x-auto pb-0">
+            {groups.map((group) => (
+              <button
+                key={group.id}
+                onClick={() => setSelectedGroupId(group.id)}
+                className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  selectedGroupId === group.id
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
+                }`}
+              >
+                {group.name || `Group ${group.group_index + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 py-4 border-b">
