@@ -9,7 +9,7 @@ import {
 } from "@/contexts/VoiceAssessmentContext";
 import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
-import { interpolatePromptsForRuntime } from "@/lib/promptInterpolation";
+import { interpolatePromptsForRuntime, interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
 import {
   usePipecatClient,
   usePipecatClientTransportState,
@@ -56,6 +56,9 @@ interface VoiceAssessmentProps {
   onAttemptCreated?: () => void;
   onMarkedComplete?: () => void;
   isComplete?: boolean;
+  // Shared context and custom evaluation prompt
+  sharedContext?: string;
+  evaluationPrompt?: string;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -90,6 +93,8 @@ function VoiceAssessmentContent({
   onAttemptCreated,
   onMarkedComplete,
   isComplete = false,
+  sharedContext,
+  evaluationPrompt,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -209,6 +214,26 @@ function VoiceAssessmentContent({
         language,
       });
 
+      // Build interpolated evaluation prompt if custom one exists
+      let interpolatedEvalPrompt: string | undefined;
+      if (evaluationPrompt) {
+        const assignmentForInterpolation = {
+          questions: [question],
+          max_attempts: maxAttempts || 1,
+          bot_prompt_config: botPromptConfig,
+          shared_context: sharedContext,
+        };
+        const evalContext = buildRuntimeContext(
+          assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
+          question,
+          language,
+          attempts.length + 1,
+          question.order,
+          transcript.trim()
+        );
+        interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
+      }
+
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
@@ -221,6 +246,8 @@ function VoiceAssessmentContent({
           questionPrompt: question.prompt,
           rubric: question.rubric,
           language: language, // Pass user's selected language for feedback
+          ...(sharedContext && { shared_context: sharedContext }),
+          ...(interpolatedEvalPrompt && { custom_evaluation_prompt: interpolatedEvalPrompt }),
         }),
       });
 
@@ -354,6 +381,7 @@ function VoiceAssessmentContent({
       questions: [question], // Current question
       max_attempts: maxAttempts || 1,
       bot_prompt_config: botPromptConfig,
+      shared_context: sharedContext,
     };
 
     return interpolatePromptsForRuntime(
@@ -364,7 +392,7 @@ function VoiceAssessmentContent({
       language,
       attempts.length + 1
     );
-  }, [botPromptConfig, question, language, maxAttempts, attempts.length]);
+  }, [botPromptConfig, question, language, maxAttempts, attempts.length, sharedContext]);
 
   // Prepare connection data to send to server (only used for initial connection)
   // Server-side Pipecat bot handles audio recording via AudioBufferProcessor
@@ -385,6 +413,8 @@ function VoiceAssessmentContent({
       system_prompt: interpolatedPrompts.system_prompt,
       greeting: interpolatedPrompts.greeting,
     }),
+    // Include shared context if available
+    ...(sharedContext && { shared_context: sharedContext }),
   };
 
   const handleBotReady = () => {

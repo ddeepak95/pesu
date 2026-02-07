@@ -13,7 +13,7 @@ import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { interpolatePromptsForRuntime } from "@/lib/promptInterpolation";
+import { interpolatePromptsForRuntime, interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
 
 interface ChatMessage {
   id: string;
@@ -54,6 +54,9 @@ interface ChatAssessmentProps {
   onAttemptCreated?: () => void;
   onMarkedComplete?: () => void;
   isComplete?: boolean;
+  // Shared context and custom evaluation prompt
+  sharedContext?: string;
+  evaluationPrompt?: string;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -85,6 +88,8 @@ export function ChatAssessment({
   onAttemptCreated,
   onMarkedComplete,
   isComplete = false,
+  sharedContext,
+  evaluationPrompt,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -103,6 +108,7 @@ export function ChatAssessment({
       questions: [question],
       max_attempts: maxAttempts || 1,
       bot_prompt_config: botPromptConfig,
+      shared_context: sharedContext,
     };
 
     return interpolatePromptsForRuntime(
@@ -113,7 +119,7 @@ export function ChatAssessment({
       language,
       attempts.length + 1
     );
-  }, [botPromptConfig, question, language, maxAttempts, attempts.length]);
+  }, [botPromptConfig, question, language, maxAttempts, attempts.length, sharedContext]);
 
   // Activity tracking for question-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
@@ -308,6 +314,8 @@ export function ChatAssessment({
             system_prompt: interpolatedPrompts.system_prompt,
             greeting: interpolatedPrompts.greeting,
           }),
+          // Include shared context if available
+          ...(sharedContext && { shared_context: sharedContext }),
         }),
         signal: controller.signal,
       });
@@ -435,6 +443,8 @@ export function ChatAssessment({
             system_prompt: interpolatedPrompts.system_prompt,
             greeting: interpolatedPrompts.greeting,
           }),
+          // Include shared context if available
+          ...(sharedContext && { shared_context: sharedContext }),
         }),
         signal: controller.signal,
       });
@@ -515,6 +525,26 @@ export function ChatAssessment({
 
     setIsEvaluating(true);
     try {
+      // Build interpolated evaluation prompt if custom one exists
+      let interpolatedEvalPrompt: string | undefined;
+      if (evaluationPrompt) {
+        const assignmentForInterpolation = {
+          questions: [question],
+          max_attempts: maxAttempts || 1,
+          bot_prompt_config: botPromptConfig,
+          shared_context: sharedContext,
+        };
+        const evalContext = buildRuntimeContext(
+          assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
+          question,
+          language,
+          attempts.length + 1,
+          question.order,
+          answerText
+        );
+        interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
+      }
+
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
@@ -527,6 +557,8 @@ export function ChatAssessment({
           questionPrompt: question.prompt,
           rubric: question.rubric,
           language,
+          ...(sharedContext && { shared_context: sharedContext }),
+          ...(interpolatedEvalPrompt && { custom_evaluation_prompt: interpolatedEvalPrompt }),
         }),
       });
 

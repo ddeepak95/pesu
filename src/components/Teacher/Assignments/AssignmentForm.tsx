@@ -24,7 +24,8 @@ import {
   BotPromptConfig,
 } from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import { getDefaultBotPromptConfig } from "@/lib/promptTemplates";
+import { getDefaultBotPromptConfig, getDefaultEvaluationPrompt } from "@/lib/promptTemplates";
+import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, ChevronDown, Bot, Eye } from "lucide-react";
 
 interface AssignmentFormProps {
@@ -46,6 +47,9 @@ interface AssignmentFormProps {
   initialUseStarDisplay?: boolean;
   initialStarScale?: number;
   initialRequireAllAttempts?: boolean;
+  initialSharedContextEnabled?: boolean;
+  initialSharedContext?: string;
+  initialEvaluationPrompt?: string;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -65,6 +69,9 @@ interface AssignmentFormProps {
     useStarDisplay?: boolean;
     starScale?: number;
     requireAllAttempts?: boolean;
+    sharedContextEnabled?: boolean;
+    sharedContext?: string;
+    evaluationPrompt?: string;
   }) => Promise<void>;
 }
 
@@ -99,6 +106,9 @@ export default function AssignmentForm({
   initialUseStarDisplay = false,
   initialStarScale = 5,
   initialRequireAllAttempts = false,
+  initialSharedContextEnabled = false,
+  initialSharedContext = "",
+  initialEvaluationPrompt = "",
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -139,6 +149,13 @@ export default function AssignmentForm({
   const [starScale, setStarScale] = useState(initialStarScale);
   const [requireAllAttempts, setRequireAllAttempts] = useState(
     initialRequireAllAttempts
+  );
+  const [sharedContextEnabled, setSharedContextEnabled] = useState(
+    initialSharedContextEnabled
+  );
+  const [sharedContext, setSharedContext] = useState(initialSharedContext);
+  const [evaluationPrompt, setEvaluationPrompt] = useState(
+    initialEvaluationPrompt || getDefaultEvaluationPrompt()
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -329,6 +346,12 @@ export default function AssignmentForm({
       return;
     }
 
+    // Validate shared context
+    if (sharedContextEnabled && !sharedContext.trim()) {
+      setError("Shared context text is required when Shared Context is enabled");
+      return;
+    }
+
     // Validate each question
     for (let i = 0; i < questions.length; i++) {
       const question = questions[i];
@@ -408,6 +431,9 @@ export default function AssignmentForm({
         useStarDisplay,
         starScale,
         requireAllAttempts,
+        sharedContextEnabled,
+        sharedContext: sharedContextEnabled ? sharedContext.trim() : undefined,
+        evaluationPrompt: evaluationPrompt.trim() || undefined,
       });
 
       // Navigate based on mode
@@ -925,44 +951,40 @@ export default function AssignmentForm({
         )}
       </div>
 
-      {/* AI Bot Configuration (only for voice and text_chat modes) */}
-      {(assessmentMode === "voice" || assessmentMode === "text_chat") && (
-        <div className="border rounded-md">
-          <button
-            type="button"
-            onClick={() => setIsBotConfigOpen(!isBotConfigOpen)}
-            className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
-            disabled={loading}
-          >
-            <div className="flex items-center gap-2">
-              <Bot className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">AI Bot Configuration</h3>
-            </div>
-            <ChevronDown
-              className={`h-4 w-4 text-muted-foreground transition-transform ${
-                isBotConfigOpen ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+      {/* AI Bot Configuration */}
+      <div className="border rounded-md">
+        <button
+          type="button"
+          onClick={() => setIsBotConfigOpen(!isBotConfigOpen)}
+          className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
+          disabled={loading}
+        >
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">AI Bot Configuration</h3>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform ${
+              isBotConfigOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-          {isBotConfigOpen && (
-            <div className="space-y-4 p-4 pt-0 border-t">
-              <p className="text-sm text-muted-foreground">
-                Customize how the AI bot interacts with students. Use variable
-                placeholders like{" "}
-                <code className="text-xs bg-muted px-1 rounded">
-                  {"{{question_prompt}}"}
-                </code>{" "}
-                to insert dynamic content.
-                {assessmentMode === "voice" && (
-                  <span className="block mt-1 text-xs">
-                    Note: For voice mode, TTS formatting instructions are
-                    automatically added.
-                  </span>
-                )}
-              </p>
+        {isBotConfigOpen && (
+          <div className="space-y-4 p-4 pt-0 border-t">
+            <p className="text-sm text-muted-foreground">
+              Customize how the AI bot interacts with students and evaluates
+              answers. Use variable placeholders to insert dynamic content.
+              {assessmentMode === "voice" && (
+                <span className="block mt-1 text-xs">
+                  Note: For voice mode, TTS formatting instructions are
+                  automatically added.
+                </span>
+              )}
+            </p>
 
-              {/* Editor and Preview Toggle */}
+            {/* Editor and Preview Toggle (only for voice and text_chat modes) */}
+            {(assessmentMode === "voice" || assessmentMode === "text_chat") && (
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -982,58 +1004,111 @@ export default function AssignmentForm({
                   Preview
                 </Button>
               </div>
+            )}
 
-              {showBotPreview ? (
-                <div className="space-y-3">
-                  {/* Preview Question Order Toggle */}
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Preview for:</span>
-                    <Button
-                      type="button"
-                      variant={
-                        previewQuestionOrder === 0 ? "default" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setPreviewQuestionOrder(0)}
-                    >
-                      First Question
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={
-                        previewQuestionOrder === 1 ? "default" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setPreviewQuestionOrder(1)}
-                    >
-                      Subsequent Questions
-                    </Button>
-                  </div>
-
-                  <PromptPreview
-                    config={botPromptConfig}
-                    assignment={{
-                      questions,
-                      preferred_language: preferredLanguage,
-                      max_attempts: maxAttempts,
-                    }}
-                    question={questions[0]}
-                    languageCode={preferredLanguage}
-                    assessmentMode={assessmentMode}
-                    previewQuestionOrder={previewQuestionOrder}
-                  />
+            {showBotPreview && (assessmentMode === "voice" || assessmentMode === "text_chat") ? (
+              <div className="space-y-3">
+                {/* Preview Question Order Toggle */}
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Preview for:</span>
+                  <Button
+                    type="button"
+                    variant={
+                      previewQuestionOrder === 0 ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setPreviewQuestionOrder(0)}
+                  >
+                    First Question
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={
+                      previewQuestionOrder === 1 ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setPreviewQuestionOrder(1)}
+                  >
+                    Subsequent Questions
+                  </Button>
                 </div>
-              ) : (
-                <PromptConfigEditor
+
+                <PromptPreview
                   config={botPromptConfig}
-                  onChange={setBotPromptConfig}
-                  disabled={loading}
+                  assignment={{
+                    questions,
+                    preferred_language: preferredLanguage,
+                    max_attempts: maxAttempts,
+                    shared_context: sharedContextEnabled ? sharedContext : undefined,
+                  }}
+                  question={questions[0]}
+                  languageCode={preferredLanguage}
+                  assessmentMode={assessmentMode}
+                  previewQuestionOrder={previewQuestionOrder}
                 />
-              )}
-            </div>
-          )}
+              </div>
+            ) : (
+              <PromptConfigEditor
+                config={botPromptConfig}
+                onChange={setBotPromptConfig}
+                disabled={loading}
+                showBotPrompts={assessmentMode === "voice" || assessmentMode === "text_chat"}
+                evaluationPrompt={evaluationPrompt}
+                onEvaluationPromptChange={setEvaluationPrompt}
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Shared Context */}
+      <div className="space-y-3 p-4 border rounded-md">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="sharedContextEnabled"
+            checked={sharedContextEnabled}
+            onCheckedChange={(checked) => setSharedContextEnabled(checked === true)}
+            disabled={loading}
+          />
+          <div className="space-y-1">
+            <Label
+              htmlFor="sharedContextEnabled"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Shared Context
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Provide a shared context (e.g. case study, passage, scenario) that
+              all questions in this assessment will reference
+            </p>
+          </div>
         </div>
-      )}
+
+        {sharedContextEnabled && (
+          <div className="space-y-2 mt-3">
+            <Label htmlFor="sharedContext">
+              Context Text <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="sharedContext"
+              value={sharedContext}
+              onChange={(e) => setSharedContext(e.target.value)}
+              disabled={loading}
+              placeholder="Enter the shared context, case study, passage, or scenario that students will analyze..."
+              rows={6}
+              className="resize-y"
+            />
+            <p className="text-xs text-muted-foreground">
+              This context will be displayed to students and included in AI
+              prompts. Available as{" "}
+              <code className="text-xs bg-muted px-1 rounded">
+                {"{{shared_context}}"}
+              </code>{" "}
+              in prompt templates.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Questions */}
       <div className="space-y-4">

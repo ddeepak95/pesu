@@ -14,6 +14,8 @@ export interface InterpolationContext {
   total_questions: number;
   attempt_number: number;
   question_order: number;
+  shared_context: string;
+  answer_text: string;
 }
 
 /**
@@ -96,6 +98,8 @@ export function buildPreviewContext(
     expected_answer: question?.expected_answer || "",
     max_attempts: assignment.max_attempts || 1,
     total_questions: assignment.questions?.length || 1,
+    shared_context: assignment.shared_context || "[Shared context will appear here]",
+    answer_text: "[Student answer will appear here]",
     ...PREVIEW_SAMPLE_VALUES, // Use sample values for runtime variables
   };
 }
@@ -116,7 +120,8 @@ export function buildRuntimeContext(
   question: Question,
   languageCode: string,
   attemptNumber: number,
-  questionOrder: number
+  questionOrder: number,
+  answerText?: string
 ): InterpolationContext {
   return {
     language: getLanguageName(languageCode),
@@ -127,6 +132,8 @@ export function buildRuntimeContext(
     total_questions: assignment.questions.length,
     attempt_number: attemptNumber,
     question_order: questionOrder,
+    shared_context: assignment.shared_context || "",
+    answer_text: answerText || "",
   };
 }
 

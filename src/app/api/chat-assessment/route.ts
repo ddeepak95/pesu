@@ -25,6 +25,8 @@ interface ChatAssessmentRequestBody {
   // Optional custom prompts (already interpolated by frontend)
   system_prompt?: string;
   greeting?: string;
+  // Optional shared context (e.g. case study, passage)
+  shared_context?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -42,6 +44,7 @@ export async function POST(request: NextRequest) {
       attemptNumber,
       system_prompt: customSystemPrompt,
       greeting: customGreeting,
+      shared_context: sharedContext,
     } = body;
 
     if (
@@ -67,6 +70,11 @@ export async function POST(request: NextRequest) {
       .map((item) => `- ${item.item} (${item.points} points)`)
       .join("\n");
 
+    // Build shared context section for default prompts
+    const sharedContextSection = sharedContext
+      ? `\nShared Context the student is analyzing:\n${sharedContext}\n`
+      : "";
+
     // Build system prompt: use custom if provided, otherwise use default
     let systemPromptContent: string;
     if (customSystemPrompt) {
@@ -88,7 +96,7 @@ For EVERY RESPONSE you give:
 IMPORTANT:
 - Respond only in ${languageName}.
 - Do NOT give the full final answer outright; guide the student instead.
-
+${sharedContextSection}
 Question (what the teacher asked the student):
 ${questionPrompt}
 

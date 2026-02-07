@@ -47,6 +47,9 @@ export default function EditAssignmentPage() {
   const [useStarDisplay, setUseStarDisplay] = useState<boolean>(false);
   const [starScale, setStarScale] = useState<number>(5);
   const [requireAllAttempts, setRequireAllAttempts] = useState<boolean>(false);
+  const [sharedContextEnabled, setSharedContextEnabled] = useState<boolean>(false);
+  const [sharedContext, setSharedContext] = useState<string>("");
+  const [evaluationPrompt, setEvaluationPrompt] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
@@ -75,6 +78,9 @@ export default function EditAssignmentPage() {
           setUseStarDisplay(assignmentData.use_star_display ?? false);
           setStarScale(assignmentData.star_scale ?? 5);
           setRequireAllAttempts(assignmentData.require_all_attempts ?? false);
+          setSharedContextEnabled(assignmentData.shared_context_enabled ?? false);
+          setSharedContext(assignmentData.shared_context ?? "");
+          setEvaluationPrompt(assignmentData.evaluation_prompt ?? "");
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
           setInitialIsDraft(assignmentData.status === "draft");
@@ -119,6 +125,9 @@ export default function EditAssignmentPage() {
     useStarDisplay?: boolean;
     starScale?: number;
     requireAllAttempts?: boolean;
+    sharedContextEnabled?: boolean;
+    sharedContext?: string;
+    evaluationPrompt?: string;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -148,6 +157,9 @@ export default function EditAssignmentPage() {
       use_star_display: data.useStarDisplay ?? false,
       star_scale: data.starScale ?? 5,
       require_all_attempts: data.requireAllAttempts ?? false,
+      shared_context_enabled: data.sharedContextEnabled ?? false,
+      shared_context: data.sharedContext,
+      evaluation_prompt: data.evaluationPrompt,
     });
 
     // Sync content_item status
@@ -207,6 +219,9 @@ export default function EditAssignmentPage() {
           initialUseStarDisplay={useStarDisplay}
           initialStarScale={starScale}
           initialRequireAllAttempts={requireAllAttempts}
+          initialSharedContextEnabled={sharedContextEnabled}
+          initialSharedContext={sharedContext}
+          initialEvaluationPrompt={evaluationPrompt}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />

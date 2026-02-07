@@ -13,6 +13,7 @@ import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
 
 interface StaticTextAssessmentProps {
   question: Question;
@@ -45,6 +46,9 @@ interface StaticTextAssessmentProps {
   onAttemptCreated?: () => void;
   onMarkedComplete?: () => void;
   isComplete?: boolean;
+  // Shared context and custom evaluation prompt
+  sharedContext?: string;
+  evaluationPrompt?: string;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -75,6 +79,8 @@ export function StaticTextAssessment({
   onAttemptCreated,
   onMarkedComplete,
   isComplete = false,
+  sharedContext,
+  evaluationPrompt,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -215,6 +221,25 @@ export function StaticTextAssessment({
 
     setIsEvaluating(true);
     try {
+      // Build interpolated evaluation prompt if custom one exists
+      let interpolatedEvalPrompt: string | undefined;
+      if (evaluationPrompt) {
+        const assignmentForInterpolation = {
+          questions: [question],
+          max_attempts: maxAttempts || 1,
+          shared_context: sharedContext,
+        };
+        const evalContext = buildRuntimeContext(
+          assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
+          question,
+          language,
+          attempts.length + 1,
+          question.order,
+          trimmedAnswer
+        );
+        interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
+      }
+
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
@@ -227,6 +252,8 @@ export function StaticTextAssessment({
           questionPrompt: question.prompt,
           rubric: question.rubric,
           language,
+          ...(sharedContext && { shared_context: sharedContext }),
+          ...(interpolatedEvalPrompt && { custom_evaluation_prompt: interpolatedEvalPrompt }),
         }),
       });
 

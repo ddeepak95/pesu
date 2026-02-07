@@ -45,6 +45,16 @@ export const PROMPT_VARIABLES = {
     description: "Current question index (0-based)",
     category: "runtime" as const,
   },
+  shared_context: {
+    placeholder: "{{shared_context}}",
+    description: "Shared context text (e.g. case study, passage)",
+    category: "static" as const,
+  },
+  answer_text: {
+    placeholder: "{{answer_text}}",
+    description: "The student's submitted answer text",
+    category: "runtime" as const,
+  },
 } as const;
 
 export type PromptVariableKey = keyof typeof PROMPT_VARIABLES;
@@ -95,6 +105,38 @@ export const DEFAULT_CONVERSATION_START_FIRST = `Speaking in {{language}}, intro
  * Default conversation start for subsequent questions (2nd, 3rd, etc.)
  */
 export const DEFAULT_CONVERSATION_START_SUBSEQUENT = `Speaking in {{language}}, acknowledge we're moving to the next question, then ask the student to answer it.`;
+
+/**
+ * Default evaluation prompt template.
+ * Sent as the user message to the AI evaluator.
+ * Teachers can customize this to change how answers are scored.
+ */
+export const DEFAULT_EVALUATION_PROMPT = `{{shared_context}}
+
+Question: {{question_prompt}}
+
+Evaluation Rubric:
+{{rubric}}
+
+Student's Answer:
+{{answer_text}}
+
+Please evaluate this answer according to the rubric. For each rubric item:
+1. Assign points earned (0 to the maximum points for that item - do not exceed the maximum)
+2. Set points_possible to match the rubric item's maximum points
+3. Provide specific, constructive feedback in {{language}}
+
+Then provide overall feedback in {{language}} that is encouraging and helps the student understand their strengths and areas for improvement.
+
+IMPORTANT: All feedback text must be written in {{language}}.`;
+
+/**
+ * Get the default evaluation prompt template.
+ * Teachers can customize this starting point.
+ */
+export function getDefaultEvaluationPrompt(): string {
+  return DEFAULT_EVALUATION_PROMPT;
+}
 
 /**
  * TTS instruction that is appended server-side for voice mode only.

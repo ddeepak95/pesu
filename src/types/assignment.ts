@@ -130,5 +130,20 @@ export interface Assignment {
    * Defaults to false for backwards compatibility.
    */
   require_all_attempts?: boolean;
+  /**
+   * When true, a shared context is shown to students and included in all prompts.
+   * Defaults to false.
+   */
+  shared_context_enabled?: boolean;
+  /**
+   * The shared context text (e.g. a case study, passage, scenario).
+   * Only used when shared_context_enabled is true.
+   */
+  shared_context?: string;
+  /**
+   * Custom evaluation prompt template. If set, replaces the hardcoded evaluation prompt.
+   * Supports placeholders: {{language}}, {{question_prompt}}, {{rubric}}, {{answer_text}}, {{shared_context}}
+   */
+  evaluation_prompt?: string;
 }
 

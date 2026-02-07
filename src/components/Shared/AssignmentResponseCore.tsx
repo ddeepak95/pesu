@@ -228,6 +228,18 @@ export default function AssignmentResponseCore({
         </div>
       )}
 
+      {/* Shared Context - shown when enabled */}
+      {assignmentData.shared_context_enabled && assignmentData.shared_context && (
+        <div className="p-4 border rounded-lg bg-muted/30">
+          <h3 className="text-sm font-semibold text-muted-foreground mb-2">
+            Shared Context
+          </h3>
+          <div className="text-sm whitespace-pre-wrap">
+            {assignmentData.shared_context}
+          </div>
+        </div>
+      )}
+
       {/* Assessment Component based on mode */}
       {assessmentMode === "voice" && (
         <VoiceAssessment
@@ -260,6 +272,8 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
+          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          evaluationPrompt={assignmentData.evaluation_prompt}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -291,6 +305,8 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
+          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          evaluationPrompt={assignmentData.evaluation_prompt}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -323,6 +339,8 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
+          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          evaluationPrompt={assignmentData.evaluation_prompt}
         />
       )}
     </div>

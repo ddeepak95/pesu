@@ -177,6 +177,9 @@ export async function createAssignment(
     use_star_display?: boolean; // Whether to show stars instead of points to students
     star_scale?: number; // Number of stars in the rating scale
     require_all_attempts?: boolean; // Whether students must attempt all questions before completing
+    shared_context_enabled?: boolean; // Whether shared context is enabled
+    shared_context?: string; // Shared context text
+    evaluation_prompt?: string; // Custom evaluation prompt template
   },
   userId: string
 ): Promise<Assignment> {
@@ -207,6 +210,9 @@ export async function createAssignment(
       use_star_display: assignment.use_star_display ?? false,
       star_scale: assignment.star_scale ?? 5,
       require_all_attempts: assignment.require_all_attempts ?? false,
+      shared_context_enabled: assignment.shared_context_enabled ?? false,
+      shared_context: assignment.shared_context ?? null,
+      evaluation_prompt: assignment.evaluation_prompt ?? null,
     })
     .select()
     .single();
@@ -250,6 +256,9 @@ export async function updateAssignment(
     use_star_display?: boolean; // Whether to show stars instead of points to students
     star_scale?: number; // Number of stars in the rating scale
     require_all_attempts?: boolean; // Whether students must attempt all questions before completing
+    shared_context_enabled?: boolean; // Whether shared context is enabled
+    shared_context?: string; // Shared context text
+    evaluation_prompt?: string; // Custom evaluation prompt template
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -271,6 +280,9 @@ export async function updateAssignment(
     use_star_display: assignment.use_star_display ?? false,
     star_scale: assignment.star_scale ?? 5,
     require_all_attempts: assignment.require_all_attempts ?? false,
+    shared_context_enabled: assignment.shared_context_enabled ?? false,
+    shared_context: assignment.shared_context ?? null,
+    evaluation_prompt: assignment.evaluation_prompt ?? null,
     updated_at: new Date().toISOString(),
   };
 

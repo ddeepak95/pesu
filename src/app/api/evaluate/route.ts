@@ -41,6 +41,8 @@ interface EvaluateRequestBody {
   questionPrompt: string;
   rubric: Array<{ item: string; points: number }>;
   language: string; // Language code for feedback (e.g., "en", "hi", "kn")
+  shared_context?: string; // Optional shared context (e.g. case study, passage)
+  custom_evaluation_prompt?: string; // Optional custom evaluation prompt (already interpolated)
 }
 
 interface LLMRubricScore {
@@ -75,6 +77,8 @@ export async function POST(request: NextRequest) {
       questionPrompt,
       rubric,
       language,
+      shared_context: sharedContext,
+      custom_evaluation_prompt: customEvaluationPrompt,
     } = body;
 
     // Validate required fields
@@ -100,13 +104,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build language mapping from supportedLanguages for single source of truth
-    const languageNames = Object.fromEntries(
-      supportedLanguages.map((lang) => [lang.code, lang.name])
-    );
-    const languageName = languageNames[language] || "English";
-
-    // Prepare rubric text for the prompt
+    // Prepare rubric text for the fallback prompt
     const rubricText = rubric
       .map((item) => `- ${item.item} (${item.points} points)`)
       .join("\n");
@@ -115,19 +113,24 @@ export async function POST(request: NextRequest) {
     console.log("Max score calculated:", maxScore);
     console.log("Calling OpenAI for evaluation...");
 
-    // Call OpenAI with structured output
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-2024-08-06", // Model that supports structured outputs
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert educational evaluator. Your task is to grade student responses based on provided rubric criteria. Be fair, constructive, and encouraging in your feedback. Evaluate based solely on the content of the student's answer.
+    // Build the user message for evaluation
+    let userMessageContent: string;
+    if (customEvaluationPrompt) {
+      // Use the custom evaluation prompt (already interpolated by frontend)
+      userMessageContent = customEvaluationPrompt;
+    } else {
+      // Fallback for old assignments that don't have an evaluation_prompt saved.
+      // New assignments always send the interpolated evaluation prompt from the template.
+      const languageNames = Object.fromEntries(
+        supportedLanguages.map((lang) => [lang.code, lang.name])
+      );
+      const languageName = languageNames[language] || "English";
 
-IMPORTANT: All feedback must be provided in ${languageName}. Write your evaluation feedback naturally in ${languageName} to help the student understand their performance.`,
-        },
-        {
-          role: "user",
-          content: `Question: ${questionPrompt}
+      const sharedContextSection = sharedContext
+        ? `Shared Context:\n${sharedContext}\n\n`
+        : "";
+
+      userMessageContent = `${sharedContextSection}Question: ${questionPrompt}
 
 Evaluation Rubric:
 ${rubricText}
@@ -142,7 +145,23 @@ Please evaluate this answer according to the rubric. For each rubric item:
 
 Then provide overall feedback in ${languageName} that is encouraging and helps the student understand their strengths and areas for improvement.
 
-Remember: All feedback text must be written in ${languageName}.`,
+IMPORTANT: All feedback text must be written in ${languageName}.`;
+    }
+
+    // Static system message -- all dynamic content is in the user message
+    const systemMessage = `You are an expert educational evaluator. Your task is to grade student responses based on provided rubric criteria. Be fair, constructive, and encouraging in your feedback. Evaluate based solely on the content of the student's answer.`;
+
+    // Call OpenAI with structured output
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-2024-08-06", // Model that supports structured outputs
+      messages: [
+        {
+          role: "system",
+          content: systemMessage,
+        },
+        {
+          role: "user",
+          content: userMessageContent,
         },
       ],
       response_format: {
