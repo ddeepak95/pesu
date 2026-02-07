@@ -34,7 +34,7 @@ export default function CreateContentMenu({
             )
           }
         >
-          Create Learning Activity
+          Create Activity
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -51,7 +51,7 @@ export default function CreateContentMenu({
             )
           }
         >
-          Create Learning Content
+          Create Content
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() =>
