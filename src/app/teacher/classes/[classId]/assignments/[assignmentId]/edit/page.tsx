@@ -197,7 +197,7 @@ export default function EditAssignmentPage() {
     <PageLayout>
       <div className="max-w-4xl mx-auto">
         <div className="mb-4">
-          <BackButton />
+          <BackButton href={`/teacher/classes/${classId}/assignments/${assignmentId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} />
         </div>
         <h1 className="text-3xl font-bold mb-8">Edit Assignment</h1>
         <AssignmentForm

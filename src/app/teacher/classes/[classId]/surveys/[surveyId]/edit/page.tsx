@@ -72,7 +72,7 @@ export default function EditSurveyPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton />
+          <BackButton href={`/teacher/classes/${classId}/surveys/${surveyId}`} />
         </div>
         <PageTitle title="Edit Survey" className="mb-2" />
         <p className="text-muted-foreground mb-8">

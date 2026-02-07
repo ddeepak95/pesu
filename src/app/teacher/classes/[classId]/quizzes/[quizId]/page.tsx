@@ -146,7 +146,7 @@ export default function QuizDetailPage() {
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <BackButton href={`/teacher/classes/${classId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} />
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>

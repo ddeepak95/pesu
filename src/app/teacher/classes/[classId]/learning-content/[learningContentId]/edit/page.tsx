@@ -72,7 +72,7 @@ export default function EditLearningContentPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton />
+          <BackButton href={`/teacher/classes/${classId}/learning-content/${learningContentId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} />
         </div>
         <PageTitle title="Edit Learning Content" className="mb-2" />
         <p className="text-muted-foreground mb-8">

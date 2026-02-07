@@ -69,7 +69,7 @@ export default function EditQuizPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton />
+          <BackButton href={`/teacher/classes/${classId}/quizzes/${quizId}`} />
         </div>
         <PageTitle title="Edit Quiz" className="mb-2" />
         <p className="text-muted-foreground mb-8">

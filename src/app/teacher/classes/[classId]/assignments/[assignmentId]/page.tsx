@@ -226,7 +226,7 @@ export default function AssignmentDetailPage() {
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <BackButton href={`/teacher/classes/${classId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} />
           </div>
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -318,6 +318,22 @@ export default function AssignmentDetailPage() {
             </TabsList>
 
             <TabsContent value="questions" className="space-y-4 py-6">
+              {/* Shared Context */}
+              {assignmentData.shared_context && (
+                <div className="rounded-md border bg-card text-card-foreground">
+                  <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium">
+                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    <span>Shared Context</span>
+                    {!assignmentData.shared_context_enabled && (
+                      <span className="text-xs text-muted-foreground">(disabled)</span>
+                    )}
+                  </div>
+                  <div className="px-4 pb-4">
+                    <MarkdownContent content={assignmentData.shared_context} />
+                  </div>
+                </div>
+              )}
+
               {assignmentData.questions
                 .sort((a, b) => a.order - b.order)
                 .map((question, index) => (
@@ -325,40 +341,60 @@ export default function AssignmentDetailPage() {
                 ))}
             </TabsContent>
 
-            <TabsContent value="config" className="space-y-4 py-6">
-              {/* Rubric Visibility */}
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="font-medium">Rubric visibility:</span>
-                <span className="text-muted-foreground">
-                  {assignmentData.show_rubric ?? true
-                    ? assignmentData.show_rubric_points ?? true
-                      ? "Shown with points"
-                      : "Shown without points"
-                    : "Hidden from students"}
-                </span>
+            <TabsContent value="config" className="py-6 space-y-6">
+              {/* Display Settings */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Display Settings</h3>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Rubric visibility:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.show_rubric ?? true
+                        ? assignmentData.show_rubric_points ?? true
+                          ? "Shown with points"
+                          : "Shown without points"
+                        : "Hidden from students"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Score display:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.use_star_display
+                        ? `Stars (${assignmentData.star_scale ?? 5}-star scale)`
+                        : "Points"}
+                    </span>
+                  </div>
+                  {assignmentData.use_star_display && (
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium w-44 shrink-0">Teacher view:</span>
+                      <span className="text-muted-foreground">
+                        {assignmentData.teacher_view_stars ? "Stars" : "Points"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Public access:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.is_public ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Require all questions:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.require_all_attempts ? "Yes" : "No"}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Student Instructions */}
               {assignmentData.student_instructions && (
-                <div>
-                  <h3 className="text-sm font-medium mb-2">
-                    Instructions for Students
-                  </h3>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Instructions for Students</h3>
                   <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                     {assignmentData.student_instructions}
                   </p>
                 </div>
-              )}
-
-              {/* Shared Context */}
-              {assignmentData.shared_context && (
-                <CollapsibleSection
-                  icon={BookOpen}
-                  title={`Shared Context${assignmentData.shared_context_enabled ? "" : " (disabled)"}`}
-                  defaultOpen={false}
-                >
-                  <MarkdownContent content={assignmentData.shared_context} />
-                </CollapsibleSection>
               )}
 
               {/* AI Prompt Configuration */}

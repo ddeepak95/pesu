@@ -97,7 +97,7 @@ export default function CreateQuizPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton />
+          <BackButton href={backToContentHref} />
         </div>
         <PageTitle title="Create Quiz" className="mb-2" />
         <p className="text-muted-foreground mb-8">
