@@ -28,6 +28,24 @@ export async function getLearningContentsByIds(ids: string[]): Promise<LearningC
   return (data || []) as LearningContent[];
 }
 
+/**
+ * Get learning contents by their database UUID primary keys (student view).
+ * Only returns active learning contents (excludes draft and deleted).
+ */
+export async function getLearningContentsByIdsForStudent(ids: string[]): Promise<LearningContent[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("learning_contents")
+    .select("*")
+    .in("id", ids)
+    .eq("status", "active");
+
+  if (error) throw error;
+  return (data || []) as LearningContent[];
+}
+
 export async function getLearningContentByShortId(
   learningContentId: string
 ): Promise<LearningContent | null> {

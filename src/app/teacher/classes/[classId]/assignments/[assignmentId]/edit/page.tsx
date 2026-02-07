@@ -11,6 +11,7 @@ import {
   getAssignmentByIdForTeacher,
   updateAssignment,
 } from "@/lib/queries/assignments";
+import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import {
   Question,
   ResponderFieldConfig,
@@ -48,6 +49,8 @@ export default function EditAssignmentPage() {
   const [requireAllAttempts, setRequireAllAttempts] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
+  const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
+  const [initialIsDraft, setInitialIsDraft] = useState(false);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
 
   // Fetch assignment data
@@ -73,6 +76,8 @@ export default function EditAssignmentPage() {
           setStarScale(assignmentData.star_scale ?? 5);
           setRequireAllAttempts(assignmentData.require_all_attempts ?? false);
           setAssignmentDbId(assignmentData.id);
+          setAssignmentClassId(assignmentData.class_id);
+          setInitialIsDraft(assignmentData.status === "draft");
         } else {
           setError("Assignment not found");
         }
@@ -123,7 +128,9 @@ export default function EditAssignmentPage() {
       throw new Error("Assignment not found");
     }
 
-    await updateAssignment(assignmentDbId, {
+    const newStatus = data.isDraft ? "draft" : "active";
+
+    const updated = await updateAssignment(assignmentDbId, {
       title: data.title,
       questions: data.questions,
       total_points: data.totalPoints,
@@ -131,6 +138,7 @@ export default function EditAssignmentPage() {
       lock_language: data.lockLanguage,
       is_public: data.isPublic,
       assessment_mode: data.assessmentMode,
+      status: newStatus,
       responder_fields_config: data.responderFieldsConfig,
       max_attempts: data.maxAttempts ?? 1,
       bot_prompt_config: data.botPromptConfig,
@@ -141,6 +149,16 @@ export default function EditAssignmentPage() {
       star_scale: data.starScale ?? 5,
       require_all_attempts: data.requireAllAttempts ?? false,
     });
+
+    // Sync content_item status
+    if (assignmentClassId) {
+      await updateContentItemStatusByRef({
+        class_id: assignmentClassId,
+        type: "formative_assignment",
+        ref_id: assignmentDbId,
+        status: updated.status,
+      });
+    }
   };
 
   if (loadingAssignment) {
@@ -189,6 +207,7 @@ export default function EditAssignmentPage() {
           initialUseStarDisplay={useStarDisplay}
           initialStarScale={starScale}
           initialRequireAllAttempts={requireAllAttempts}
+          initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />
 

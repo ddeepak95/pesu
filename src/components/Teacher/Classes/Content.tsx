@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
@@ -20,8 +20,17 @@ import { getSurveysByIds } from "@/lib/queries/surveys";
 import { Survey } from "@/types/survey";
 import List from "@/components/ui/List";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
+import { CheckSquare, X, Copy, MoreVertical } from "lucide-react";
 import DuplicateContentDialog from "@/components/Teacher/Classes/DuplicateContentDialog";
+import BulkDuplicateContentDialog from "@/components/Teacher/Classes/BulkDuplicateContentDialog";
 import CreateContentMenu from "@/components/Teacher/Classes/ContentParts/CreateContentMenu";
 import ContentCard from "@/components/Teacher/Classes/ContentParts/ContentCard";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
@@ -52,6 +61,33 @@ export default function Content({ classData }: ContentProps) {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
+
+  // Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDuplicateOpen, setBulkDuplicateOpen] = useState(false);
+
+  const selectedItems = useMemo(
+    () => items.filter((i) => selectedIds.has(i.id)),
+    [items, selectedIds]
+  );
+
+  const toggleSelectItem = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
 
   const setGroupIdInUrl = (groupId: string) => {
     // Maintain param order: tab first, then groupId, then everything else.
@@ -442,17 +478,68 @@ export default function Content({ classData }: ContentProps) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Content</h2>
 
-        <CreateContentMenu
-          classPublicId={classData.class_id}
-          selectedGroupId={selectedGroupId}
-        />
+        <div className="flex items-center gap-2">
+          <CreateContentMenu
+            classPublicId={classData.class_id}
+            selectedGroupId={selectedGroupId}
+          />
+          {!selectionMode && items.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setSelectionMode(true)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate items
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
+
+      {selectionMode && (
+        <div className="flex items-center gap-3 mb-4 p-3 rounded-lg border bg-muted/50">
+          <span className="text-sm font-medium">
+            {selectedIds.size} of {items.length} selected
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (selectedIds.size === items.length) {
+                setSelectedIds(new Set());
+              } else {
+                setSelectedIds(new Set(items.map((i) => i.id)));
+              }
+            }}
+          >
+            {selectedIds.size === items.length ? "Deselect All" : "Select All"}
+          </Button>
+          <Button
+            size="sm"
+            disabled={selectedIds.size === 0}
+            onClick={() => setBulkDuplicateOpen(true)}
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            Duplicate to...
+          </Button>
+          <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
+            <X className="h-4 w-4 mr-2" />
+            Cancel
+          </Button>
+        </div>
+      )}
 
       <Tabs
         value={selectedGroupId ?? ""}
         onValueChange={(v) => {
           setSelectedGroupId(v);
           setGroupIdInUrl(v);
+          exitSelectionMode();
         }}
         className="w-full"
       >
@@ -505,6 +592,9 @@ export default function Content({ classData }: ContentProps) {
                       titleLoading={titleLoading}
                       savingOrder={savingOrder}
                       assessmentMode={assessmentMode}
+                      selectionMode={selectionMode}
+                      selected={selectedIds.has(item.id)}
+                      onToggleSelect={() => toggleSelectItem(item.id)}
                       onOpen={() => handleOpen(item)}
                       onEdit={() => handleEdit(item)}
                       onDuplicate={() => openDuplicate(item)}
@@ -534,6 +624,18 @@ export default function Content({ classData }: ContentProps) {
             });
             setItems(fresh);
           } catch {}
+        }}
+      />
+
+      <BulkDuplicateContentDialog
+        open={bulkDuplicateOpen}
+        onOpenChange={setBulkDuplicateOpen}
+        items={selectedItems}
+        classDbId={classData.id}
+        groups={groups}
+        sourceGroupId={selectedGroupId}
+        onDuplicated={() => {
+          exitSelectionMode();
         }}
       />
 

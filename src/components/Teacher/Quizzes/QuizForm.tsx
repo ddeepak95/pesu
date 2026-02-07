@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { nanoid } from "nanoid";
+import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ export default function QuizForm({
   onSubmit,
   submitLabel = "Create Quiz",
   initialTitle = "",
+  initialInstructions = "",
   initialQuestions,
   initialIsDraft = false,
   initialRandomizeQuestions = false,
@@ -42,6 +44,7 @@ export default function QuizForm({
 }: {
   onSubmit: (data: {
     title: string;
+    instructions: string;
     questions: MCQQuestion[];
     isDraft: boolean;
     randomizeQuestions: boolean;
@@ -50,6 +53,7 @@ export default function QuizForm({
   }) => Promise<void>;
   submitLabel?: string;
   initialTitle?: string;
+  initialInstructions?: string;
   initialQuestions?: MCQQuestion[];
   initialIsDraft?: boolean;
   initialRandomizeQuestions?: boolean;
@@ -57,6 +61,7 @@ export default function QuizForm({
   initialShowPointsToStudents?: boolean;
 }) {
   const [title, setTitle] = useState(initialTitle);
+  const [instructions, setInstructions] = useState(initialInstructions);
   const [questions, setQuestions] = useState<MCQQuestion[]>(
     initialQuestions && initialQuestions.length > 0
       ? ensureQuestionIds(initialQuestions)
@@ -157,6 +162,7 @@ export default function QuizForm({
 
       await onSubmit({
         title: title.trim(),
+        instructions: instructions.trim(),
         questions: cleaned,
         isDraft,
         randomizeQuestions,
@@ -181,6 +187,24 @@ export default function QuizForm({
           onChange={(e) => setTitle(e.target.value)}
           disabled={loading}
           placeholder="e.g., Newton's Laws (MCQ)"
+        />
+      </div>
+
+      {/* Instructions (markdown) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="instructions">Instructions (optional)</Label>
+          <span className="text-xs text-muted-foreground">
+            Markdown supported
+          </span>
+        </div>
+        <MarkdownEditor
+          id="instructions"
+          value={instructions}
+          onChange={setInstructions}
+          disabled={loading}
+          placeholder="Enter instructions to display to students below the title..."
+          rows={4}
         />
       </div>
 
@@ -295,7 +319,7 @@ export default function QuizForm({
 
       <div className="flex gap-3">
         <Button type="submit" disabled={loading}>
-          {loading ? "Creating…" : submitLabel}
+          {loading ? "Saving…" : isDraft ? submitLabel : "Publish"}
         </Button>
       </div>
     </form>

@@ -240,6 +240,7 @@ export async function updateAssignment(
     lock_language?: boolean;
     is_public?: boolean;
     assessment_mode?: "voice" | "text_chat" | "static_text";
+    status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
     bot_prompt_config?: BotPromptConfig; // AI bot configuration for voice/chat modes
@@ -253,27 +254,33 @@ export async function updateAssignment(
 ): Promise<Assignment> {
   const supabase = createClient();
 
+  const updatePayload: Record<string, unknown> = {
+    title: assignment.title,
+    questions: assignment.questions,
+    total_points: assignment.total_points,
+    preferred_language: assignment.preferred_language,
+    lock_language: assignment.lock_language ?? false,
+    is_public: assignment.is_public ?? false,
+    assessment_mode: assignment.assessment_mode ?? "voice",
+    responder_fields_config: assignment.responder_fields_config ?? null,
+    max_attempts: assignment.max_attempts ?? 1,
+    bot_prompt_config: assignment.bot_prompt_config ?? null,
+    student_instructions: assignment.student_instructions ?? null,
+    show_rubric: assignment.show_rubric ?? true,
+    show_rubric_points: assignment.show_rubric_points ?? true,
+    use_star_display: assignment.use_star_display ?? false,
+    star_scale: assignment.star_scale ?? 5,
+    require_all_attempts: assignment.require_all_attempts ?? false,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (assignment.status !== undefined) {
+    updatePayload.status = assignment.status;
+  }
+
   const { data, error } = await supabase
     .from("assignments")
-    .update({
-      title: assignment.title,
-      questions: assignment.questions,
-      total_points: assignment.total_points,
-      preferred_language: assignment.preferred_language,
-      lock_language: assignment.lock_language ?? false,
-      is_public: assignment.is_public ?? false,
-      assessment_mode: assignment.assessment_mode ?? "voice",
-      responder_fields_config: assignment.responder_fields_config ?? null,
-      max_attempts: assignment.max_attempts ?? 1,
-      bot_prompt_config: assignment.bot_prompt_config ?? null,
-      student_instructions: assignment.student_instructions ?? null,
-      show_rubric: assignment.show_rubric ?? true,
-      show_rubric_points: assignment.show_rubric_points ?? true,
-      use_star_display: assignment.use_star_display ?? false,
-      star_scale: assignment.star_scale ?? 5,
-      require_all_attempts: assignment.require_all_attempts ?? false,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", assignmentId)
     .select()
     .single();

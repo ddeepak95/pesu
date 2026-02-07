@@ -23,6 +23,24 @@ export async function getQuizzesByIds(ids: string[]): Promise<Quiz[]> {
 }
 
 /**
+ * Get quizzes by their database UUID primary keys (student view).
+ * Only returns active quizzes (excludes draft and deleted).
+ */
+export async function getQuizzesByIdsForStudent(ids: string[]): Promise<Quiz[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("quizzes")
+    .select("*")
+    .in("id", ids)
+    .eq("status", "active");
+
+  if (error) throw error;
+  return (data || []) as Quiz[];
+}
+
+/**
  * Get a single quiz by its unique quiz_id (student view)
  * Only returns active quizzes (excludes deleted and draft ones)
  */
@@ -59,6 +77,7 @@ export async function createQuiz(
     class_id: string;
     class_group_id?: string | null;
     title: string;
+    instructions?: string | null;
     questions: MCQQuestion[];
     randomize_questions?: boolean;
     randomize_options?: boolean;
@@ -84,6 +103,7 @@ export async function createQuiz(
       class_id: payload.class_id,
       class_group_id: payload.class_group_id ?? null,
       title: payload.title.trim(),
+      instructions: payload.instructions?.trim() || null,
       questions: cleanedQuestions,
       randomize_questions: payload.randomize_questions ?? false,
       randomize_options: payload.randomize_options ?? false,
@@ -103,6 +123,7 @@ export async function updateQuiz(
   id: string,
   payload: {
     title: string;
+    instructions?: string | null;
     questions: MCQQuestion[];
     randomize_questions?: boolean;
     randomize_options?: boolean;
@@ -123,6 +144,7 @@ export async function updateQuiz(
     .from("quizzes")
     .update({
       title: payload.title.trim(),
+      instructions: payload.instructions?.trim() || null,
       questions: cleanedQuestions,
       randomize_questions: payload.randomize_questions ?? false,
       randomize_options: payload.randomize_options ?? false,

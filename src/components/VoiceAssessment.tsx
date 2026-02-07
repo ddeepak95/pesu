@@ -45,7 +45,6 @@ interface VoiceAssessmentProps {
   // For marking as complete
   contentItemId?: string | null;
   // Display settings
-  studentInstructions?: string;
   showRubric?: boolean;
   showRubricPoints?: boolean;
   useStarDisplay?: boolean;
@@ -81,7 +80,6 @@ function VoiceAssessmentContent({
   maxAttemptsReached,
   botPromptConfig,
   contentItemId,
-  studentInstructions,
   showRubric = true,
   showRubricPoints = true,
   useStarDisplay = false,
@@ -412,7 +410,6 @@ function VoiceAssessmentContent({
 
       <AssessmentQuestionCard
         question={question}
-        studentInstructions={studentInstructions}
         showRubric={showRubric}
         showRubricPoints={showRubricPoints}
         className="w-full"

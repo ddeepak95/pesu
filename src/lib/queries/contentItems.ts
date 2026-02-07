@@ -118,6 +118,7 @@ export async function createContentItem(
     position?: number;
     due_at?: string | null;
     status?: ContentItem["status"];
+    lock_after_complete?: boolean;
   },
   userId: string
 ): Promise<ContentItem> {
@@ -145,6 +146,7 @@ export async function createContentItem(
       due_at: payload.due_at ?? null,
       created_by: userId,
       status: payload.status ?? "active",
+      lock_after_complete: payload.lock_after_complete ?? false,
     })
     .select()
     .single();

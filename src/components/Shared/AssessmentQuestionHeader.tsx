@@ -26,7 +26,7 @@ export function AssessmentQuestionHeader({
 }: AssessmentQuestionHeaderProps) {
   return (
     <div className="flex items-center justify-between">
-      <p className="text-lg font-medium">
+      <p className="text-md">
         Question ({questionNumber}/{totalQuestions})
       </p>
 
@@ -54,7 +54,3 @@ export function AssessmentQuestionHeader({
     </div>
   );
 }
-
-
-
-

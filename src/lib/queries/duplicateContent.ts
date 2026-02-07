@@ -13,20 +13,48 @@ export async function duplicateContentItem(params: {
 }): Promise<void> {
   const { item, destinationClassDbId, destinationClassGroupId, userId } = params;
 
+  // Strip system-generated fields from the content item wrapper so that all
+  // user-configured fields (due_at, lock_after_complete, status, …) are
+  // forwarded automatically — even ones added in the future.
+  const {
+    id: _ciId,
+    content_item_id: _ciShortId,
+    created_by: _ciCreatedBy,
+    created_at: _ciCreatedAt,
+    updated_at: _ciUpdatedAt,
+    class_id: _ciClassId,
+    class_group_id: _ciClassGroupId,
+    type: _ciType,
+    ref_id: _ciRefId,
+    position: _ciPosition,
+    ...contentItemFields
+  } = item;
+
   if (item.type === "formative_assignment") {
     const [a] = await getAssignmentsByIdsForTeacher([item.ref_id]);
     if (!a) throw new Error("Source assignment not found");
 
+    // Strip system-generated fields; spread everything else so that new
+    // assignment options (bot config, display settings, etc.) are copied
+    // automatically without needing code changes here.
+    const {
+      id: _aId,
+      assignment_id: _aShortId,
+      created_by: _aCreatedBy,
+      created_at: _aCreatedAt,
+      updated_at: _aUpdatedAt,
+      class_id: _aClassId,
+      class_group_id: _aClassGroupId,
+      status: _aStatus,
+      ...assignmentFields
+    } = a;
+
     const next = await createAssignment(
       {
+        ...assignmentFields,
+        assessment_mode: assignmentFields.assessment_mode ?? "voice",
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
-        title: a.title,
-        questions: a.questions,
-        total_points: a.total_points,
-        preferred_language: a.preferred_language,
-        is_public: a.is_public,
-        assessment_mode: a.assessment_mode ?? "voice",
         status: item.status === "draft" ? "draft" : "active",
       },
       userId
@@ -34,11 +62,11 @@ export async function duplicateContentItem(params: {
 
     await createContentItem(
       {
+        ...contentItemFields,
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
         type: "formative_assignment",
         ref_id: next.id,
-        status: item.status,
       },
       userId
     );
@@ -49,13 +77,26 @@ export async function duplicateContentItem(params: {
     const [lc] = await getLearningContentsByIds([item.ref_id]);
     if (!lc) throw new Error("Source learning content not found");
 
+    // Strip system-generated & computed fields (content_type is derived
+    // from video_url / body by createLearningContent).
+    const {
+      id: _lcId,
+      learning_content_id: _lcShortId,
+      created_by: _lcCreatedBy,
+      created_at: _lcCreatedAt,
+      updated_at: _lcUpdatedAt,
+      class_id: _lcClassId,
+      class_group_id: _lcClassGroupId,
+      status: _lcStatus,
+      content_type: _lcContentType,
+      ...lcFields
+    } = lc;
+
     const next = await createLearningContent(
       {
+        ...lcFields,
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
-        title: lc.title,
-        video_url: lc.video_url ?? null,
-        body: lc.body ?? null,
         status: item.status === "draft" ? "draft" : "active",
       },
       userId
@@ -63,11 +104,11 @@ export async function duplicateContentItem(params: {
 
     await createContentItem(
       {
+        ...contentItemFields,
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
         type: "learning_content",
         ref_id: next.id,
-        status: item.status,
       },
       userId
     );
@@ -78,12 +119,26 @@ export async function duplicateContentItem(params: {
     const [q] = await getQuizzesByIds([item.ref_id]);
     if (!q) throw new Error("Source quiz not found");
 
+    // Strip system-generated fields. total_points is also excluded because
+    // createQuiz recomputes it from the questions array.
+    const {
+      id: _qId,
+      quiz_id: _qShortId,
+      created_by: _qCreatedBy,
+      created_at: _qCreatedAt,
+      updated_at: _qUpdatedAt,
+      class_id: _qClassId,
+      class_group_id: _qClassGroupId,
+      status: _qStatus,
+      total_points: _qTotalPoints,
+      ...quizFields
+    } = q;
+
     const next = await createQuiz(
       {
+        ...quizFields,
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
-        title: q.title,
-        questions: q.questions,
         status: item.status === "draft" ? "draft" : "active",
       },
       userId
@@ -91,11 +146,11 @@ export async function duplicateContentItem(params: {
 
     await createContentItem(
       {
+        ...contentItemFields,
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
         type: "quiz",
         ref_id: next.id,
-        status: item.status,
       },
       userId
     );
@@ -106,13 +161,23 @@ export async function duplicateContentItem(params: {
     const [s] = await getSurveysByIds([item.ref_id]);
     if (!s) throw new Error("Source survey not found");
 
+    const {
+      id: _sId,
+      survey_id: _sShortId,
+      created_by: _sCreatedBy,
+      created_at: _sCreatedAt,
+      updated_at: _sUpdatedAt,
+      class_id: _sClassId,
+      class_group_id: _sClassGroupId,
+      status: _sStatus,
+      ...surveyFields
+    } = s;
+
     const next = await createSurvey(
       {
+        ...surveyFields,
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
-        title: s.title,
-        description: s.description,
-        questions: s.questions,
         status: item.status === "draft" ? "draft" : "active",
       },
       userId
@@ -120,11 +185,11 @@ export async function duplicateContentItem(params: {
 
     await createContentItem(
       {
+        ...contentItemFields,
         class_id: destinationClassDbId,
         class_group_id: destinationClassGroupId,
         type: "survey",
         ref_id: next.id,
-        status: item.status,
       },
       userId
     );
@@ -134,6 +199,25 @@ export async function duplicateContentItem(params: {
   throw new Error("Unsupported content type");
 }
 
-
-
-
+/**
+ * Duplicate multiple content items to a destination group, preserving their
+ * original order. Items are sorted by position (ascending) and duplicated
+ * sequentially so that the auto-position logic in createContentItem assigns
+ * incrementing positions in the destination group.
+ */
+export async function duplicateContentItems(params: {
+  items: ContentItem[];
+  destinationClassDbId: string;
+  destinationClassGroupId: string;
+  userId: string;
+}): Promise<void> {
+  const sorted = [...params.items].sort((a, b) => a.position - b.position);
+  for (const item of sorted) {
+    await duplicateContentItem({
+      item,
+      destinationClassDbId: params.destinationClassDbId,
+      destinationClassGroupId: params.destinationClassGroupId,
+      userId: params.userId,
+    });
+  }
+}

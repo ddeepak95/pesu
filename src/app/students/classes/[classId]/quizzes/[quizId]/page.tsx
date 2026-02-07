@@ -28,6 +28,7 @@ import { getStudentGroupForClass } from "@/lib/queries/groups";
 import { getUnlockState } from "@/lib/utils/unlockLogic";
 import { getSessionSeed, shuffleWithSeed } from "@/utils/quizRandomization";
 import { calculateQuizScore } from "@/utils/quizScoring";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 import QuizQuestionCard from "@/components/Student/Quizzes/QuizQuestionCard";
 import QuizSubmissionBar from "@/components/Student/Quizzes/QuizSubmissionBar";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
@@ -294,6 +295,11 @@ function QuizPageContent({
                 <p>{quiz.total_points} points total</p>
               </div>
             ) : null}
+            {quiz.instructions && (
+              <div className="mt-3">
+                <MarkdownContent content={quiz.instructions} />
+              </div>
+            )}
           </div>
 
           <div className="space-y-4 pb-8">

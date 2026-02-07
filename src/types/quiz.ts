@@ -18,6 +18,10 @@ export interface Quiz {
   class_id: string; // classes.id (uuid)
   class_group_id?: string | null;
   title: string;
+  /**
+   * Markdown-formatted instructions displayed to students below the quiz title.
+   */
+  instructions?: string | null;
   questions: MCQQuestion[];
   randomize_questions: boolean;
   randomize_options: boolean;
