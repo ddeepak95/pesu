@@ -1,5 +1,9 @@
 // Survey question types
-export type SurveyQuestionType = "likert" | "open_ended";
+export type SurveyQuestionType =
+  | "likert"
+  | "open_ended"
+  | "dropdown"
+  | "section_title";
 
 export interface LikertOption {
   id: string;
@@ -23,7 +27,27 @@ export interface OpenEndedQuestion {
   required: boolean;
 }
 
-export type SurveyQuestion = LikertQuestion | OpenEndedQuestion;
+export interface DropdownQuestion {
+  order: number;
+  type: "dropdown";
+  prompt: string;
+  options: string[]; // List of choices
+  required: boolean;
+}
+
+export interface SectionTitle {
+  order: number;
+  type: "section_title";
+  prompt: string; // Section heading
+  description?: string; // Optional description
+  required: false; // Always false (not answerable)
+}
+
+export type SurveyQuestion =
+  | LikertQuestion
+  | OpenEndedQuestion
+  | DropdownQuestion
+  | SectionTitle;
 
 export interface Survey {
   id: string; // uuid pk

@@ -17,10 +17,14 @@ import {
   SurveyQuestion,
   LikertQuestion,
   OpenEndedQuestion,
+  DropdownQuestion,
+  SectionTitle,
   LIKERT_PRESETS,
 } from "@/types/survey";
 import LikertQuestionCard from "@/components/Teacher/Surveys/LikertQuestionCard";
 import OpenEndedQuestionCard from "@/components/Teacher/Surveys/OpenEndedQuestionCard";
+import DropdownQuestionCard from "@/components/Teacher/Surveys/DropdownQuestionCard";
+import SectionTitleCard from "@/components/Teacher/Surveys/SectionTitleCard";
 
 function newLikertQuestion(order: number): LikertQuestion {
   // Default to 5-point agreement scale
@@ -44,6 +48,26 @@ function newOpenEndedQuestion(order: number): OpenEndedQuestion {
     type: "open_ended",
     prompt: "",
     placeholder: "",
+    required: false,
+  };
+}
+
+function newDropdownQuestion(order: number): DropdownQuestion {
+  return {
+    order,
+    type: "dropdown",
+    prompt: "",
+    options: ["", ""],
+    required: true,
+  };
+}
+
+function newSectionTitle(order: number): SectionTitle {
+  return {
+    order,
+    type: "section_title",
+    prompt: "",
+    description: undefined,
     required: false,
   };
 }
@@ -92,6 +116,12 @@ export default function SurveyForm({
   const addOpenEndedQuestion = () =>
     setQuestions([...questions, newOpenEndedQuestion(questions.length)]);
 
+  const addDropdownQuestion = () =>
+    setQuestions([...questions, newDropdownQuestion(questions.length)]);
+
+  const addSectionTitle = () =>
+    setQuestions([...questions, newSectionTitle(questions.length)]);
+
   const deleteQuestion = (index: number) => {
     if (questions.length <= 1) return;
     const next = questions.filter((_, i) => i !== index);
@@ -113,14 +143,28 @@ export default function SurveyForm({
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q.prompt.trim())
+      if (!q.prompt.trim()) {
+        if (q.type === "section_title") {
+          return `Section header ${i + 1}: title is required`;
+        }
         return `Question ${i + 1}: question text is required`;
+      }
 
       if (q.type === "likert") {
         if (!q.options || q.options.length < 2) {
           return `Question ${i + 1}: at least 2 scale options required`;
         }
         const filled = q.options.filter((o) => o.text.trim());
+        if (filled.length < 2) {
+          return `Question ${i + 1}: at least 2 options must have text`;
+        }
+      }
+
+      if (q.type === "dropdown") {
+        if (!q.options || q.options.length < 2) {
+          return `Question ${i + 1}: at least 2 dropdown options required`;
+        }
+        const filled = q.options.filter((o) => o.trim());
         if (filled.length < 2) {
           return `Question ${i + 1}: at least 2 options must have text`;
         }
@@ -153,6 +197,23 @@ export default function SurveyForm({
             order: idx,
             options: finalOptions,
             prompt: q.prompt.trim(),
+          };
+        } else if (q.type === "dropdown") {
+          const options = q.options.filter((o) => o.trim());
+          const finalOptions =
+            options.length >= 2 ? options : q.options.slice(0, 2);
+          return {
+            ...q,
+            order: idx,
+            options: finalOptions,
+            prompt: q.prompt.trim(),
+          };
+        } else if (q.type === "section_title") {
+          return {
+            ...q,
+            order: idx,
+            prompt: q.prompt.trim(),
+            description: q.description?.trim() || undefined,
           };
         } else {
           return {
@@ -211,7 +272,10 @@ export default function SurveyForm({
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {questions.length} question{questions.length === 1 ? "" : "s"}
+          {questions.filter((q) => q.type !== "section_title").length} question
+          {questions.filter((q) => q.type !== "section_title").length === 1
+            ? ""
+            : "s"}
         </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -226,25 +290,64 @@ export default function SurveyForm({
             <DropdownMenuItem onClick={addOpenEndedQuestion}>
               Open-Ended Response
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={addDropdownQuestion}>
+              Dropdown
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={addSectionTitle}>
+              Section Title
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       <div className="space-y-4">
-        {questions.map((q, idx) =>
-          q.type === "likert" ? (
-            <LikertQuestionCard
-              key={idx}
-              question={q}
-              index={idx}
-              totalQuestions={questions.length}
-              disabled={loading}
-              onChange={(i, next) => setQuestion(i, next)}
-              onDelete={deleteQuestion}
-              onMoveUp={(i) => move(i, "up")}
-              onMoveDown={(i) => move(i, "down")}
-            />
-          ) : (
+        {questions.map((q, idx) => {
+          if (q.type === "likert") {
+            return (
+              <LikertQuestionCard
+                key={idx}
+                question={q}
+                index={idx}
+                totalQuestions={questions.length}
+                disabled={loading}
+                onChange={(i, next) => setQuestion(i, next)}
+                onDelete={deleteQuestion}
+                onMoveUp={(i) => move(i, "up")}
+                onMoveDown={(i) => move(i, "down")}
+              />
+            );
+          }
+          if (q.type === "dropdown") {
+            return (
+              <DropdownQuestionCard
+                key={idx}
+                question={q}
+                index={idx}
+                totalQuestions={questions.length}
+                disabled={loading}
+                onChange={(i, next) => setQuestion(i, next)}
+                onDelete={deleteQuestion}
+                onMoveUp={(i) => move(i, "up")}
+                onMoveDown={(i) => move(i, "down")}
+              />
+            );
+          }
+          if (q.type === "section_title") {
+            return (
+              <SectionTitleCard
+                key={idx}
+                question={q}
+                index={idx}
+                totalQuestions={questions.length}
+                disabled={loading}
+                onChange={(i, next) => setQuestion(i, next)}
+                onDelete={deleteQuestion}
+                onMoveUp={(i) => move(i, "up")}
+                onMoveDown={(i) => move(i, "down")}
+              />
+            );
+          }
+          return (
             <OpenEndedQuestionCard
               key={idx}
               question={q as OpenEndedQuestion}
@@ -256,8 +359,33 @@ export default function SurveyForm({
               onMoveUp={(i) => move(i, "up")}
               onMoveDown={(i) => move(i, "down")}
             />
-          )
-        )}
+          );
+        })}
+      </div>
+
+      {/* Duplicate add-question button below the questions */}
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" disabled={loading}>
+              + Add question
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={addLikertQuestion}>
+              Likert Scale
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={addOpenEndedQuestion}>
+              Open-Ended Response
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={addDropdownQuestion}>
+              Dropdown
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={addSectionTitle}>
+              Section Title
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">

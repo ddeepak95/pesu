@@ -32,7 +32,12 @@ import {
 import { getClassByClassId } from "@/lib/queries/classes";
 import { getStudentGroupForClass } from "@/lib/queries/groups";
 import { getUnlockState } from "@/lib/utils/unlockLogic";
-import { Survey, SurveyAnswer, SurveyResponse } from "@/types/survey";
+import {
+  Survey,
+  SurveyAnswer,
+  SurveyResponse,
+  DropdownQuestion,
+} from "@/types/survey";
 import { ContentItem } from "@/types/contentItem";
 import { useAuth } from "@/contexts/AuthContext";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
@@ -40,6 +45,7 @@ import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import LikertInput from "@/components/Student/Surveys/LikertInput";
+import DropdownInput from "@/components/Student/Surveys/DropdownInput";
 
 function SurveyPageContent({
   onClassUuid,
@@ -57,7 +63,7 @@ function SurveyPageContent({
   const [existingResponse, setExistingResponse] =
     useState<SurveyResponse | null>(null);
   const [answers, setAnswers] = useState<Map<number, string | number>>(
-    new Map()
+    new Map(),
   );
   const [isContentLocked, setIsContentLocked] = useState<boolean>(false);
   const [lockReason, setLockReason] = useState<string | null>(null);
@@ -112,7 +118,7 @@ function SurveyPageContent({
             if (classData?.enable_progressive_unlock) {
               const groupId = await getStudentGroupForClass(
                 classData.id,
-                user.id
+                user.id,
               );
 
               if (!groupId) {
@@ -125,15 +131,14 @@ function SurveyPageContent({
               });
 
               const contentItemIds = allContentItems.map((item) => item.id);
-              const completedIds = await getCompletionsForStudent(
-                contentItemIds
-              );
+              const completedIds =
+                await getCompletionsForStudent(contentItemIds);
 
               const unlockState = getUnlockState(
                 fetchedContentItem.id,
                 allContentItems,
                 completedIds,
-                true
+                true,
               );
 
               if (unlockState && unlockState.isLocked) {
@@ -171,6 +176,9 @@ function SurveyPageContent({
     if (!survey) return "Survey not loaded";
 
     for (const q of survey.questions) {
+      // Section titles are not answerable
+      if (q.type === "section_title") continue;
+
       if (q.required) {
         const answer = answers.get(q.order);
         if (answer === undefined || answer === null || answer === "") {
@@ -195,9 +203,10 @@ function SurveyPageContent({
 
     setSubmitting(true);
     try {
-      // Build answers array
+      // Build answers array (skip section titles)
       const answersArray: SurveyAnswer[] = [];
       survey.questions.forEach((q) => {
+        if (q.type === "section_title") return;
         const value = answers.get(q.order);
         if (value !== undefined && value !== null && value !== "") {
           answersArray.push({
@@ -315,46 +324,78 @@ function SurveyPageContent({
           </div>
 
           <div className="space-y-4 pb-8">
-            {survey.questions
-              .sort((a, b) => a.order - b.order)
-              .map((q, idx) => (
-                <Card key={idx}>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      Question {idx + 1}
-                      {q.required && (
-                        <span className="text-xs text-red-500">*Required</span>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="whitespace-pre-wrap">{q.prompt}</p>
+            {(() => {
+              let questionNumber = 0;
+              return survey.questions
+                .sort((a, b) => a.order - b.order)
+                .map((q, idx) => {
+                  // Section title: render as a visual divider, not a question card
+                  if (q.type === "section_title") {
+                    return (
+                      <div key={idx} className="pt-4 pb-2">
+                        <h3 className="text-xl font-semibold">{q.prompt}</h3>
+                        {q.description && (
+                          <p className="text-muted-foreground mt-1">
+                            {q.description}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
 
-                    {q.type === "likert" && (
-                      <LikertInput
-                        options={q.options}
-                        value={answers.get(q.order) as number | null}
-                        onChange={(value) => setAnswer(q.order, value)}
-                        disabled={isSubmitted}
-                        required={q.required}
-                      />
-                    )}
+                  questionNumber++;
+                  return (
+                    <Card key={idx}>
+                      <CardHeader>
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          Question {questionNumber}
+                          {q.required && (
+                            <span className="text-xs text-red-500">
+                              *Required
+                            </span>
+                          )}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <p className="whitespace-pre-wrap">{q.prompt}</p>
 
-                    {q.type === "open_ended" && (
-                      <Textarea
-                        value={(answers.get(q.order) as string) || ""}
-                        onChange={(e) => setAnswer(q.order, e.target.value)}
-                        placeholder={
-                          q.placeholder || "Type your response here..."
-                        }
-                        disabled={isSubmitted}
-                        rows={4}
-                        className="resize-none"
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                        {q.type === "likert" && (
+                          <LikertInput
+                            options={q.options}
+                            value={answers.get(q.order) as number | null}
+                            onChange={(value) => setAnswer(q.order, value)}
+                            disabled={isSubmitted}
+                            required={q.required}
+                          />
+                        )}
+
+                        {q.type === "open_ended" && (
+                          <Textarea
+                            value={(answers.get(q.order) as string) || ""}
+                            onChange={(e) => setAnswer(q.order, e.target.value)}
+                            placeholder={
+                              q.placeholder || "Type your response here..."
+                            }
+                            disabled={isSubmitted}
+                            rows={4}
+                            className="resize-none"
+                          />
+                        )}
+
+                        {q.type === "dropdown" && (
+                          <DropdownInput
+                            options={(q as DropdownQuestion).options}
+                            value={(answers.get(q.order) as string) || null}
+                            onChange={(value) => setAnswer(q.order, value)}
+                            disabled={isSubmitted}
+                            required={q.required}
+                          />
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                });
+            })()}
 
             {/* Submit Button */}
             {!isSubmitted && (
