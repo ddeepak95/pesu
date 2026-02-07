@@ -1079,7 +1079,8 @@ export default function AssignmentForm({
             </Label>
             <p className="text-sm text-muted-foreground">
               Provide a shared context (e.g. case study, passage, scenario) that
-              all questions in this assessment will reference
+              will be included in all AI prompts for this assessment. This is not
+              shown to students.
             </p>
           </div>
         </div>
@@ -1099,8 +1100,8 @@ export default function AssignmentForm({
               className="resize-y"
             />
             <p className="text-xs text-muted-foreground">
-              This context will be displayed to students and included in AI
-              prompts. Available as{" "}
+              This context will be included in all AI prompts but is not shown
+              to students. Available as{" "}
               <code className="text-xs bg-muted px-1 rounded">
                 {"{{shared_context}}"}
               </code>{" "}
