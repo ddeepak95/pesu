@@ -305,7 +305,11 @@ export async function getQuestionAttempts(
     .single();
 
   if (error) {
-    console.error("Error fetching submission:", error);
+    // PGRST116 means no rows returned - submission doesn't exist yet, return empty attempts
+    if (error.code === "PGRST116") {
+      return [];
+    }
+    console.error("Error fetching submission:", error.message, error.code, error.details);
     throw error;
   }
 
