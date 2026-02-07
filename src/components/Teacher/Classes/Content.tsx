@@ -563,9 +563,13 @@ export default function Content({ classData }: ContentProps) {
         className="w-full"
       >
         <div className="flex items-center justify-between">
-          <TabsList>
+          <TabsList className="bg-muted">
             {groups.map((g) => (
-              <TabsTrigger key={g.id} value={g.id}>
+              <TabsTrigger
+                key={g.id}
+                value={g.id}
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
                 {g.name || `Group ${g.group_index + 1}`}
               </TabsTrigger>
             ))}

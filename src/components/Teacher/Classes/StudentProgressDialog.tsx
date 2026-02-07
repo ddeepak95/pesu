@@ -335,15 +335,15 @@ export default function StudentProgressDialog({
 
         {/* Group Tabs */}
         {groups.length > 0 && (
-          <div className="flex gap-1 border-b overflow-x-auto pb-0">
+          <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground overflow-x-auto">
             {groups.map((group) => (
               <button
                 key={group.id}
                 onClick={() => setSelectedGroupId(group.id)}
-                className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all ${
                   selectedGroupId === group.id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
+                    ? "bg-primary text-primary-foreground shadow"
+                    : "hover:bg-muted-foreground/10 hover:text-foreground"
                 }`}
               >
                 {group.name || `Group ${group.group_index + 1}`}
