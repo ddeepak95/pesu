@@ -198,3 +198,26 @@ export async function duplicateContentItem(params: {
 
   throw new Error("Unsupported content type");
 }
+
+/**
+ * Duplicate multiple content items to a destination group, preserving their
+ * original order. Items are sorted by position (ascending) and duplicated
+ * sequentially so that the auto-position logic in createContentItem assigns
+ * incrementing positions in the destination group.
+ */
+export async function duplicateContentItems(params: {
+  items: ContentItem[];
+  destinationClassDbId: string;
+  destinationClassGroupId: string;
+  userId: string;
+}): Promise<void> {
+  const sorted = [...params.items].sort((a, b) => a.position - b.position);
+  for (const item of sorted) {
+    await duplicateContentItem({
+      item,
+      destinationClassDbId: params.destinationClassDbId,
+      destinationClassGroupId: params.destinationClassGroupId,
+      userId: params.userId,
+    });
+  }
+}

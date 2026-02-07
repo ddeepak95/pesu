@@ -23,6 +23,7 @@ import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function ContentCard({
   item,
@@ -32,6 +33,9 @@ export default function ContentCard({
   titleLoading,
   savingOrder,
   assessmentMode,
+  selectionMode,
+  selected,
+  onToggleSelect,
   onOpen,
   onMove,
   onEdit,
@@ -47,6 +51,9 @@ export default function ContentCard({
   titleLoading?: boolean;
   savingOrder: boolean;
   assessmentMode?: Assignment["assessment_mode"];
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   onOpen: () => void;
   onMove: (direction: "up" | "down") => void;
   onEdit: () => void;
@@ -88,12 +95,33 @@ export default function ContentCard({
     }
   };
 
+  const handleCardClick = () => {
+    if (selectionMode && onToggleSelect) {
+      onToggleSelect();
+    } else {
+      onOpen();
+    }
+  };
+
   return (
     <Card
-      className="cursor-pointer hover:bg-accent transition-colors"
-      onClick={onOpen}
+      className={`cursor-pointer hover:bg-accent transition-colors ${
+        selectionMode && selected ? "ring-2 ring-primary" : ""
+      }`}
+      onClick={handleCardClick}
     >
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+        {selectionMode && (
+          <div
+            className="flex items-center pt-1 shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Checkbox
+              checked={selected ?? false}
+              onCheckedChange={() => onToggleSelect?.()}
+            />
+          </div>
+        )}
         <div className="flex-1 min-w-0 space-y-1.5">
           {/* Labels row */}
           <div className="flex items-center gap-2 flex-wrap">
