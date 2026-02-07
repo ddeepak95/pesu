@@ -14,6 +14,7 @@ import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { interpolatePromptsForRuntime, interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
+import { parseSSEStream, SSEEvent } from "@/lib/sseParser";
 
 interface ChatMessage {
   id: string;
@@ -134,6 +135,8 @@ export function ChatAssessment({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const activeRequestAbortRef = React.useRef<AbortController | null>(null);
   const restoredFromStorageRef = React.useRef(false);
+  // Ref to track end_conversation tool call signals from the LLM
+  const endConversationRef = React.useRef<{ reason: "thorough" | "refusal" } | null>(null);
   const storageKey = React.useMemo(
     () => `chat-${submissionId}-${question.order}`,
     [submissionId, question.order]
@@ -251,6 +254,42 @@ export function ChatAssessment({
     ]);
   };
 
+  /**
+   * Stream an SSE response from the chat-assessment API into a message bubble.
+   * Handles text-delta, end_conversation, done, and error events.
+   * Returns the accumulated text content.
+   */
+  const streamSSEResponse = async (
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    assistantId: string
+  ): Promise<string> => {
+    let content = "";
+    endConversationRef.current = null;
+
+    for await (const event of parseSSEStream(reader)) {
+      switch (event.type) {
+        case "text-delta":
+          content += event.content;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content } : m
+            )
+          );
+          break;
+        case "end_conversation":
+          endConversationRef.current = { reason: event.reason };
+          break;
+        case "error":
+          console.error("SSE stream error:", event.error);
+          break;
+        case "done":
+          break;
+      }
+    }
+
+    return content;
+  };
+
   const handleStartChat = async () => {
     // Prevent starting new chat if max attempts reached
     if (maxAttemptsReached) {
@@ -316,6 +355,10 @@ export function ChatAssessment({
           }),
           // Include shared context if available
           ...(sharedContext && { shared_context: sharedContext }),
+          // Include expected answer for tool-call adequacy guidance
+          ...(question.expected_answer && {
+            expected_answer: question.expected_answer,
+          }),
         }),
         signal: controller.signal,
       });
@@ -327,24 +370,13 @@ export function ChatAssessment({
         throw new Error(errorData.error || "Failed to start chat");
       }
 
-      // Stream the first assistant message
+      // Stream the first assistant message via SSE
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error("No response body");
       }
 
-      const decoder = new TextDecoder();
-      let content = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        content += decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
-        );
-      }
+      await streamSSEResponse(reader, assistantId);
 
       // Log attempt_started event
       logEvent("attempt_started");
@@ -353,6 +385,14 @@ export function ChatAssessment({
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 0);
+
+      // Note: end_conversation is unlikely on the first message, but handle it
+      if (endConversationRef.current) {
+        // Brief delay so the student can see the message before evaluation starts
+        setTimeout(() => {
+          handleEvaluate();
+        }, 1000);
+      }
     } catch (error) {
       if (
         error instanceof DOMException &&
@@ -445,6 +485,10 @@ export function ChatAssessment({
           }),
           // Include shared context if available
           ...(sharedContext && { shared_context: sharedContext }),
+          // Include expected answer for tool-call adequacy guidance
+          ...(question.expected_answer && {
+            expected_answer: question.expected_answer,
+          }),
         }),
         signal: controller.signal,
       });
@@ -457,23 +501,20 @@ export function ChatAssessment({
         throw new Error(errorData.error || "Failed to send message");
       }
 
-      // Stream the response
+      // Stream the response via SSE
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error("No response body");
       }
 
-      const decoder = new TextDecoder();
-      let content = "";
+      await streamSSEResponse(reader, assistantId);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        content += decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
-        );
+      // If the LLM called end_conversation, auto-trigger evaluation
+      if (endConversationRef.current) {
+        // Brief delay so the student can read the ending message
+        setTimeout(() => {
+          handleEvaluate();
+        }, 1000);
       }
     } catch (error) {
       if (
