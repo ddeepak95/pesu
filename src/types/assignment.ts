@@ -130,5 +130,31 @@ export interface Assignment {
    * Defaults to false for backwards compatibility.
    */
   require_all_attempts?: boolean;
+  /**
+   * When true, a shared context is shown to students and included in all prompts.
+   * Defaults to false.
+   */
+  shared_context_enabled?: boolean;
+  /**
+   * The shared context text (e.g. a case study, passage, scenario).
+   * Only used when shared_context_enabled is true.
+   */
+  shared_context?: string;
+  /**
+   * Custom evaluation prompt template. If set, replaces the hardcoded evaluation prompt.
+   * Supports placeholders: {{language}}, {{question_prompt}}, {{rubric}}, {{answer_text}}, {{shared_context}}
+   */
+  evaluation_prompt?: string;
+  /**
+   * When true, students are asked to rate their experience when completing the assessment.
+   * Defaults to false.
+   */
+  experience_rating_enabled?: boolean;
+  /**
+   * When true, students must provide a rating before completing (otherwise they can skip).
+   * Only applies when experience_rating_enabled is true.
+   * Defaults to false.
+   */
+  experience_rating_required?: boolean;
 }
 

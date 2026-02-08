@@ -23,7 +23,7 @@ export default function QuestionView({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">
+        <CardTitle className="text-sm">
           Question {index + 1} ({question.total_points} points)
         </CardTitle>
       </CardHeader>
@@ -73,7 +73,3 @@ export default function QuestionView({
     </Card>
   );
 }
-
-
-
-

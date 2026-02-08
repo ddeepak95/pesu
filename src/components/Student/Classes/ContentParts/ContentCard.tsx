@@ -40,9 +40,9 @@ export default function ContentCard({
       case "quiz":
         return "Quiz";
       case "learning_content":
-        return "Learning Content";
+        return "Content";
       case "formative_assignment":
-        return "Learning Activity";
+        return "Activity";
       case "survey":
         return "Survey";
       default:

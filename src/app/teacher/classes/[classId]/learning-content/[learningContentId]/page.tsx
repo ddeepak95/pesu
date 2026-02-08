@@ -141,7 +141,7 @@ export default function LearningContentDetailPage() {
       <div>
         <div>
           <div className="mb-4">
-            <BackButton href={`/teacher/classes/${classId}`} />
+            <BackButton />
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>

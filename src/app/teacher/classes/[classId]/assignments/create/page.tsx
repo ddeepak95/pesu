@@ -100,6 +100,8 @@ export default function CreateAssignmentPage() {
     useStarDisplay?: boolean;
     starScale?: number;
     requireAllAttempts?: boolean;
+    experienceRatingEnabled?: boolean;
+    experienceRatingRequired?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -130,6 +132,8 @@ export default function CreateAssignmentPage() {
         use_star_display: data.useStarDisplay ?? false,
         star_scale: data.starScale ?? 5,
         require_all_attempts: data.requireAllAttempts ?? false,
+        experience_rating_enabled: data.experienceRatingEnabled ?? false,
+        experience_rating_required: data.experienceRatingRequired ?? false,
       },
       user.id
     );

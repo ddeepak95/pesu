@@ -19,11 +19,11 @@ export default function LearningContentViewer({
   }
 
   return (
-    <Card>
-      <CardContent className="space-y-6 pt-6">
+    <div>
+      <div className="space-y-6 pt-6">
         {hasBody && <MarkdownContent content={body!.trim()} />}
         {hasVideo && <YouTubeEmbed videoUrl={videoUrl!} title={title} />}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

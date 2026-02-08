@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ import {
 export default function EditAssignmentPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
   const classId = params.classId as string;
   const assignmentId = params.assignmentId as string;
@@ -47,6 +46,11 @@ export default function EditAssignmentPage() {
   const [useStarDisplay, setUseStarDisplay] = useState<boolean>(false);
   const [starScale, setStarScale] = useState<number>(5);
   const [requireAllAttempts, setRequireAllAttempts] = useState<boolean>(false);
+  const [sharedContextEnabled, setSharedContextEnabled] = useState<boolean>(false);
+  const [sharedContext, setSharedContext] = useState<string>("");
+  const [evaluationPrompt, setEvaluationPrompt] = useState<string>("");
+  const [experienceRatingEnabled, setExperienceRatingEnabled] = useState<boolean>(false);
+  const [experienceRatingRequired, setExperienceRatingRequired] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
@@ -75,6 +79,11 @@ export default function EditAssignmentPage() {
           setUseStarDisplay(assignmentData.use_star_display ?? false);
           setStarScale(assignmentData.star_scale ?? 5);
           setRequireAllAttempts(assignmentData.require_all_attempts ?? false);
+          setSharedContextEnabled(assignmentData.shared_context_enabled ?? false);
+          setSharedContext(assignmentData.shared_context ?? "");
+          setEvaluationPrompt(assignmentData.evaluation_prompt ?? "");
+          setExperienceRatingEnabled(assignmentData.experience_rating_enabled ?? false);
+          setExperienceRatingRequired(assignmentData.experience_rating_required ?? false);
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
           setInitialIsDraft(assignmentData.status === "draft");
@@ -119,6 +128,11 @@ export default function EditAssignmentPage() {
     useStarDisplay?: boolean;
     starScale?: number;
     requireAllAttempts?: boolean;
+    sharedContextEnabled?: boolean;
+    sharedContext?: string;
+    evaluationPrompt?: string;
+    experienceRatingEnabled?: boolean;
+    experienceRatingRequired?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -148,6 +162,11 @@ export default function EditAssignmentPage() {
       use_star_display: data.useStarDisplay ?? false,
       star_scale: data.starScale ?? 5,
       require_all_attempts: data.requireAllAttempts ?? false,
+      shared_context_enabled: data.sharedContextEnabled ?? false,
+      shared_context: data.sharedContext,
+      evaluation_prompt: data.evaluationPrompt,
+      experience_rating_enabled: data.experienceRatingEnabled ?? false,
+      experience_rating_required: data.experienceRatingRequired ?? false,
     });
 
     // Sync content_item status
@@ -207,6 +226,11 @@ export default function EditAssignmentPage() {
           initialUseStarDisplay={useStarDisplay}
           initialStarScale={starScale}
           initialRequireAllAttempts={requireAllAttempts}
+          initialSharedContextEnabled={sharedContextEnabled}
+          initialSharedContext={sharedContext}
+          initialEvaluationPrompt={evaluationPrompt}
+          initialExperienceRatingEnabled={experienceRatingEnabled}
+          initialExperienceRatingRequired={experienceRatingRequired}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />
@@ -215,16 +239,9 @@ export default function EditAssignmentPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              const qs = searchParams.toString();
-              router.push(
-                `/teacher/classes/${classId}/assignments/${assignmentId}${
-                  qs ? `?${qs}` : ""
-                }`
-              );
-            }}
+            onClick={() => router.back()}
           >
-            Cancel
+            Close
           </Button>
         </div>
       </div>

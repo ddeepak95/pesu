@@ -120,7 +120,7 @@ export default function ClassDetailPage() {
       <div>
         <div>
           <div className="mb-4">
-            <BackButton href="/teacher/classes" />
+            <BackButton />
           </div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">{classData.name}</h1>
@@ -146,9 +146,19 @@ export default function ClassDetailPage() {
             }}
             className="w-full"
           >
-            <TabsList>
-              <TabsTrigger value="content">Content</TabsTrigger>
-              <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsList className="h-auto w-full justify-start rounded-none border-b bg-transparent p-0">
+              <TabsTrigger
+                value="content"
+                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              >
+                Content
+              </TabsTrigger>
+              <TabsTrigger
+                value="students"
+                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              >
+                Students
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="content">

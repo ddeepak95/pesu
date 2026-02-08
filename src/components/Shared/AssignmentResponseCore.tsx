@@ -41,6 +41,7 @@ export default function AssignmentResponseCore({
   preferredLanguage: initialPreferredLanguage,
   contentItemId,
   onComplete,
+  onBack,
   onLanguageChange,
   assignmentId,
   initialQuestionIndex = 0,
@@ -228,6 +229,8 @@ export default function AssignmentResponseCore({
         </div>
       )}
 
+      {/* Shared Context is not displayed to students -- it is only passed to AI prompts */}
+
       {/* Assessment Component based on mode */}
       {assessmentMode === "voice" && (
         <VoiceAssessment
@@ -260,6 +263,11 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
+          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          evaluationPrompt={assignmentData.evaluation_prompt}
+          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
+          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
+          onClose={onBack}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -291,6 +299,11 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
+          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          evaluationPrompt={assignmentData.evaluation_prompt}
+          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
+          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
+          onClose={onBack}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -323,6 +336,11 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
+          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          evaluationPrompt={assignmentData.evaluation_prompt}
+          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
+          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
+          onClose={onBack}
         />
       )}
     </div>

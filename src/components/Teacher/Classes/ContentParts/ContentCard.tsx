@@ -24,6 +24,7 @@ import { Assignment } from "@/types/assignment";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { supportedLanguages } from "@/utils/supportedLanguages";
 
 export default function ContentCard({
   item,
@@ -43,6 +44,7 @@ export default function ContentCard({
   onDelete,
   onShareLinks,
   onToggleLockAfterComplete,
+  language,
 }: {
   item: ContentItem;
   index: number;
@@ -51,6 +53,7 @@ export default function ContentCard({
   titleLoading?: boolean;
   savingOrder: boolean;
   assessmentMode?: Assignment["assessment_mode"];
+  language?: string;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -70,9 +73,9 @@ export default function ContentCard({
       case "quiz":
         return "Quiz";
       case "learning_content":
-        return "Learning Content";
+        return "Content";
       case "formative_assignment":
-        return "Learning Activity";
+        return "Activity";
       case "survey":
         return "Survey";
       default:
@@ -136,6 +139,11 @@ export default function ContentCard({
             {item.status === "draft" && (
               <span className="text-xs rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-600 dark:text-amber-400">
                 Draft
+              </span>
+            )}
+            {language && (
+              <span className="text-xs rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-400">
+                {supportedLanguages.find((l) => l.code === language)?.name || language}
               </span>
             )}
             {item.lock_after_complete && (

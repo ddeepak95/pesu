@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { getQuizByShortIdForTeacher, updateQuiz, deleteQuiz } from "@/lib/queries/quizzes";
+import {
+  getQuizByShortIdForTeacher,
+  updateQuiz,
+  deleteQuiz,
+} from "@/lib/queries/quizzes";
 import {
   softDeleteContentItemByRef,
   updateContentItemStatusByRef,
@@ -22,6 +26,7 @@ import {
 import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import QuizSubmissionsTab from "@/components/Teacher/Quizzes/QuizSubmissionsTab";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 
 export default function QuizDetailPage() {
   const params = useParams();
@@ -62,7 +67,7 @@ export default function QuizDetailPage() {
   const handleEdit = () => {
     const qs = searchParams.toString();
     router.push(
-      `/teacher/classes/${classId}/quizzes/${quizId}/edit${qs ? `?${qs}` : ""}`
+      `/teacher/classes/${classId}/quizzes/${quizId}/edit${qs ? `?${qs}` : ""}`,
     );
   };
 
@@ -70,7 +75,7 @@ export default function QuizDetailPage() {
     if (!user || !quiz) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to delete this quiz? This action cannot be undone."
+      "Are you sure you want to delete this quiz? This action cannot be undone.",
     );
     if (!confirmed) return;
 
@@ -173,6 +178,13 @@ export default function QuizDetailPage() {
             </DropdownMenu>
           </div>
 
+          {/* Student Instructions */}
+          {quiz.instructions && (
+            <div className="mb-6">
+              <MarkdownContent content={quiz.instructions} />
+            </div>
+          )}
+
           <Tabs defaultValue="questions" className="w-full">
             <TabsList>
               <TabsTrigger value="questions">Questions</TabsTrigger>
@@ -184,7 +196,7 @@ export default function QuizDetailPage() {
                 .sort((a, b) => a.order - b.order)
                 .map((q, idx) => {
                   const correct = q.options.find(
-                    (o) => o.id === q.correct_option_id
+                    (o) => o.id === q.correct_option_id,
                   );
                   return (
                     <Card key={idx}>

@@ -24,6 +24,11 @@ export default function CreateAssessment() {
     isPublic: boolean;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
+    sharedContextEnabled?: boolean;
+    sharedContext?: string;
+    evaluationPrompt?: string;
+    experienceRatingEnabled?: boolean;
+    experienceRatingRequired?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -39,6 +44,11 @@ export default function CreateAssessment() {
         is_public: data.isPublic,
         assessment_mode: data.assessmentMode,
         status: data.isDraft ? "draft" : "active",
+        shared_context_enabled: data.sharedContextEnabled,
+        shared_context: data.sharedContext,
+        evaluation_prompt: data.evaluationPrompt,
+        experience_rating_enabled: data.experienceRatingEnabled ?? false,
+        experience_rating_required: data.experienceRatingRequired ?? false,
       },
       user.id
     );
@@ -52,25 +62,7 @@ export default function CreateAssessment() {
     <AssignmentForm
       mode="create"
       classId={classId}
-      onSubmit={async ({
-        title,
-        questions,
-        totalPoints,
-        preferredLanguage,
-        isPublic,
-        assessmentMode,
-        isDraft,
-      }) =>
-        handleSubmit({
-          title,
-          questions,
-          totalPoints,
-          preferredLanguage,
-          isPublic,
-          assessmentMode,
-          isDraft,
-        })
-      }
+      onSubmit={async (data) => handleSubmit(data)}
     />
   );
 }

@@ -101,7 +101,7 @@ export default function ClassSettingsPage() {
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton href={`/teacher/classes/${classId}`} />
+          <BackButton />
         </div>
         <h1 className="text-3xl font-bold mb-2">{classData.name}</h1>
         <p className="text-muted-foreground mb-8">

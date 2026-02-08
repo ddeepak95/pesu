@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import { Button } from "@/components/ui/button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -13,14 +14,13 @@ import {
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import LearningContentForm from "@/components/Teacher/LearningContent/LearningContentForm";
 import { LearningContent } from "@/types/learningContent";
+import { showSuccessToast } from "@/lib/toast";
 
 export default function EditLearningContentPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
 
-  const classId = params.classId as string;
   const learningContentId = params.learningContentId as string;
 
   const [content, setContent] = useState<LearningContent | null>(null);
@@ -102,13 +102,19 @@ export default function EditLearningContentPage() {
               status: updated.status,
             });
 
-            router.push(
-              `/teacher/classes/${classId}/learning-content/${learningContentId}${
-                searchParams.toString() ? `?${searchParams.toString()}` : ""
-              }`
-            );
+            showSuccessToast("Learning content updated successfully");
           }}
         />
+
+        <div className="mt-6 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+          >
+            Close
+          </Button>
+        </div>
       </div>
     </PageLayout>
   );

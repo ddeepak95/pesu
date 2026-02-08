@@ -21,10 +21,10 @@ import {
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
-import InfoCallout from "@/components/Shared/InfoCallout";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 import {
   Share2,
   Mic,
@@ -33,7 +33,48 @@ import {
   Lock,
   Globe,
   RotateCcw,
+  BookOpen,
+  Bot,
+  ClipboardCheck,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
+
+function CollapsibleSection({
+  icon: Icon,
+  title,
+  children,
+  defaultOpen = false,
+  className,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div
+      className={`rounded-md border bg-card text-card-foreground ${className ?? ""}`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium hover:bg-muted/50 transition-colors rounded-md"
+      >
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <span className="flex-1">{title}</span>
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  );
+}
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -131,6 +172,8 @@ export default function AssignmentDetailPage() {
         use_star_display: assignmentData.use_star_display,
         star_scale: assignmentData.star_scale,
         require_all_attempts: assignmentData.require_all_attempts,
+        experience_rating_enabled: assignmentData.experience_rating_enabled,
+        experience_rating_required: assignmentData.experience_rating_required,
       });
 
       await updateContentItemStatusByRef({
@@ -269,39 +312,188 @@ export default function AssignmentDetailPage() {
             )}
           </div>
 
-          {/* Student Instructions */}
-          {assignmentData.student_instructions && (
-            <InfoCallout title="Instructions for Students" className="mb-6">
-              <p className="whitespace-pre-wrap">
-                {assignmentData.student_instructions}
-              </p>
-            </InfoCallout>
-          )}
-
-          {/* Rubric Display Settings */}
-          <div className="flex flex-wrap items-center gap-2 mb-6 text-xs text-muted-foreground">
-            <span className="font-medium">Rubric visibility:</span>
-            <span>
-              {assignmentData.show_rubric ?? true
-                ? assignmentData.show_rubric_points ?? true
-                  ? "Shown with points"
-                  : "Shown without points"
-                : "Hidden from students"}
-            </span>
-          </div>
-
           <Tabs defaultValue="questions" className="w-full">
             <TabsList>
               <TabsTrigger value="questions">Questions</TabsTrigger>
+              <TabsTrigger value="config">Config</TabsTrigger>
               <TabsTrigger value="submissions">Submissions</TabsTrigger>
             </TabsList>
 
             <TabsContent value="questions" className="space-y-4 py-6">
+              {/* Shared Context */}
+              {assignmentData.shared_context && (
+                <div className="rounded-md border bg-card text-card-foreground">
+                  <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium">
+                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    <span>Shared Context</span>
+                    {!assignmentData.shared_context_enabled && (
+                      <span className="text-xs text-muted-foreground">(disabled)</span>
+                    )}
+                  </div>
+                  <div className="px-4 pb-4">
+                    <MarkdownContent content={assignmentData.shared_context} />
+                  </div>
+                </div>
+              )}
+
               {assignmentData.questions
                 .sort((a, b) => a.order - b.order)
                 .map((question, index) => (
                   <QuestionView key={index} question={question} index={index} />
                 ))}
+            </TabsContent>
+
+            <TabsContent value="config" className="py-6 space-y-6">
+              {/* Display Settings */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Display Settings</h3>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Rubric visibility:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.show_rubric ?? true
+                        ? assignmentData.show_rubric_points ?? true
+                          ? "Shown with points"
+                          : "Shown without points"
+                        : "Hidden from students"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Score display:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.use_star_display
+                        ? `Stars (${assignmentData.star_scale ?? 5}-star scale)`
+                        : "Points"}
+                    </span>
+                  </div>
+                  {assignmentData.use_star_display && (
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium w-44 shrink-0">Teacher view:</span>
+                      <span className="text-muted-foreground">
+                        {assignmentData.teacher_view_stars ? "Stars" : "Points"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Public access:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.is_public ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Require all questions:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.require_all_attempts ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Experience rating:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.experience_rating_enabled
+                        ? assignmentData.experience_rating_required
+                          ? "Enabled (required)"
+                          : "Enabled (optional)"
+                        : "Disabled"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Student Instructions */}
+              {assignmentData.student_instructions && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Instructions for Students</h3>
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                    {assignmentData.student_instructions}
+                  </p>
+                </div>
+              )}
+
+              {/* AI Prompt Configuration */}
+              {assignmentData.bot_prompt_config && (
+                <CollapsibleSection
+                  icon={Bot}
+                  title="AI Prompt Configuration"
+                  defaultOpen={false}
+                >
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-medium text-sm mb-1">System Prompt</h4>
+                      <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
+                        {assignmentData.bot_prompt_config.system_prompt}
+                      </pre>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm mb-1">
+                        Conversation Start (First Question)
+                      </h4>
+                      <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
+                        {assignmentData.bot_prompt_config.conversation_start.first_question}
+                      </pre>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm mb-1">
+                        Conversation Start (Subsequent Questions)
+                      </h4>
+                      <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
+                        {assignmentData.bot_prompt_config.conversation_start.subsequent_questions}
+                      </pre>
+                    </div>
+                    {assignmentData.bot_prompt_config.question_overrides &&
+                      Object.keys(assignmentData.bot_prompt_config.question_overrides).length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-sm mb-2">
+                            Per-Question Overrides
+                          </h4>
+                          <div className="space-y-3">
+                            {Object.entries(assignmentData.bot_prompt_config.question_overrides).map(
+                              ([order, override]) => (
+                                <div key={order} className="bg-muted/50 rounded-md p-3">
+                                  <p className="text-sm font-medium mb-1">
+                                    Question {Number(order) + 1}
+                                  </p>
+                                  {override.system_prompt && (
+                                    <div className="mb-2">
+                                      <p className="text-xs text-muted-foreground mb-0.5">
+                                        System Prompt Override
+                                      </p>
+                                      <pre className="whitespace-pre-wrap text-sm text-muted-foreground">
+                                        {override.system_prompt}
+                                      </pre>
+                                    </div>
+                                  )}
+                                  {override.conversation_start && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-0.5">
+                                        Conversation Start Override
+                                      </p>
+                                      <pre className="whitespace-pre-wrap text-sm text-muted-foreground">
+                                        {override.conversation_start}
+                                      </pre>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                </CollapsibleSection>
+              )}
+
+              {/* Custom Evaluation Prompt */}
+              {assignmentData.evaluation_prompt && (
+                <CollapsibleSection
+                  icon={ClipboardCheck}
+                  title="Custom Evaluation Prompt"
+                  defaultOpen={false}
+                >
+                  <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
+                    {assignmentData.evaluation_prompt}
+                  </pre>
+                </CollapsibleSection>
+              )}
             </TabsContent>
 
             <TabsContent value="submissions" className="py-6">

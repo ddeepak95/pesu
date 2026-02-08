@@ -24,8 +24,10 @@ import {
   BotPromptConfig,
 } from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import { getDefaultBotPromptConfig } from "@/lib/promptTemplates";
+import { getDefaultBotPromptConfig, getDefaultEvaluationPrompt } from "@/lib/promptTemplates";
+import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, ChevronDown, Bot, Eye } from "lucide-react";
+import { showSuccessToast } from "@/lib/toast";
 
 interface AssignmentFormProps {
   mode: "create" | "edit";
@@ -46,6 +48,11 @@ interface AssignmentFormProps {
   initialUseStarDisplay?: boolean;
   initialStarScale?: number;
   initialRequireAllAttempts?: boolean;
+  initialSharedContextEnabled?: boolean;
+  initialSharedContext?: string;
+  initialEvaluationPrompt?: string;
+  initialExperienceRatingEnabled?: boolean;
+  initialExperienceRatingRequired?: boolean;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -65,6 +72,11 @@ interface AssignmentFormProps {
     useStarDisplay?: boolean;
     starScale?: number;
     requireAllAttempts?: boolean;
+    sharedContextEnabled?: boolean;
+    sharedContext?: string;
+    evaluationPrompt?: string;
+    experienceRatingEnabled?: boolean;
+    experienceRatingRequired?: boolean;
   }) => Promise<void>;
 }
 
@@ -99,6 +111,11 @@ export default function AssignmentForm({
   initialUseStarDisplay = false,
   initialStarScale = 5,
   initialRequireAllAttempts = false,
+  initialSharedContextEnabled = false,
+  initialSharedContext = "",
+  initialEvaluationPrompt = "",
+  initialExperienceRatingEnabled = false,
+  initialExperienceRatingRequired = false,
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -139,6 +156,19 @@ export default function AssignmentForm({
   const [starScale, setStarScale] = useState(initialStarScale);
   const [requireAllAttempts, setRequireAllAttempts] = useState(
     initialRequireAllAttempts
+  );
+  const [sharedContextEnabled, setSharedContextEnabled] = useState(
+    initialSharedContextEnabled
+  );
+  const [sharedContext, setSharedContext] = useState(initialSharedContext);
+  const [evaluationPrompt, setEvaluationPrompt] = useState(
+    initialEvaluationPrompt || getDefaultEvaluationPrompt()
+  );
+  const [experienceRatingEnabled, setExperienceRatingEnabled] = useState(
+    initialExperienceRatingEnabled
+  );
+  const [experienceRatingRequired, setExperienceRatingRequired] = useState(
+    initialExperienceRatingRequired
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -329,6 +359,12 @@ export default function AssignmentForm({
       return;
     }
 
+    // Validate shared context
+    if (sharedContextEnabled && !sharedContext.trim()) {
+      setError("Shared context text is required when Shared Context is enabled");
+      return;
+    }
+
     // Validate each question
     for (let i = 0; i < questions.length; i++) {
       const question = questions[i];
@@ -397,22 +433,24 @@ export default function AssignmentForm({
         isDraft: draft,
         responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
         maxAttempts,
-        // Only include botPromptConfig for voice and text_chat modes
-        botPromptConfig:
-          assessmentMode === "voice" || assessmentMode === "text_chat"
-            ? botPromptConfig
-            : undefined,
+        // Always retain botPromptConfig so switching modes doesn't lose it
+        botPromptConfig,
         studentInstructions: studentInstructions.trim() || undefined,
         showRubric,
         showRubricPoints,
         useStarDisplay,
         starScale,
         requireAllAttempts,
+        sharedContextEnabled,
+        sharedContext: sharedContextEnabled ? sharedContext.trim() : undefined,
+        evaluationPrompt: evaluationPrompt.trim() || undefined,
+        experienceRatingEnabled,
+        experienceRatingRequired: experienceRatingEnabled ? experienceRatingRequired : false,
       });
 
       // Navigate based on mode
-      if (mode === "edit" && assignmentId) {
-        router.push(`/teacher/classes/${classId}/assignments/${assignmentId}`);
+      if (mode === "edit") {
+        showSuccessToast("Assignment updated successfully");
       } else {
         router.push(`/teacher/classes/${classId}`);
       }
@@ -710,6 +748,58 @@ export default function AssignmentForm({
               </div>
             </div>
 
+            {/* Experience Rating */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="experienceRatingEnabled"
+                  checked={experienceRatingEnabled}
+                  onCheckedChange={(checked) => {
+                    setExperienceRatingEnabled(checked === true);
+                    if (!checked) setExperienceRatingRequired(false);
+                  }}
+                  disabled={loading}
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="experienceRatingEnabled"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Enable Experience Rating
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Ask students to rate their experience on a 5-point scale when
+                    completing the assessment
+                  </p>
+                </div>
+              </div>
+
+              {experienceRatingEnabled && (
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox
+                    id="experienceRatingRequired"
+                    checked={experienceRatingRequired}
+                    onCheckedChange={(checked) =>
+                      setExperienceRatingRequired(checked === true)
+                    }
+                    disabled={loading}
+                  />
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="experienceRatingRequired"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Require rating
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Students must provide a rating before completing (otherwise
+                      they can skip)
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Public Access Toggle */}
             <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
               <Checkbox
@@ -925,44 +1015,40 @@ export default function AssignmentForm({
         )}
       </div>
 
-      {/* AI Bot Configuration (only for voice and text_chat modes) */}
-      {(assessmentMode === "voice" || assessmentMode === "text_chat") && (
-        <div className="border rounded-md">
-          <button
-            type="button"
-            onClick={() => setIsBotConfigOpen(!isBotConfigOpen)}
-            className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
-            disabled={loading}
-          >
-            <div className="flex items-center gap-2">
-              <Bot className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">AI Bot Configuration</h3>
-            </div>
-            <ChevronDown
-              className={`h-4 w-4 text-muted-foreground transition-transform ${
-                isBotConfigOpen ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+      {/* AI Bot Configuration */}
+      <div className="border rounded-md">
+        <button
+          type="button"
+          onClick={() => setIsBotConfigOpen(!isBotConfigOpen)}
+          className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
+          disabled={loading}
+        >
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">AI Bot Configuration</h3>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform ${
+              isBotConfigOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-          {isBotConfigOpen && (
-            <div className="space-y-4 p-4 pt-0 border-t">
-              <p className="text-sm text-muted-foreground">
-                Customize how the AI bot interacts with students. Use variable
-                placeholders like{" "}
-                <code className="text-xs bg-muted px-1 rounded">
-                  {"{{question_prompt}}"}
-                </code>{" "}
-                to insert dynamic content.
-                {assessmentMode === "voice" && (
-                  <span className="block mt-1 text-xs">
-                    Note: For voice mode, TTS formatting instructions are
-                    automatically added.
-                  </span>
-                )}
-              </p>
+        {isBotConfigOpen && (
+          <div className="space-y-4 p-4 pt-0 border-t">
+            <p className="text-sm text-muted-foreground">
+              Customize how the AI bot interacts with students and evaluates
+              answers. Use variable placeholders to insert dynamic content.
+              {assessmentMode === "voice" && (
+                <span className="block mt-1 text-xs">
+                  Note: For voice mode, TTS formatting instructions are
+                  automatically added.
+                </span>
+              )}
+            </p>
 
-              {/* Editor and Preview Toggle */}
+            {/* Editor and Preview Toggle (only for voice and text_chat modes) */}
+            {(assessmentMode === "voice" || assessmentMode === "text_chat") && (
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -982,58 +1068,112 @@ export default function AssignmentForm({
                   Preview
                 </Button>
               </div>
+            )}
 
-              {showBotPreview ? (
-                <div className="space-y-3">
-                  {/* Preview Question Order Toggle */}
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Preview for:</span>
-                    <Button
-                      type="button"
-                      variant={
-                        previewQuestionOrder === 0 ? "default" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setPreviewQuestionOrder(0)}
-                    >
-                      First Question
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={
-                        previewQuestionOrder === 1 ? "default" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setPreviewQuestionOrder(1)}
-                    >
-                      Subsequent Questions
-                    </Button>
-                  </div>
-
-                  <PromptPreview
-                    config={botPromptConfig}
-                    assignment={{
-                      questions,
-                      preferred_language: preferredLanguage,
-                      max_attempts: maxAttempts,
-                    }}
-                    question={questions[0]}
-                    languageCode={preferredLanguage}
-                    assessmentMode={assessmentMode}
-                    previewQuestionOrder={previewQuestionOrder}
-                  />
+            {showBotPreview && (assessmentMode === "voice" || assessmentMode === "text_chat") ? (
+              <div className="space-y-3">
+                {/* Preview Question Order Toggle */}
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Preview for:</span>
+                  <Button
+                    type="button"
+                    variant={
+                      previewQuestionOrder === 0 ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setPreviewQuestionOrder(0)}
+                  >
+                    First Question
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={
+                      previewQuestionOrder === 1 ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setPreviewQuestionOrder(1)}
+                  >
+                    Subsequent Questions
+                  </Button>
                 </div>
-              ) : (
-                <PromptConfigEditor
+
+                <PromptPreview
                   config={botPromptConfig}
-                  onChange={setBotPromptConfig}
-                  disabled={loading}
+                  assignment={{
+                    questions,
+                    preferred_language: preferredLanguage,
+                    max_attempts: maxAttempts,
+                    shared_context: sharedContextEnabled ? sharedContext : undefined,
+                  }}
+                  question={questions[0]}
+                  languageCode={preferredLanguage}
+                  assessmentMode={assessmentMode}
+                  previewQuestionOrder={previewQuestionOrder}
                 />
-              )}
-            </div>
-          )}
+              </div>
+            ) : (
+              <PromptConfigEditor
+                config={botPromptConfig}
+                onChange={setBotPromptConfig}
+                disabled={loading}
+                showBotPrompts={assessmentMode === "voice" || assessmentMode === "text_chat"}
+                evaluationPrompt={evaluationPrompt}
+                onEvaluationPromptChange={setEvaluationPrompt}
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Shared Context */}
+      <div className="space-y-3 p-4 border rounded-md">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="sharedContextEnabled"
+            checked={sharedContextEnabled}
+            onCheckedChange={(checked) => setSharedContextEnabled(checked === true)}
+            disabled={loading}
+          />
+          <div className="space-y-1">
+            <Label
+              htmlFor="sharedContextEnabled"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Shared Context
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Provide a shared context (e.g. case study, passage, scenario) that
+              will be included in all AI prompts for this assessment. This is not
+              shown to students.
+            </p>
+          </div>
         </div>
-      )}
+
+        {sharedContextEnabled && (
+          <div className="space-y-2 mt-3">
+            <Label htmlFor="sharedContext">
+              Context Text <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="sharedContext"
+              value={sharedContext}
+              onChange={(e) => setSharedContext(e.target.value)}
+              disabled={loading}
+              placeholder="Enter the shared context, case study, passage, or scenario that students will analyze..."
+              rows={6}
+              className="resize-y"
+            />
+            <p className="text-xs text-muted-foreground">
+              This context will be included in all AI prompts but is not shown
+              to students. Available as{" "}
+              <code className="text-xs bg-muted px-1 rounded">
+                {"{{shared_context}}"}
+              </code>{" "}
+              in prompt templates.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Questions */}
       <div className="space-y-4">

@@ -13,7 +13,8 @@ import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { interpolatePromptsForRuntime } from "@/lib/promptInterpolation";
+import { interpolatePromptsForRuntime, interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
+import { parseSSEStream, SSEEvent } from "@/lib/sseParser";
 
 interface ChatMessage {
   id: string;
@@ -54,6 +55,14 @@ interface ChatAssessmentProps {
   onAttemptCreated?: () => void;
   onMarkedComplete?: () => void;
   isComplete?: boolean;
+  // Shared context and custom evaluation prompt
+  sharedContext?: string;
+  evaluationPrompt?: string;
+  // Experience rating props
+  experienceRatingEnabled?: boolean;
+  experienceRatingRequired?: boolean;
+  // Close button
+  onClose?: () => void;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -85,6 +94,11 @@ export function ChatAssessment({
   onAttemptCreated,
   onMarkedComplete,
   isComplete = false,
+  sharedContext,
+  evaluationPrompt,
+  experienceRatingEnabled = false,
+  experienceRatingRequired = false,
+  onClose,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -103,6 +117,7 @@ export function ChatAssessment({
       questions: [question],
       max_attempts: maxAttempts || 1,
       bot_prompt_config: botPromptConfig,
+      shared_context: sharedContext,
     };
 
     return interpolatePromptsForRuntime(
@@ -113,7 +128,7 @@ export function ChatAssessment({
       language,
       attempts.length + 1
     );
-  }, [botPromptConfig, question, language, maxAttempts, attempts.length]);
+  }, [botPromptConfig, question, language, maxAttempts, attempts.length, sharedContext]);
 
   // Activity tracking for question-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
@@ -128,6 +143,8 @@ export function ChatAssessment({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const activeRequestAbortRef = React.useRef<AbortController | null>(null);
   const restoredFromStorageRef = React.useRef(false);
+  // Ref to track end_conversation tool call signals from the LLM
+  const endConversationRef = React.useRef<{ reason: "thorough" | "refusal" } | null>(null);
   const storageKey = React.useMemo(
     () => `chat-${submissionId}-${question.order}`,
     [submissionId, question.order]
@@ -189,24 +206,17 @@ export function ChatAssessment({
         );
         setAttempts(questionAttempts);
         // If we already restored from storage, never overwrite that state here.
-        // Otherwise, fall back to existingAnswer (if any), or empty chat.
+        // Otherwise, show a clean slate (Start Chat button).
+        // Note: we intentionally do NOT hydrate from existingAnswer because it
+        // can contain unreliable data (e.g. voice transcripts from a mode switch).
+        // localStorage drafts handle the refresh case correctly.
         if (!restoredFromStorageRef.current) {
-          if (existingAnswer && questionAttempts.length === 0) {
-            hydrateMessagesFromAnswer(existingAnswer);
-          } else {
-            setMessages([]);
-          }
+          setMessages([]);
         }
       } catch (error) {
         console.error("Error loading attempts for chat assessment:", error);
-        // On error, fall back to existingAnswer if available and not already
-        // restored from storage
         if (!restoredFromStorageRef.current) {
-          if (existingAnswer) {
-            hydrateMessagesFromAnswer(existingAnswer);
-          } else {
-            setMessages([]);
-          }
+          setMessages([]);
         }
       }
     }
@@ -225,24 +235,40 @@ export function ChatAssessment({
     }
   }, [messages, storageKey]);
 
-  const hydrateMessagesFromAnswer = (answerText: string) => {
-    if (!answerText) {
-      setMessages([]);
-      return;
+  /**
+   * Stream an SSE response from the chat-assessment API into a message bubble.
+   * Handles text-delta, end_conversation, done, and error events.
+   * Returns the accumulated text content.
+   */
+  const streamSSEResponse = async (
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    assistantId: string
+  ): Promise<string> => {
+    let content = "";
+    endConversationRef.current = null;
+
+    for await (const event of parseSSEStream(reader)) {
+      switch (event.type) {
+        case "text-delta":
+          content += event.content;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content } : m
+            )
+          );
+          break;
+        case "end_conversation":
+          endConversationRef.current = { reason: event.reason };
+          break;
+        case "error":
+          console.error("SSE stream error:", event.error);
+          break;
+        case "done":
+          break;
+      }
     }
-    setMessages([
-      {
-        id: "assistant-initial",
-        role: "assistant",
-        content:
-          "Here is a summary of your previous response. You can review it below and try again if you like:",
-      },
-      {
-        id: "student-existing",
-        role: "student",
-        content: answerText,
-      },
-    ]);
+
+    return content;
   };
 
   const handleStartChat = async () => {
@@ -308,6 +334,12 @@ export function ChatAssessment({
             system_prompt: interpolatedPrompts.system_prompt,
             greeting: interpolatedPrompts.greeting,
           }),
+          // Include shared context if available
+          ...(sharedContext && { shared_context: sharedContext }),
+          // Include expected answer for tool-call adequacy guidance
+          ...(question.expected_answer && {
+            expected_answer: question.expected_answer,
+          }),
         }),
         signal: controller.signal,
       });
@@ -319,24 +351,13 @@ export function ChatAssessment({
         throw new Error(errorData.error || "Failed to start chat");
       }
 
-      // Stream the first assistant message
+      // Stream the first assistant message via SSE
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error("No response body");
       }
 
-      const decoder = new TextDecoder();
-      let content = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        content += decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
-        );
-      }
+      await streamSSEResponse(reader, assistantId);
 
       // Log attempt_started event
       logEvent("attempt_started");
@@ -345,6 +366,14 @@ export function ChatAssessment({
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 0);
+
+      // Note: end_conversation is unlikely on the first message, but handle it
+      if (endConversationRef.current) {
+        // Brief delay so the student can see the message before evaluation starts
+        setTimeout(() => {
+          handleEvaluate();
+        }, 1000);
+      }
     } catch (error) {
       if (
         error instanceof DOMException &&
@@ -435,6 +464,12 @@ export function ChatAssessment({
             system_prompt: interpolatedPrompts.system_prompt,
             greeting: interpolatedPrompts.greeting,
           }),
+          // Include shared context if available
+          ...(sharedContext && { shared_context: sharedContext }),
+          // Include expected answer for tool-call adequacy guidance
+          ...(question.expected_answer && {
+            expected_answer: question.expected_answer,
+          }),
         }),
         signal: controller.signal,
       });
@@ -447,23 +482,20 @@ export function ChatAssessment({
         throw new Error(errorData.error || "Failed to send message");
       }
 
-      // Stream the response
+      // Stream the response via SSE
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error("No response body");
       }
 
-      const decoder = new TextDecoder();
-      let content = "";
+      await streamSSEResponse(reader, assistantId);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        content += decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
-        );
+      // If the LLM called end_conversation, auto-trigger evaluation
+      if (endConversationRef.current) {
+        // Brief delay so the student can read the ending message
+        setTimeout(() => {
+          handleEvaluate();
+        }, 1000);
       }
     } catch (error) {
       if (
@@ -515,6 +547,26 @@ export function ChatAssessment({
 
     setIsEvaluating(true);
     try {
+      // Build interpolated evaluation prompt if custom one exists
+      let interpolatedEvalPrompt: string | undefined;
+      if (evaluationPrompt) {
+        const assignmentForInterpolation = {
+          questions: [question],
+          max_attempts: maxAttempts || 1,
+          bot_prompt_config: botPromptConfig,
+          shared_context: sharedContext,
+        };
+        const evalContext = buildRuntimeContext(
+          assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
+          question,
+          language,
+          attempts.length + 1,
+          question.order,
+          answerText
+        );
+        interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
+      }
+
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
@@ -527,6 +579,8 @@ export function ChatAssessment({
           questionPrompt: question.prompt,
           rubric: question.rubric,
           language,
+          ...(sharedContext && { shared_context: sharedContext }),
+          ...(interpolatedEvalPrompt && { custom_evaluation_prompt: interpolatedEvalPrompt }),
         }),
       });
 
@@ -759,6 +813,10 @@ export function ChatAssessment({
         totalQuestions={totalQuestions}
         onMarkedComplete={onMarkedComplete}
         isComplete={isComplete}
+        submissionId={submissionId}
+        experienceRatingEnabled={experienceRatingEnabled}
+        experienceRatingRequired={experienceRatingRequired}
+        onClose={onClose}
       />
     </div>
   );

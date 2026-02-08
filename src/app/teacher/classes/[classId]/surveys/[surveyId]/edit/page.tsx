@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import { Button } from "@/components/ui/button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -13,13 +14,13 @@ import {
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import SurveyForm from "@/components/Teacher/Surveys/SurveyForm";
 import { Survey } from "@/types/survey";
+import { showSuccessToast } from "@/lib/toast";
 
 export default function EditSurveyPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
 
-  const classId = params.classId as string;
   const surveyId = params.surveyId as string;
 
   const [survey, setSurvey] = useState<Survey | null>(null);
@@ -102,9 +103,19 @@ export default function EditSurveyPage() {
               status: updated.status,
             });
 
-            router.push(`/teacher/classes/${classId}/surveys/${surveyId}`);
+            showSuccessToast("Survey updated successfully");
           }}
         />
+
+        <div className="mt-6 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+          >
+            Close
+          </Button>
+        </div>
       </div>
     </PageLayout>
   );

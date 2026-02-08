@@ -238,7 +238,7 @@ function QuizPageContent({
       <PageLayout>
         <div>
           <div className="mb-4">
-            <BackButton href={`/students/classes/${classId}`} />
+            <BackButton />
           </div>
           <div className="text-center py-12">
             <div className="inline-block p-4 rounded-full bg-muted mb-4">
@@ -259,7 +259,7 @@ function QuizPageContent({
             </div>
             <h2 className="text-2xl font-bold mb-2">Content Locked</h2>
             <p className="text-muted-foreground mb-4">{lockReason}</p>
-            <BackButton href={`/students/classes/${classId}`} />
+            <BackButton />
           </div>
         </div>
       </PageLayout>
@@ -277,7 +277,7 @@ function QuizPageContent({
       <div>
         <div>
           <div className="mb-4">
-            <BackButton href={`/students/classes/${classId}`} />
+            <BackButton />
           </div>
           <div className="mb-6">
             <PageTitle
