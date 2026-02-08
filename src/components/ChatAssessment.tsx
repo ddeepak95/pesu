@@ -61,6 +61,8 @@ interface ChatAssessmentProps {
   // Experience rating props
   experienceRatingEnabled?: boolean;
   experienceRatingRequired?: boolean;
+  // Close button
+  onClose?: () => void;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -96,6 +98,7 @@ export function ChatAssessment({
   evaluationPrompt,
   experienceRatingEnabled = false,
   experienceRatingRequired = false,
+  onClose,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -813,6 +816,7 @@ export function ChatAssessment({
         submissionId={submissionId}
         experienceRatingEnabled={experienceRatingEnabled}
         experienceRatingRequired={experienceRatingRequired}
+        onClose={onClose}
       />
     </div>
   );

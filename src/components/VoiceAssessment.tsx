@@ -62,6 +62,8 @@ interface VoiceAssessmentProps {
   // Experience rating props
   experienceRatingEnabled?: boolean;
   experienceRatingRequired?: boolean;
+  // Close button
+  onClose?: () => void;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -100,6 +102,7 @@ function VoiceAssessmentContent({
   evaluationPrompt,
   experienceRatingEnabled = false,
   experienceRatingRequired = false,
+  onClose,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -510,6 +513,7 @@ function VoiceAssessmentContent({
         submissionId={submissionId}
         experienceRatingEnabled={experienceRatingEnabled}
         experienceRatingRequired={experienceRatingRequired}
+        onClose={onClose}
       />
     </div>
   );

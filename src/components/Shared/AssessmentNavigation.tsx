@@ -36,6 +36,8 @@ interface AssessmentNavigationProps {
   submissionId?: string;
   experienceRatingEnabled?: boolean;
   experienceRatingRequired?: boolean;
+  // Close button
+  onClose?: () => void;
 }
 
 export function AssessmentNavigation({
@@ -55,6 +57,7 @@ export function AssessmentNavigation({
   submissionId,
   experienceRatingEnabled = false,
   experienceRatingRequired = false,
+  onClose,
 }: AssessmentNavigationProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
@@ -82,7 +85,7 @@ export function AssessmentNavigation({
     if (requireAllAttempts && !allQuestionsHaveAttempts) {
       const attemptedCount = questionsWithAttempts?.size ?? 0;
       showErrorToast(
-        `Please attempt all questions for this assessment to be marked as complete. You have attempted ${attemptedCount} of ${totalQuestions} questions.`
+        `Please attempt all questions for this assessment to be marked as complete. You have attempted ${attemptedCount} of ${totalQuestions} questions.`,
       );
       return;
     }
@@ -119,7 +122,10 @@ export function AssessmentNavigation({
     await performCompletion();
   };
 
-  const performCompletion = async (experienceRating?: number, feedback?: string) => {
+  const performCompletion = async (
+    experienceRating?: number,
+    feedback?: string,
+  ) => {
     if (!contentItemId) return;
 
     setIsLoading(true);
@@ -184,12 +190,24 @@ export function AssessmentNavigation({
               {isComplete
                 ? "Already Completed"
                 : contentItemId
-                ? "Finish & Mark Complete"
-                : "Finish"}
+                  ? "Finish & Mark Complete"
+                  : "Finish"}
             </Button>
           )}
         </div>
       </div>
+
+      {onClose && (
+        <div className="mt-6 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+          >
+            Close
+          </Button>
+        </div>
+      )}
 
       {/* Dialog 1: Confirmation */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -230,7 +248,7 @@ export function AssessmentNavigation({
           <DialogHeader>
             <DialogTitle>Rate Your Experience</DialogTitle>
             <DialogDescription>
-              How would you rate your experience with this assessment?
+              How would you rate your experience with this activity?
             </DialogDescription>
           </DialogHeader>
 
@@ -258,11 +276,9 @@ export function AssessmentNavigation({
                   </button>
                 ))}
               </div>
-              {displayRating && (
-                <p className="text-sm text-muted-foreground">
-                  {displayRating} out of 5
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground h-5">
+                {displayRating ? `${displayRating} out of 5` : "\u00A0"}
+              </p>
             </div>
 
             {/* Optional Feedback */}

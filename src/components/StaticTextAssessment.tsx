@@ -52,6 +52,8 @@ interface StaticTextAssessmentProps {
   // Experience rating props
   experienceRatingEnabled?: boolean;
   experienceRatingRequired?: boolean;
+  // Close button
+  onClose?: () => void;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -86,6 +88,7 @@ export function StaticTextAssessment({
   evaluationPrompt,
   experienceRatingEnabled = false,
   experienceRatingRequired = false,
+  onClose,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -455,6 +458,7 @@ export function StaticTextAssessment({
         submissionId={submissionId}
         experienceRatingEnabled={experienceRatingEnabled}
         experienceRatingRequired={experienceRatingRequired}
+        onClose={onClose}
       />
     </div>
   );
