@@ -13,14 +13,6 @@ import LandingNavbar from "./LandingNavbar";
 import HowItWorksStep from "./HowItWorksStep";
 import { useState, useEffect, useRef } from "react";
 export default function LandingPage() {
-  const waitlistEmail = "dv292@cornell.edu";
-  const waitlistSubject = "Join Waitlist - ConvoEd";
-  const waitlistBody =
-    "I'm interested in joining the ConvoEd waitlist. Please add me to receive to the waitlist.";
-  const mailtoLink = `mailto:${waitlistEmail}?subject=${encodeURIComponent(
-    waitlistSubject
-  )}&body=${encodeURIComponent(waitlistBody)}`;
-
   // Color palette using pink-mist, glaucous, and electric-aqua
   const colors = {
     "pink-mist": {
@@ -49,14 +41,6 @@ export default function LandingPage() {
     textDecorationThickness: "1px",
     textUnderlineOffset: "0.3em",
   };
-
-  const waitlistButtonStyle = {
-    background: `linear-gradient(135deg, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
-    backgroundSize: "200% 200%",
-  };
-
-  const waitlistButtonClassName =
-    "text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient";
 
   // State and refs for checking if scrolling is needed
   const [needsScrolling, setNeedsScrolling] = useState(false);
@@ -131,7 +115,7 @@ export default function LandingPage() {
         } as React.CSSProperties
       }
     >
-      <LandingNavbar mailtoLink={mailtoLink} waitlistText="Join Waitlist" />
+      <LandingNavbar />
       <style jsx>{`
         @keyframes fade-in {
           from {
@@ -265,10 +249,13 @@ export default function LandingPage() {
                 <Button
                   asChild
                   size="lg"
-                  className={waitlistButtonClassName}
-                  style={waitlistButtonStyle}
+                  className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
+                    backgroundSize: "200% 200%",
+                  }}
                 >
-                  <a href={mailtoLink}>Join Waitlist</a>
+                  <Link href="/login">Login</Link>
                 </Button>
               </div>
             </div>
@@ -559,16 +546,19 @@ export default function LandingPage() {
               Ready to Transform Learning?
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Join the waitlist to be among the first to experience ConvoEd and
-              help shape the future of multilingual education.
+              Get started with ConvoEd and help shape the future of
+              multilingual education.
             </p>
             <Button
               asChild
               size="lg"
-              className={waitlistButtonClassName}
-              style={waitlistButtonStyle}
+              className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
+              style={{
+                background: `linear-gradient(135deg, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
+                backgroundSize: "200% 200%",
+              }}
             >
-              <a href={mailtoLink}>Join Waitlist</a>
+              <Link href="/login">Login</Link>
             </Button>
           </div>
         </div>

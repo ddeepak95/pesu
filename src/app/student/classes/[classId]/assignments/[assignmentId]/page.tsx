@@ -196,7 +196,7 @@ export default function StudentAssignmentPage() {
             onComplete={() => {
               // Attempts are automatically saved, no action needed
             }}
-            onBack={() => router.push(`/students/classes/${classId}`)}
+            onBack={() => router.push(`/student/classes/${classId}`)}
             onDisplayNameChange={setDisplayName}
           />
         </div>

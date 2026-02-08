@@ -92,8 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Determine redirect based on current path
     if (typeof window !== "undefined") {
       const currentPath = window.location.pathname;
-      if (currentPath.startsWith("/students")) {
-        router.push("/students/login");
+      if (currentPath.startsWith("/student")) {
+        router.push("/student/login");
       } else {
         router.push("/teacher/login");
       }

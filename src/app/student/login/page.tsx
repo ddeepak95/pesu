@@ -12,7 +12,7 @@ export default function LoginPage() {
         </div>
       }
     >
-      <LoginForm userType="student" defaultRedirect="/students/classes" />
+      <LoginForm userType="student" defaultRedirect="/student/classes" />
     </Suspense>
   );
 }
