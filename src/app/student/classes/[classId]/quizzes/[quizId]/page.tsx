@@ -1,239 +1,42 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { verifySession, getContentUnlockState } from "@/lib/dal";
+import { notFound } from "next/navigation";
+import QuizDetailClient from "./QuizDetailClient";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
-import PageTitle from "@/components/Shared/PageTitle";
-import {
-  createQuizSubmission,
-  getQuizByShortId,
-  getQuizSubmissionForStudent,
-} from "@/lib/queries/quizzes";
-import { Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types/quiz";
-import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { useAuth } from "@/contexts/AuthContext";
-import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
-import {
-  getContentItemByRefId,
-  getContentItemsByGroup,
-} from "@/lib/queries/contentItems";
-import {
-  isContentComplete,
-  markContentAsComplete,
-  getCompletionsForStudent,
-} from "@/lib/queries/contentCompletions";
-import { getClassByClassId } from "@/lib/queries/classes";
-import { getStudentGroupForClass } from "@/lib/queries/groups";
-import { getUnlockState } from "@/lib/utils/unlockLogic";
-import { getSessionSeed, shuffleWithSeed } from "@/utils/quizRandomization";
-import { calculateQuizScore } from "@/utils/quizScoring";
-import MarkdownContent from "@/components/Shared/MarkdownContent";
-import QuizQuestionCard from "@/components/Student/Quizzes/QuizQuestionCard";
-import QuizSubmissionBar from "@/components/Student/Quizzes/QuizSubmissionBar";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
 
-function QuizPageContent({
-  onClassUuid,
+const QUIZ_ALL_COLUMNS =
+  "id, quiz_id, class_id, class_group_id, title, instructions, questions, randomize_questions, randomize_options, show_points_to_students, total_points, created_by, created_at, updated_at, status";
+
+const QUIZ_SUBMISSION_ALL_COLUMNS =
+  "id, quiz_id, class_id, student_id, answers, submitted_at, created_at";
+
+export default async function StudentQuizPage({
+  params,
 }: {
-  onClassUuid?: (id: string) => void;
+  params: Promise<{ classId: string; quizId: string }>;
 }) {
-  const params = useParams();
-  const classId = params.classId as string;
-  const quizId = params.quizId as string;
-  const { user } = useAuth();
+  const { classId, quizId } = await params;
+  const { user, supabase } = await verifySession("/student/login");
 
-  const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [contentItemId, setContentItemId] = useState<string | null>(null);
-  const [isComplete, setIsComplete] = useState(false);
-  const [isContentLocked, setIsContentLocked] = useState<boolean>(false);
-  const [lockReason, setLockReason] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [submission, setSubmission] = useState<QuizSubmission | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const seedKey = useMemo(
-    () => `quiz_session_seed_${quizId}_${user?.id ?? "anon"}`,
-    [quizId, user?.id]
+  const { data: quizData } = await supabase
+    .from("quizzes")
+    .select(QUIZ_ALL_COLUMNS)
+    .eq("quiz_id", quizId)
+    .in("status", ["active", "draft"])
+    .single();
+
+  if (!quizData) notFound();
+
+  // Check unlock state + completion
+  const unlockResult = await getContentUnlockState(
+    supabase,
+    user.id,
+    classId,
+    quizData.id,
+    "quiz"
   );
-  const sessionSeed = useMemo(() => getSessionSeed(seedKey), [seedKey]);
-  const displayQuestions = useMemo(() => {
-    if (!quiz) return [];
-    const baseQuestions = [...quiz.questions].sort((a, b) => a.order - b.order);
-    const orderedQuestions = quiz.randomize_questions
-      ? shuffleWithSeed(baseQuestions, sessionSeed)
-      : baseQuestions;
-    return orderedQuestions.map((q) => ({
-      ...q,
-      id: q.id || `order-${q.order}`,
-      options: quiz.randomize_options
-        ? shuffleWithSeed(q.options, `${sessionSeed}:${q.order}`)
-        : q.options,
-    }));
-  }, [quiz, sessionSeed]);
 
-  // Activity tracking for quiz viewing time
-  // Uses ActivityTrackingContext for userId and classId
-  useActivityTracking({
-    componentType: "quiz",
-    componentId: quizId,
-    enabled: !loading && !!quiz, // Only track when quiz is loaded
-  });
-
-  const fetchQuiz = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getQuizByShortId(quizId);
-      if (!data) {
-        setError("Quiz not found");
-        return;
-      }
-      setQuiz(data);
-
-      // Fetch content item for completion tracking and unlock checking
-      const fetchedContentItem = await getContentItemByRefId(data.id, "quiz");
-      if (fetchedContentItem) {
-        setContentItemId(fetchedContentItem.id);
-
-        // Check if already complete
-        const complete = await isContentComplete(fetchedContentItem.id);
-        setIsComplete(complete);
-
-        // Check unlock status if user is authenticated
-        if (user) {
-          try {
-            // Get class data to check progressive unlock setting
-            const classData = await getClassByClassId(classId);
-            if (classData?.id) {
-              onClassUuid?.(classData.id);
-            }
-            if (classData?.enable_progressive_unlock) {
-              // Get student's group
-              const groupId = await getStudentGroupForClass(
-                classData.id,
-                user.id
-              );
-
-              // Skip unlock check if student is not assigned to a group
-              if (!groupId) {
-                return;
-              }
-
-              // Get all content items in the group
-              const allContentItems = await getContentItemsByGroup({
-                classDbId: classData.id,
-                classGroupId: groupId,
-              });
-
-              // Get completions
-              const contentItemIds = allContentItems.map((item) => item.id);
-              const completedIds = await getCompletionsForStudent(
-                contentItemIds
-              );
-
-              // Calculate unlock state for this specific content item
-              const unlockState = getUnlockState(
-                fetchedContentItem.id,
-                allContentItems,
-                completedIds,
-                true
-              );
-
-              if (unlockState && unlockState.isLocked) {
-                setIsContentLocked(true);
-                setLockReason(unlockState.lockReason);
-              }
-            }
-          } catch (unlockErr) {
-            console.error("Error checking unlock status:", unlockErr);
-            // Don't block access if there's an error checking unlock status
-          }
-        }
-      }
-
-      const existingSubmission = await getQuizSubmissionForStudent(data.id);
-      if (existingSubmission) {
-        setSubmission(existingSubmission);
-        const nextAnswers: Record<string, string> = {};
-        for (const answer of existingSubmission.answers || []) {
-          nextAnswers[answer.question_id] = answer.selected_option_id;
-        }
-        setAnswers(nextAnswers);
-      }
-    } catch (err) {
-      console.error("Error fetching quiz:", err);
-      setError("Failed to load quiz");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSelectAnswer = (questionId: string, optionId: string) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
-  };
-
-  const handleSubmit = async () => {
-    if (!quiz || submission) return;
-    const allAnswered = displayQuestions.every((q) => answers[q.id]);
-    if (!allAnswered) {
-      showErrorToast("Please answer all questions before submitting.");
-      return;
-    }
-
-    const payload: QuizSubmissionAnswer[] = displayQuestions.map((q) => ({
-      question_id: q.id,
-      selected_option_id: answers[q.id],
-    }));
-
-    setIsSubmitting(true);
-    try {
-      const created = await createQuizSubmission({
-        quiz_id: quiz.id,
-        class_id: quiz.class_id,
-        answers: payload,
-      });
-      setSubmission(created);
-      setIsComplete(true);
-      if (contentItemId) {
-        await markContentAsComplete(contentItemId);
-      }
-      showSuccessToast("Quiz submitted!");
-    } catch (submitErr) {
-      console.error("Error submitting quiz:", submitErr);
-      showErrorToast("Failed to submit quiz. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  useEffect(() => {
-    if (quizId) fetchQuiz();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizId]);
-
-  if (loading) {
-    return (
-      <PageLayout>
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading quiz...</p>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (error || !quiz) {
-    return (
-      <PageLayout>
-        <div className="text-center">
-          <p className="text-destructive">{error || "Quiz not found"}</p>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (isContentLocked) {
+  if (unlockResult.isLocked) {
     return (
       <PageLayout>
         <div>
@@ -258,7 +61,9 @@ function QuizPageContent({
               </svg>
             </div>
             <h2 className="text-2xl font-bold mb-2">Content Locked</h2>
-            <p className="text-muted-foreground mb-4">{lockReason}</p>
+            <p className="text-muted-foreground mb-4">
+              {unlockResult.lockReason}
+            </p>
             <BackButton />
           </div>
         </div>
@@ -266,79 +71,22 @@ function QuizPageContent({
     );
   }
 
-  const showPoints = quiz.show_points_to_students ?? true;
-  const scoreSummary = submission
-    ? calculateQuizScore(quiz, submission.answers || [])
-    : null;
-  const canSubmit = displayQuestions.every((q) => !!answers[q.id]);
+  // Check for existing submission
+  const { data: existingSubmission } = await supabase
+    .from("quiz_submissions")
+    .select(QUIZ_SUBMISSION_ALL_COLUMNS)
+    .eq("quiz_id", quizData.id)
+    .eq("student_id", user.id)
+    .maybeSingle();
 
   return (
-    <PageLayout>
-      <div>
-        <div>
-          <div className="mb-4">
-            <BackButton />
-          </div>
-          <div className="mb-6">
-            <PageTitle
-              title={quiz.title}
-              badge={
-                isComplete ? (
-                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
-                    Completed
-                  </span>
-                ) : null
-              }
-            />
-            {showPoints ? (
-              <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-                <p>{quiz.total_points} points total</p>
-              </div>
-            ) : null}
-            {quiz.instructions && (
-              <div className="mt-3">
-                <MarkdownContent content={quiz.instructions} />
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4 pb-8">
-            {displayQuestions.map((q, idx) => (
-              <QuizQuestionCard
-                key={q.id}
-                question={q}
-                selectedOptionId={answers[q.id]}
-                showPoints={showPoints}
-                disabled={!!submission}
-                onSelect={(optionId) => handleSelectAnswer(q.id, optionId)}
-              />
-            ))}
-
-            <QuizSubmissionBar
-              isSubmitted={!!submission}
-              isSubmitting={isSubmitting}
-              canSubmit={canSubmit}
-              showPoints={showPoints}
-              earnedPoints={scoreSummary?.earnedPoints ?? null}
-              totalPoints={scoreSummary?.totalPoints ?? null}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        </div>
-      </div>
-    </PageLayout>
-  );
-}
-
-export default function StudentQuizPage() {
-  const params = useParams();
-  const classId = params.classId as string;
-  const { user } = useAuth();
-  const [classUuid, setClassUuid] = useState<string | null>(null);
-
-  return (
-    <ActivityTrackingProvider userId={user?.id} classId={classUuid ?? classId}>
-      <QuizPageContent onClassUuid={setClassUuid} />
-    </ActivityTrackingProvider>
+    <QuizDetailClient
+      quiz={quizData}
+      contentItemId={unlockResult.contentItemId}
+      isComplete={unlockResult.isComplete}
+      existingSubmission={existingSubmission}
+      classUuid={unlockResult.classUuid}
+      classId={classId}
+    />
   );
 }

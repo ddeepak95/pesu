@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase";
 import { getCachedUser } from "@/lib/auth-cache";
 import { SurveyAnswer, SurveyResponse } from "@/types/survey";
 
+/** All columns for the survey_responses table */
+const SURVEY_RESPONSE_ALL_COLUMNS =
+  "id, survey_id, student_id, answers, submitted_at";
+
 /**
  * Submit a survey response for the current user
  */
@@ -39,7 +43,7 @@ export async function getStudentResponse(surveyId: string): Promise<SurveyRespon
 
   const { data, error } = await supabase
     .from("survey_responses")
-    .select("*")
+    .select(SURVEY_RESPONSE_ALL_COLUMNS)
     .eq("survey_id", surveyId)
     .eq("student_id", user.id)
     .single();
@@ -64,7 +68,7 @@ export async function getSurveyResponses(surveyId: string): Promise<SurveyRespon
 
   const { data, error } = await supabase
     .from("survey_responses")
-    .select("*")
+    .select(SURVEY_RESPONSE_ALL_COLUMNS)
     .eq("survey_id", surveyId)
     .order("submitted_at", { ascending: false });
 
@@ -80,7 +84,7 @@ export async function getSurveyResponseCount(surveyId: string): Promise<number> 
 
   const { count, error } = await supabase
     .from("survey_responses")
-    .select("*", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .eq("survey_id", surveyId);
 
   if (error) throw error;

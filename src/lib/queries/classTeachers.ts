@@ -27,7 +27,7 @@ export async function listClassTeachers(classDbId: string): Promise<ClassTeacher
   // Fallback: basic query without user info
   const { data, error } = await supabase
     .from("class_teachers")
-    .select("*")
+    .select("id, class_id, teacher_id, role, joined_at")
     .eq("class_id", classDbId)
     .order("joined_at", { ascending: true });
 

@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase";
 import { nanoid } from "nanoid";
 import { Survey, SurveyQuestion } from "@/types/survey";
 
+/** All columns for the surveys table */
+const SURVEY_ALL_COLUMNS =
+  "id, survey_id, class_id, class_group_id, title, description, questions, created_by, created_at, updated_at, status";
+
 function generateSurveyId(): string {
   return nanoid(8);
 }
@@ -47,7 +51,7 @@ export async function getSurveyByShortId(surveyId: string): Promise<Survey | nul
 
   const { data, error } = await supabase
     .from("surveys")
-    .select("*")
+    .select(SURVEY_ALL_COLUMNS)
     .eq("survey_id", surveyId)
     .eq("status", "active")
     .single();
@@ -65,7 +69,7 @@ export async function getSurveyByShortIdForTeacher(surveyId: string): Promise<Su
 
   const { data, error } = await supabase
     .from("surveys")
-    .select("*")
+    .select(SURVEY_ALL_COLUMNS)
     .eq("survey_id", surveyId)
     .in("status", ["active", "draft"])
     .single();

@@ -1,163 +1,39 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { verifySession, getContentUnlockState } from "@/lib/dal";
+import { notFound } from "next/navigation";
+import LearningContentDetailClient from "./LearningContentDetailClient";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
-import PageTitle from "@/components/Shared/PageTitle";
-import { getLearningContentByShortId } from "@/lib/queries/learningContent";
-import { LearningContent } from "@/types/learningContent";
-import LearningContentViewer from "@/components/Shared/LearningContentViewer";
-import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { useAuth } from "@/contexts/AuthContext";
-import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
-import {
-  getContentItemByRefId,
-  getContentItemsByGroup,
-} from "@/lib/queries/contentItems";
-import {
-  isContentComplete,
-  getCompletionsForStudent,
-} from "@/lib/queries/contentCompletions";
-import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
-import { getClassByClassId } from "@/lib/queries/classes";
-import { getStudentGroupForClass } from "@/lib/queries/groups";
-import { getUnlockState } from "@/lib/utils/unlockLogic";
 
-function LearningContentPageContent({
-  onClassUuid,
+const LC_ALL_COLUMNS =
+  "id, learning_content_id, class_id, class_group_id, title, content_type, video_url, body, created_by, created_at, updated_at, status";
+
+export default async function StudentLearningContentPage({
+  params,
 }: {
-  onClassUuid?: (id: string) => void;
+  params: Promise<{ classId: string; learningContentId: string }>;
 }) {
-  const params = useParams();
-  const classId = params.classId as string;
-  const learningContentId = params.learningContentId as string;
-  const { user } = useAuth();
+  const { classId, learningContentId } = await params;
+  const { user, supabase } = await verifySession("/student/login");
 
-  const [content, setContent] = useState<LearningContent | null>(null);
-  const [contentItemId, setContentItemId] = useState<string | null>(null);
-  const [isComplete, setIsComplete] = useState(false);
-  const [isContentLocked, setIsContentLocked] = useState<boolean>(false);
-  const [lockReason, setLockReason] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: contentData } = await supabase
+    .from("learning_contents")
+    .select(LC_ALL_COLUMNS)
+    .eq("learning_content_id", learningContentId)
+    .in("status", ["active", "draft"])
+    .single();
 
-  // Activity tracking for learning content viewing time
-  // Uses ActivityTrackingContext for userId and classId
-  useActivityTracking({
-    componentType: "learning_content",
-    componentId: learningContentId,
-    enabled: !loading && !!content, // Only track when content is loaded
-  });
+  if (!contentData) notFound();
 
-  const fetchContent = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getLearningContentByShortId(learningContentId);
-      if (!data) {
-        setError("Learning content not found");
-        return;
-      }
-      setContent(data);
+  // Check unlock state + completion
+  const unlockResult = await getContentUnlockState(
+    supabase,
+    user.id,
+    classId,
+    contentData.id,
+    "learning_content"
+  );
 
-      // Fetch content item for completion tracking and unlock checking
-      const fetchedContentItem = await getContentItemByRefId(
-        data.id,
-        "learning_content"
-      );
-      if (fetchedContentItem) {
-        setContentItemId(fetchedContentItem.id);
-
-        // Check if already complete
-        const complete = await isContentComplete(fetchedContentItem.id);
-        setIsComplete(complete);
-
-        // Check unlock status if user is authenticated
-        if (user) {
-          try {
-            // Get class data to check progressive unlock setting
-            const classData = await getClassByClassId(classId);
-            if (classData?.id) {
-              onClassUuid?.(classData.id);
-            }
-            if (classData?.enable_progressive_unlock) {
-              // Get student's group
-              const groupId = await getStudentGroupForClass(
-                classData.id,
-                user.id
-              );
-
-              // Skip unlock check if student is not assigned to a group
-              if (!groupId) {
-                return;
-              }
-
-              // Get all content items in the group
-              const allContentItems = await getContentItemsByGroup({
-                classDbId: classData.id,
-                classGroupId: groupId,
-              });
-
-              // Get completions
-              const contentItemIds = allContentItems.map((item) => item.id);
-              const completedIds = await getCompletionsForStudent(
-                contentItemIds
-              );
-
-              // Calculate unlock state for this specific content item
-              const unlockState = getUnlockState(
-                fetchedContentItem.id,
-                allContentItems,
-                completedIds,
-                true
-              );
-
-              if (unlockState && unlockState.isLocked) {
-                setIsContentLocked(true);
-                setLockReason(unlockState.lockReason);
-              }
-            }
-          } catch (unlockErr) {
-            console.error("Error checking unlock status:", unlockErr);
-            // Don't block access if there's an error checking unlock status
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching learning content:", err);
-      setError("Failed to load learning content");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (learningContentId) fetchContent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [learningContentId]);
-
-  if (loading) {
-    return (
-      <PageLayout>
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading learning content…</p>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (error || !content) {
-    return (
-      <PageLayout>
-        <div className="text-center">
-          <p className="text-destructive">{error || "Not found"}</p>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (isContentLocked) {
+  if (unlockResult.isLocked) {
     return (
       <PageLayout>
         <div>
@@ -182,7 +58,9 @@ function LearningContentPageContent({
               </svg>
             </div>
             <h2 className="text-2xl font-bold mb-2">Content Locked</h2>
-            <p className="text-muted-foreground mb-4">{lockReason}</p>
+            <p className="text-muted-foreground mb-4">
+              {unlockResult.lockReason}
+            </p>
             <BackButton />
           </div>
         </div>
@@ -191,58 +69,12 @@ function LearningContentPageContent({
   }
 
   return (
-    <PageLayout>
-      <div>
-        <div>
-          <div className="mb-4">
-            <BackButton />
-          </div>
-          <div className="mb-6">
-            <PageTitle
-              title={content.title}
-              badge={
-                isComplete ? (
-                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
-                    Completed
-                  </span>
-                ) : null
-              }
-            />
-          </div>
-
-          <div className="space-y-6 pb-8">
-            <LearningContentViewer
-              title={content.title}
-              body={content.body}
-              videoUrl={content.video_url}
-            />
-
-            {/* Mark as Complete Button */}
-            {contentItemId && (
-              <div className="flex justify-center pt-4">
-                <MarkAsCompleteButton
-                  contentItemId={contentItemId}
-                  isComplete={isComplete}
-                  onComplete={() => setIsComplete(true)}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </PageLayout>
-  );
-}
-
-export default function StudentLearningContentPage() {
-  const params = useParams();
-  const classId = params.classId as string;
-  const { user } = useAuth();
-  const [classUuid, setClassUuid] = useState<string | null>(null);
-
-  return (
-    <ActivityTrackingProvider userId={user?.id} classId={classUuid ?? classId}>
-      <LearningContentPageContent onClassUuid={setClassUuid} />
-    </ActivityTrackingProvider>
+    <LearningContentDetailClient
+      content={contentData}
+      contentItemId={unlockResult.contentItemId}
+      isComplete={unlockResult.isComplete}
+      classUuid={unlockResult.classUuid}
+      classId={classId}
+    />
   );
 }
