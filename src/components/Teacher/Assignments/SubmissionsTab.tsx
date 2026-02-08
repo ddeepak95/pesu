@@ -151,11 +151,10 @@ export default function SubmissionsTab({
       return (
         submission.responder_details.name ||
         submission.responder_details.email ||
-        submission.student_name ||
         submission.submission_id.substring(0, 8) + "..."
       );
     }
-    return submission.student_name || submission.submission_id.substring(0, 8) + "...";
+    return submission.submission_id.substring(0, 8) + "...";
   };
 
   const getStatusBadge = (status: "completed" | "started" | "not_started") => {

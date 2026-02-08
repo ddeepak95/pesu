@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useImperativeHandle, forwardRef } from "react";
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -74,6 +74,7 @@ const PublicAssignmentResponse = forwardRef<
     [key: number]: string;
   }>({});
   const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
+  const isRestoringRef = useRef(false);
 
   // Get max attempts from assignment config
   const maxAttempts = assignmentData.max_attempts ?? 1;
@@ -99,8 +100,11 @@ const PublicAssignmentResponse = forwardRef<
 
   // Restore session after assignment is loaded
   useEffect(() => {
-    if (assignmentData && restoringSession) {
-      restoreSession();
+    if (assignmentData && restoringSession && !isRestoringRef.current) {
+      isRestoringRef.current = true;
+      restoreSession().finally(() => {
+        isRestoringRef.current = false;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentData, restoringSession]);
@@ -212,13 +216,9 @@ const PublicAssignmentResponse = forwardRef<
 
   const getDisplayName = (submission: {
     responder_details?: Record<string, string>;
-    student_name?: string;
   }): string => {
     if (submission.responder_details?.name) {
       return submission.responder_details.name;
-    }
-    if (submission.student_name) {
-      return submission.student_name;
     }
     return "Responder";
   };

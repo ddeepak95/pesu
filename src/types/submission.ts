@@ -67,11 +67,6 @@ export interface Submission {
   submission_id: string;
   assignment_id: string;
   /**
-   * @deprecated Use responder_details.name or derive from user metadata
-   * Kept for backward compatibility
-   */
-  student_name?: string;
-  /**
    * Student ID for authenticated submissions (references auth.users)
    */
   student_id?: string | null;

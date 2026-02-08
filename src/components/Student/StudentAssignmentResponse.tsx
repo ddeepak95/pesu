@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createSubmission,
   getSubmissionById,
@@ -61,11 +61,15 @@ export default function StudentAssignmentResponse({
   }>({});
   const [currentAttemptNumber, setCurrentAttemptNumber] = useState<number>(1);
   const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
+  const isInitializingRef = useRef(false);
 
   // Restore session or create new submission
   useEffect(() => {
-    if (assignmentData && user && restoringSession) {
-      restoreOrCreateSubmission();
+    if (assignmentData && user && restoringSession && !isInitializingRef.current) {
+      isInitializingRef.current = true;
+      restoreOrCreateSubmission().finally(() => {
+        isInitializingRef.current = false;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentData, user, restoringSession]);
@@ -249,7 +253,6 @@ export default function StudentAssignmentResponse({
     submission_id: string;
     preferred_language: string;
     responder_details?: Record<string, string>;
-    student_name?: string;
     evaluations?: { [key: number]: QuestionEvaluations } | SubmissionAnswer[];
   }) => {
     setSubmissionId(submission.submission_id);
@@ -308,13 +311,9 @@ export default function StudentAssignmentResponse({
 
   const getDisplayName = (submission: {
     responder_details?: Record<string, string>;
-    student_name?: string;
   }): string => {
     if (submission.responder_details?.name) {
       return submission.responder_details.name;
-    }
-    if (submission.student_name) {
-      return submission.student_name;
     }
     // Fallback to user metadata
     return (

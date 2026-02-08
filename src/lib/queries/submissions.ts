@@ -164,7 +164,6 @@ export async function createSubmission(
 
   // Build responder_details
   let responderDetails: Record<string, string> | undefined;
-  let studentName: string | undefined;
 
   if (options?.studentId) {
     // Authenticated student: get display name from user metadata
@@ -175,12 +174,9 @@ export async function createSubmission(
       userData?.user?.email?.split("@")[0] ||
       "Student";
     responderDetails = { name: displayName };
-    studentName = displayName; // For backward compatibility
   } else if (options?.responderDetails) {
     // Public submission: use provided responder details
     responderDetails = options.responderDetails;
-    studentName =
-      responderDetails.name || responderDetails.email || "Responder"; // For backward compatibility
   } else {
     throw new Error("Either studentId or responderDetails must be provided");
   }
@@ -203,11 +199,6 @@ export async function createSubmission(
   // Add student_id if provided
   if (options?.studentId) {
     insertData.student_id = options.studentId;
-  }
-
-  // Add student_name for backward compatibility
-  if (studentName) {
-    insertData.student_name = studentName;
   }
 
   const { data, error } = await supabase
@@ -834,7 +825,7 @@ export async function markAttemptsAsStale(
 
 /** Columns to select for list views (excludes evaluations JSONB) */
 const SUBMISSION_LIST_COLUMNS =
-  "id, submission_id, assignment_id, student_id, student_name, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts";
 
 /**
  * Student submission status for teacher view

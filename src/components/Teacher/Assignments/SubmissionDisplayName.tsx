@@ -20,11 +20,10 @@ export function SubmissionDisplayName({ submission }: SubmissionDisplayNameProps
         <>
           {sub.responder_details.name ||
             sub.responder_details.email ||
-            sub.student_name ||
             sub.submission_id.substring(0, 8) + "..."}
         </>
       );
     }
-    return <>{sub.student_name || sub.submission_id.substring(0, 8) + "..."}</>;
+    return <>{sub.submission_id.substring(0, 8) + "..."}</>;
   }
 }
