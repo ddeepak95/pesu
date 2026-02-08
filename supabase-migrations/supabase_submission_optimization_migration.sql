@@ -53,3 +53,24 @@ COMMENT ON COLUMN public.submissions.has_attempts IS 'Whether the submission has
 COMMENT ON COLUMN public.submissions.highest_score IS 'Sum of highest scores per question across non-stale attempts (denormalized)';
 COMMENT ON COLUMN public.submissions.max_score IS 'Sum of max possible scores across questions (denormalized)';
 COMMENT ON COLUMN public.submissions.total_attempts IS 'Total count of non-stale attempts across all questions (denormalized)';
+
+-- 5. RLS policies for static_activity
+ALTER TABLE public.static_activity ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public to create static activity"
+ON public.static_activity FOR INSERT TO authenticated, anon WITH CHECK (true);
+
+CREATE POLICY "Allow public to read static activity"
+ON public.static_activity FOR SELECT TO authenticated, anon USING (true);
+
+-- 6. RLS policies for submission_transcripts
+ALTER TABLE public.submission_transcripts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public to create submission transcripts"
+ON public.submission_transcripts FOR INSERT TO authenticated, anon WITH CHECK (true);
+
+CREATE POLICY "Allow public to read submission transcripts"
+ON public.submission_transcripts FOR SELECT TO authenticated, anon USING (true);
+
+CREATE POLICY "Allow public to update submission transcripts"
+ON public.submission_transcripts FOR UPDATE TO authenticated, anon USING (true) WITH CHECK (true);
