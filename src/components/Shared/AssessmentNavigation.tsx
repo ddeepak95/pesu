@@ -10,7 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Star } from "lucide-react";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
+import { saveExperienceRating } from "@/lib/queries/submissions";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface AssessmentNavigationProps {
@@ -28,6 +32,10 @@ interface AssessmentNavigationProps {
   totalQuestions?: number;
   onMarkedComplete?: () => void;
   isComplete?: boolean;
+  // Experience rating props
+  submissionId?: string;
+  experienceRatingEnabled?: boolean;
+  experienceRatingRequired?: boolean;
 }
 
 export function AssessmentNavigation({
@@ -44,9 +52,24 @@ export function AssessmentNavigation({
   totalQuestions = 0,
   onMarkedComplete,
   isComplete = false,
+  submissionId,
+  experienceRatingEnabled = false,
+  experienceRatingRequired = false,
 }: AssessmentNavigationProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Experience rating state
+  const [rating, setRating] = useState<number | null>(null);
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
+  const [ratingFeedback, setRatingFeedback] = useState("");
+
+  const resetRatingState = () => {
+    setRating(null);
+    setHoveredRating(null);
+    setRatingFeedback("");
+  };
 
   const handleFinishClick = () => {
     if (isComplete) {
@@ -79,15 +102,38 @@ export function AssessmentNavigation({
       return;
     }
 
+    if (isComplete) {
+      if (onNext) onNext();
+      return;
+    }
+
+    // If experience rating is enabled, close this dialog and open the rating dialog
+    if (experienceRatingEnabled && submissionId) {
+      setIsDialogOpen(false);
+      resetRatingState();
+      setIsRatingDialogOpen(true);
+      return;
+    }
+
+    // Otherwise, proceed directly with marking complete
+    await performCompletion();
+  };
+
+  const performCompletion = async (experienceRating?: number, feedback?: string) => {
+    if (!contentItemId) return;
+
     setIsLoading(true);
     try {
-      if (isComplete) {
-        if (onNext) onNext();
-        return;
+      // Save experience rating if provided
+      if (experienceRating && submissionId) {
+        await saveExperienceRating(submissionId, experienceRating, feedback);
       }
+
       await markContentAsComplete(contentItemId);
       showSuccessToast("Assessment marked as complete!");
       setIsDialogOpen(false);
+      setIsRatingDialogOpen(false);
+      resetRatingState();
       if (onMarkedComplete) {
         onMarkedComplete();
       }
@@ -99,6 +145,17 @@ export function AssessmentNavigation({
       setIsLoading(false);
     }
   };
+
+  const handleSubmitRating = async () => {
+    if (!rating) return;
+    await performCompletion(rating, ratingFeedback);
+  };
+
+  const handleSkipRating = async () => {
+    await performCompletion();
+  };
+
+  const displayRating = hoveredRating ?? rating;
 
   return (
     <>
@@ -134,6 +191,7 @@ export function AssessmentNavigation({
         </div>
       </div>
 
+      {/* Dialog 1: Confirmation */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -153,6 +211,92 @@ export function AssessmentNavigation({
             </Button>
             <Button onClick={handleConfirmFinish} disabled={isLoading}>
               {isLoading ? "Saving..." : "Yes, Finish & Mark Complete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog 2: Experience Rating */}
+      <Dialog
+        open={isRatingDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !experienceRatingRequired) {
+            setIsRatingDialogOpen(false);
+            resetRatingState();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rate Your Experience</DialogTitle>
+            <DialogDescription>
+              How would you rate your experience with this assessment?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Star Rating */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    onMouseEnter={() => setHoveredRating(star)}
+                    onMouseLeave={() => setHoveredRating(null)}
+                    className="p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    aria-label={`Rate ${star} out of 5`}
+                  >
+                    <Star
+                      className={`w-8 h-8 transition-colors ${
+                        displayRating && star <= displayRating
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-muted-foreground/40"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+              {displayRating && (
+                <p className="text-sm text-muted-foreground">
+                  {displayRating} out of 5
+                </p>
+              )}
+            </div>
+
+            {/* Optional Feedback */}
+            <div className="space-y-2">
+              <Label htmlFor="ratingFeedback" className="text-sm">
+                Why did you give this rating? (optional)
+              </Label>
+              <Textarea
+                id="ratingFeedback"
+                value={ratingFeedback}
+                onChange={(e) => setRatingFeedback(e.target.value)}
+                placeholder="Share your thoughts..."
+                rows={3}
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-row gap-2 sm:justify-between">
+            {!experienceRatingRequired && (
+              <Button
+                variant="ghost"
+                onClick={handleSkipRating}
+                disabled={isLoading}
+                className="mr-auto"
+              >
+                Skip
+              </Button>
+            )}
+            <Button
+              onClick={handleSubmitRating}
+              disabled={isLoading || !rating}
+            >
+              {isLoading ? "Saving..." : "Submit Rating"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -51,6 +51,8 @@ interface AssignmentFormProps {
   initialSharedContextEnabled?: boolean;
   initialSharedContext?: string;
   initialEvaluationPrompt?: string;
+  initialExperienceRatingEnabled?: boolean;
+  initialExperienceRatingRequired?: boolean;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -73,6 +75,8 @@ interface AssignmentFormProps {
     sharedContextEnabled?: boolean;
     sharedContext?: string;
     evaluationPrompt?: string;
+    experienceRatingEnabled?: boolean;
+    experienceRatingRequired?: boolean;
   }) => Promise<void>;
 }
 
@@ -110,6 +114,8 @@ export default function AssignmentForm({
   initialSharedContextEnabled = false,
   initialSharedContext = "",
   initialEvaluationPrompt = "",
+  initialExperienceRatingEnabled = false,
+  initialExperienceRatingRequired = false,
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -157,6 +163,12 @@ export default function AssignmentForm({
   const [sharedContext, setSharedContext] = useState(initialSharedContext);
   const [evaluationPrompt, setEvaluationPrompt] = useState(
     initialEvaluationPrompt || getDefaultEvaluationPrompt()
+  );
+  const [experienceRatingEnabled, setExperienceRatingEnabled] = useState(
+    initialExperienceRatingEnabled
+  );
+  const [experienceRatingRequired, setExperienceRatingRequired] = useState(
+    initialExperienceRatingRequired
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -432,6 +444,8 @@ export default function AssignmentForm({
         sharedContextEnabled,
         sharedContext: sharedContextEnabled ? sharedContext.trim() : undefined,
         evaluationPrompt: evaluationPrompt.trim() || undefined,
+        experienceRatingEnabled,
+        experienceRatingRequired: experienceRatingEnabled ? experienceRatingRequired : false,
       });
 
       // Navigate based on mode
@@ -732,6 +746,58 @@ export default function AssignmentForm({
                   can mark the assessment as complete
                 </p>
               </div>
+            </div>
+
+            {/* Experience Rating */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="experienceRatingEnabled"
+                  checked={experienceRatingEnabled}
+                  onCheckedChange={(checked) => {
+                    setExperienceRatingEnabled(checked === true);
+                    if (!checked) setExperienceRatingRequired(false);
+                  }}
+                  disabled={loading}
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="experienceRatingEnabled"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Enable Experience Rating
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Ask students to rate their experience on a 5-point scale when
+                    completing the assessment
+                  </p>
+                </div>
+              </div>
+
+              {experienceRatingEnabled && (
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox
+                    id="experienceRatingRequired"
+                    checked={experienceRatingRequired}
+                    onCheckedChange={(checked) =>
+                      setExperienceRatingRequired(checked === true)
+                    }
+                    disabled={loading}
+                  />
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="experienceRatingRequired"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Require rating
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Students must provide a rating before completing (otherwise
+                      they can skip)
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Public Access Toggle */}

@@ -58,6 +58,9 @@ interface ChatAssessmentProps {
   // Shared context and custom evaluation prompt
   sharedContext?: string;
   evaluationPrompt?: string;
+  // Experience rating props
+  experienceRatingEnabled?: boolean;
+  experienceRatingRequired?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -91,6 +94,8 @@ export function ChatAssessment({
   isComplete = false,
   sharedContext,
   evaluationPrompt,
+  experienceRatingEnabled = false,
+  experienceRatingRequired = false,
 }: ChatAssessmentProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -805,6 +810,9 @@ export function ChatAssessment({
         totalQuestions={totalQuestions}
         onMarkedComplete={onMarkedComplete}
         isComplete={isComplete}
+        submissionId={submissionId}
+        experienceRatingEnabled={experienceRatingEnabled}
+        experienceRatingRequired={experienceRatingRequired}
       />
     </div>
   );

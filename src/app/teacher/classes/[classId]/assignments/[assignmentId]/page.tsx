@@ -172,6 +172,8 @@ export default function AssignmentDetailPage() {
         use_star_display: assignmentData.use_star_display,
         star_scale: assignmentData.star_scale,
         require_all_attempts: assignmentData.require_all_attempts,
+        experience_rating_enabled: assignmentData.experience_rating_enabled,
+        experience_rating_required: assignmentData.experience_rating_required,
       });
 
       await updateContentItemStatusByRef({
@@ -382,6 +384,16 @@ export default function AssignmentDetailPage() {
                     <span className="font-medium w-44 shrink-0">Require all questions:</span>
                     <span className="text-muted-foreground">
                       {assignmentData.require_all_attempts ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium w-44 shrink-0">Experience rating:</span>
+                    <span className="text-muted-foreground">
+                      {assignmentData.experience_rating_enabled
+                        ? assignmentData.experience_rating_required
+                          ? "Enabled (required)"
+                          : "Enabled (optional)"
+                        : "Disabled"}
                     </span>
                   </div>
                 </div>

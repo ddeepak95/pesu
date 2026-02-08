@@ -49,6 +49,9 @@ interface StaticTextAssessmentProps {
   // Shared context and custom evaluation prompt
   sharedContext?: string;
   evaluationPrompt?: string;
+  // Experience rating props
+  experienceRatingEnabled?: boolean;
+  experienceRatingRequired?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -81,6 +84,8 @@ export function StaticTextAssessment({
   isComplete = false,
   sharedContext,
   evaluationPrompt,
+  experienceRatingEnabled = false,
+  experienceRatingRequired = false,
 }: StaticTextAssessmentProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -447,6 +452,9 @@ export function StaticTextAssessment({
         totalQuestions={totalQuestions}
         onMarkedComplete={onMarkedComplete}
         isComplete={isComplete}
+        submissionId={submissionId}
+        experienceRatingEnabled={experienceRatingEnabled}
+        experienceRatingRequired={experienceRatingRequired}
       />
     </div>
   );

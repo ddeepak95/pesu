@@ -180,6 +180,8 @@ export async function createAssignment(
     shared_context_enabled?: boolean; // Whether shared context is enabled
     shared_context?: string; // Shared context text
     evaluation_prompt?: string; // Custom evaluation prompt template
+    experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
+    experience_rating_required?: boolean; // Whether the experience rating is required
   },
   userId: string
 ): Promise<Assignment> {
@@ -213,6 +215,8 @@ export async function createAssignment(
       shared_context_enabled: assignment.shared_context_enabled ?? false,
       shared_context: assignment.shared_context ?? null,
       evaluation_prompt: assignment.evaluation_prompt ?? null,
+      experience_rating_enabled: assignment.experience_rating_enabled ?? false,
+      experience_rating_required: assignment.experience_rating_required ?? false,
     })
     .select()
     .single();
@@ -259,6 +263,8 @@ export async function updateAssignment(
     shared_context_enabled?: boolean; // Whether shared context is enabled
     shared_context?: string; // Shared context text
     evaluation_prompt?: string; // Custom evaluation prompt template
+    experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
+    experience_rating_required?: boolean; // Whether the experience rating is required
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -283,6 +289,8 @@ export async function updateAssignment(
     shared_context_enabled: assignment.shared_context_enabled ?? false,
     shared_context: assignment.shared_context ?? null,
     evaluation_prompt: assignment.evaluation_prompt ?? null,
+    experience_rating_enabled: assignment.experience_rating_enabled ?? false,
+    experience_rating_required: assignment.experience_rating_required ?? false,
     updated_at: new Date().toISOString(),
   };
 

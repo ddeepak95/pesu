@@ -49,6 +49,8 @@ export default function EditAssignmentPage() {
   const [sharedContextEnabled, setSharedContextEnabled] = useState<boolean>(false);
   const [sharedContext, setSharedContext] = useState<string>("");
   const [evaluationPrompt, setEvaluationPrompt] = useState<string>("");
+  const [experienceRatingEnabled, setExperienceRatingEnabled] = useState<boolean>(false);
+  const [experienceRatingRequired, setExperienceRatingRequired] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
@@ -80,6 +82,8 @@ export default function EditAssignmentPage() {
           setSharedContextEnabled(assignmentData.shared_context_enabled ?? false);
           setSharedContext(assignmentData.shared_context ?? "");
           setEvaluationPrompt(assignmentData.evaluation_prompt ?? "");
+          setExperienceRatingEnabled(assignmentData.experience_rating_enabled ?? false);
+          setExperienceRatingRequired(assignmentData.experience_rating_required ?? false);
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
           setInitialIsDraft(assignmentData.status === "draft");
@@ -127,6 +131,8 @@ export default function EditAssignmentPage() {
     sharedContextEnabled?: boolean;
     sharedContext?: string;
     evaluationPrompt?: string;
+    experienceRatingEnabled?: boolean;
+    experienceRatingRequired?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -159,6 +165,8 @@ export default function EditAssignmentPage() {
       shared_context_enabled: data.sharedContextEnabled ?? false,
       shared_context: data.sharedContext,
       evaluation_prompt: data.evaluationPrompt,
+      experience_rating_enabled: data.experienceRatingEnabled ?? false,
+      experience_rating_required: data.experienceRatingRequired ?? false,
     });
 
     // Sync content_item status
@@ -221,6 +229,8 @@ export default function EditAssignmentPage() {
           initialSharedContextEnabled={sharedContextEnabled}
           initialSharedContext={sharedContext}
           initialEvaluationPrompt={evaluationPrompt}
+          initialExperienceRatingEnabled={experienceRatingEnabled}
+          initialExperienceRatingRequired={experienceRatingRequired}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />

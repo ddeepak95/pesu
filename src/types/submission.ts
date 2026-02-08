@@ -65,5 +65,13 @@ export interface Submission {
   submission_mode?: "voice" | "text_chat" | "static_text";
   created_at?: string;
   updated_at?: string;
+  /**
+   * Student experience rating on a 1-5 scale, collected at submission time
+   */
+  experience_rating?: number | null;
+  /**
+   * Optional text feedback explaining the experience rating
+   */
+  experience_rating_feedback?: string | null;
 }
 

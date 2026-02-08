@@ -59,6 +59,9 @@ interface VoiceAssessmentProps {
   // Shared context and custom evaluation prompt
   sharedContext?: string;
   evaluationPrompt?: string;
+  // Experience rating props
+  experienceRatingEnabled?: boolean;
+  experienceRatingRequired?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -95,6 +98,8 @@ function VoiceAssessmentContent({
   isComplete = false,
   sharedContext,
   evaluationPrompt,
+  experienceRatingEnabled = false,
+  experienceRatingRequired = false,
 }: VoiceAssessmentProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -502,6 +507,9 @@ function VoiceAssessmentContent({
         totalQuestions={totalQuestions}
         onMarkedComplete={onMarkedComplete}
         isComplete={isComplete}
+        submissionId={submissionId}
+        experienceRatingEnabled={experienceRatingEnabled}
+        experienceRatingRequired={experienceRatingRequired}
       />
     </div>
   );

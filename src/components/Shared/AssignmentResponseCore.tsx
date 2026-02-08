@@ -264,6 +264,8 @@ export default function AssignmentResponseCore({
           isComplete={isComplete}
           sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
           evaluationPrompt={assignmentData.evaluation_prompt}
+          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
+          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -297,6 +299,8 @@ export default function AssignmentResponseCore({
           isComplete={isComplete}
           sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
           evaluationPrompt={assignmentData.evaluation_prompt}
+          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
+          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -331,6 +335,8 @@ export default function AssignmentResponseCore({
           isComplete={isComplete}
           sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
           evaluationPrompt={assignmentData.evaluation_prompt}
+          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
+          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
         />
       )}
     </div>

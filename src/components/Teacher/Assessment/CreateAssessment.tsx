@@ -27,6 +27,8 @@ export default function CreateAssessment() {
     sharedContextEnabled?: boolean;
     sharedContext?: string;
     evaluationPrompt?: string;
+    experienceRatingEnabled?: boolean;
+    experienceRatingRequired?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -45,6 +47,8 @@ export default function CreateAssessment() {
         shared_context_enabled: data.sharedContextEnabled,
         shared_context: data.sharedContext,
         evaluation_prompt: data.evaluationPrompt,
+        experience_rating_enabled: data.experienceRatingEnabled ?? false,
+        experience_rating_required: data.experienceRatingRequired ?? false,
       },
       user.id
     );

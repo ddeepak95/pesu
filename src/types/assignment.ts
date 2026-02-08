@@ -145,5 +145,16 @@ export interface Assignment {
    * Supports placeholders: {{language}}, {{question_prompt}}, {{rubric}}, {{answer_text}}, {{shared_context}}
    */
   evaluation_prompt?: string;
+  /**
+   * When true, students are asked to rate their experience when completing the assessment.
+   * Defaults to false.
+   */
+  experience_rating_enabled?: boolean;
+  /**
+   * When true, students must provide a rating before completing (otherwise they can skip).
+   * Only applies when experience_rating_enabled is true.
+   * Defaults to false.
+   */
+  experience_rating_required?: boolean;
 }
 

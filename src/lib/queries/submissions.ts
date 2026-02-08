@@ -849,3 +849,34 @@ export async function getPublicSubmissionsByAssignment(
   return result;
 }
 
+/**
+ * Save experience rating for a submission
+ * Called when student rates their assessment experience on completion
+ */
+export async function saveExperienceRating(
+  submissionId: string,
+  rating: number,
+  feedback?: string
+): Promise<void> {
+  const supabase = createClient();
+
+  const updateData: Record<string, unknown> = {
+    experience_rating: rating,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (feedback && feedback.trim()) {
+    updateData.experience_rating_feedback = feedback.trim();
+  }
+
+  const { error } = await supabase
+    .from("submissions")
+    .update(updateData)
+    .eq("submission_id", submissionId);
+
+  if (error) {
+    console.error("Error saving experience rating:", error);
+    throw error;
+  }
+}
+
