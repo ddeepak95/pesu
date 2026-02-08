@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createClient } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { SubmissionAttempt, QuestionAnswers } from "@/types/submission";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
@@ -216,7 +216,7 @@ The users are students. All feedback must be age-appropriate, supportive, and re
     );
 
     // Get current submission to determine attempt number
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     const { data: currentSubmission, error: fetchError } = await supabase
       .from("submissions")
       .select("answers")

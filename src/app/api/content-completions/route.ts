@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("student_content_completions")
-      .select("*")
+      .select("content_item_id, completed_at")
       .eq("student_id", user.id);
 
     if (contentItemId) {

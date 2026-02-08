@@ -130,10 +130,10 @@ export async function updateSubmissionAnswer(
 ): Promise<Submission> {
   const supabase = createClient();
 
-  // First, get the current submission
+  // First, get the current answers
   const { data: currentSubmission, error: fetchError } = await supabase
     .from("submissions")
-    .select("*")
+    .select("answers")
     .eq("submission_id", submissionId)
     .single();
 
@@ -709,29 +709,30 @@ export async function getSubmissionsByAssignmentWithStudents(
   assignmentId: string,
   classId: string
 ): Promise<StudentSubmissionStatus[]> {
-  // Get all students in the class
-  const students = await getClassStudentsWithInfo(classId);
+  const supabase = createClient();
 
-  // For each student, get their most recent submission for this assignment
-  // This is more reliable than trying to match from a list of all submissions
+  // Fetch students and all submissions for this assignment in parallel (2 queries instead of N+1)
+  const [students, { data: allSubmissions, error: submissionsError }] = await Promise.all([
+    getClassStudentsWithInfo(classId),
+    supabase
+      .from("submissions")
+      .select("*")
+      .eq("assignment_id", assignmentId)
+      .not("student_id", "is", null)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (submissionsError) {
+    console.error("Error fetching submissions:", submissionsError);
+  }
+
+  // Build a map: student_id -> most recent submission (first match since ordered by created_at desc)
   const submissionMap = new Map<string, Submission>();
-  
-  // Fetch submissions for all students in parallel
-  const submissionPromises = students.map(async (student) => {
-    try {
-      const submission = await getSubmissionByStudentAndAssignment(
-        student.student_id,
-        assignmentId
-      );
-      if (submission) {
-        submissionMap.set(student.student_id, submission);
-      }
-    } catch (error) {
-      console.error(`Error fetching submission for student ${student.student_id}:`, error);
+  for (const sub of (allSubmissions || []) as Submission[]) {
+    if (sub.student_id && !submissionMap.has(sub.student_id)) {
+      submissionMap.set(sub.student_id, sub);
     }
-  });
-
-  await Promise.all(submissionPromises);
+  }
 
   // Match students with submissions and determine status
   const result: StudentSubmissionStatus[] = students.map((student) => {

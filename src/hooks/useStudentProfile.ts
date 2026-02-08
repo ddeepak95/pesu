@@ -1,11 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useMemo } from "react";
 import { ProfileField } from "@/types/profileFields";
-import {
-  getProfileFieldsForClass,
-  getStudentProfile,
-} from "@/lib/queries/profileFields";
+import { useProfileFieldsForClass, useStudentProfileData } from "@/hooks/swr";
 
 interface UseStudentProfileResult {
   /** All profile fields configured for the class */
@@ -27,60 +24,50 @@ interface UseStudentProfileResult {
 /**
  * Hook that fetches and exposes student profile data for a class.
  * Provides fields, responses, computed display name, and completion status.
+ * Now powered by SWR for automatic caching and deduplication.
  */
 export function useStudentProfile(
   classDbId: string,
   studentId: string
 ): UseStudentProfileResult {
-  const [fields, setFields] = useState<ProfileField[]>([]);
-  const [responses, setResponses] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: fields = [],
+    error: fieldsError,
+    isLoading: fieldsLoading,
+    mutate: mutateFields,
+  } = useProfileFieldsForClass(classDbId || null);
 
-  const fetchProfile = useCallback(async () => {
-    if (!classDbId || !studentId) {
-      setLoading(false);
-      return;
-    }
+  const {
+    data: studentProfile,
+    error: profileError,
+    isLoading: profileLoading,
+    mutate: mutateProfile,
+  } = useStudentProfileData(classDbId || null, studentId || null);
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const [profileFields, studentProfile] = await Promise.all([
-        getProfileFieldsForClass(classDbId),
-        getStudentProfile(classDbId, studentId),
-      ]);
-
-      setFields(profileFields);
-      setResponses(studentProfile?.field_responses ?? {});
-    } catch (err) {
-      console.error("Error fetching student profile:", err);
-      setError("Failed to load profile data");
-    } finally {
-      setLoading(false);
-    }
-  }, [classDbId, studentId]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  const responses = studentProfile?.field_responses ?? {};
+  const loading = fieldsLoading || profileLoading;
+  const error = fieldsError?.message || profileError?.message || null;
 
   // Compute display name from the field marked as is_display_name
-  const displayNameField = fields.find((f) => f.is_display_name);
-  const displayName = displayNameField
-    ? responses[displayNameField.id] || null
-    : null;
+  const displayName = useMemo(() => {
+    const displayNameField = fields.find((f) => f.is_display_name);
+    return displayNameField ? responses[displayNameField.id] || null : null;
+  }, [fields, responses]);
 
   // Check if all mandatory fields have non-empty responses
-  const hasCompletedRequired =
-    fields.length === 0 ||
-    fields
+  const hasCompletedRequired = useMemo(() => {
+    if (fields.length === 0) return true;
+    return fields
       .filter((f) => f.is_mandatory)
       .every((f) => {
         const response = responses[f.id];
         return response && response.trim() !== "";
       });
+  }, [fields, responses]);
+
+  const refetch = async () => {
+    await Promise.all([mutateFields(), mutateProfile()]);
+  };
 
   return {
     fields,
@@ -89,6 +76,6 @@ export function useStudentProfile(
     hasCompletedRequired,
     loading,
     error,
-    refetch: fetchProfile,
+    refetch,
   };
 }

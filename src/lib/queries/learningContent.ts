@@ -20,7 +20,7 @@ export async function getLearningContentsByIds(ids: string[]): Promise<LearningC
 
   const { data, error } = await supabase
     .from("learning_contents")
-    .select("*")
+    .select("id, learning_content_id, title, status")
     .in("id", ids)
     .in("status", ["active", "draft"]);
 
@@ -38,7 +38,7 @@ export async function getLearningContentsByIdsForStudent(ids: string[]): Promise
 
   const { data, error } = await supabase
     .from("learning_contents")
-    .select("*")
+    .select("id, learning_content_id, title, status")
     .in("id", ids)
     .eq("status", "active");
 

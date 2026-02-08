@@ -5,18 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
 import {
-  getContentItemsByGroup,
   updateContentItemPositions,
   softDeleteContentItem,
   updateContentItem,
+  getContentItemsByGroup,
 } from "@/lib/queries/contentItems";
-import { getAssignmentsByIdsForTeacher } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
-import { getLearningContentsByIds } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
-import { getQuizzesByIds } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
-import { getSurveysByIds } from "@/lib/queries/surveys";
 import { Survey } from "@/types/survey";
 import List from "@/components/ui/List";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,13 +23,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
 import { CheckSquare, X, Copy, MoreVertical, Trash2 } from "lucide-react";
 import DuplicateContentDialog from "@/components/Teacher/Classes/DuplicateContentDialog";
 import BulkDuplicateContentDialog from "@/components/Teacher/Classes/BulkDuplicateContentDialog";
 import CreateContentMenu from "@/components/Teacher/Classes/ContentParts/CreateContentMenu";
 import ContentCard from "@/components/Teacher/Classes/ContentParts/ContentCard";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
+import {
+  useClassGroups,
+  useContentItemsByGroup,
+  useAssignmentsByIdsForTeacher,
+  useLearningContentsByIds,
+  useQuizzesByIds,
+  useSurveysByIds,
+} from "@/hooks/swr";
 
 interface ContentProps {
   classData: Class;
@@ -42,22 +45,15 @@ interface ContentProps {
 export default function Content({ classData }: ContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [groups, setGroups] = useState<ClassGroup[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  // Initialize from URL so we don't flash empty content when navigating back
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
+    () => searchParams.get("groupId")
+  );
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicateItem, setDuplicateItem] = useState<ContentItem | null>(null);
-  const [items, setItems] = useState<ContentItem[]>([]);
-  const [assignmentById, setAssignmentById] = useState<
-    Record<string, Assignment>
-  >({});
-  const [learningContentById, setLearningContentById] = useState<
-    Record<string, LearningContent>
-  >({});
-  const [quizById, setQuizById] = useState<Record<string, Quiz>>({});
-  const [surveyById, setSurveyById] = useState<Record<string, Survey>>({});
-  const [loading, setLoading] = useState(true);
+  // Local items state for optimistic updates (reordering, deleting)
+  const [localItems, setLocalItems] = useState<ContentItem[] | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
@@ -67,6 +63,94 @@ export default function Content({ classData }: ContentProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"duplicate" | "delete" | null>(null);
   const [bulkDuplicateOpen, setBulkDuplicateOpen] = useState(false);
+
+  // --- SWR hooks ---
+  const { data: groups = [], error: groupsError, isLoading: groupsLoading } = useClassGroups(classData.id);
+
+  // Validate selectedGroupId once groups load — correct if invalid
+  useEffect(() => {
+    if (groups.length === 0) return;
+    const currentIsValid = selectedGroupId
+      ? groups.some((g) => g.id === selectedGroupId)
+      : false;
+    if (!currentIsValid) {
+      const fallbackId = groups[0]?.id ?? null;
+      if (fallbackId) {
+        setSelectedGroupId(fallbackId);
+        setGroupIdInUrl(fallbackId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups]);
+
+  const {
+    data: swrItems,
+    error: itemsError,
+    isLoading: itemsLoading,
+    mutate: mutateItems,
+  } = useContentItemsByGroup(classData.id, selectedGroupId);
+
+  // Use localItems for optimistic UI, fall back to SWR data
+  const items = localItems ?? swrItems ?? [];
+
+  // Sync localItems when SWR data changes (unless we're in the middle of an optimistic update)
+  useEffect(() => {
+    if (swrItems && !savingOrder) {
+      setLocalItems(null);
+    }
+  }, [swrItems, savingOrder]);
+
+  // Derive IDs for hydration queries
+  const formativeAssignmentIds = useMemo(
+    () => items.filter((i) => i.type === "formative_assignment").map((i) => i.ref_id),
+    [items]
+  );
+  const learningContentIds = useMemo(
+    () => items.filter((i) => i.type === "learning_content").map((i) => i.ref_id),
+    [items]
+  );
+  const quizIds = useMemo(
+    () => items.filter((i) => i.type === "quiz").map((i) => i.ref_id),
+    [items]
+  );
+  const surveyIds = useMemo(
+    () => items.filter((i) => i.type === "survey").map((i) => i.ref_id),
+    [items]
+  );
+
+  // Hydrate related entities via SWR
+  const { data: assignmentsData } = useAssignmentsByIdsForTeacher(formativeAssignmentIds);
+  const { data: learningContentsData } = useLearningContentsByIds(learningContentIds);
+  const { data: quizzesData } = useQuizzesByIds(quizIds);
+  const { data: surveysData } = useSurveysByIds(surveyIds);
+
+  // Build lookup maps
+  const assignmentById = useMemo(() => {
+    const map: Record<string, Assignment> = {};
+    for (const a of assignmentsData || []) map[a.id] = a;
+    return map;
+  }, [assignmentsData]);
+
+  const learningContentById = useMemo(() => {
+    const map: Record<string, LearningContent> = {};
+    for (const lc of learningContentsData || []) map[lc.id] = lc;
+    return map;
+  }, [learningContentsData]);
+
+  const quizById = useMemo(() => {
+    const map: Record<string, Quiz> = {};
+    for (const q of quizzesData || []) map[q.id] = q;
+    return map;
+  }, [quizzesData]);
+
+  const surveyById = useMemo(() => {
+    const map: Record<string, Survey> = {};
+    for (const s of surveysData || []) map[s.id] = s;
+    return map;
+  }, [surveysData]);
+
+  const loading = groupsLoading || itemsLoading;
+  const error = groupsError?.message || itemsError?.message || null;
 
   const selectedItems = useMemo(
     () => items.filter((i) => selectedIds.has(i.id)),
@@ -92,7 +176,6 @@ export default function Content({ classData }: ContentProps) {
   }, []);
 
   const setGroupIdInUrl = (groupId: string) => {
-    // Maintain param order: tab first, then groupId, then everything else.
     const current = new URLSearchParams(searchParams.toString());
     current.delete("tab");
     current.delete("groupId");
@@ -108,193 +191,6 @@ export default function Content({ classData }: ContentProps) {
     router.replace(`?${ordered.toString()}`);
   };
 
-  const formativeAssignmentIds = useMemo(
-    () =>
-      items
-        .filter((i) => i.type === "formative_assignment")
-        .map((i) => i.ref_id),
-    [items]
-  );
-
-  const learningContentIds = useMemo(
-    () =>
-      items.filter((i) => i.type === "learning_content").map((i) => i.ref_id),
-    [items]
-  );
-
-  const quizIds = useMemo(
-    () => items.filter((i) => i.type === "quiz").map((i) => i.ref_id),
-    [items]
-  );
-
-  const surveyIds = useMemo(
-    () => items.filter((i) => i.type === "survey").map((i) => i.ref_id),
-    [items]
-  );
-
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const classGroups = await getClassGroups(classData.id);
-        setGroups(classGroups);
-        const fromUrl = searchParams.get("groupId");
-        const isValidFromUrl = fromUrl
-          ? classGroups.some((g) => g.id === fromUrl)
-          : false;
-        const initialGroupId = isValidFromUrl
-          ? fromUrl
-          : classGroups[0]?.id ?? null;
-        setSelectedGroupId(initialGroupId);
-        if (initialGroupId) {
-          setGroupIdInUrl(initialGroupId);
-        }
-      } catch (err: unknown) {
-        // If migrations haven't been applied yet, avoid hard-breaking the page.
-        const code =
-          typeof err === "object" && err !== null
-            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (err as any).code || (err as any).cause?.code
-            : undefined;
-        if (code === "42P01") {
-          setError(
-            "Content/groups tables are not installed yet. Run the Supabase migrations to enable groups + the Content feed."
-          );
-          setItems([]);
-          setGroups([]);
-        } else {
-          console.error("Error fetching content items:", err);
-          setError("Failed to load content. Please try again.");
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classData.id]);
-
-  useEffect(() => {
-    const fetchItems = async () => {
-      if (!selectedGroupId) {
-        setItems([]);
-        return;
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        const contentItems = await getContentItemsByGroup({
-          classDbId: classData.id,
-          classGroupId: selectedGroupId,
-        });
-        setItems(contentItems);
-      } catch (err: unknown) {
-        const code =
-          typeof err === "object" && err !== null
-            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (err as any).code || (err as any).cause?.code
-            : undefined;
-        if (code === "42703") {
-          setError(
-            "Group-scoped content is not installed yet. Run the Supabase group-scoped content migration."
-          );
-        } else {
-          console.error("Error fetching group content items:", err);
-          setError("Failed to load content. Please try again.");
-        }
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchItems();
-  }, [classData.id, selectedGroupId]);
-
-  useEffect(() => {
-    const hydrateAssignments = async () => {
-      try {
-        const data = await getAssignmentsByIdsForTeacher(
-          formativeAssignmentIds
-        );
-        setAssignmentById((prev) => {
-          const next = { ...prev };
-          for (const a of data) next[a.id] = a;
-          return next;
-        });
-      } catch (err) {
-        console.error("Error hydrating assignments for content feed:", err);
-      }
-    };
-
-    if (formativeAssignmentIds.length > 0) {
-      hydrateAssignments();
-    }
-  }, [formativeAssignmentIds]);
-
-  useEffect(() => {
-    const hydrateLearningContent = async () => {
-      try {
-        const data = await getLearningContentsByIds(learningContentIds);
-        setLearningContentById((prev) => {
-          const next = { ...prev };
-          for (const lc of data) next[lc.id] = lc;
-          return next;
-        });
-      } catch (err) {
-        console.error(
-          "Error hydrating learning content for content feed:",
-          err
-        );
-      }
-    };
-
-    if (learningContentIds.length > 0) {
-      hydrateLearningContent();
-    }
-  }, [learningContentIds]);
-
-  useEffect(() => {
-    const hydrateQuizzes = async () => {
-      try {
-        const data = await getQuizzesByIds(quizIds);
-        setQuizById((prev) => {
-          const next = { ...prev };
-          for (const q of data) next[q.id] = q;
-          return next;
-        });
-      } catch (err) {
-        console.error("Error hydrating quizzes for content feed:", err);
-      }
-    };
-
-    if (quizIds.length > 0) {
-      hydrateQuizzes();
-    }
-  }, [quizIds]);
-
-  useEffect(() => {
-    const hydrateSurveys = async () => {
-      try {
-        const data = await getSurveysByIds(surveyIds);
-        setSurveyById((prev) => {
-          const next = { ...prev };
-          for (const s of data) next[s.id] = s;
-          return next;
-        });
-      } catch (err) {
-        console.error("Error hydrating surveys for content feed:", err);
-      }
-    };
-
-    if (surveyIds.length > 0) {
-      hydrateSurveys();
-    }
-  }, [surveyIds]);
-
   const handleMove = async (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= items.length) return;
@@ -303,36 +199,28 @@ export default function Content({ classData }: ContentProps) {
     const target = items[targetIndex];
     if (!current || !target) return;
 
-    // Swap the *stored* position values. Writing array indices can create duplicate positions
-    // and cause unstable sorting on refresh.
     const positions = [
       { id: current.id, position: target.position },
       { id: target.id, position: current.position },
     ];
 
-    // Optimistic update: swap in UI + swap their position values
+    // Optimistic update
     const next = [...items];
     next[index] = { ...target, position: current.position };
     next[targetIndex] = { ...current, position: target.position };
-    setItems(next);
+    setLocalItems(next);
     setSavingOrder(true);
     try {
       await updateContentItemPositions(positions);
+      mutateItems();
     } catch (err) {
       console.error("Error updating content item positions:", err);
       alert("Failed to update order. Please try again.");
-      // best-effort refetch on failure
-      try {
-        if (selectedGroupId) {
-          const fresh = await getContentItemsByGroup({
-            classDbId: classData.id,
-            classGroupId: selectedGroupId,
-          });
-          setItems(fresh);
-        }
-      } catch {}
+      // Refetch on failure
+      mutateItems();
     } finally {
       setSavingOrder(false);
+      setLocalItems(null);
     }
   };
 
@@ -435,8 +323,9 @@ export default function Content({ classData }: ContentProps) {
 
     try {
       await softDeleteContentItem(item.id);
-      // Optimistically remove from UI
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      // Optimistically remove from UI then revalidate
+      setLocalItems((prev) => (prev ?? items).filter((i) => i.id !== item.id));
+      mutateItems();
     } catch (err) {
       console.error("Error deleting content item:", err);
       alert("Failed to delete item. Please try again.");
@@ -454,8 +343,9 @@ export default function Content({ classData }: ContentProps) {
       await Promise.all(
         Array.from(selectedIds).map((id) => softDeleteContentItem(id))
       );
-      setItems((prev) => prev.filter((i) => !selectedIds.has(i.id)));
+      setLocalItems((prev) => (prev ?? items).filter((i) => !selectedIds.has(i.id)));
       exitSelectionMode();
+      mutateItems();
     } catch (err) {
       console.error("Error bulk deleting content items:", err);
       alert("Failed to delete some items. Please try again.");
@@ -480,14 +370,15 @@ export default function Content({ classData }: ContentProps) {
       await updateContentItem(itemId, {
         lock_after_complete: lockAfterComplete,
       });
-      // Update local state
-      setItems((prev) =>
-        prev.map((item) =>
+      // Optimistic update
+      setLocalItems((prev) =>
+        (prev ?? items).map((item) =>
           item.id === itemId
             ? { ...item, lock_after_complete: lockAfterComplete }
             : item
         )
       );
+      mutateItems();
     } catch (err) {
       console.error("Error updating lock_after_complete:", err);
       alert("Failed to update lock setting. Please try again.");
@@ -666,14 +557,7 @@ export default function Content({ classData }: ContentProps) {
         onOpenChange={setDuplicateOpen}
         item={duplicateItem}
         onDuplicated={async () => {
-          if (!selectedGroupId) return;
-          try {
-            const fresh = await getContentItemsByGroup({
-              classDbId: classData.id,
-              classGroupId: selectedGroupId,
-            });
-            setItems(fresh);
-          } catch {}
+          mutateItems();
         }}
       />
 

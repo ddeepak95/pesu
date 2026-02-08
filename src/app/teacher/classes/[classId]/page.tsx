@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useMemo, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
@@ -9,9 +9,8 @@ import Students from "@/components/Teacher/Classes/Students";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { getClassByClassId } from "@/lib/queries/classes";
-import { Class } from "@/types/class";
 import { Settings } from "lucide-react";
+import { useClassData } from "@/hooks/swr";
 
 export default function ClassDetailPage() {
   const params = useParams();
@@ -19,9 +18,8 @@ export default function ClassDetailPage() {
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const classId = params.classId as string;
-  const [classData, setClassData] = useState<Class | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const { data: classData, error: classError, isLoading: classLoading } = useClassData(classId);
 
   const activeTab = useMemo(() => {
     const t = searchParams.get("tab");
@@ -32,7 +30,6 @@ export default function ClassDetailPage() {
     nextTab: "content" | "students",
     nextGroupId?: string | null
   ) => {
-    // Maintain param order: tab first, then groupId, then everything else.
     const current = new URLSearchParams(searchParams.toString());
     current.delete("tab");
     current.delete("groupId");
@@ -50,7 +47,7 @@ export default function ClassDetailPage() {
     router.replace(`?${ordered.toString()}`);
   };
 
-  // Ensure tab exists (and comes first). If URL has only groupId, normalize to tab=content&groupId=...
+  // Ensure tab exists in URL
   useEffect(() => {
     const t = searchParams.get("tab");
     if (t === "content" || t === "students") return;
@@ -58,32 +55,7 @@ export default function ClassDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const fetchClass = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await getClassByClassId(classId);
-      if (!data) {
-        setError("Class not found");
-      } else {
-        setClassData(data);
-      }
-    } catch (err) {
-      console.error("Error fetching class:", err);
-      setError("Failed to load class details");
-    } finally {
-      setLoading(false);
-    }
-  }, [classId]);
-
-  useEffect(() => {
-    if (classId) {
-      fetchClass();
-    }
-  }, [classId, fetchClass]);
-
-  // Show loading while checking auth (middleware handles redirect if not authenticated)
+  // Show loading while checking auth
   if (authLoading || !user) {
     return (
       <PageLayout>
@@ -94,7 +66,7 @@ export default function ClassDetailPage() {
     );
   }
 
-  if (loading) {
+  if (classLoading) {
     return (
       <PageLayout>
         <div className="text-center">
@@ -104,11 +76,13 @@ export default function ClassDetailPage() {
     );
   }
 
-  if (error || !classData) {
+  if (classError || !classData) {
     return (
       <PageLayout>
         <div className="text-center">
-          <p className="text-destructive">{error || "Class not found"}</p>
+          <p className="text-destructive">
+            {classError?.message || "Class not found"}
+          </p>
         </div>
       </PageLayout>
     );
@@ -139,7 +113,6 @@ export default function ClassDetailPage() {
             value={activeTab}
             onValueChange={(v) => {
               const nextTab = v === "students" ? "students" : "content";
-              // Students tab should not carry groupId.
               replaceQuery(
                 nextTab,
                 nextTab === "content" ? searchParams.get("groupId") : null

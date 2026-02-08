@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { getCachedUser } from "@/lib/auth-cache";
 import { nanoid } from "nanoid";
 import { MCQQuestion, Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types/quiz";
 import { getClassStudentsWithInfo, StudentWithInfo } from "@/lib/queries/students";
@@ -14,7 +15,7 @@ export async function getQuizzesByIds(ids: string[]): Promise<Quiz[]> {
 
   const { data, error } = await supabase
     .from("quizzes")
-    .select("*")
+    .select("id, quiz_id, title, status")
     .in("id", ids)
     .in("status", ["active", "draft"]);
 
@@ -32,7 +33,7 @@ export async function getQuizzesByIdsForStudent(ids: string[]): Promise<Quiz[]> 
 
   const { data, error } = await supabase
     .from("quizzes")
-    .select("*")
+    .select("id, quiz_id, title, status")
     .in("id", ids)
     .eq("status", "active");
 
@@ -185,9 +186,7 @@ export async function getQuizSubmissionForStudent(
   quizId: string
 ): Promise<QuizSubmission | null> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) {
     return null;
@@ -214,9 +213,7 @@ export async function createQuizSubmission(payload: {
   answers: QuizSubmissionAnswer[];
 }): Promise<QuizSubmission> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) {
     throw new Error("User not authenticated");

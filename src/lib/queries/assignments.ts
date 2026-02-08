@@ -116,7 +116,7 @@ export async function getAssignmentsByIds(ids: string[]): Promise<Assignment[]> 
 
   const { data, error } = await supabase
     .from("assignments")
-    .select("*")
+    .select("id, assignment_id, class_id, title, status, preferred_language, is_public, assessment_mode")
     .in("id", ids)
     .eq("status", "active");
 
@@ -124,7 +124,7 @@ export async function getAssignmentsByIds(ids: string[]): Promise<Assignment[]> 
     throw error;
   }
 
-  return data || [];
+  return (data || []) as Assignment[];
 }
 
 /**
@@ -137,12 +137,12 @@ export async function getAssignmentsByIdsForTeacher(ids: string[]): Promise<Assi
 
   const { data, error } = await supabase
     .from("assignments")
-    .select("*")
+    .select("id, assignment_id, class_id, title, status, preferred_language, is_public, assessment_mode")
     .in("id", ids)
     .in("status", ["active", "draft"]);
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as Assignment[];
 }
 
 /**

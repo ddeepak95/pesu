@@ -12,7 +12,7 @@ export async function getSurveysByIds(ids: string[]): Promise<Survey[]> {
 
   const { data, error } = await supabase
     .from("surveys")
-    .select("*")
+    .select("id, survey_id, title, status")
     .in("id", ids)
     .in("status", ["active", "draft"]);
 
@@ -30,7 +30,7 @@ export async function getSurveysByIdsForStudent(ids: string[]): Promise<Survey[]
 
   const { data, error } = await supabase
     .from("surveys")
-    .select("*")
+    .select("id, survey_id, title, status")
     .in("id", ids)
     .eq("status", "active");
 

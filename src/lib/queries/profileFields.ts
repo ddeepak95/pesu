@@ -15,7 +15,7 @@ export async function getProfileFieldsForClass(
 
   const { data, error } = await supabase
     .from("class_mandatory_fields")
-    .select("*")
+    .select("id, class_id, field_name, field_type, options, position, is_mandatory, is_display_name, created_at")
     .eq("class_id", classDbId)
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
@@ -122,7 +122,7 @@ export async function getStudentProfile(
 
   const { data, error } = await supabase
     .from("student_class_info")
-    .select("*")
+    .select("id, class_id, student_id, field_responses, created_at, updated_at")
     .eq("class_id", classDbId)
     .eq("student_id", studentId)
     .single();
@@ -176,7 +176,7 @@ export async function getAllStudentProfiles(
 
   const { data, error } = await supabase
     .from("student_class_info")
-    .select("*")
+    .select("id, class_id, student_id, field_responses, created_at, updated_at")
     .eq("class_id", classDbId);
 
   if (error) throw error;

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { User, AuthError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
+import { clearUserCache } from "@/lib/auth-cache";
 import { useRouter } from "next/navigation";
 import { getBaseURL } from "@/lib/get-url";
 
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    clearUserCache();
     await supabase.auth.signOut();
     // Determine redirect based on current path
     if (typeof window !== "undefined") {

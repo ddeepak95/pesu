@@ -14,7 +14,7 @@ export async function getClassGroups(classDbId: string): Promise<ClassGroup[]> {
 
   const { data, error } = await supabase
     .from("class_groups")
-    .select("*")
+    .select("id, class_id, group_index, name, created_at, updated_at")
     .eq("class_id", classDbId)
     .order("group_index", { ascending: true });
 
