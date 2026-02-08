@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { 
   StudentSubmissionStatus,
-  PublicSubmissionStatus 
+  PublicSubmissionStatus,
+  getSubmissionById,
 } from "@/lib/queries/submissions";
 import { Submission, QuestionEvaluations, SubmissionAttempt } from "@/types/submission";
 import { Assignment } from "@/types/assignment";
@@ -31,36 +32,40 @@ export default function SubmissionViewDialog({
   studentSubmission,
 }: SubmissionViewDialogProps) {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [fullSubmission, setFullSubmission] = useState<Submission | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transcriptDialogOpen, setTranscriptDialogOpen] = useState(false);
   const [selectedAttempt, setSelectedAttempt] = useState<SubmissionAttempt | null>(null);
   const [selectedQuestionOrder, setSelectedQuestionOrder] = useState<number | null>(null);
 
-  // Get submission from either type
+  // Get submission from either type (list view -- may not include evaluations JSONB)
   const submission = 'student' in studentSubmission 
     ? studentSubmission.submission 
     : studentSubmission.submission;
 
   useEffect(() => {
     if (open && submission) {
-      const fetchAssignment = async () => {
+      const fetchData = async () => {
         setLoading(true);
         setError(null);
         try {
-          const data = await getAssignmentByIdForTeacher(
-            submission.assignment_id
-          );
-          setAssignment(data);
+          // Fetch assignment and full submission (with evaluations JSONB) in parallel
+          const [assignmentData, submissionData] = await Promise.all([
+            getAssignmentByIdForTeacher(submission.assignment_id),
+            getSubmissionById(submission.submission_id),
+          ]);
+          setAssignment(assignmentData);
+          setFullSubmission(submissionData);
         } catch (err) {
-          console.error("Error fetching assignment:", err);
-          setError("Failed to load assignment details");
+          console.error("Error fetching submission details:", err);
+          setError("Failed to load submission details");
         } finally {
           setLoading(false);
         }
       };
 
-      fetchAssignment();
+      fetchData();
     }
   }, [open, submission]);
 
@@ -86,7 +91,8 @@ export default function SubmissionViewDialog({
   if (!submission) {
     return null;
   }
-  const evaluations = getSubmissionEvaluations(submission);
+  // Use the full submission (fetched with evaluations JSONB) for displaying attempts
+  const evaluations = fullSubmission ? getSubmissionEvaluations(fullSubmission) : {};
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
