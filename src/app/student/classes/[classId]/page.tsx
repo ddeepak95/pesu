@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
 import Content from "@/components/Student/Classes/Content";
 import ProfileDetailsDialog from "@/components/Student/Classes/ProfileDetailsDialog";
 import { Button } from "@/components/ui/button";
@@ -120,7 +119,9 @@ export default function ClassDetailPage() {
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <Button variant="link" asChild className="p-0">
+              <Link href="/student/classes">&larr; All Classes</Link>
+            </Button>
           </div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">{classData.name}</h1>
