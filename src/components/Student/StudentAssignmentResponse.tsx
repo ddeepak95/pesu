@@ -6,12 +6,12 @@ import {
   getSubmissionById,
   getSubmissionByStudentAndAssignment,
   getMaxAttemptCountAcrossQuestions,
+  getTranscriptsForSubmission,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
 import {
   SubmissionAnswer,
-  SubmissionAttempt,
-  QuestionAnswers,
+  QuestionEvaluations,
 } from "@/types/submission";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import {
@@ -137,53 +137,16 @@ export default function StudentAssignmentResponse({
           onDisplayNameChange(name);
         }
 
-        // Reconstruct answers from submission data
+        // Reconstruct answers from transcripts table
         const reconstructedAnswers: { [key: number]: string } = {};
-        const submissionAnswers = submission.answers as
-          | SubmissionAnswer[]
-          | { [key: number]: QuestionAnswers };
+        const transcripts = await getTranscriptsForSubmission(submission.submission_id);
 
-        if (Array.isArray(submissionAnswers)) {
-          submissionAnswers.forEach((answer) => {
-            reconstructedAnswers[answer.question_order] = answer.answer_text;
-          });
-        } else if (submissionAnswers && typeof submissionAnswers === "object") {
-          Object.entries(submissionAnswers).forEach(
-            ([questionOrderKey, questionValue]) => {
-              const questionOrder = Number(questionOrderKey);
-              if (Number.isNaN(questionOrder)) return;
-
-              const questionAnswers = questionValue as QuestionAnswers;
-              if (!questionAnswers.attempts?.length) return;
-
-              // Filter out stale attempts
-              const nonStaleAttempts = questionAnswers.attempts.filter(
-                (attempt) => !attempt.stale
-              );
-
-              if (!nonStaleAttempts.length) return;
-
-              let selectedAttempt: SubmissionAttempt | undefined;
-
-              if (questionAnswers.selected_attempt) {
-                // First try to find selected attempt in non-stale attempts
-                selectedAttempt = nonStaleAttempts.find(
-                  (attempt) =>
-                    attempt.attempt_number === questionAnswers.selected_attempt
-                );
-              }
-
-              if (!selectedAttempt) {
-                // Use the latest non-stale attempt
-                selectedAttempt = nonStaleAttempts[nonStaleAttempts.length - 1];
-              }
-
-              if (selectedAttempt) {
-                reconstructedAnswers[questionOrder] =
-                  selectedAttempt.answer_text || "";
-              }
-            }
-          );
+        // Build a map of question_order -> latest transcript text
+        for (const t of transcripts) {
+          // Keep the highest attempt_number per question (latest)
+          if (!reconstructedAnswers[t.question_order] || t.attempt_number > 0) {
+            reconstructedAnswers[t.question_order] = t.answer_text;
+          }
         }
         setExistingAnswers(reconstructedAnswers);
 
@@ -287,7 +250,7 @@ export default function StudentAssignmentResponse({
     preferred_language: string;
     responder_details?: Record<string, string>;
     student_name?: string;
-    answers?: { [key: number]: QuestionAnswers } | SubmissionAnswer[];
+    evaluations?: { [key: number]: QuestionEvaluations } | SubmissionAnswer[];
   }) => {
     setSubmissionId(submission.submission_id);
     const name = getDisplayName(submission);
@@ -304,53 +267,15 @@ export default function StudentAssignmentResponse({
     // Set to 1 if no attempts yet, otherwise attemptCount + 1 for next attempt
     setCurrentAttemptNumber(attemptCount === 0 ? 1 : attemptCount + 1);
 
-    // Reconstruct answers from submission data
+    // Reconstruct answers from transcripts table
     const reconstructedAnswers: { [key: number]: string } = {};
-    const submissionAnswers = submission.answers as
-      | SubmissionAnswer[]
-      | { [key: number]: QuestionAnswers };
+    const transcripts = await getTranscriptsForSubmission(submission.submission_id);
 
-    if (Array.isArray(submissionAnswers)) {
-      submissionAnswers.forEach((answer) => {
-        reconstructedAnswers[answer.question_order] = answer.answer_text;
-      });
-    } else if (submissionAnswers && typeof submissionAnswers === "object") {
-      Object.entries(submissionAnswers).forEach(
-        ([questionOrderKey, questionValue]) => {
-          const questionOrder = Number(questionOrderKey);
-          if (Number.isNaN(questionOrder)) return;
-
-          const questionAnswers = questionValue as QuestionAnswers;
-          if (!questionAnswers.attempts?.length) return;
-
-          // Filter out stale attempts
-          const nonStaleAttempts = questionAnswers.attempts.filter(
-            (attempt) => !attempt.stale
-          );
-
-          if (!nonStaleAttempts.length) return;
-
-          let selectedAttempt: SubmissionAttempt | undefined;
-
-          if (questionAnswers.selected_attempt) {
-            // First try to find selected attempt in non-stale attempts
-            selectedAttempt = nonStaleAttempts.find(
-              (attempt) =>
-                attempt.attempt_number === questionAnswers.selected_attempt
-            );
-          }
-
-          if (!selectedAttempt) {
-            // Use the latest non-stale attempt
-            selectedAttempt = nonStaleAttempts[nonStaleAttempts.length - 1];
-          }
-
-          if (selectedAttempt) {
-            reconstructedAnswers[questionOrder] =
-              selectedAttempt.answer_text || "";
-          }
-        }
-      );
+    // Build a map of question_order -> latest transcript text
+    for (const t of transcripts) {
+      if (!reconstructedAnswers[t.question_order] || t.attempt_number > 0) {
+        reconstructedAnswers[t.question_order] = t.answer_text;
+      }
     }
     setExistingAnswers(reconstructedAnswers);
 

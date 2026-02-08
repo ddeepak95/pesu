@@ -13,13 +13,9 @@ import {
   createSubmission,
   getSubmissionById,
   getMaxAttemptCountAcrossQuestions,
+  getTranscriptsForSubmission,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
-import {
-  SubmissionAnswer,
-  SubmissionAttempt,
-  QuestionAnswers,
-} from "@/types/submission";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import ResponderDetailsForm from "./ResponderDetailsForm";
@@ -167,45 +163,15 @@ const PublicAssignmentResponse = forwardRef<
         setMaxAttemptsReached(true);
       }
 
-      // Reconstruct answers from submission data (supports both formats)
+      // Reconstruct answers from transcripts table
       const reconstructedAnswers: { [key: number]: string } = {};
-      const submissionAnswers = submission.answers as
-        | SubmissionAnswer[]
-        | { [key: number]: QuestionAnswers };
+      const transcripts = await getTranscriptsForSubmission(submission.submission_id);
 
-      if (Array.isArray(submissionAnswers)) {
-        submissionAnswers.forEach((answer) => {
-          reconstructedAnswers[answer.question_order] = answer.answer_text;
-        });
-      } else if (submissionAnswers && typeof submissionAnswers === "object") {
-        Object.entries(submissionAnswers).forEach(
-          ([questionOrderKey, questionValue]) => {
-            const questionOrder = Number(questionOrderKey);
-            if (Number.isNaN(questionOrder)) return;
-
-            const questionAnswers = questionValue as QuestionAnswers;
-            if (!questionAnswers.attempts?.length) return;
-
-            let selectedAttempt: SubmissionAttempt | undefined;
-
-            if (questionAnswers.selected_attempt) {
-              selectedAttempt = questionAnswers.attempts.find(
-                (attempt) =>
-                  attempt.attempt_number === questionAnswers.selected_attempt
-              );
-            }
-
-            if (!selectedAttempt) {
-              selectedAttempt =
-                questionAnswers.attempts[questionAnswers.attempts.length - 1];
-            }
-
-            if (selectedAttempt) {
-              reconstructedAnswers[questionOrder] =
-                selectedAttempt.answer_text || "";
-            }
-          }
-        );
+      // Build a map of question_order -> latest transcript text
+      for (const t of transcripts) {
+        if (!reconstructedAnswers[t.question_order] || t.attempt_number > 0) {
+          reconstructedAnswers[t.question_order] = t.answer_text;
+        }
       }
       setExistingAnswers(reconstructedAnswers);
 

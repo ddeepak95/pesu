@@ -34,9 +34,11 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
   // Avoid relying on join/or syntax across embedded relationships.
   // Fetch owned classes + co-taught classes via class_teachers, then merge.
 
+  const CLASS_COLUMNS = "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy";
+
   const ownedQuery = supabase
     .from("classes")
-    .select("*")
+    .select(CLASS_COLUMNS)
     .eq("created_by", userId)
     .eq("status", "active");
 
@@ -65,7 +67,7 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
     if (classDbIds.length > 0) {
       const { data: taught, error: taughtError } = await supabase
         .from("classes")
-        .select("*")
+        .select(CLASS_COLUMNS)
         .in("id", classDbIds)
         .eq("status", "active");
 
@@ -226,7 +228,7 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
 
   const { data, error } = await supabase
     .from("classes")
-    .select("*")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy")
     .eq("class_id", classId)
     .eq("status", "active")
     .single();
@@ -277,7 +279,7 @@ export async function getClassesByStudent(studentId: string): Promise<Class[]> {
   // Fetch the actual class data
   const { data: classes, error: classesError } = await supabase
     .from("classes")
-    .select("*")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy")
     .in("id", classDbIds)
     .eq("status", "active");
 

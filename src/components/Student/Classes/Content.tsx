@@ -4,21 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
-import { getContentItemsByGroup } from "@/lib/queries/contentItems";
-import { getAssignmentsByIds } from "@/lib/queries/assignments";
 import { Assignment } from "@/types/assignment";
-import { getLearningContentsByIdsForStudent } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
-import { getQuizzesByIdsForStudent } from "@/lib/queries/quizzes";
 import { Quiz } from "@/types/quiz";
-import { getSurveysByIdsForStudent } from "@/lib/queries/surveys";
 import { Survey } from "@/types/survey";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
-import { getStudentGroupForClass } from "@/lib/queries/groups";
-import { getCompletionsForStudent } from "@/lib/queries/contentCompletions";
 import ContentCard from "@/components/Student/Classes/ContentParts/ContentCard";
 import { calculateUnlockStates, UnlockState } from "@/lib/utils/unlockLogic";
+import {
+  useStudentGroupForClass,
+  useContentItemsByGroup,
+  useAssignmentsByIds,
+  useLearningContentsByIdsForStudent,
+  useQuizzesByIdsForStudent,
+  useSurveysByIdsForStudent,
+  useCompletionsForStudent,
+} from "@/hooks/swr";
 
 interface ContentProps {
   classData: Class;
@@ -27,231 +29,88 @@ interface ContentProps {
 export default function Content({ classData }: ContentProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const [studentGroupId, setStudentGroupId] = useState<string | null>(null);
-  const [items, setItems] = useState<ContentItem[]>([]);
-  const [assignmentById, setAssignmentById] = useState<
-    Record<string, Assignment>
-  >({});
-  const [learningContentById, setLearningContentById] = useState<
-    Record<string, LearningContent>
-  >({});
-  const [quizById, setQuizById] = useState<Record<string, Quiz>>({});
-  const [surveyById, setSurveyById] = useState<Record<string, Survey>>({});
-  const [completedContentIds, setCompletedContentIds] = useState<Set<string>>(
-    new Set()
-  );
-  const [unlockStates, setUnlockStates] = useState<Map<string, UnlockState>>(
-    new Map()
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
+  // --- SWR hooks ---
+  const { data: studentGroupId, error: groupError } = useStudentGroupForClass(
+    classData.id,
+    user?.id ?? null
+  );
+
+  const {
+    data: rawItems,
+    error: itemsError,
+    isLoading: itemsLoading,
+  } = useContentItemsByGroup(classData.id, studentGroupId ?? null);
+
+  // Only show active items to students
+  const items = useMemo(
+    () => (rawItems || []).filter((ci) => ci.status === "active"),
+    [rawItems]
+  );
+
+  // Derive IDs for hydration queries
   const formativeAssignmentIds = useMemo(
-    () =>
-      items
-        .filter((i) => i.type === "formative_assignment")
-        .map((i) => i.ref_id),
+    () => items.filter((i) => i.type === "formative_assignment").map((i) => i.ref_id),
     [items]
   );
-
   const learningContentIds = useMemo(
-    () =>
-      items.filter((i) => i.type === "learning_content").map((i) => i.ref_id),
+    () => items.filter((i) => i.type === "learning_content").map((i) => i.ref_id),
     [items]
   );
-
   const quizIds = useMemo(
     () => items.filter((i) => i.type === "quiz").map((i) => i.ref_id),
     [items]
   );
-
   const surveyIds = useMemo(
     () => items.filter((i) => i.type === "survey").map((i) => i.ref_id),
     [items]
   );
 
-  // Fetch student's group for this class
-  useEffect(() => {
-    const fetchGroup = async () => {
-      if (!user || !classData.id) return;
+  // Hydrate related entities via SWR
+  const { data: assignmentsData } = useAssignmentsByIds(formativeAssignmentIds);
+  const { data: learningContentsData } = useLearningContentsByIdsForStudent(learningContentIds);
+  const { data: quizzesData } = useQuizzesByIdsForStudent(quizIds);
+  const { data: surveysData } = useSurveysByIdsForStudent(surveyIds);
 
-      try {
-        const groupId = await getStudentGroupForClass(classData.id, user.id);
-        setStudentGroupId(groupId);
-      } catch (err) {
-        console.error("Error fetching student group:", err);
-        setError("Failed to load your group assignment.");
-      }
-    };
+  // Fetch completions
+  const contentItemIds = useMemo(() => items.map((item) => item.id), [items]);
+  const { data: completedContentIds = new Set<string>() } = useCompletionsForStudent(contentItemIds);
 
-    fetchGroup();
-  }, [user, classData.id]);
+  // Build lookup maps
+  const assignmentById = useMemo(() => {
+    const map: Record<string, Assignment> = {};
+    for (const a of assignmentsData || []) map[a.id] = a;
+    return map;
+  }, [assignmentsData]);
 
-  // Fetch content items for student's group
-  useEffect(() => {
-    const fetchItems = async () => {
-      if (!studentGroupId || !classData.id) {
-        console.log("Cannot fetch items - missing groupId or classId:", {
-          studentGroupId,
-          classId: classData.id,
-        });
-        setItems([]);
-        setLoading(false);
-        return;
-      }
+  const learningContentById = useMemo(() => {
+    const map: Record<string, LearningContent> = {};
+    for (const lc of learningContentsData || []) map[lc.id] = lc;
+    return map;
+  }, [learningContentsData]);
 
-      console.log("Fetching content items for group:", {
-        classDbId: classData.id,
-        classGroupId: studentGroupId,
-      });
+  const quizById = useMemo(() => {
+    const map: Record<string, Quiz> = {};
+    for (const q of quizzesData || []) map[q.id] = q;
+    return map;
+  }, [quizzesData]);
 
-      setLoading(true);
-      setError(null);
-      try {
-        const contentItems = await getContentItemsByGroup({
-          classDbId: classData.id,
-          classGroupId: studentGroupId,
-        });
-        console.log("Fetched content items:", contentItems);
-        // Defense in depth: only show active items to students
-        setItems(contentItems.filter((ci) => ci.status === "active"));
-      } catch (err: unknown) {
-        const code =
-          typeof err === "object" && err !== null
-            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (err as any).code || (err as any).cause?.code
-            : undefined;
-        if (code === "42703") {
-          setError(
-            "Group-scoped content is not installed yet. Run the Supabase group-scoped content migration."
-          );
-        } else {
-          console.error("Error fetching group content items:", err);
-          setError("Failed to load content. Please try again.");
-        }
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const surveyById = useMemo(() => {
+    const map: Record<string, Survey> = {};
+    for (const s of surveysData || []) map[s.id] = s;
+    return map;
+  }, [surveysData]);
 
-    fetchItems();
-  }, [classData.id, studentGroupId]);
-
-  useEffect(() => {
-    const hydrateAssignments = async () => {
-      try {
-        const data = await getAssignmentsByIds(
-          formativeAssignmentIds
-        );
-        setAssignmentById((prev) => {
-          const next = { ...prev };
-          for (const a of data) next[a.id] = a;
-          return next;
-        });
-      } catch (err) {
-        console.error("Error hydrating assignments for content feed:", err);
-      }
-    };
-
-    if (formativeAssignmentIds.length > 0) {
-      hydrateAssignments();
-    }
-  }, [formativeAssignmentIds]);
-
-  useEffect(() => {
-    const hydrateLearningContent = async () => {
-      try {
-        const data = await getLearningContentsByIdsForStudent(learningContentIds);
-        setLearningContentById((prev) => {
-          const next = { ...prev };
-          for (const lc of data) next[lc.id] = lc;
-          return next;
-        });
-      } catch (err) {
-        console.error(
-          "Error hydrating learning content for content feed:",
-          err
-        );
-      }
-    };
-
-    if (learningContentIds.length > 0) {
-      hydrateLearningContent();
-    }
-  }, [learningContentIds]);
-
-  useEffect(() => {
-    const hydrateQuizzes = async () => {
-      try {
-        const data = await getQuizzesByIdsForStudent(quizIds);
-        setQuizById((prev) => {
-          const next = { ...prev };
-          for (const q of data) next[q.id] = q;
-          return next;
-        });
-      } catch (err) {
-        console.error("Error hydrating quizzes for content feed:", err);
-      }
-    };
-
-    if (quizIds.length > 0) {
-      hydrateQuizzes();
-    }
-  }, [quizIds]);
-
-  useEffect(() => {
-    const hydrateSurveys = async () => {
-      try {
-        const data = await getSurveysByIdsForStudent(surveyIds);
-        setSurveyById((prev) => {
-          const next = { ...prev };
-          for (const s of data) next[s.id] = s;
-          return next;
-        });
-      } catch (err) {
-        console.error("Error hydrating surveys for content feed:", err);
-      }
-    };
-
-    if (surveyIds.length > 0) {
-      hydrateSurveys();
-    }
-  }, [surveyIds]);
-
-  // Fetch completions for all content items
-  useEffect(() => {
-    const fetchCompletions = async () => {
-      if (items.length === 0) return;
-
-      try {
-        const contentItemIds = items.map((item) => item.id);
-        const completions = await getCompletionsForStudent(contentItemIds);
-        setCompletedContentIds(completions);
-      } catch (err) {
-        console.error("Error fetching completions:", err);
-      }
-    };
-
-    fetchCompletions();
-  }, [items]);
-
-  // Calculate unlock states when items or completions change
-  useEffect(() => {
-    if (items.length === 0) {
-      setUnlockStates(new Map());
-      return;
-    }
-
-    const progressiveUnlockEnabled =
-      classData.enable_progressive_unlock ?? false;
-    const states = calculateUnlockStates(
-      items,
-      completedContentIds,
-      progressiveUnlockEnabled
-    );
-    setUnlockStates(states);
+  // Calculate unlock states
+  const unlockStates = useMemo(() => {
+    if (items.length === 0) return new Map<string, UnlockState>();
+    const progressiveUnlockEnabled = classData.enable_progressive_unlock ?? false;
+    return calculateUnlockStates(items, completedContentIds, progressiveUnlockEnabled);
   }, [items, completedContentIds, classData.enable_progressive_unlock]);
+
+  const loading = itemsLoading;
+  const error =
+    groupError?.message || itemsError?.message || null;
 
   const handleOpen = (item: ContentItem) => {
     if (item.type === "formative_assignment") {

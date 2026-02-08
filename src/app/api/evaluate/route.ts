@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createClient } from "@/lib/supabase";
-import { SubmissionAttempt, QuestionAnswers } from "@/types/submission";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { SubmissionAttempt, QuestionEvaluations } from "@/types/submission";
+import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 const openai = new OpenAI({
@@ -215,11 +216,11 @@ The users are students. All feedback must be age-appropriate, supportive, and re
       0
     );
 
-    // Get current submission to determine attempt number
-    const supabase = createClient();
+    // Get current submission to determine attempt number and submission_mode
+    const supabase = await createServerSupabaseClient();
     const { data: currentSubmission, error: fetchError } = await supabase
       .from("submissions")
-      .select("answers")
+      .select("evaluations, submission_mode, assignment_id")
       .eq("submission_id", submissionId)
       .single();
 
@@ -232,28 +233,28 @@ The users are students. All feedback must be age-appropriate, supportive, and re
     }
 
     // Determine attempt number and build new attempt
-    let answers = currentSubmission.answers as
-      | { [key: number]: QuestionAnswers }
+    let evaluations = currentSubmission.evaluations as
+      | { [key: number]: QuestionEvaluations }
       | Array<{ question_order: number; answer_text: string }>;
 
     // Convert old format to new format if needed
-    if (Array.isArray(answers)) {
-      const newAnswers: { [key: number]: QuestionAnswers } = {};
-      answers.forEach((answer) => {
-        newAnswers[answer.question_order] = {
+    if (Array.isArray(evaluations)) {
+      const newEvals: { [key: number]: QuestionEvaluations } = {};
+      evaluations.forEach((answer) => {
+        newEvals[answer.question_order] = {
           attempts: [],
           selected_attempt: undefined,
         };
       });
-      answers = newAnswers;
+      evaluations = newEvals;
     }
 
-    const questionAnswers = answers[questionOrder] || { attempts: [] };
-    const attemptNumber = (questionAnswers.attempts?.length || 0) + 1;
+    const questionEvals = evaluations[questionOrder] || { attempts: [] };
+    const attemptNumber = (questionEvals.attempts?.length || 0) + 1;
 
+    // Build attempt WITHOUT answer_text (transcripts are stored separately)
     const newAttempt: SubmissionAttempt = {
       attempt_number: attemptNumber,
-      answer_text: answerText,
       score: totalScore, // Calculated programmatically
       max_score: maxScore, // Calculated from rubric
       rubric_scores: validatedRubricScores, // Validated scores
@@ -261,24 +262,31 @@ The users are students. All feedback must be age-appropriate, supportive, and re
       timestamp: new Date().toISOString(),
     };
 
-    // Add new attempt to the question's attempts
-    questionAnswers.attempts = [...(questionAnswers.attempts || []), newAttempt];
+    // Add new attempt to the question's evaluations
+    questionEvals.attempts = [...(questionEvals.attempts || []), newAttempt];
 
     // Auto-select best attempt
-    if (!questionAnswers.selected_attempt) {
-      const bestAttempt = questionAnswers.attempts.reduce((best, current) =>
+    if (!questionEvals.selected_attempt) {
+      const bestAttempt = questionEvals.attempts.reduce((best, current) =>
         current.score > best.score ? current : best
       );
-      questionAnswers.selected_attempt = bestAttempt.attempt_number;
+      questionEvals.selected_attempt = bestAttempt.attempt_number;
     }
 
-    // Update submission in database
-    answers[questionOrder] = questionAnswers;
+    // Update evaluations object
+    evaluations[questionOrder] = questionEvals;
 
+    // Compute denormalized fields from the updated evaluations
+    const denormalized = computeDenormalizedFields(
+      evaluations as { [key: number]: QuestionEvaluations }
+    );
+
+    // Update submission in database (evaluations JSONB + denormalized columns)
     const { data: updatedSubmission, error: updateError } = await supabase
       .from("submissions")
       .update({
-        answers: answers,
+        evaluations: evaluations,
+        ...denormalized,
         updated_at: new Date().toISOString(),
       })
       .eq("submission_id", submissionId)
@@ -291,6 +299,45 @@ The users are students. All feedback must be age-appropriate, supportive, and re
         { error: "Failed to save evaluation" },
         { status: 500 }
       );
+    }
+
+    // Store transcript in submission_transcripts table (all modes)
+    const { error: transcriptError } = await supabase
+      .from("submission_transcripts")
+      .upsert(
+        {
+          submission_id: submissionId,
+          question_order: questionOrder,
+          attempt_number: attemptNumber,
+          answer_text: answerText,
+        },
+        { onConflict: "submission_id,question_order,attempt_number" }
+      );
+
+    if (transcriptError) {
+      // Log but don't fail the request -- evaluation was saved successfully
+      console.error("Error saving transcript:", transcriptError);
+    }
+
+    // For static_text mode, also write to static_activity table
+    const submissionMode = currentSubmission.submission_mode;
+    if (submissionMode === "static_text") {
+      const { error: staticError } = await supabase
+        .from("static_activity")
+        .upsert(
+          {
+            submission_id: submissionId,
+            assignment_id: currentSubmission.assignment_id,
+            question_order: questionOrder,
+            attempt_number: attemptNumber,
+            content: answerText,
+          },
+          { onConflict: "submission_id,question_order,attempt_number" }
+        );
+
+      if (staticError) {
+        console.error("Error saving static activity:", staticError);
+      }
     }
 
     console.log("Returning success response with attempt:", {
@@ -318,4 +365,3 @@ The users are students. All feedback must be age-appropriate, supportive, and re
     );
   }
 }
-

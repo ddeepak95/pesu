@@ -1,6 +1,6 @@
 "use client";
 
-import { QuestionAnswers } from "@/types/submission";
+import { QuestionEvaluations } from "@/types/submission";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AttemptCard } from "./AttemptCard";
 import { SubmissionAttempt } from "@/types/submission";
@@ -8,7 +8,7 @@ import { SubmissionAttempt } from "@/types/submission";
 interface QuestionAttemptsCardProps {
   questionOrder: number;
   questionPrompt: string;
-  questionAnswers: QuestionAnswers | undefined;
+  questionAnswers: QuestionEvaluations | undefined;
   onViewTranscript: (attempt: SubmissionAttempt, questionOrder: number) => void;
 }
 

@@ -11,7 +11,7 @@ import {
   StudentSubmissionStatus,
   PublicSubmissionStatus 
 } from "@/lib/queries/submissions";
-import { Submission, QuestionAnswers, SubmissionAttempt } from "@/types/submission";
+import { Submission, QuestionEvaluations, SubmissionAttempt } from "@/types/submission";
 import { Assignment } from "@/types/assignment";
 import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
 import { useState, useEffect } from "react";
@@ -70,23 +70,23 @@ export default function SubmissionViewDialog({
     setTranscriptDialogOpen(true);
   };
 
-  const getSubmissionAnswers = (submission: Submission) => {
-    if (!submission.answers) return {};
+  const getSubmissionEvaluations = (submission: Submission) => {
+    if (!submission.evaluations) return {};
 
     // Check if it's the new format
-    if (Array.isArray(submission.answers)) {
+    if (Array.isArray(submission.evaluations)) {
       // Legacy format - convert to new format structure for display
       return {};
     }
 
     // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
-    return submission.answers as { [key: number | string]: QuestionAnswers };
+    return submission.evaluations as { [key: number | string]: QuestionEvaluations };
   };
 
   if (!submission) {
     return null;
   }
-  const answers = getSubmissionAnswers(submission);
+  const evaluations = getSubmissionEvaluations(submission);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,16 +115,16 @@ export default function SubmissionViewDialog({
                   .sort((a, b) => a.order - b.order)
                   .map((question) => {
                     // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
-                    const questionAnswers = 
-                      (answers[question.order] as QuestionAnswers | undefined) ||
-                      (answers[String(question.order)] as QuestionAnswers | undefined);
+                    const questionEvals = 
+                      (evaluations[question.order] as QuestionEvaluations | undefined) ||
+                      (evaluations[String(question.order)] as QuestionEvaluations | undefined);
 
                     return (
                       <QuestionAttemptsCard
                         key={question.order}
                         questionOrder={question.order}
                         questionPrompt={question.prompt}
-                        questionAnswers={questionAnswers}
+                        questionAnswers={questionEvals}
                         onViewTranscript={handleViewTranscript}
                       />
                     );
@@ -141,6 +141,7 @@ export default function SubmissionViewDialog({
         onOpenChange={setTranscriptDialogOpen}
         attempt={selectedAttempt}
         questionOrder={selectedQuestionOrder}
+        submissionId={submission?.submission_id}
       />
     </Dialog>
   );

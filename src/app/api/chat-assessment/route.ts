@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import { createClient } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -229,7 +229,7 @@ ${greetingInstructions}${expectedAnswerSection}${universalInstructions}`;
     );
 
     // Prepare Supabase client for logging
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
 
     // Log the latest student message (the one that triggered this call).
     // For the very first turn started from the LLM (no student message yet),

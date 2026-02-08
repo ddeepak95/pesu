@@ -47,15 +47,13 @@ export function AttemptCard({ attempt, questionOrder, onViewTranscript }: Attemp
           >
             Score: {attempt.score}/{attempt.max_score}
           </span>
-          {attempt.answer_text && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onViewTranscript(attempt, questionOrder)}
-            >
-              View Transcript
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onViewTranscript(attempt, questionOrder)}
+          >
+            View Transcript
+          </Button>
         </div>
       </div>
       {attempt.evaluation_feedback && (

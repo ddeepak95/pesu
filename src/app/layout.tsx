@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Rubik } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/providers/I18nProvider";
+import { SWRProvider } from "@/providers/SWRProvider";
 import { Toaster } from "@/components/ui/sonner";
 import en from "@/locales/en.json";
 
@@ -42,7 +43,9 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <I18nProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <SWRProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </SWRProvider>
         </I18nProvider>
         <Toaster position="top-right" richColors />
       </body>

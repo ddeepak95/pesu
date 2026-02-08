@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { getCachedUser } from "@/lib/auth-cache";
 import { ContentCompletion, StudentContentCompletionWithDetails, ContentItemType } from "@/types/contentCompletion";
 import { getContentItemsByClass } from "./contentItems";
 import { getClassStudentsWithInfo } from "./students";
@@ -14,10 +15,7 @@ export async function markContentAsComplete(
   contentItemId: string
 ): Promise<ContentCompletion> {
   const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) {
     throw new Error("User not authenticated");
@@ -52,10 +50,7 @@ export async function unmarkContentComplete(
   contentItemId: string
 ): Promise<void> {
   const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) {
     throw new Error("User not authenticated");
@@ -84,10 +79,7 @@ export async function getCompletionsForStudent(
   }
 
   const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) {
     return new Set();
@@ -114,10 +106,7 @@ export async function isContentComplete(
   contentItemId: string
 ): Promise<boolean> {
   const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) {
     return false;

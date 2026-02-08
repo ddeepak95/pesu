@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { getCachedUser } from "@/lib/auth-cache";
 import { SurveyAnswer, SurveyResponse } from "@/types/survey";
 
 /**
@@ -9,10 +10,7 @@ export async function submitSurveyResponse(
   answers: SurveyAnswer[]
 ): Promise<SurveyResponse> {
   const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) throw new Error("User not authenticated");
 
@@ -35,10 +33,7 @@ export async function submitSurveyResponse(
  */
 export async function getStudentResponse(surveyId: string): Promise<SurveyResponse | null> {
   const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
 
   if (!user) return null;
 

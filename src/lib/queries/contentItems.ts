@@ -9,9 +9,11 @@ function generateContentItemId(): string {
 export async function getContentItemsByClass(classDbId: string): Promise<ContentItem[]> {
   const supabase = createClient();
 
+  const CONTENT_ITEM_COLUMNS = "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete";
+
   const { data, error } = await supabase
     .from("content_items")
-    .select("*")
+    .select(CONTENT_ITEM_COLUMNS)
     .eq("class_id", classDbId)
     .in("status", ["active", "draft"])
     .order("position", { ascending: true })
@@ -32,7 +34,7 @@ export async function getContentItemsByGroup(params: {
 
   const { data, error } = await supabase
     .from("content_items")
-    .select("*")
+    .select("id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete")
     .eq("class_id", params.classDbId)
     .eq("class_group_id", params.classGroupId)
     .in("status", ["active", "draft"])
@@ -258,7 +260,7 @@ export async function getContentItemByRefId(
 
   const { data, error } = await supabase
     .from("content_items")
-    .select("*")
+    .select("id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete")
     .eq("ref_id", refId)
     .eq("type", type)
     .in("status", ["active", "draft"])

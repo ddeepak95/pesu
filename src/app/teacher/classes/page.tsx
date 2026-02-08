@@ -1,51 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import PageLayout from "@/components/PageLayout";
 import InnerPageLayout from "@/components/Layout/InnerPageLayout";
 import CreateClass from "@/components/Teacher/Classes/CreateClass";
 import ClassCard from "@/components/Teacher/Classes/ClassCard";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
-import { getClassesByUser, isTeacherApproved } from "@/lib/queries/classes";
-import { Class } from "@/types/class";
+import { useClassesByUser, useIsTeacherApproved } from "@/hooks/swr";
 
 export default function ClassesPage() {
   const { user, loading: authLoading } = useAuth();
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [approved, setApproved] = useState(false);
 
-  const fetchClasses = useCallback(async () => {
-    if (!user) {
-      console.log("No user logged in");
-      setLoading(false);
-      return;
-    }
+  const { data: classes = [], error: classesError, isLoading: classesLoading, mutate: mutateClasses } =
+    useClassesByUser(user?.id ?? null);
+  const { data: approved = false } = useIsTeacherApproved(user?.email ?? null);
 
-    console.log("User logged in:", user.id, user.email);
-    setLoading(true);
-    setError(null);
-
-    try {
-      const [data, approvedStatus] = await Promise.all([
-        getClassesByUser(user.id),
-        isTeacherApproved(user.email ?? ""),
-      ]);
-      setClasses(data);
-      setApproved(approvedStatus);
-    } catch (err) {
-      console.error("Error fetching classes:", err);
-      setError("Failed to load classes. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchClasses();
-  }, [fetchClasses]);
+  const loading = classesLoading;
+  const error = classesError?.message ?? null;
 
   // Show loading while checking auth (middleware handles redirect if not authenticated)
   if (authLoading || !user) {
@@ -68,7 +39,7 @@ export default function ClassesPage() {
       <InnerPageLayout
         title="Classes"
         action={
-          <CreateClass onClassCreated={fetchClasses} isApproved={approved} />
+          <CreateClass onClassCreated={() => mutateClasses()} isApproved={approved} />
         }
       >
         {loading ? (
