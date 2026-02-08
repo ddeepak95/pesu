@@ -5,15 +5,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
-interface LandingNavbarProps {
-  mailtoLink: string;
-  waitlistText: string;
-}
-
-export default function LandingNavbar({
-  mailtoLink,
-  waitlistText,
-}: LandingNavbarProps) {
+export default function LandingNavbar() {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -138,7 +130,7 @@ export default function LandingNavbar({
                     backgroundSize: "200% 200%",
                   }}
                 >
-                  <a href={mailtoLink}>{waitlistText}</a>
+                  <Link href="/login">Login</Link>
                 </Button>
               </div>
 
@@ -203,9 +195,9 @@ export default function LandingNavbar({
                 backgroundSize: "200% 200%",
               }}
             >
-              <a href={mailtoLink} onClick={closeMenu}>
-                {waitlistText}
-              </a>
+              <Link href="/login" onClick={closeMenu}>
+                Login
+              </Link>
             </Button>
           </div>
         </div>
