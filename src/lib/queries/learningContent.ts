@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase";
 import { nanoid } from "nanoid";
 import { LearningContent, LearningContentType } from "@/types/learningContent";
 
+/** All columns for the learning_contents table */
+const LEARNING_CONTENT_ALL_COLUMNS =
+  "id, learning_content_id, class_id, class_group_id, title, content_type, video_url, body, created_by, created_at, updated_at, status";
+
 function generateLearningContentId(): string {
   return nanoid(8);
 }
@@ -53,7 +57,7 @@ export async function getLearningContentByShortId(
 
   const { data, error } = await supabase
     .from("learning_contents")
-    .select("*")
+    .select(LEARNING_CONTENT_ALL_COLUMNS)
     .eq("learning_content_id", learningContentId)
     .eq("status", "active")
     .single();
@@ -69,7 +73,7 @@ export async function getLearningContentByShortIdForTeacher(
 
   const { data, error } = await supabase
     .from("learning_contents")
-    .select("*")
+    .select(LEARNING_CONTENT_ALL_COLUMNS)
     .eq("learning_content_id", learningContentId)
     .in("status", ["active", "draft"])
     .single();

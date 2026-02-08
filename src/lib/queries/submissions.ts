@@ -9,6 +9,14 @@ import {
 import { nanoid } from "nanoid";
 import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
+/** All columns for the submissions table (includes evaluations JSONB — use SUBMISSION_LIST_COLUMNS for list views) */
+const SUBMISSION_ALL_COLUMNS =
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts";
+
+/** All columns for the submission_transcripts table */
+const TRANSCRIPT_ALL_COLUMNS =
+  "id, submission_id, question_order, attempt_number, answer_text, created_at";
+
 /**
  * Generate a unique short submission ID
  */
@@ -123,7 +131,7 @@ export async function getTranscriptsForSubmission(
 
   const { data, error } = await supabase
     .from("submission_transcripts")
-    .select("*")
+    .select(TRANSCRIPT_ALL_COLUMNS)
     .eq("submission_id", submissionId)
     .order("question_order", { ascending: true })
     .order("attempt_number", { ascending: true });
@@ -226,7 +234,7 @@ export async function getSubmissionByStudentAndAssignment(
 
   const { data, error } = await supabase
     .from("submissions")
-    .select("*")
+    .select(SUBMISSION_ALL_COLUMNS)
     .eq("student_id", studentId)
     .eq("assignment_id", assignmentId)
     .order("created_at", { ascending: false })
@@ -335,7 +343,7 @@ export async function getSubmissionById(
 
   const { data, error } = await supabase
     .from("submissions")
-    .select("*")
+    .select(SUBMISSION_ALL_COLUMNS)
     .eq("submission_id", submissionId)
     .maybeSingle();
 
@@ -359,7 +367,7 @@ export async function getSubmissionsByAssignment(
 
   const { data, error } = await supabase
     .from("submissions")
-    .select("*")
+    .select(SUBMISSION_ALL_COLUMNS)
     .eq("assignment_id", assignmentId)
     .order("submitted_at", { ascending: false });
 

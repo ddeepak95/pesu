@@ -1,0 +1,58 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import PageLayout from "@/components/PageLayout";
+import BackButton from "@/components/ui/back-button";
+import { useAuth } from "@/contexts/AuthContext";
+import StudentAssignmentResponse from "@/components/Student/StudentAssignmentResponse";
+import { Assignment } from "@/types/assignment";
+
+interface AssignmentDetailClientProps {
+  assignmentData: Assignment;
+  assignmentId: string;
+  classId: string;
+  contentItemId: string | null;
+  classUuid: string | null;
+}
+
+export default function AssignmentDetailClient({
+  assignmentData,
+  assignmentId,
+  classId,
+  contentItemId,
+  classUuid,
+}: AssignmentDetailClientProps) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [displayName, setDisplayName] = useState<string>("");
+
+  const studentName =
+    user?.user_metadata?.display_name ||
+    user?.user_metadata?.name ||
+    user?.email?.split("@")[0] ||
+    "";
+
+  return (
+    <PageLayout userName={displayName || studentName}>
+      <div>
+        <div className="mb-4">
+          <BackButton />
+        </div>
+        <div className="w-full">
+          <StudentAssignmentResponse
+            assignmentData={assignmentData}
+            assignmentId={assignmentId}
+            classId={classUuid ?? classId}
+            contentItemId={contentItemId}
+            onComplete={() => {
+              // Attempts are automatically saved, no action needed
+            }}
+            onBack={() => router.push(`/student/classes/${classId}`)}
+            onDisplayNameChange={setDisplayName}
+          />
+        </div>
+      </div>
+    </PageLayout>
+  );
+}

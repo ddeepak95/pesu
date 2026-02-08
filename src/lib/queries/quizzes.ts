@@ -5,6 +5,14 @@ import { MCQQuestion, Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types
 import { getClassStudentsWithInfo, StudentWithInfo } from "@/lib/queries/students";
 import { calculateQuizScore } from "@/utils/quizScoring";
 
+/** All columns for the quizzes table */
+const QUIZ_ALL_COLUMNS =
+  "id, quiz_id, class_id, class_group_id, title, instructions, questions, randomize_questions, randomize_options, show_points_to_students, total_points, created_by, created_at, updated_at, status";
+
+/** All columns for the quiz_submissions table */
+const QUIZ_SUBMISSION_ALL_COLUMNS =
+  "id, quiz_id, class_id, student_id, answers, submitted_at, created_at";
+
 function generateQuizId(): string {
   return nanoid(8);
 }
@@ -50,7 +58,7 @@ export async function getQuizByShortId(quizId: string): Promise<Quiz | null> {
 
   const { data, error } = await supabase
     .from("quizzes")
-    .select("*")
+    .select(QUIZ_ALL_COLUMNS)
     .eq("quiz_id", quizId)
     .eq("status", "active")
     .single();
@@ -64,7 +72,7 @@ export async function getQuizByShortIdForTeacher(quizId: string): Promise<Quiz |
 
   const { data, error } = await supabase
     .from("quizzes")
-    .select("*")
+    .select(QUIZ_ALL_COLUMNS)
     .eq("quiz_id", quizId)
     .in("status", ["active", "draft"])
     .single();
@@ -194,7 +202,7 @@ export async function getQuizSubmissionForStudent(
 
   const { data, error } = await supabase
     .from("quiz_submissions")
-    .select("*")
+    .select(QUIZ_SUBMISSION_ALL_COLUMNS)
     .eq("quiz_id", quizId)
     .eq("student_id", user.id)
     .maybeSingle();
@@ -247,7 +255,7 @@ export async function getQuizSubmissionsByQuizWithStudents(
 
   const { data: submissions, error } = await supabase
     .from("quiz_submissions")
-    .select("*")
+    .select(QUIZ_SUBMISSION_ALL_COLUMNS)
     .eq("quiz_id", quiz.id)
     .eq("class_id", quiz.class_id);
 

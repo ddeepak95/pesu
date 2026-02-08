@@ -49,7 +49,7 @@ export async function listStudentInvites(classDbId: string): Promise<ClassStuden
 
   const { data, error } = await supabase
     .from("class_student_invites")
-    .select("*")
+    .select("id, class_id, created_by, expires_at, revoked_at, max_uses, uses, created_at, updated_at, token")
     .eq("class_id", classDbId)
     .order("created_at", { ascending: false });
 
