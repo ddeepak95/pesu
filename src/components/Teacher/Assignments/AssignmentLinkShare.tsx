@@ -30,7 +30,7 @@ export function AssignmentLinkShare({
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   const publicLink = `${typeof window !== "undefined" ? window.location.origin : ""}/assignment/${assignmentId}`;
-  const classroomLink = `${typeof window !== "undefined" ? window.location.origin : ""}/students/classes/${classId}/assignments/${assignmentId}`;
+  const classroomLink = `${typeof window !== "undefined" ? window.location.origin : ""}/student/classes/${classId}/assignments/${assignmentId}`;
 
   const handleCopy = async (link: string, linkType: "public" | "classroom") => {
     try {

@@ -12,7 +12,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const router = useRouter();
 
   const handleCardClick = () => {
-    router.push(`/students/classes/${classData.class_id}`);
+    router.push(`/student/classes/${classData.class_id}`);
   };
 
   return (

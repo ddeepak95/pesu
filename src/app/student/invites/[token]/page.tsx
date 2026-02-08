@@ -34,7 +34,7 @@ export default function AcceptStudentInvitePage() {
       setStatus("success");
       // Redirect to class page after a brief moment
       setTimeout(() => {
-        router.push(`/students/classes/${classPublicId}`);
+        router.push(`/student/classes/${classPublicId}`);
       }, 1500);
     } catch (err: unknown) {
       console.error("Error accepting student invite:", err);
@@ -51,7 +51,7 @@ export default function AcceptStudentInvitePage() {
   };
 
   const handleDecline = () => {
-    router.push("/students/classes");
+    router.push("/student/classes");
   };
 
   // Show loading while checking auth (middleware handles redirect if not authenticated)
@@ -122,7 +122,7 @@ export default function AcceptStudentInvitePage() {
                 </p>
                 <Button
                   variant="outline"
-                  onClick={() => router.push("/students/classes")}
+                  onClick={() => router.push("/student/classes")}
                 >
                   Go to all classes
                 </Button>
@@ -145,7 +145,7 @@ export default function AcceptStudentInvitePage() {
                   </Button>
                   <Button
                     variant="ghost"
-                    onClick={() => router.push("/students/classes")}
+                    onClick={() => router.push("/student/classes")}
                   >
                     Go to classes
                   </Button>

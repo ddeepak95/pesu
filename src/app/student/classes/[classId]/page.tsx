@@ -125,7 +125,7 @@ export default function ClassDetailPage() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">{classData.name}</h1>
             <Button variant="outline" className="gap-2" asChild>
-              <Link href={`/students/classes/${classId}/settings`}>
+              <Link href={`/student/classes/${classId}/settings`}>
                 <Settings className="h-4 w-4" />
                 Settings
               </Link>

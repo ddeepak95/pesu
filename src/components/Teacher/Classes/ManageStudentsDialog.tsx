@@ -54,7 +54,7 @@ export default function ManageStudentsDialog({
     // Use token from activeInvite if available, otherwise use newly generated token
     const token = activeInvite?.token || newInviteLink;
     if (!token) return "";
-    return `${window.location.origin}/students/invites/${token}`;
+    return `${window.location.origin}/student/invites/${token}`;
   }, [activeInvite, newInviteLink]);
 
   // Check if user is a co-teacher

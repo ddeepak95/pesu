@@ -258,7 +258,7 @@ export default function Content({ classData }: ContentProps) {
       const a = assignmentById[item.ref_id];
       if (a) {
         router.push(
-          `/students/classes/${classData.class_id}/assignments/${a.assignment_id}`
+          `/student/classes/${classData.class_id}/assignments/${a.assignment_id}`
         );
         return;
       }
@@ -268,7 +268,7 @@ export default function Content({ classData }: ContentProps) {
       const lc = learningContentById[item.ref_id];
       if (lc) {
         router.push(
-          `/students/classes/${classData.class_id}/learning-content/${lc.learning_content_id}`
+          `/student/classes/${classData.class_id}/learning-content/${lc.learning_content_id}`
         );
       }
     }
@@ -277,7 +277,7 @@ export default function Content({ classData }: ContentProps) {
       const q = quizById[item.ref_id];
       if (q) {
         router.push(
-          `/students/classes/${classData.class_id}/quizzes/${q.quiz_id}`
+          `/student/classes/${classData.class_id}/quizzes/${q.quiz_id}`
         );
       }
     }
@@ -286,7 +286,7 @@ export default function Content({ classData }: ContentProps) {
       const s = surveyById[item.ref_id];
       if (s) {
         router.push(
-          `/students/classes/${classData.class_id}/surveys/${s.survey_id}`
+          `/student/classes/${classData.class_id}/surveys/${s.survey_id}`
         );
       }
     }
