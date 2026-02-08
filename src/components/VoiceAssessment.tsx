@@ -15,7 +15,7 @@ import {
   usePipecatClientTransportState,
 } from "@pipecat-ai/client-react";
 import { VoiceVisualizer } from "@pipecat-ai/voice-ui-kit";
-import { getQuestionAttempts } from "@/lib/queries/submissions";
+import { getQuestionAttempts, getLatestTranscript } from "@/lib/queries/submissions";
 import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
 import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCard";
 import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
@@ -132,17 +132,15 @@ function VoiceAssessmentContent({
     setAttempts([]);
     async function loadAttempts() {
       try {
-        const questionAttempts = await getQuestionAttempts(
-          submissionId,
-          question.order,
-          true // Exclude stale attempts
-        );
+        const [questionAttempts, latestTranscriptText] = await Promise.all([
+          getQuestionAttempts(submissionId, question.order, true),
+          getLatestTranscript(submissionId, question.order),
+        ]);
         setAttempts(questionAttempts);
 
-        // Load transcript from latest attempt if exists
-        if (questionAttempts.length > 0) {
-          const latestAttempt = questionAttempts[questionAttempts.length - 1];
-          setTranscript(latestAttempt.answer_text);
+        // Load transcript from submission_transcripts table
+        if (latestTranscriptText) {
+          setTranscript(latestTranscriptText);
         } else if (existingAnswer) {
           setTranscript(existingAnswer);
         } else {
