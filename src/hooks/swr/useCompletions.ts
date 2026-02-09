@@ -10,7 +10,13 @@ export function useCompletionsForStudent(contentItemIds: string[]) {
     contentItemIds.length > 0 ? [...contentItemIds].sort().join(",") : null;
   return useSWR<Set<string>>(
     sortedKey ? ["completionsForStudent", sortedKey] : null,
-    () => getCompletionsForStudent(contentItemIds)
+    () => getCompletionsForStudent(contentItemIds),
+    {
+      // Always refetch on mount so the class page picks up completions
+      // made on detail pages. Override the global dedupingInterval which
+      // can cause stale data when navigating back quickly.
+      dedupingInterval: 0,
+    }
   );
 }
 
