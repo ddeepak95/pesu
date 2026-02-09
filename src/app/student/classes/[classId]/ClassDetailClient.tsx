@@ -30,6 +30,7 @@ export default function ClassDetailClient({
     responses: existingResponses,
     hasCompletedRequired,
     loading: profileLoading,
+    refetch,
   } = useStudentProfile(classData.id, userId);
 
   // Show profile dialog if mandatory fields are not completed
@@ -38,11 +39,14 @@ export default function ClassDetailClient({
 
     if (profileFields.length > 0 && !hasCompletedRequired) {
       setShowProfileDialog(true);
+    } else {
+      setShowProfileDialog(false);
     }
   }, [profileLoading, profileFields, hasCompletedRequired]);
 
   const handleProfileComplete = () => {
     setShowProfileDialog(false);
+    refetch();
   };
 
   return (
