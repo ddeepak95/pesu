@@ -16,6 +16,17 @@ export function useCompletionsForStudent(contentItemIds: string[]) {
       // made on detail pages. Override the global dedupingInterval which
       // can cause stale data when navigating back quickly.
       dedupingInterval: 0,
+      // SWR's default stableHash cannot compare Set objects (all Sets
+      // serialize to "{}"), so it never detects changes. Provide a
+      // proper Set comparison so re-renders fire when contents differ.
+      compare: (a, b) => {
+        if (a === b) return true;
+        if (!a || !b || a.size !== b.size) return false;
+        for (const item of a) {
+          if (!b.has(item)) return false;
+        }
+        return true;
+      },
     }
   );
 }
