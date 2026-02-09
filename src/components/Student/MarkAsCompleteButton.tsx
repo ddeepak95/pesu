@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Check } from "lucide-react";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
+import { invalidateCompletionsCache } from "@/hooks/swr";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface MarkAsCompleteButtonProps {
@@ -35,6 +36,7 @@ export default function MarkAsCompleteButton({
     setIsLoading(true);
     try {
       await markContentAsComplete(contentItemId);
+      await invalidateCompletionsCache();
       setIsComplete(true);
       setIsDialogOpen(false);
       showSuccessToast("Marked as complete!");

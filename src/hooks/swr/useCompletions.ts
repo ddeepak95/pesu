@@ -1,4 +1,4 @@
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { getCompletionsForStudent } from "@/lib/queries/contentCompletions";
 
 /**
@@ -10,6 +10,33 @@ export function useCompletionsForStudent(contentItemIds: string[]) {
     contentItemIds.length > 0 ? [...contentItemIds].sort().join(",") : null;
   return useSWR<Set<string>>(
     sortedKey ? ["completionsForStudent", sortedKey] : null,
-    () => getCompletionsForStudent(contentItemIds)
+    () => getCompletionsForStudent(contentItemIds),
+    {
+      // Always refetch on mount so the class page picks up completions
+      // made on detail pages. Override the global dedupingInterval which
+      // can cause stale data when navigating back quickly.
+      dedupingInterval: 0,
+      // SWR's default stableHash cannot compare Set objects (all Sets
+      // serialize to "{}"), so it never detects changes. Provide a
+      // proper Set comparison so re-renders fire when contents differ.
+      compare: (a, b) => {
+        if (a === b) return true;
+        if (!a || !b || a.size !== b.size) return false;
+        for (const item of a) {
+          if (!b.has(item)) return false;
+        }
+        return true;
+      },
+    }
+  );
+}
+
+/**
+ * Invalidate all cached completions so the next render fetches fresh data.
+ * Call this after markContentAsComplete() to keep the class page in sync.
+ */
+export function invalidateCompletionsCache() {
+  return mutate(
+    (key) => Array.isArray(key) && key[0] === "completionsForStudent"
   );
 }

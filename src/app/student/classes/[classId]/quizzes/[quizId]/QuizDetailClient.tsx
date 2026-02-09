@@ -1,14 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
+import CloseButton from "@/components/ui/close-button";
+import GoToClassButton from "@/components/ui/go-to-class-button";
+import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 import { createQuizSubmission } from "@/lib/queries/quizzes";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
+import { invalidateCompletionsCache } from "@/hooks/swr";
 import { Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types/quiz";
 import { getSessionSeed, shuffleWithSeed } from "@/utils/quizRandomization";
 import { calculateQuizScore } from "@/utils/quizScoring";
@@ -22,6 +25,8 @@ interface QuizInnerProps {
   contentItemId: string | null;
   initialIsComplete: boolean;
   existingSubmission: QuizSubmission | null;
+  classId: string;
+  classUuid: string | null;
 }
 
 function QuizInner({
@@ -29,6 +34,8 @@ function QuizInner({
   contentItemId,
   initialIsComplete,
   existingSubmission: initialSubmission,
+  classId,
+  classUuid,
 }: QuizInnerProps) {
   const { user } = useAuth();
 
@@ -51,7 +58,13 @@ function QuizInner({
     () => `quiz_session_seed_${quiz.quiz_id}_${user?.id ?? "anon"}`,
     [quiz.quiz_id, user?.id]
   );
-  const sessionSeed = useMemo(() => getSessionSeed(seedKey), [seedKey]);
+
+  // Use the raw seedKey on the initial render so server and client match (avoids hydration mismatch).
+  // After mount, switch to the real session seed from sessionStorage.
+  const [sessionSeed, setSessionSeed] = useState(seedKey);
+  useEffect(() => {
+    setSessionSeed(getSessionSeed(seedKey));
+  }, [seedKey]);
   const displayQuestions = useMemo(() => {
     const baseQuestions = [...quiz.questions].sort((a, b) => a.order - b.order);
     const orderedQuestions = quiz.randomize_questions
@@ -101,6 +114,7 @@ function QuizInner({
       setIsComplete(true);
       if (contentItemId) {
         await markContentAsComplete(contentItemId);
+        await invalidateCompletionsCache();
       }
       showSuccessToast("Quiz submitted!");
     } catch (submitErr) {
@@ -122,7 +136,7 @@ function QuizInner({
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -168,6 +182,17 @@ function QuizInner({
               totalPoints={scoreSummary?.totalPoints ?? null}
               onSubmit={handleSubmit}
             />
+
+            {contentItemId && (
+              <NextItemButton
+                classDbId={classUuid}
+                classId={classId}
+                contentItemId={contentItemId}
+              />
+            )}
+            <CloseButton
+              href={`/student/classes/${classId}`}
+            />
           </div>
         </div>
       </div>
@@ -198,6 +223,8 @@ export default function QuizDetailClient({
     <ActivityTrackingProvider userId={user?.id} classId={classUuid ?? classId}>
       <QuizInner
         quiz={quiz}
+        classId={classId}
+        classUuid={classUuid}
         contentItemId={contentItemId}
         initialIsComplete={isComplete}
         existingSubmission={existingSubmission}

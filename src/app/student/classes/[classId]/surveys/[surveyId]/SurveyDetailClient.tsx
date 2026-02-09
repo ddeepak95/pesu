@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
+import CloseButton from "@/components/ui/close-button";
+import GoToClassButton from "@/components/ui/go-to-class-button";
+import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { submitSurveyResponse } from "@/lib/queries/surveyResponses";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
+import { invalidateCompletionsCache } from "@/hooks/swr";
 import {
   Survey,
   SurveyAnswer,
@@ -35,12 +38,16 @@ interface SurveyInnerProps {
   survey: Survey;
   contentItemId: string | null;
   initialExistingResponse: SurveyResponse | null;
+  classId: string;
+  classUuid: string | null;
 }
 
 function SurveyInner({
   survey,
   contentItemId,
   initialExistingResponse,
+  classId,
+  classUuid,
 }: SurveyInnerProps) {
   const [existingResponse, setExistingResponse] =
     useState<SurveyResponse | null>(initialExistingResponse);
@@ -119,6 +126,7 @@ function SurveyInner({
 
       // Mark content as complete
       await markContentAsComplete(contentItemId);
+      await invalidateCompletionsCache();
 
       setIsDialogOpen(false);
       setExistingResponse(response);
@@ -138,7 +146,7 @@ function SurveyInner({
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -252,6 +260,17 @@ function SurveyInner({
                 </Button>
               </div>
             )}
+
+            {contentItemId && (
+              <NextItemButton
+                classDbId={classUuid}
+                classId={classId}
+                contentItemId={contentItemId}
+              />
+            )}
+            <CloseButton
+              href={`/student/classes/${classId}`}
+            />
           </div>
         </div>
       </div>
@@ -307,6 +326,8 @@ export default function SurveyDetailClient({
         survey={survey}
         contentItemId={contentItemId}
         initialExistingResponse={existingResponse}
+        classId={classId}
+        classUuid={classUuid}
       />
     </ActivityTrackingProvider>
   );

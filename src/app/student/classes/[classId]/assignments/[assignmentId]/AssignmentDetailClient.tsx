@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
+import CloseButton from "@/components/ui/close-button";
+import GoToClassButton from "@/components/ui/go-to-class-button";
+import NextItemButton from "@/components/ui/next-item-button";
 import { useAuth } from "@/contexts/AuthContext";
 import StudentAssignmentResponse from "@/components/Student/StudentAssignmentResponse";
 import { Assignment } from "@/types/assignment";
@@ -37,7 +39,7 @@ export default function AssignmentDetailClient({
     <PageLayout userName={displayName || studentName}>
       <div>
         <div className="mb-4">
-          <BackButton />
+          <GoToClassButton classId={classId} />
         </div>
         <div className="w-full">
           <StudentAssignmentResponse
@@ -48,8 +50,23 @@ export default function AssignmentDetailClient({
             onComplete={() => {
               // Attempts are automatically saved, no action needed
             }}
-            onBack={() => router.push(`/student/classes/${classId}`)}
+            onBack={() =>
+              router.push(`/student/classes/${classId}`, { scroll: false })
+            }
             onDisplayNameChange={setDisplayName}
+          />
+
+          {contentItemId && (
+            <NextItemButton
+              classDbId={classUuid}
+              classId={classId}
+              contentItemId={contentItemId}
+              className="pt-6"
+            />
+          )}
+          <CloseButton
+            href={`/student/classes/${classId}`}
+            className="pt-2 pb-8"
           />
         </div>
       </div>
