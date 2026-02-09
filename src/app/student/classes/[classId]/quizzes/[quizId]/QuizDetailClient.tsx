@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import { Button } from "@/components/ui/button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +34,7 @@ function QuizInner({
   existingSubmission: initialSubmission,
 }: QuizInnerProps) {
   const { user } = useAuth();
+  const router = useRouter();
 
   const [isComplete, setIsComplete] = useState(initialIsComplete);
   const [submission, setSubmission] = useState<QuizSubmission | null>(
@@ -52,7 +55,13 @@ function QuizInner({
     () => `quiz_session_seed_${quiz.quiz_id}_${user?.id ?? "anon"}`,
     [quiz.quiz_id, user?.id]
   );
-  const sessionSeed = useMemo(() => getSessionSeed(seedKey), [seedKey]);
+
+  // Use the raw seedKey on the initial render so server and client match (avoids hydration mismatch).
+  // After mount, switch to the real session seed from sessionStorage.
+  const [sessionSeed, setSessionSeed] = useState(seedKey);
+  useEffect(() => {
+    setSessionSeed(getSessionSeed(seedKey));
+  }, [seedKey]);
   const displayQuestions = useMemo(() => {
     const baseQuestions = [...quiz.questions].sort((a, b) => a.order - b.order);
     const orderedQuestions = quiz.randomize_questions
@@ -170,6 +179,17 @@ function QuizInner({
               totalPoints={scoreSummary?.totalPoints ?? null}
               onSubmit={handleSubmit}
             />
+
+            {/* Close button to go back */}
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => router.back()}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       </div>
