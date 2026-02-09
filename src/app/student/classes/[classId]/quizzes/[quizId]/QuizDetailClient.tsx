@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
 import { createQuizSubmission } from "@/lib/queries/quizzes";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
+import { invalidateCompletionsCache } from "@/hooks/swr";
 import { Quiz, QuizSubmission, QuizSubmissionAnswer } from "@/types/quiz";
 import { getSessionSeed, shuffleWithSeed } from "@/utils/quizRandomization";
 import { calculateQuizScore } from "@/utils/quizScoring";
@@ -101,6 +102,7 @@ function QuizInner({
       setIsComplete(true);
       if (contentItemId) {
         await markContentAsComplete(contentItemId);
+        await invalidateCompletionsCache();
       }
       showSuccessToast("Quiz submitted!");
     } catch (submitErr) {

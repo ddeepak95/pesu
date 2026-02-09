@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Star } from "lucide-react";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
+import { invalidateCompletionsCache } from "@/hooks/swr";
 import { saveExperienceRating } from "@/lib/queries/submissions";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
@@ -136,6 +137,7 @@ export function AssessmentNavigation({
       }
 
       await markContentAsComplete(contentItemId);
+      await invalidateCompletionsCache();
       showSuccessToast("Assessment marked as complete!");
       setIsDialogOpen(false);
       setIsRatingDialogOpen(false);

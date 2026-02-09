@@ -1,4 +1,4 @@
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { getCompletionsForStudent } from "@/lib/queries/contentCompletions";
 
 /**
@@ -11,5 +11,15 @@ export function useCompletionsForStudent(contentItemIds: string[]) {
   return useSWR<Set<string>>(
     sortedKey ? ["completionsForStudent", sortedKey] : null,
     () => getCompletionsForStudent(contentItemIds)
+  );
+}
+
+/**
+ * Invalidate all cached completions so the next render fetches fresh data.
+ * Call this after markContentAsComplete() to keep the class page in sync.
+ */
+export function invalidateCompletionsCache() {
+  return mutate(
+    (key) => Array.isArray(key) && key[0] === "completionsForStudent"
   );
 }

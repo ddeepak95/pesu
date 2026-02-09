@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { submitSurveyResponse } from "@/lib/queries/surveyResponses";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
+import { invalidateCompletionsCache } from "@/hooks/swr";
 import {
   Survey,
   SurveyAnswer,
@@ -119,6 +120,7 @@ function SurveyInner({
 
       // Mark content as complete
       await markContentAsComplete(contentItemId);
+      await invalidateCompletionsCache();
 
       setIsDialogOpen(false);
       setExistingResponse(response);
