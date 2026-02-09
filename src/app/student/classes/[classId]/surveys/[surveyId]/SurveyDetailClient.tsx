@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
@@ -56,6 +57,7 @@ function SurveyInner({
   const [answers, setAnswers] =
     useState<Map<number, string | number>>(initialAnswers);
 
+  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -254,6 +256,17 @@ function SurveyInner({
                 </Button>
               </div>
             )}
+
+            {/* Close button to go back */}
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => router.back()}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       </div>
