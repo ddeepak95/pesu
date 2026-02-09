@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import CloseButton from "@/components/ui/close-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
-import { Button } from "@/components/ui/button";
 import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
 import { LearningContent } from "@/types/learningContent";
 
@@ -17,14 +16,15 @@ interface LearningContentInnerProps {
   content: LearningContent;
   contentItemId: string | null;
   initialIsComplete: boolean;
+  classId: string;
 }
 
 function LearningContentInner({
   content,
   contentItemId,
   initialIsComplete,
+  classId,
 }: LearningContentInnerProps) {
-  const router = useRouter();
   const [isComplete, setIsComplete] = useState(initialIsComplete);
 
   // Activity tracking for learning content viewing time
@@ -72,16 +72,7 @@ function LearningContentInner({
               </div>
             )}
 
-            {/* Close button to go back */}
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => router.back()}
-              >
-                Close
-              </Button>
-            </div>
+            <CloseButton href={`/student/classes/${classId}`} />
           </div>
         </div>
       </div>
@@ -112,6 +103,7 @@ export default function LearningContentDetailClient({
         content={content}
         contentItemId={contentItemId}
         initialIsComplete={isComplete}
+        classId={classId}
       />
     </ActivityTrackingProvider>
   );

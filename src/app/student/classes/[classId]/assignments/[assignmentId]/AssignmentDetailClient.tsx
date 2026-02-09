@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import CloseButton from "@/components/ui/close-button";
 import { useAuth } from "@/contexts/AuthContext";
 import StudentAssignmentResponse from "@/components/Student/StudentAssignmentResponse";
 import { Assignment } from "@/types/assignment";
@@ -48,8 +49,15 @@ export default function AssignmentDetailClient({
             onComplete={() => {
               // Attempts are automatically saved, no action needed
             }}
-            onBack={() => router.push(`/student/classes/${classId}`)}
+            onBack={() =>
+              router.push(`/student/classes/${classId}`, { scroll: false })
+            }
             onDisplayNameChange={setDisplayName}
+          />
+
+          <CloseButton
+            href={`/student/classes/${classId}`}
+            className="pt-6 pb-8"
           />
         </div>
       </div>

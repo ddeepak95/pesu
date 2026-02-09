@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import CloseButton from "@/components/ui/close-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,12 +37,14 @@ interface SurveyInnerProps {
   survey: Survey;
   contentItemId: string | null;
   initialExistingResponse: SurveyResponse | null;
+  classId: string;
 }
 
 function SurveyInner({
   survey,
   contentItemId,
   initialExistingResponse,
+  classId,
 }: SurveyInnerProps) {
   const [existingResponse, setExistingResponse] =
     useState<SurveyResponse | null>(initialExistingResponse);
@@ -57,7 +59,6 @@ function SurveyInner({
   const [answers, setAnswers] =
     useState<Map<number, string | number>>(initialAnswers);
 
-  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -257,16 +258,7 @@ function SurveyInner({
               </div>
             )}
 
-            {/* Close button to go back */}
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => router.back()}
-              >
-                Close
-              </Button>
-            </div>
+            <CloseButton href={`/student/classes/${classId}`} />
           </div>
         </div>
       </div>
@@ -322,6 +314,7 @@ export default function SurveyDetailClient({
         survey={survey}
         contentItemId={contentItemId}
         initialExistingResponse={existingResponse}
+        classId={classId}
       />
     </ActivityTrackingProvider>
   );

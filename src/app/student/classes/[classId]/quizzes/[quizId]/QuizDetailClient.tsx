@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
-import { Button } from "@/components/ui/button";
+import CloseButton from "@/components/ui/close-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,6 +24,7 @@ interface QuizInnerProps {
   contentItemId: string | null;
   initialIsComplete: boolean;
   existingSubmission: QuizSubmission | null;
+  classId: string;
 }
 
 function QuizInner({
@@ -32,9 +32,9 @@ function QuizInner({
   contentItemId,
   initialIsComplete,
   existingSubmission: initialSubmission,
+  classId,
 }: QuizInnerProps) {
   const { user } = useAuth();
-  const router = useRouter();
 
   const [isComplete, setIsComplete] = useState(initialIsComplete);
   const [submission, setSubmission] = useState<QuizSubmission | null>(
@@ -180,16 +180,7 @@ function QuizInner({
               onSubmit={handleSubmit}
             />
 
-            {/* Close button to go back */}
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => router.back()}
-              >
-                Close
-              </Button>
-            </div>
+            <CloseButton href={`/student/classes/${classId}`} />
           </div>
         </div>
       </div>
@@ -220,6 +211,7 @@ export default function QuizDetailClient({
     <ActivityTrackingProvider userId={user?.id} classId={classUuid ?? classId}>
       <QuizInner
         quiz={quiz}
+        classId={classId}
         contentItemId={contentItemId}
         initialIsComplete={isComplete}
         existingSubmission={existingSubmission}
