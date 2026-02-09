@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
 import CloseButton from "@/components/ui/close-button";
+import GoToClassButton from "@/components/ui/go-to-class-button";
+import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +39,7 @@ interface SurveyInnerProps {
   contentItemId: string | null;
   initialExistingResponse: SurveyResponse | null;
   classId: string;
+  classUuid: string | null;
 }
 
 function SurveyInner({
@@ -45,6 +47,7 @@ function SurveyInner({
   contentItemId,
   initialExistingResponse,
   classId,
+  classUuid,
 }: SurveyInnerProps) {
   const [existingResponse, setExistingResponse] =
     useState<SurveyResponse | null>(initialExistingResponse);
@@ -143,7 +146,7 @@ function SurveyInner({
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -258,9 +261,15 @@ function SurveyInner({
               </div>
             )}
 
+            {contentItemId && (
+              <NextItemButton
+                classDbId={classUuid}
+                classId={classId}
+                contentItemId={contentItemId}
+              />
+            )}
             <CloseButton
               href={`/student/classes/${classId}`}
-              scrollKey={`scroll_${classId}`}
             />
           </div>
         </div>
@@ -318,6 +327,7 @@ export default function SurveyDetailClient({
         contentItemId={contentItemId}
         initialExistingResponse={existingResponse}
         classId={classId}
+        classUuid={classUuid}
       />
     </ActivityTrackingProvider>
   );

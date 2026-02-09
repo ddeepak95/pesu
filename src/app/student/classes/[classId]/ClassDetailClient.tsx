@@ -44,6 +44,20 @@ export default function ClassDetailClient({
     }
   }, [profileLoading, profileFields, hasCompletedRequired]);
 
+  // Restore scroll position when navigating back from a content page
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(`scroll_${classId}`);
+      if (raw != null) {
+        const y = Number(raw);
+        sessionStorage.removeItem(`scroll_${classId}`);
+        requestAnimationFrame(() => {
+          setTimeout(() => window.scrollTo(0, y), 50);
+        });
+      }
+    } catch {}
+  }, [classId]);
+
   const handleProfileComplete = () => {
     setShowProfileDialog(false);
     refetch();

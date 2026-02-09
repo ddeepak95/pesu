@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
 import CloseButton from "@/components/ui/close-button";
+import GoToClassButton from "@/components/ui/go-to-class-button";
+import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,6 +26,7 @@ interface QuizInnerProps {
   initialIsComplete: boolean;
   existingSubmission: QuizSubmission | null;
   classId: string;
+  classUuid: string | null;
 }
 
 function QuizInner({
@@ -33,6 +35,7 @@ function QuizInner({
   initialIsComplete,
   existingSubmission: initialSubmission,
   classId,
+  classUuid,
 }: QuizInnerProps) {
   const { user } = useAuth();
 
@@ -133,7 +136,7 @@ function QuizInner({
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -180,9 +183,15 @@ function QuizInner({
               onSubmit={handleSubmit}
             />
 
+            {contentItemId && (
+              <NextItemButton
+                classDbId={classUuid}
+                classId={classId}
+                contentItemId={contentItemId}
+              />
+            )}
             <CloseButton
               href={`/student/classes/${classId}`}
-              scrollKey={`scroll_${classId}`}
             />
           </div>
         </div>
@@ -215,6 +224,7 @@ export default function QuizDetailClient({
       <QuizInner
         quiz={quiz}
         classId={classId}
+        classUuid={classUuid}
         contentItemId={contentItemId}
         initialIsComplete={isComplete}
         existingSubmission={existingSubmission}

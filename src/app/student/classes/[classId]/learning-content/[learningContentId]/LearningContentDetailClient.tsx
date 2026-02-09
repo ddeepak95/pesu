@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
 import CloseButton from "@/components/ui/close-button";
+import GoToClassButton from "@/components/ui/go-to-class-button";
+import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
@@ -17,6 +18,7 @@ interface LearningContentInnerProps {
   contentItemId: string | null;
   initialIsComplete: boolean;
   classId: string;
+  classUuid: string | null;
 }
 
 function LearningContentInner({
@@ -24,6 +26,7 @@ function LearningContentInner({
   contentItemId,
   initialIsComplete,
   classId,
+  classUuid,
 }: LearningContentInnerProps) {
   const [isComplete, setIsComplete] = useState(initialIsComplete);
 
@@ -39,7 +42,7 @@ function LearningContentInner({
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -72,9 +75,15 @@ function LearningContentInner({
               </div>
             )}
 
+            {contentItemId && (
+              <NextItemButton
+                classDbId={classUuid}
+                classId={classId}
+                contentItemId={contentItemId}
+              />
+            )}
             <CloseButton
               href={`/student/classes/${classId}`}
-              scrollKey={`scroll_${classId}`}
             />
           </div>
         </div>
@@ -107,6 +116,7 @@ export default function LearningContentDetailClient({
         contentItemId={contentItemId}
         initialIsComplete={isComplete}
         classId={classId}
+        classUuid={classUuid}
       />
     </ActivityTrackingProvider>
   );
