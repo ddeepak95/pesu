@@ -108,11 +108,33 @@ export default function Content({ classData }: ContentProps) {
     return calculateUnlockStates(items, completedContentIds, progressiveUnlockEnabled);
   }, [items, completedContentIds, classData.enable_progressive_unlock]);
 
+  // Partition items into "To Complete" and "Completed"
+  const { toCompleteItems, completedItems } = useMemo(() => {
+    const toDo: ContentItem[] = [];
+    const done: ContentItem[] = [];
+    for (const item of items) {
+      if (completedContentIds.has(item.id)) {
+        done.push(item);
+      } else {
+        toDo.push(item);
+      }
+    }
+    return { toCompleteItems: toDo, completedItems: done.reverse() };
+  }, [items, completedContentIds]);
+
   const loading = itemsLoading;
   const error =
     groupError?.message || itemsError?.message || null;
 
   const handleOpen = (item: ContentItem) => {
+    // Save scroll position so CloseButton can restore it
+    try {
+      sessionStorage.setItem(
+        `scroll_${classData.class_id}`,
+        String(window.scrollY)
+      );
+    } catch {}
+
     if (item.type === "formative_assignment") {
       const a = assignmentById[item.ref_id];
       if (a) {
@@ -151,6 +173,36 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
+  const renderContentCard = (item: ContentItem) => {
+    const resolvedTitle =
+      item.type === "formative_assignment"
+        ? assignmentById[item.ref_id]?.title
+        : item.type === "quiz"
+        ? quizById[item.ref_id]?.title
+        : item.type === "survey"
+        ? surveyById[item.ref_id]?.title
+        : learningContentById[item.ref_id]?.title;
+
+    const titleLoading = !resolvedTitle;
+
+    const assessmentMode =
+      item.type === "formative_assignment"
+        ? assignmentById[item.ref_id]?.assessment_mode
+        : undefined;
+
+    return (
+      <ContentCard
+        item={item}
+        title={resolvedTitle}
+        titleLoading={titleLoading}
+        assessmentMode={assessmentMode}
+        isComplete={completedContentIds.has(item.id)}
+        unlockState={unlockStates.get(item.id)}
+        onOpen={() => handleOpen(item)}
+      />
+    );
+  };
+
   return (
     <div className="py-6">
       {loading ? (
@@ -167,41 +219,40 @@ export default function Content({ classData }: ContentProps) {
             You haven&apos;t been assigned to a group yet.
           </p>
         </div>
+      ) : items.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">
+            No content available for your group yet.
+          </p>
+        </div>
       ) : (
-        <List
-          items={items}
-          keyExtractor={(item) => item.id}
-          emptyMessage="No content available for your group yet."
-          renderItem={(item) => {
-            const resolvedTitle =
-              item.type === "formative_assignment"
-                ? assignmentById[item.ref_id]?.title
-                : item.type === "quiz"
-                ? quizById[item.ref_id]?.title
-                : item.type === "survey"
-                ? surveyById[item.ref_id]?.title
-                : learningContentById[item.ref_id]?.title;
-
-            const titleLoading = !resolvedTitle;
-
-            const assessmentMode =
-              item.type === "formative_assignment"
-                ? assignmentById[item.ref_id]?.assessment_mode
-                : undefined;
-
-            return (
-              <ContentCard
-                item={item}
-                title={resolvedTitle}
-                titleLoading={titleLoading}
-                assessmentMode={assessmentMode}
-                isComplete={completedContentIds.has(item.id)}
-                unlockState={unlockStates.get(item.id)}
-                onOpen={() => handleOpen(item)}
+        <div className="space-y-8">
+          {toCompleteItems.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold text-muted-foreground mb-4">
+                To Complete ({toCompleteItems.length})
+              </h2>
+              <List
+                items={toCompleteItems}
+                keyExtractor={(item) => item.id}
+                renderItem={renderContentCard}
               />
-            );
-          }}
-        />
+            </section>
+          )}
+
+          {completedItems.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold text-muted-foreground mb-4">
+                Completed ({completedItems.length})
+              </h2>
+              <List
+                items={completedItems}
+                keyExtractor={(item) => item.id}
+                renderItem={renderContentCard}
+              />
+            </section>
+          )}
+        </div>
       )}
     </div>
   );

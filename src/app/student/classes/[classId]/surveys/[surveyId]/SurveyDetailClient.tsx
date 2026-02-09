@@ -258,7 +258,10 @@ function SurveyInner({
               </div>
             )}
 
-            <CloseButton href={`/student/classes/${classId}`} />
+            <CloseButton
+              href={`/student/classes/${classId}`}
+              scrollKey={`scroll_${classId}`}
+            />
           </div>
         </div>
       </div>

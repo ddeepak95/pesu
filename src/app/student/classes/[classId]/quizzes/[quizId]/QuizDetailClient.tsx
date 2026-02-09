@@ -180,7 +180,10 @@ function QuizInner({
               onSubmit={handleSubmit}
             />
 
-            <CloseButton href={`/student/classes/${classId}`} />
+            <CloseButton
+              href={`/student/classes/${classId}`}
+              scrollKey={`scroll_${classId}`}
+            />
           </div>
         </div>
       </div>

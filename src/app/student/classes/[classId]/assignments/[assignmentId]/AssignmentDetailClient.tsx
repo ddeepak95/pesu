@@ -57,6 +57,7 @@ export default function AssignmentDetailClient({
 
           <CloseButton
             href={`/student/classes/${classId}`}
+            scrollKey={`scroll_${classId}`}
             className="pt-6 pb-8"
           />
         </div>

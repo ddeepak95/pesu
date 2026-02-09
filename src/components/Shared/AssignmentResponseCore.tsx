@@ -267,7 +267,6 @@ export default function AssignmentResponseCore({
           evaluationPrompt={assignmentData.evaluation_prompt}
           experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
           experienceRatingRequired={assignmentData.experience_rating_required ?? false}
-          onClose={onBack}
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -303,7 +302,6 @@ export default function AssignmentResponseCore({
           evaluationPrompt={assignmentData.evaluation_prompt}
           experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
           experienceRatingRequired={assignmentData.experience_rating_required ?? false}
-          onClose={onBack}
         />
       )}
       {assessmentMode === "static_text" && (
@@ -340,7 +338,6 @@ export default function AssignmentResponseCore({
           evaluationPrompt={assignmentData.evaluation_prompt}
           experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
           experienceRatingRequired={assignmentData.experience_rating_required ?? false}
-          onClose={onBack}
         />
       )}
     </div>
