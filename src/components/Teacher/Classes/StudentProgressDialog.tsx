@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -30,8 +30,18 @@ import {
   StudentContentCompletionWithDetails,
   ContentItemType,
 } from "@/types/contentCompletion";
-import { CheckCircle2, XCircle, Columns3 } from "lucide-react";
+import { CheckCircle2, XCircle, Columns3, Settings2, Filter } from "lucide-react";
 import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
+import { ProfileField } from "@/types/profileFields";
+import {
+  getProfileFieldsForClass,
+  getAllStudentProfiles,
+} from "@/lib/queries/profileFields";
+import {
+  getProgressViewConfig,
+  saveProgressViewConfig,
+} from "@/lib/queries/classes";
+import { ProgressViewConfig } from "@/types/class";
 
 interface StudentProgressDialogProps {
   open: boolean;
@@ -54,6 +64,7 @@ interface StudentRow {
   studentEmail: string | null;
   studentGroupId: string | null;
   completions: Map<string, { isComplete: boolean; completedAt: string | null }>;
+  profileData: Record<string, string>;
 }
 
 const CONTENT_TYPE_LABELS: Record<ContentItemType, string> = {
@@ -85,6 +96,24 @@ export default function StudentProgressDialog({
     new Set()
   );
 
+  // Profile fields & student profiles
+  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
+  const [studentProfilesMap, setStudentProfilesMap] = useState<
+    Map<string, Record<string, string>>
+  >(new Map());
+
+  // Configure: which fields to display under name / use as filters (shared, persisted to DB)
+  const [displayFields, setDisplayFields] = useState<Set<string>>(new Set());
+  const [filterFields, setFilterFields] = useState<Set<string>>(new Set());
+
+  // Profile filter selections (per-teacher, persisted to localStorage)
+  const [profileFilters, setProfileFilters] = useState<
+    Record<string, Set<string>>
+  >({});
+
+  // Debounce timer ref for saving config to DB
+  const saveConfigTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Fetch data when dialog opens
   useEffect(() => {
     if (!open) return;
@@ -93,12 +122,25 @@ export default function StudentProgressDialog({
       setLoading(true);
       setError(null);
       try {
-        const [completions, classGroups] = await Promise.all([
-          getClassContentCompletions(classDbId),
-          getClassGroups(classDbId),
-        ]);
+        const [completions, classGroups, fields, profiles, savedConfig] =
+          await Promise.all([
+            getClassContentCompletions(classDbId),
+            getClassGroups(classDbId),
+            getProfileFieldsForClass(classDbId),
+            getAllStudentProfiles(classDbId),
+            getProgressViewConfig(classDbId),
+          ]);
         setData(completions);
         setGroups(classGroups);
+        setProfileFields(fields);
+
+        // Build studentId -> profileData lookup map
+        const profilesMap = new Map<string, Record<string, string>>();
+        profiles.forEach((p) => {
+          profilesMap.set(p.student_id, p.field_responses);
+        });
+        setStudentProfilesMap(profilesMap);
+
         // Default to first group
         if (classGroups.length > 0) {
           setSelectedGroupId(classGroups[0].id);
@@ -107,6 +149,36 @@ export default function StudentProgressDialog({
         const allColumnIds = new Set<string>();
         completions.forEach((item) => allColumnIds.add(item.contentItemId));
         setSelectedColumns(allColumnIds);
+
+        // Initialize display/filter fields from saved config
+        const savedDisplayFields = new Set<string>(
+          savedConfig?.display_fields ?? []
+        );
+        const savedFilterFields = new Set<string>(
+          savedConfig?.filter_fields ?? []
+        );
+        setDisplayFields(savedDisplayFields);
+        setFilterFields(savedFilterFields);
+
+        // Restore profile filter selections from localStorage
+        try {
+          const stored = localStorage.getItem(
+            `progress-filters-${classDbId}`
+          );
+          if (stored) {
+            const parsed = JSON.parse(stored) as Record<string, string[]>;
+            const restored: Record<string, Set<string>> = {};
+            for (const [fieldId, values] of Object.entries(parsed)) {
+              // Only restore filters for fields still in the shared config
+              if (savedFilterFields.has(fieldId)) {
+                restored[fieldId] = new Set(values);
+              }
+            }
+            setProfileFilters(restored);
+          }
+        } catch {
+          // Ignore localStorage errors
+        }
       } catch (err) {
         console.error("Error fetching progress data:", err);
         setError("Failed to load student progress data.");
@@ -127,9 +199,127 @@ export default function StudentProgressDialog({
       setSelectedColumns(new Set());
       setSelectedGroupId(null);
       setGroups([]);
+      setProfileFields([]);
+      setStudentProfilesMap(new Map());
+      setDisplayFields(new Set());
+      setFilterFields(new Set());
+      setProfileFilters({});
+      // Clear debounce timer
+      if (saveConfigTimerRef.current) {
+        clearTimeout(saveConfigTimerRef.current);
+        saveConfigTimerRef.current = null;
+      }
     }
     onOpenChange(newOpen);
   };
+
+  // Debounced save of shared config to DB
+  const debouncedSaveConfig = useCallback(
+    (newDisplayFields: Set<string>, newFilterFields: Set<string>) => {
+      if (saveConfigTimerRef.current) {
+        clearTimeout(saveConfigTimerRef.current);
+      }
+      saveConfigTimerRef.current = setTimeout(() => {
+        const config: ProgressViewConfig = {
+          display_fields: Array.from(newDisplayFields),
+          filter_fields: Array.from(newFilterFields),
+        };
+        saveProgressViewConfig(classDbId, config).catch((err) =>
+          console.error("Failed to save progress view config:", err)
+        );
+      }, 500);
+    },
+    [classDbId]
+  );
+
+  // Persist profile filter selections to localStorage
+  const persistProfileFilters = useCallback(
+    (filters: Record<string, Set<string>>) => {
+      try {
+        const serialized: Record<string, string[]> = {};
+        for (const [fieldId, values] of Object.entries(filters)) {
+          if (values.size > 0) {
+            serialized[fieldId] = Array.from(values);
+          }
+        }
+        localStorage.setItem(
+          `progress-filters-${classDbId}`,
+          JSON.stringify(serialized)
+        );
+      } catch {
+        // Ignore localStorage errors
+      }
+    },
+    [classDbId]
+  );
+
+  // Toggle a display field on/off
+  const toggleDisplayField = useCallback(
+    (fieldId: string) => {
+      setDisplayFields((prev) => {
+        const next = new Set(prev);
+        if (next.has(fieldId)) {
+          next.delete(fieldId);
+        } else {
+          next.add(fieldId);
+        }
+        debouncedSaveConfig(next, filterFields);
+        return next;
+      });
+    },
+    [filterFields, debouncedSaveConfig]
+  );
+
+  // Toggle a filter field on/off
+  const toggleFilterField = useCallback(
+    (fieldId: string) => {
+      setFilterFields((prev) => {
+        const next = new Set(prev);
+        if (next.has(fieldId)) {
+          next.delete(fieldId);
+          // Remove any active filter selections for this field
+          setProfileFilters((prevFilters) => {
+            const updated = { ...prevFilters };
+            delete updated[fieldId];
+            // Save updated filters to localStorage
+            persistProfileFilters(updated);
+            return updated;
+          });
+        } else {
+          next.add(fieldId);
+        }
+        debouncedSaveConfig(displayFields, next);
+        return next;
+      });
+    },
+    [displayFields, debouncedSaveConfig, persistProfileFilters]
+  );
+
+  // Toggle a profile filter option value
+  const toggleProfileFilterValue = useCallback(
+    (fieldId: string, value: string) => {
+      setProfileFilters((prev) => {
+        const currentSet = prev[fieldId] ?? new Set<string>();
+        const next = new Set(currentSet);
+        if (next.has(value)) {
+          next.delete(value);
+        } else {
+          next.add(value);
+        }
+        const updated = { ...prev, [fieldId]: next };
+        // Save to localStorage
+        persistProfileFilters(updated);
+        return updated;
+      });
+    },
+    [persistProfileFilters]
+  );
+
+  // Dropdown-type profile fields (for filter configuration)
+  const dropdownProfileFields = useMemo(
+    () => profileFields.filter((f) => f.field_type === "dropdown"),
+    [profileFields]
+  );
 
   // Get all unique content columns (filtered by selected group)
   const allContentColumns = useMemo(() => {
@@ -240,6 +430,7 @@ export default function StudentProgressDialog({
           studentEmail: item.studentEmail,
           studentGroupId: item.studentGroupId,
           completions: new Map(),
+          profileData: studentProfilesMap.get(item.studentId) ?? {},
         });
       }
 
@@ -251,7 +442,7 @@ export default function StudentProgressDialog({
     });
 
     return Array.from(rowsMap.values());
-  }, [data, selectedGroupId]);
+  }, [data, selectedGroupId, studentProfilesMap]);
 
   // Apply filters to student rows
   const filteredRows = useMemo(() => {
@@ -286,9 +477,18 @@ export default function StudentProgressDialog({
         }
       }
 
+      // Profile field filters: AND across fields, OR within a field's selected values
+      for (const [fieldId, selectedValues] of Object.entries(profileFilters)) {
+        if (selectedValues.size === 0) continue;
+        const studentValue = row.profileData[fieldId] ?? "";
+        if (!selectedValues.has(studentValue)) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [studentRows, searchQuery, completionFilter, contentColumns]);
+  }, [studentRows, searchQuery, completionFilter, contentColumns, profileFilters]);
 
   // Calculate completion stats
   const stats = useMemo(() => {
@@ -327,7 +527,61 @@ export default function StudentProgressDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-[90vw] max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Student Progress</DialogTitle>
+          <div className="flex items-center justify-between pr-6">
+            <DialogTitle>Student Progress</DialogTitle>
+            {/* Configure: display fields + filter fields */}
+            {profileFields.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Settings2 className="h-4 w-4" />
+                    Configure
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-[280px] max-h-[400px] overflow-y-auto"
+                >
+                  <DropdownMenuLabel>Show with Student Name</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {profileFields.map((field) => (
+                    <DropdownMenuCheckboxItem
+                      key={`display-${field.id}`}
+                      checked={displayFields.has(field.id)}
+                      onCheckedChange={() => toggleDisplayField(field.id)}
+                    >
+                      <div className="flex flex-col">
+                        <span className="truncate max-w-[220px]">
+                          {field.field_name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {field.field_type === "dropdown" ? "Dropdown" : "Text"}
+                        </span>
+                      </div>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {dropdownProfileFields.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Add as Filter</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {dropdownProfileFields.map((field) => (
+                        <DropdownMenuCheckboxItem
+                          key={`filter-${field.id}`}
+                          checked={filterFields.has(field.id)}
+                          onCheckedChange={() => toggleFilterField(field.id)}
+                        >
+                          <span className="truncate max-w-[220px]">
+                            {field.field_name}
+                          </span>
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
           <DialogDescription>
             View content completion status for all students in this class.
           </DialogDescription>
@@ -441,6 +695,49 @@ export default function StudentProgressDialog({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Dynamic profile filter dropdowns */}
+          {profileFields
+            .filter((f) => filterFields.has(f.id) && f.options && f.options.length > 0)
+            .map((field) => {
+              const activeCount = profileFilters[field.id]?.size ?? 0;
+              return (
+                <DropdownMenu key={`profile-filter-${field.id}`}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`gap-2 ${activeCount > 0 ? "border-primary" : ""}`}
+                    >
+                      <Filter className="h-4 w-4" />
+                      {field.field_name}
+                      {activeCount > 0 && (
+                        <span className="ml-1 rounded-full bg-primary text-primary-foreground text-xs px-1.5 py-0.5">
+                          {activeCount}
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-[220px] max-h-[300px] overflow-y-auto"
+                  >
+                    <DropdownMenuLabel>{field.field_name}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {field.options!.map((option) => (
+                      <DropdownMenuCheckboxItem
+                        key={option}
+                        checked={profileFilters[field.id]?.has(option) ?? false}
+                        onCheckedChange={() =>
+                          toggleProfileFilterValue(field.id, option)
+                        }
+                      >
+                        {option}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            })}
         </div>
 
         {/* Content */}
@@ -516,6 +813,24 @@ export default function StudentProgressDialog({
                               {row.studentEmail}
                             </div>
                           )}
+                        {displayFields.size > 0 && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                            {profileFields
+                              .filter((f) => displayFields.has(f.id))
+                              .map((field) => {
+                                const value = row.profileData[field.id];
+                                if (!value) return null;
+                                return (
+                                  <span
+                                    key={field.id}
+                                    className="text-xs text-muted-foreground"
+                                  >
+                                    {value}
+                                  </span>
+                                );
+                              })}
+                          </div>
+                        )}
                       </td>
                       {contentColumns.map((col) => {
                         const completion = row.completions.get(

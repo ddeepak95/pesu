@@ -1,3 +1,8 @@
+export interface ProgressViewConfig {
+  display_fields: string[];
+  filter_fields: string[];
+}
+
 export interface Class {
   id: string;
   name: string;
@@ -10,6 +15,7 @@ export interface Class {
   group_count?: number;
   enable_progressive_unlock?: boolean;
   student_assignment_strategy?: "round_robin" | "default_group";
+  progress_view_config?: ProgressViewConfig | null;
 }
 
 export interface ClassTeacher {
