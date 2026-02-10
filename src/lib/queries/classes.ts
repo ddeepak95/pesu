@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase";
-import { Class } from "@/types/class";
+import { Class, ProgressViewConfig } from "@/types/class";
 import { nanoid } from "nanoid";
 
 /**
@@ -34,7 +34,7 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
   // Avoid relying on join/or syntax across embedded relationships.
   // Fetch owned classes + co-taught classes via class_teachers, then merge.
 
-  const CLASS_COLUMNS = "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy";
+  const CLASS_COLUMNS = "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config";
 
   const ownedQuery = supabase
     .from("classes")
@@ -228,7 +228,7 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
 
   const { data, error } = await supabase
     .from("classes")
-    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config")
     .eq("class_id", classId)
     .eq("status", "active")
     .single();
@@ -279,7 +279,7 @@ export async function getClassesByStudent(studentId: string): Promise<Class[]> {
   // Fetch the actual class data
   const { data: classes, error: classesError } = await supabase
     .from("classes")
-    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config")
     .in("id", classDbIds)
     .eq("status", "active");
 
@@ -293,5 +293,61 @@ export async function getClassesByStudent(studentId: string): Promise<Class[]> {
 
   console.log("Student classes fetched successfully:", sorted);
   return sorted;
+}
+
+/**
+ * Get the progress view configuration for a class.
+ * Returns null gracefully if the column doesn't exist yet (migration not run).
+ */
+export async function getProgressViewConfig(
+  classDbId: string
+): Promise<ProgressViewConfig | null> {
+  const supabase = createClient();
+
+  try {
+    const { data, error } = await supabase
+      .from("classes")
+      .select("progress_view_config")
+      .eq("id", classDbId)
+      .single();
+
+    if (error) {
+      // Column may not exist yet if migration hasn't been run
+      console.warn("Could not fetch progress view config (column may not exist yet):", error.message || error);
+      return null;
+    }
+
+    return (data?.progress_view_config as ProgressViewConfig) ?? null;
+  } catch {
+    // Gracefully handle if column doesn't exist
+    return null;
+  }
+}
+
+/**
+ * Save the progress view configuration for a class (shared across all co-teachers).
+ * Silently fails if the column doesn't exist yet (migration not run).
+ */
+export async function saveProgressViewConfig(
+  classDbId: string,
+  config: ProgressViewConfig
+): Promise<void> {
+  const supabase = createClient();
+
+  try {
+    const { error } = await supabase
+      .from("classes")
+      .update({
+        progress_view_config: config,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", classDbId);
+
+    if (error) {
+      console.warn("Could not save progress view config (column may not exist yet):", error.message || error);
+    }
+  } catch {
+    // Silently handle if column doesn't exist
+  }
 }
 
