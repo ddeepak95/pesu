@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ProfileField } from "@/types/profileFields";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +43,12 @@ export default function ProfileDetailsDialog({
 }: ProfileDetailsDialogProps) {
   const [responses, setResponses] =
     useState<Record<string, string>>(existingResponses);
+
+  // Sync when existingResponses changes (e.g. after async SWR load)
+  useEffect(() => {
+    setResponses(existingResponses);
+  }, [existingResponses]);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
