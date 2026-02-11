@@ -18,6 +18,7 @@ import {
   Trash2,
   Share2,
   Lock,
+  KeyRound,
 } from "lucide-react";
 import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
@@ -44,6 +45,7 @@ export default function ContentCard({
   onDelete,
   onShareLinks,
   onToggleLockAfterComplete,
+  onToggleRequireTeacherUnlock,
   language,
 }: {
   item: ContentItem;
@@ -66,6 +68,10 @@ export default function ContentCard({
   onToggleLockAfterComplete?: (
     itemId: string,
     lockAfterComplete: boolean
+  ) => void;
+  onToggleRequireTeacherUnlock?: (
+    itemId: string,
+    requireTeacherUnlock: boolean
   ) => void;
 }) {
   const labelForType = (type: ContentItemType) => {
@@ -152,6 +158,12 @@ export default function ContentCard({
                 Locks After Complete
               </span>
             )}
+            {item.require_teacher_unlock && (
+              <span className="text-xs rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                <KeyRound className="w-3 h-3" />
+                Teacher Unlock
+              </span>
+            )}
           </div>
 
           {/* Title row */}
@@ -199,35 +211,63 @@ export default function ContentCard({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {onToggleLockAfterComplete && (
-                <>
-                  <div
-                    className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleLockAfterComplete(
-                        item.id,
-                        !(item.lock_after_complete ?? false)
-                      );
-                    }}
+                <div
+                  className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleLockAfterComplete(
+                      item.id,
+                      !(item.lock_after_complete ?? false)
+                    );
+                  }}
+                >
+                  <Label
+                    htmlFor={`lock-${item.id}`}
+                    className="cursor-pointer flex items-center gap-2"
                   >
-                    <Label
-                      htmlFor={`lock-${item.id}`}
-                      className="cursor-pointer flex items-center gap-2"
-                    >
-                      <Lock className="h-4 w-4" />
-                      Lock after complete
-                    </Label>
-                    <Switch
-                      id={`lock-${item.id}`}
-                      checked={item.lock_after_complete ?? false}
-                      onCheckedChange={(checked) => {
-                        onToggleLockAfterComplete(item.id, checked);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  <DropdownMenuSeparator />
-                </>
+                    <Lock className="h-4 w-4" />
+                    Lock after complete
+                  </Label>
+                  <Switch
+                    id={`lock-${item.id}`}
+                    checked={item.lock_after_complete ?? false}
+                    onCheckedChange={(checked) => {
+                      onToggleLockAfterComplete(item.id, checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              {onToggleRequireTeacherUnlock && (
+                <div
+                  className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleRequireTeacherUnlock(
+                      item.id,
+                      !(item.require_teacher_unlock ?? false)
+                    );
+                  }}
+                >
+                  <Label
+                    htmlFor={`teacher-unlock-${item.id}`}
+                    className="cursor-pointer flex items-center gap-2"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Require teacher unlock
+                  </Label>
+                  <Switch
+                    id={`teacher-unlock-${item.id}`}
+                    checked={item.require_teacher_unlock ?? false}
+                    onCheckedChange={(checked) => {
+                      onToggleRequireTeacherUnlock(item.id, checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              {(onToggleLockAfterComplete || onToggleRequireTeacherUnlock) && (
+                <DropdownMenuSeparator />
               )}
               <DropdownMenuItem
                 disabled={savingOrder || index === 0}

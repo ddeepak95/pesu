@@ -3,7 +3,7 @@
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
-import { Check, Lock } from "lucide-react";
+import { Check, Lock, KeyRound } from "lucide-react";
 import { UnlockState } from "@/lib/utils/unlockLogic";
 import { useState } from "react";
 import {
@@ -109,7 +109,13 @@ export default function ContentCard({
                   Completed
                 </span>
               )}
-              {isLocked && (
+              {isLocked && unlockState?.isTeacherLocked && (
+                <span className="text-xs rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <KeyRound className="w-3 h-3" />
+                  Awaiting Unlock
+                </span>
+              )}
+              {isLocked && !unlockState?.isTeacherLocked && (
                 <span className="text-xs rounded-full border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 text-gray-600 dark:text-gray-400 flex items-center gap-1">
                   <Lock className="w-3 h-3" />
                   Locked

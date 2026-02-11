@@ -23,6 +23,8 @@ import {
 } from "@/lib/queries/contentItems";
 import { LearningContent } from "@/types/learningContent";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import StudentUnlockTab from "@/components/Teacher/Shared/StudentUnlockTab";
 
 interface LearningContentDetailClientProps {
   initialContent: LearningContent;
@@ -131,13 +133,31 @@ export default function LearningContentDetailClient({
             </DropdownMenu>
           </div>
 
-          <div className="space-y-6 pb-8">
-            <LearningContentViewer
-              title={content.title}
-              body={content.body}
-              videoUrl={content.video_url}
-            />
-          </div>
+          <Tabs defaultValue="content" className="w-full">
+            <TabsList>
+              <TabsTrigger value="content">Content</TabsTrigger>
+              <TabsTrigger value="students">Students</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="content" className="py-6">
+              <div className="space-y-6 pb-8">
+                <LearningContentViewer
+                  title={content.title}
+                  body={content.body}
+                  videoUrl={content.video_url}
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="students" className="py-6">
+              <StudentUnlockTab
+                refId={content.id}
+                contentType="learning_content"
+                classId={classId}
+                contentName={content.title}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </PageLayout>

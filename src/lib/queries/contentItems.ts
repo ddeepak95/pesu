@@ -9,7 +9,7 @@ function generateContentItemId(): string {
 export async function getContentItemsByClass(classDbId: string): Promise<ContentItem[]> {
   const supabase = createClient();
 
-  const CONTENT_ITEM_COLUMNS = "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete";
+  const CONTENT_ITEM_COLUMNS = "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock";
 
   const { data, error } = await supabase
     .from("content_items")
@@ -34,7 +34,7 @@ export async function getContentItemsByGroup(params: {
 
   const { data, error } = await supabase
     .from("content_items")
-    .select("id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete")
+    .select("id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock")
     .eq("class_id", params.classDbId)
     .eq("class_group_id", params.classGroupId)
     .in("status", ["active", "draft"])
@@ -90,7 +90,7 @@ export async function getNextContentItemPositionByGroup(params: {
  */
 export async function updateContentItem(
   id: string,
-  updates: Partial<Pick<ContentItem, "lock_after_complete" | "position" | "status" | "due_at">>
+  updates: Partial<Pick<ContentItem, "lock_after_complete" | "require_teacher_unlock" | "position" | "status" | "due_at">>
 ): Promise<ContentItem> {
   const supabase = createClient();
 
@@ -121,6 +121,7 @@ export async function createContentItem(
     due_at?: string | null;
     status?: ContentItem["status"];
     lock_after_complete?: boolean;
+    require_teacher_unlock?: boolean;
   },
   userId: string
 ): Promise<ContentItem> {
@@ -149,6 +150,7 @@ export async function createContentItem(
       created_by: userId,
       status: payload.status ?? "active",
       lock_after_complete: payload.lock_after_complete ?? false,
+      require_teacher_unlock: payload.require_teacher_unlock ?? false,
     })
     .select()
     .single();
@@ -260,7 +262,7 @@ export async function getContentItemByRefId(
 
   const { data, error } = await supabase
     .from("content_items")
-    .select("id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete")
+    .select("id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock")
     .eq("ref_id", refId)
     .eq("type", type)
     .in("status", ["active", "draft"])

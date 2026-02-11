@@ -385,6 +385,29 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
+  const handleToggleRequireTeacherUnlock = async (
+    itemId: string,
+    requireTeacherUnlock: boolean
+  ) => {
+    try {
+      await updateContentItem(itemId, {
+        require_teacher_unlock: requireTeacherUnlock,
+      });
+      // Optimistic update
+      setLocalItems((prev) =>
+        (prev ?? items).map((item) =>
+          item.id === itemId
+            ? { ...item, require_teacher_unlock: requireTeacherUnlock }
+            : item
+        )
+      );
+      mutateItems();
+    } catch (err) {
+      console.error("Error updating require_teacher_unlock:", err);
+      alert("Failed to update teacher unlock setting. Please try again.");
+    }
+  };
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
@@ -543,6 +566,7 @@ export default function Content({ classData }: ContentProps) {
                       onMove={(direction) => handleMove(index, direction)}
                       onShareLinks={() => handleShareLinks(item)}
                       onToggleLockAfterComplete={handleToggleLockAfterComplete}
+                      onToggleRequireTeacherUnlock={handleToggleRequireTeacherUnlock}
                     />
                   );
                 }}
