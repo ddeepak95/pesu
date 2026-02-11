@@ -242,7 +242,7 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
     switch (agentState) {
       case "starting":
         return {
-          text: "Konvo is preparing for the activity. This takes upto 30 seconds. Please wait...",
+          text: "Konvo is preparing for the activity. This takes upto 30 seconds. Please wait for Konvo to speak to you before you speak.",
           color: "text-yellow-600",
         };
       case "listening":
