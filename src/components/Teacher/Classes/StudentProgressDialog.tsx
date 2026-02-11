@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +30,7 @@ import {
   StudentContentCompletionWithDetails,
   ContentItemType,
 } from "@/types/contentCompletion";
-import { CheckCircle2, XCircle, Columns3, Settings2, Filter } from "lucide-react";
+import { CheckCircle2, XCircle, Columns3, Filter, Lock, Unlock } from "lucide-react";
 import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
 import { ProfileField } from "@/types/profileFields";
 import {
@@ -39,9 +39,15 @@ import {
 } from "@/lib/queries/profileFields";
 import {
   getProgressViewConfig,
-  saveProgressViewConfig,
 } from "@/lib/queries/classes";
-import { ProgressViewConfig } from "@/types/class";
+import { getContentItemsByClass } from "@/lib/queries/contentItems";
+import {
+  getTeacherUnlocksForClass,
+  unlockContentForStudent,
+  lockContentForStudent,
+} from "@/lib/queries/teacherUnlocks";
+import { TeacherContentUnlock } from "@/types/contentItem";
+import UnlockConfirmDialog from "@/components/Teacher/Shared/UnlockConfirmDialog";
 
 interface StudentProgressDialogProps {
   open: boolean;
@@ -111,8 +117,24 @@ export default function StudentProgressDialog({
     Record<string, Set<string>>
   >({});
 
-  // Debounce timer ref for saving config to DB
-  const saveConfigTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Teacher unlock state
+  const [teacherUnlockMap, setTeacherUnlockMap] = useState<
+    Map<string, TeacherContentUnlock>
+  >(new Map());
+  const [requireTeacherUnlockItems, setRequireTeacherUnlockItems] = useState<
+    Set<string>
+  >(new Set());
+
+  // Unlock confirmation dialog
+  const [unlockDialogOpen, setUnlockDialogOpen] = useState(false);
+  const [unlockDialogTarget, setUnlockDialogTarget] = useState<{
+    contentItemId: string;
+    studentId: string;
+    studentName: string;
+    contentName: string;
+    isCurrentlyUnlocked: boolean;
+  } | null>(null);
+
 
   // Fetch data when dialog opens
   useEffect(() => {
@@ -122,17 +144,29 @@ export default function StudentProgressDialog({
       setLoading(true);
       setError(null);
       try {
-        const [completions, classGroups, fields, profiles, savedConfig] =
+        const [completions, classGroups, fields, profiles, savedConfig, contentItems, unlockMap] =
           await Promise.all([
             getClassContentCompletions(classDbId),
             getClassGroups(classDbId),
             getProfileFieldsForClass(classDbId),
             getAllStudentProfiles(classDbId),
             getProgressViewConfig(classDbId),
+            getContentItemsByClass(classDbId),
+            getTeacherUnlocksForClass(classDbId),
           ]);
         setData(completions);
         setGroups(classGroups);
         setProfileFields(fields);
+
+        // Track which content items require teacher unlock
+        const requireUnlockSet = new Set<string>();
+        for (const ci of contentItems) {
+          if (ci.require_teacher_unlock) {
+            requireUnlockSet.add(ci.id);
+          }
+        }
+        setRequireTeacherUnlockItems(requireUnlockSet);
+        setTeacherUnlockMap(unlockMap);
 
         // Build studentId -> profileData lookup map
         const profilesMap = new Map<string, Record<string, string>>();
@@ -204,33 +238,11 @@ export default function StudentProgressDialog({
       setDisplayFields(new Set());
       setFilterFields(new Set());
       setProfileFilters({});
-      // Clear debounce timer
-      if (saveConfigTimerRef.current) {
-        clearTimeout(saveConfigTimerRef.current);
-        saveConfigTimerRef.current = null;
-      }
+      setTeacherUnlockMap(new Map());
+      setRequireTeacherUnlockItems(new Set());
     }
     onOpenChange(newOpen);
   };
-
-  // Debounced save of shared config to DB
-  const debouncedSaveConfig = useCallback(
-    (newDisplayFields: Set<string>, newFilterFields: Set<string>) => {
-      if (saveConfigTimerRef.current) {
-        clearTimeout(saveConfigTimerRef.current);
-      }
-      saveConfigTimerRef.current = setTimeout(() => {
-        const config: ProgressViewConfig = {
-          display_fields: Array.from(newDisplayFields),
-          filter_fields: Array.from(newFilterFields),
-        };
-        saveProgressViewConfig(classDbId, config).catch((err) =>
-          console.error("Failed to save progress view config:", err)
-        );
-      }, 500);
-    },
-    [classDbId]
-  );
 
   // Persist profile filter selections to localStorage
   const persistProfileFilters = useCallback(
@@ -253,48 +265,6 @@ export default function StudentProgressDialog({
     [classDbId]
   );
 
-  // Toggle a display field on/off
-  const toggleDisplayField = useCallback(
-    (fieldId: string) => {
-      setDisplayFields((prev) => {
-        const next = new Set(prev);
-        if (next.has(fieldId)) {
-          next.delete(fieldId);
-        } else {
-          next.add(fieldId);
-        }
-        debouncedSaveConfig(next, filterFields);
-        return next;
-      });
-    },
-    [filterFields, debouncedSaveConfig]
-  );
-
-  // Toggle a filter field on/off
-  const toggleFilterField = useCallback(
-    (fieldId: string) => {
-      setFilterFields((prev) => {
-        const next = new Set(prev);
-        if (next.has(fieldId)) {
-          next.delete(fieldId);
-          // Remove any active filter selections for this field
-          setProfileFilters((prevFilters) => {
-            const updated = { ...prevFilters };
-            delete updated[fieldId];
-            // Save updated filters to localStorage
-            persistProfileFilters(updated);
-            return updated;
-          });
-        } else {
-          next.add(fieldId);
-        }
-        debouncedSaveConfig(displayFields, next);
-        return next;
-      });
-    },
-    [displayFields, debouncedSaveConfig, persistProfileFilters]
-  );
-
   // Toggle a profile filter option value
   const toggleProfileFilterValue = useCallback(
     (fieldId: string, value: string) => {
@@ -313,12 +283,6 @@ export default function StudentProgressDialog({
       });
     },
     [persistProfileFilters]
-  );
-
-  // Dropdown-type profile fields (for filter configuration)
-  const dropdownProfileFields = useMemo(
-    () => profileFields.filter((f) => f.field_type === "dropdown"),
-    [profileFields]
   );
 
   // Get all unique content columns (filtered by selected group)
@@ -527,61 +491,7 @@ export default function StudentProgressDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-[90vw] max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <div className="flex items-center justify-between pr-6">
-            <DialogTitle>Student Progress</DialogTitle>
-            {/* Configure: display fields + filter fields */}
-            {profileFields.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Settings2 className="h-4 w-4" />
-                    Configure
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-[280px] max-h-[400px] overflow-y-auto"
-                >
-                  <DropdownMenuLabel>Show with Student Name</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {profileFields.map((field) => (
-                    <DropdownMenuCheckboxItem
-                      key={`display-${field.id}`}
-                      checked={displayFields.has(field.id)}
-                      onCheckedChange={() => toggleDisplayField(field.id)}
-                    >
-                      <div className="flex flex-col">
-                        <span className="truncate max-w-[220px]">
-                          {field.field_name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {field.field_type === "dropdown" ? "Dropdown" : "Text"}
-                        </span>
-                      </div>
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                  {dropdownProfileFields.length > 0 && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Add as Filter</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {dropdownProfileFields.map((field) => (
-                        <DropdownMenuCheckboxItem
-                          key={`filter-${field.id}`}
-                          checked={filterFields.has(field.id)}
-                          onCheckedChange={() => toggleFilterField(field.id)}
-                        >
-                          <span className="truncate max-w-[220px]">
-                            {field.field_name}
-                          </span>
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+          <DialogTitle>Student Progress</DialogTitle>
           <DialogDescription>
             View content completion status for all students in this class.
           </DialogDescription>
@@ -837,6 +747,9 @@ export default function StudentProgressDialog({
                           col.contentItemId
                         );
                         const isComplete = completion?.isComplete ?? false;
+                        const needsTeacherUnlock = requireTeacherUnlockItems.has(col.contentItemId);
+                        const unlockKey = `${col.contentItemId}:${row.studentId}`;
+                        const isTeacherUnlocked = teacherUnlockMap.has(unlockKey);
 
                         return (
                           <td
@@ -850,11 +763,43 @@ export default function StudentProgressDialog({
                                 : "Not completed"
                             }
                           >
-                            {isComplete ? (
-                              <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
-                            ) : (
-                              <XCircle className="h-6 w-6 text-gray-300 dark:text-gray-600" />
-                            )}
+                            <div className="flex items-center gap-1">
+                              {isComplete ? (
+                                <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                              ) : (
+                                <XCircle className="h-6 w-6 text-gray-300 dark:text-gray-600" />
+                              )}
+                              {needsTeacherUnlock && (
+                                <button
+                                  onClick={() => {
+                                    setUnlockDialogTarget({
+                                      contentItemId: col.contentItemId,
+                                      studentId: row.studentId,
+                                      studentName: row.studentName,
+                                      contentName: col.contentName,
+                                      isCurrentlyUnlocked: isTeacherUnlocked,
+                                    });
+                                    setUnlockDialogOpen(true);
+                                  }}
+                                  className={`p-0.5 rounded hover:bg-muted transition-colors ${
+                                    isTeacherUnlocked
+                                      ? "text-green-600 dark:text-green-400"
+                                      : "text-gray-400 dark:text-gray-500"
+                                  }`}
+                                  title={
+                                    isTeacherUnlocked
+                                      ? "Unlocked - click to lock"
+                                      : "Locked - click to unlock"
+                                  }
+                                >
+                                  {isTeacherUnlocked ? (
+                                    <Unlock className="h-4 w-4" />
+                                  ) : (
+                                    <Lock className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         );
                       })}
@@ -881,6 +826,41 @@ export default function StudentProgressDialog({
           </div>
         )}
       </DialogContent>
+
+      {/* Unlock confirmation dialog */}
+      {unlockDialogTarget && (
+        <UnlockConfirmDialog
+          open={unlockDialogOpen}
+          onOpenChange={setUnlockDialogOpen}
+          studentName={unlockDialogTarget.studentName}
+          contentName={unlockDialogTarget.contentName}
+          isCurrentlyUnlocked={unlockDialogTarget.isCurrentlyUnlocked}
+          onConfirm={async () => {
+            const { contentItemId, studentId, isCurrentlyUnlocked } =
+              unlockDialogTarget;
+            const unlockKey = `${contentItemId}:${studentId}`;
+
+            if (isCurrentlyUnlocked) {
+              await lockContentForStudent(contentItemId, studentId);
+              setTeacherUnlockMap((prev) => {
+                const next = new Map(prev);
+                next.delete(unlockKey);
+                return next;
+              });
+            } else {
+              const unlock = await unlockContentForStudent(
+                contentItemId,
+                studentId
+              );
+              setTeacherUnlockMap((prev) => {
+                const next = new Map(prev);
+                next.set(unlockKey, unlock);
+                return next;
+              });
+            }
+          }}
+        />
+      )}
     </Dialog>
   );
 }

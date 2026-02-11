@@ -35,7 +35,7 @@ export const verifySession = cache(
 // ---------------------------------------------------------------------------
 
 const CONTENT_ITEM_COLUMNS =
-  "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete";
+  "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock";
 
 const CLASS_COLUMNS =
   "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy";
@@ -105,7 +105,24 @@ export async function getContentUnlockState(
     result.classUuid = classData.id;
   }
 
-  // 4. Check progressive unlock if enabled
+  // 4. Check teacher unlock (require_teacher_unlock)
+  // If the content item requires teacher unlock, check if it has been unlocked for this student
+  if (contentItem.require_teacher_unlock) {
+    const { data: teacherUnlock } = await supabase
+      .from("teacher_content_unlocks")
+      .select("id")
+      .eq("content_item_id", contentItem.id)
+      .eq("student_id", userId)
+      .maybeSingle();
+
+    if (!teacherUnlock) {
+      result.isLocked = true;
+      result.lockReason = "This content requires teacher approval to access";
+      return result;
+    }
+  }
+
+  // 5. Check progressive unlock if enabled
   if (classData?.enable_progressive_unlock) {
     try {
       // Get student's group
@@ -143,11 +160,25 @@ export async function getContentUnlockState(
             )
           );
 
+          // Get teacher unlocks for all items in the group
+          const { data: teacherUnlocks } = await supabase
+            .from("teacher_content_unlocks")
+            .select("content_item_id")
+            .eq("student_id", userId)
+            .in("content_item_id", itemIds);
+
+          const teacherUnlockedIds = new Set(
+            (teacherUnlocks ?? []).map(
+              (u: { content_item_id: string }) => u.content_item_id
+            )
+          );
+
           const unlockState = getUnlockState(
             contentItem.id,
             allItems as ContentItem[],
             completedIds,
-            true
+            true,
+            teacherUnlockedIds
           );
 
           if (unlockState?.isLocked) {

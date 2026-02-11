@@ -14,6 +14,15 @@ export interface ContentItem {
   updated_at: string;
   status: "draft" | "active" | "deleted";
   lock_after_complete?: boolean;
+  require_teacher_unlock?: boolean;
+}
+
+export interface TeacherContentUnlock {
+  id: string;
+  content_item_id: string;
+  student_id: string;
+  unlocked_by: string;
+  unlocked_at: string;
 }
 
 

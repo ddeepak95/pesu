@@ -21,6 +21,7 @@ import {
   useSurveysByIdsForStudent,
   useCompletionsForStudent,
 } from "@/hooks/swr";
+import { getTeacherUnlocksForStudent } from "@/lib/queries/teacherUnlocks";
 
 interface ContentProps {
   classData: Class;
@@ -76,6 +77,23 @@ export default function Content({ classData }: ContentProps) {
   const contentItemIds = useMemo(() => items.map((item) => item.id), [items]);
   const { data: completedContentIds = new Set<string>() } = useCompletionsForStudent(contentItemIds);
 
+  // Fetch teacher unlock IDs for items that require teacher unlock
+  const [teacherUnlockedIds, setTeacherUnlockedIds] = useState<Set<string>>(new Set());
+  const itemsRequiringTeacherUnlock = useMemo(
+    () => items.filter((i) => i.require_teacher_unlock).map((i) => i.id),
+    [items]
+  );
+
+  useEffect(() => {
+    if (itemsRequiringTeacherUnlock.length === 0) {
+      setTeacherUnlockedIds(new Set());
+      return;
+    }
+    getTeacherUnlocksForStudent(itemsRequiringTeacherUnlock).then(
+      (unlocked) => setTeacherUnlockedIds(unlocked)
+    );
+  }, [itemsRequiringTeacherUnlock]);
+
   // Build lookup maps
   const assignmentById = useMemo(() => {
     const map: Record<string, Assignment> = {};
@@ -105,8 +123,8 @@ export default function Content({ classData }: ContentProps) {
   const unlockStates = useMemo(() => {
     if (items.length === 0) return new Map<string, UnlockState>();
     const progressiveUnlockEnabled = classData.enable_progressive_unlock ?? false;
-    return calculateUnlockStates(items, completedContentIds, progressiveUnlockEnabled);
-  }, [items, completedContentIds, classData.enable_progressive_unlock]);
+    return calculateUnlockStates(items, completedContentIds, progressiveUnlockEnabled, teacherUnlockedIds);
+  }, [items, completedContentIds, classData.enable_progressive_unlock, teacherUnlockedIds]);
 
   // Partition items into "To Complete" and "Completed"
   const { toCompleteItems, completedItems } = useMemo(() => {

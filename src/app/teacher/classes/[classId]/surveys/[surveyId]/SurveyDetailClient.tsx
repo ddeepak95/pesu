@@ -21,6 +21,7 @@ import {
 } from "@/lib/queries/contentItems";
 import { Survey } from "@/types/survey";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import StudentUnlockTab from "@/components/Teacher/Shared/StudentUnlockTab";
 
 interface SurveyDetailClientProps {
   initialSurvey: Survey;
@@ -150,6 +151,7 @@ export default function SurveyDetailClient({
             <TabsList>
               <TabsTrigger value="questions">Questions</TabsTrigger>
               <TabsTrigger value="responses">Responses</TabsTrigger>
+              <TabsTrigger value="students">Students</TabsTrigger>
             </TabsList>
 
             <TabsContent value="questions" className="space-y-4 py-6">
@@ -266,6 +268,15 @@ export default function SurveyDetailClient({
                     : "No responses yet."}
                 </p>
               </div>
+            </TabsContent>
+
+            <TabsContent value="students" className="py-6">
+              <StudentUnlockTab
+                refId={survey.id}
+                contentType="survey"
+                classId={classId}
+                contentName={survey.title}
+              />
             </TabsContent>
           </Tabs>
         </div>
