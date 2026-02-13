@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { invalidateCompletionsCache } from "@/hooks/swr";
 
 interface GoToClassButtonProps {
   /** The class slug (class_id) used to build the URL. */
@@ -15,9 +16,10 @@ export default function GoToClassButton({ classId }: GoToClassButtonProps) {
     <Button
       variant="outline"
       className="gap-2"
-      onClick={() =>
-        router.push(`/student/classes/${classId}`, { scroll: false })
-      }
+      onClick={() => {
+        invalidateCompletionsCache();
+        router.push(`/student/classes/${classId}`, { scroll: false });
+      }}
     >
       Go to Class
     </Button>

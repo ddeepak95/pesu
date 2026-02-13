@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { verifySession, getContentUnlockState } from "@/lib/dal";
 import { notFound } from "next/navigation";
 import SurveyDetailClient from "./SurveyDetailClient";
 import PageLayout from "@/components/PageLayout";
-import BackButton from "@/components/ui/back-button";
+import { Button } from "@/components/ui/button";
 
 const SURVEY_ALL_COLUMNS =
   "id, survey_id, class_id, class_group_id, title, description, questions, created_by, created_at, updated_at, status";
@@ -41,7 +42,9 @@ export default async function StudentSurveyPage({
       <PageLayout>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <Button variant="outline" asChild>
+              <Link href={`/student/classes/${classId}`}>Go to class</Link>
+            </Button>
           </div>
           <div className="text-center py-12">
             <div className="inline-block p-4 rounded-full bg-muted mb-4">
@@ -64,7 +67,9 @@ export default async function StudentSurveyPage({
             <p className="text-muted-foreground mb-4">
               {unlockResult.lockReason}
             </p>
-            <BackButton />
+            <Button variant="outline" asChild>
+              <Link href={`/student/classes/${classId}`}>Go to class</Link>
+            </Button>
           </div>
         </div>
       </PageLayout>
