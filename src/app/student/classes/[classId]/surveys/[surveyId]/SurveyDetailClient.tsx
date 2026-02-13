@@ -81,15 +81,24 @@ function SurveyInner({
   };
 
   const validate = (): string | null => {
-    for (const q of survey.questions) {
+    const unansweredNumbers: number[] = [];
+    let questionNumber = 0;
+
+    const sorted = [...survey.questions].sort((a, b) => a.order - b.order);
+    for (const q of sorted) {
       if (q.type === "section_title") continue;
+      questionNumber++;
 
       if (q.required) {
         const answer = answers.get(q.order);
         if (answer === undefined || answer === null || answer === "") {
-          return `Question ${q.order + 1} is required`;
+          unansweredNumbers.push(questionNumber);
         }
       }
+    }
+
+    if (unansweredNumbers.length > 0) {
+      return `Please answer required question${unansweredNumbers.length > 1 ? "s" : ""}: ${unansweredNumbers.join(", ")}`;
     }
     return null;
   };
