@@ -21,6 +21,7 @@ import {
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
+import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
 import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import SubmissionViewDialog from "./SubmissionViewDialog";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
@@ -95,15 +96,20 @@ export default function SubmissionsTab({
         }
         setClassDbId(classData.id);
 
-        // Fetch submissions, content item, profile data, and config in parallel
-        const [data, contentItem, fields, profiles, savedConfig] =
+        // Fetch submissions, assignment, profile data, and config in parallel
+        const [data, assignment, fields, profiles, savedConfig] =
           await Promise.all([
             getSubmissionsByAssignmentWithStudents(assignmentId, classData.id),
-            getContentItemByRefId(assignmentId, "formative_assignment"),
+            getAssignmentByIdForTeacher(assignmentId),
             getProfileFieldsForClass(classData.id),
             getAllStudentProfiles(classData.id),
             getProgressViewConfig(classData.id),
           ]);
+
+        // content_items.ref_id is the assignment's UUID (id), not assignment_id (public short id)
+        const contentItem = assignment
+          ? await getContentItemByRefId(assignment.id, "formative_assignment")
+          : null;
 
         setClassSubmissions(data);
         setProfileFields(fields);

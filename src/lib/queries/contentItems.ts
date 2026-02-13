@@ -258,6 +258,10 @@ export async function getContentItemByRefId(
   refId: string,
   type: ContentItem["type"]
 ): Promise<ContentItem | null> {
+  if (!refId?.trim()) {
+    return null;
+  }
+
   const supabase = createClient();
 
   const { data, error } = await supabase
@@ -269,7 +273,23 @@ export async function getContentItemByRefId(
     .maybeSingle();
 
   if (error) {
-    console.error("Error fetching content item by ref_id:", error);
+    const errMsg =
+      error && typeof error === "object" && "message" in error
+        ? (error as { message: string }).message
+        : String(error);
+    const errCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : undefined;
+    console.error(
+      "Error fetching content item by ref_id:",
+      "refId=",
+      refId,
+      "type=",
+      type,
+      errCode ? `code=${errCode}` : "",
+      errMsg
+    );
     return null;
   }
 
