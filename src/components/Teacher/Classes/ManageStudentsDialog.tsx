@@ -215,27 +215,21 @@ export default function ManageStudentsDialog({
           </div>
 
           <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={handleGenerateInvite}
-              disabled={!isTeacher || loading}
-            >
-              {activeInvite ? "Regenerate invite" : "Generate invite"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={refresh}
-              disabled={loading}
-            >
-              Refresh
-            </Button>
-            {activeInvite && (
+            {((isTeacher && !activeInvite) || (isOwner && activeInvite)) && (
+              <Button
+                type="button"
+                onClick={handleGenerateInvite}
+                disabled={loading || (activeInvite ? !isOwner : !isTeacher)}
+              >
+                {activeInvite ? "Regenerate invite" : "Generate invite"}
+              </Button>
+            )}
+            {activeInvite && isOwner && (
               <Button
                 type="button"
                 variant="destructive"
                 onClick={() => handleRevokeInvite(activeInvite.id)}
-                disabled={!isTeacher || loading}
+                disabled={loading}
               >
                 Revoke
               </Button>

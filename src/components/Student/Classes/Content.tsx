@@ -75,7 +75,22 @@ export default function Content({ classData }: ContentProps) {
 
   // Fetch completions
   const contentItemIds = useMemo(() => items.map((item) => item.id), [items]);
-  const { data: completedContentIds = new Set<string>() } = useCompletionsForStudent(contentItemIds);
+  const { data: completedContentIds = new Set<string>(), mutate: mutateCompletions } =
+    useCompletionsForStudent(contentItemIds);
+
+  // Revalidate completions when page becomes visible or when shown after navigation (e.g. browser back from quiz/survey)
+  useEffect(() => {
+    const onVisible = () => mutateCompletions();
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) mutateCompletions(); // bfcache restore
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [mutateCompletions]);
 
   // Fetch teacher unlock IDs for items that require teacher unlock
   const [teacherUnlockedIds, setTeacherUnlockedIds] = useState<Set<string>>(new Set());

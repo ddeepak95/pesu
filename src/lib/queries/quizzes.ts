@@ -32,6 +32,24 @@ export async function getQuizzesByIds(ids: string[]): Promise<Quiz[]> {
 }
 
 /**
+ * Get quizzes by their database UUID primary keys (teacher view) with all columns.
+ * Used for duplication so that all settings and content are copied.
+ */
+export async function getQuizzesByIdsFull(ids: string[]): Promise<Quiz[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("quizzes")
+    .select(QUIZ_ALL_COLUMNS)
+    .in("id", ids)
+    .in("status", ["active", "draft"]);
+
+  if (error) throw error;
+  return (data || []) as Quiz[];
+}
+
+/**
  * Get quizzes by their database UUID primary keys (student view).
  * Only returns active quizzes (excludes draft and deleted).
  */

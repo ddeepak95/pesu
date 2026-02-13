@@ -150,6 +150,24 @@ export async function getAssignmentsByIdsForTeacher(ids: string[]): Promise<Assi
 }
 
 /**
+ * Get assignments by their database UUID primary keys (teacher view) with all columns.
+ * Used for duplication so that all settings and content are copied.
+ */
+export async function getAssignmentsByIdsForTeacherFull(ids: string[]): Promise<Assignment[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .select(ASSIGNMENT_ALL_COLUMNS)
+    .in("id", ids)
+    .in("status", ["active", "draft"]);
+
+  if (error) throw error;
+  return (data || []) as Assignment[];
+}
+
+/**
  * Create a new assignment
  * Authorization is handled by RLS policies - allows class owner and co-teachers
  */

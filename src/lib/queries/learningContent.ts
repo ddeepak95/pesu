@@ -33,6 +33,24 @@ export async function getLearningContentsByIds(ids: string[]): Promise<LearningC
 }
 
 /**
+ * Get learning contents by their database UUID primary keys (teacher view) with all columns.
+ * Used for duplication so that all settings and content are copied.
+ */
+export async function getLearningContentsByIdsFull(ids: string[]): Promise<LearningContent[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("learning_contents")
+    .select(LEARNING_CONTENT_ALL_COLUMNS)
+    .in("id", ids)
+    .in("status", ["active", "draft"]);
+
+  if (error) throw error;
+  return (data || []) as LearningContent[];
+}
+
+/**
  * Get learning contents by their database UUID primary keys (student view).
  * Only returns active learning contents (excludes draft and deleted).
  */

@@ -2,7 +2,7 @@ export interface ProfileField {
   id: string;
   class_id: string;
   field_name: string;
-  field_type: "text" | "dropdown";
+  field_type: "text" | "dropdown" | "number" | "phone";
   options: string[] | null;
   position: number;
   is_mandatory: boolean;
@@ -22,7 +22,7 @@ export interface StudentProfile {
 
 export interface ProfileFieldInput {
   field_name: string;
-  field_type: "text" | "dropdown";
+  field_type: "text" | "dropdown" | "number" | "phone";
   options?: string[];
   position: number;
   is_mandatory: boolean;

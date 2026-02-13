@@ -1,14 +1,14 @@
 import { ContentItem } from "@/types/contentItem";
-import { createAssignment, getAssignmentsByIdsForTeacher } from "@/lib/queries/assignments";
-import { createLearningContent, getLearningContentsByIds } from "@/lib/queries/learningContent";
-import { createQuiz, getQuizzesByIds } from "@/lib/queries/quizzes";
-import { createSurvey, getSurveysByIds } from "@/lib/queries/surveys";
+import { createAssignment, getAssignmentsByIdsForTeacherFull } from "@/lib/queries/assignments";
+import { createLearningContent, getLearningContentsByIdsFull } from "@/lib/queries/learningContent";
+import { createQuiz, getQuizzesByIdsFull } from "@/lib/queries/quizzes";
+import { createSurvey, getSurveysByIdsFull } from "@/lib/queries/surveys";
 import { createContentItem } from "@/lib/queries/contentItems";
 
 export async function duplicateContentItem(params: {
   item: ContentItem;
   destinationClassDbId: string;
-  destinationClassGroupId: string;
+  destinationClassGroupId: string | null;
   userId: string;
 }): Promise<void> {
   const { item, destinationClassDbId, destinationClassGroupId, userId } = params;
@@ -31,7 +31,7 @@ export async function duplicateContentItem(params: {
   } = item;
 
   if (item.type === "formative_assignment") {
-    const [a] = await getAssignmentsByIdsForTeacher([item.ref_id]);
+    const [a] = await getAssignmentsByIdsForTeacherFull([item.ref_id]);
     if (!a) throw new Error("Source assignment not found");
 
     // Strip system-generated fields; spread everything else so that new
@@ -74,7 +74,7 @@ export async function duplicateContentItem(params: {
   }
 
   if (item.type === "learning_content") {
-    const [lc] = await getLearningContentsByIds([item.ref_id]);
+    const [lc] = await getLearningContentsByIdsFull([item.ref_id]);
     if (!lc) throw new Error("Source learning content not found");
 
     // Strip system-generated & computed fields (content_type is derived
@@ -116,7 +116,7 @@ export async function duplicateContentItem(params: {
   }
 
   if (item.type === "quiz") {
-    const [q] = await getQuizzesByIds([item.ref_id]);
+    const [q] = await getQuizzesByIdsFull([item.ref_id]);
     if (!q) throw new Error("Source quiz not found");
 
     // Strip system-generated fields. total_points is also excluded because
@@ -158,7 +158,7 @@ export async function duplicateContentItem(params: {
   }
 
   if (item.type === "survey") {
-    const [s] = await getSurveysByIds([item.ref_id]);
+    const [s] = await getSurveysByIdsFull([item.ref_id]);
     if (!s) throw new Error("Source survey not found");
 
     const {
@@ -208,7 +208,7 @@ export async function duplicateContentItem(params: {
 export async function duplicateContentItems(params: {
   items: ContentItem[];
   destinationClassDbId: string;
-  destinationClassGroupId: string;
+  destinationClassGroupId: string | null;
   userId: string;
 }): Promise<void> {
   const sorted = [...params.items].sort((a, b) => a.position - b.position);

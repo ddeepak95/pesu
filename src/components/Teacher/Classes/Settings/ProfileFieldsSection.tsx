@@ -44,7 +44,7 @@ import {
 interface LocalField {
   id: string;
   field_name: string;
-  field_type: "text" | "dropdown";
+  field_type: "text" | "dropdown" | "number" | "phone";
   options: string[];
   position: number;
   is_mandatory: boolean;
@@ -144,7 +144,7 @@ export default function ProfileFieldsSection({
     value: string | string[] | boolean
   ) => {
     const updated = [...fields];
-    if (key === "field_type" && value === "text") {
+    if (key === "field_type" && (value === "text" || value === "number" || value === "phone")) {
       updated[index] = { ...updated[index], [key]: value, options: [] };
     } else {
       updated[index] = { ...updated[index], [key]: value };
@@ -382,7 +382,7 @@ export default function ProfileFieldsSection({
                         </Label>
                         <Select
                           value={field.field_type}
-                          onValueChange={(value: "text" | "dropdown") =>
+                          onValueChange={(value: "text" | "dropdown" | "number" | "phone") =>
                             handleFieldChange(index, "field_type", value)
                           }
                           disabled={saving}
@@ -392,6 +392,8 @@ export default function ProfileFieldsSection({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="text">Text Input</SelectItem>
+                            <SelectItem value="number">Number</SelectItem>
+                            <SelectItem value="phone">Phone Number</SelectItem>
                             <SelectItem value="dropdown">Dropdown</SelectItem>
                           </SelectContent>
                         </Select>

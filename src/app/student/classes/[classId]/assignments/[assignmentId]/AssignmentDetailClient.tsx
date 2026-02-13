@@ -57,12 +57,15 @@ export default function AssignmentDetailClient({
           />
 
           {contentItemId && (
-            <NextItemButton
-              classDbId={classUuid}
-              classId={classId}
-              contentItemId={contentItemId}
-              className="pt-6"
-            />
+            <>
+              <hr className="my-6 border-border" />
+              <NextItemButton
+                classDbId={classUuid}
+                classId={classId}
+                contentItemId={contentItemId}
+                className="pt-6"
+              />
+            </>
           )}
           <CloseButton
             href={`/student/classes/${classId}`}
