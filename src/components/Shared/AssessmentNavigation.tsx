@@ -167,19 +167,11 @@ export function AssessmentNavigation({
 
   return (
     <>
-      <div className="flex justify-between gap-4">
-        <Button
-          onClick={onPrevious}
-          disabled={isFirstQuestion || previousDisabled}
-          variant="outline"
-          size="lg"
-        >
-          Previous Question
-        </Button>
-
-        <div className="flex gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
+        {/* Next/Finish first on mobile (order-1), right on desktop (order-2) */}
+        <div className="order-1 flex gap-4 sm:order-2">
           {!isLastQuestion && (
-            <Button onClick={onNext} disabled={nextDisabled} size="lg">
+            <Button onClick={onNext} disabled={nextDisabled} size="lg" className="w-full sm:w-auto">
               Next Question
             </Button>
           )}
@@ -188,6 +180,7 @@ export function AssessmentNavigation({
               onClick={handleFinishClick}
               disabled={nextDisabled}
               size="lg"
+              className="w-full sm:w-auto"
             >
               {isComplete
                 ? "Already Completed"
@@ -197,6 +190,16 @@ export function AssessmentNavigation({
             </Button>
           )}
         </div>
+        {/* Previous second on mobile (order-2), left on desktop (order-1) */}
+        <Button
+          onClick={onPrevious}
+          disabled={isFirstQuestion || previousDisabled}
+          variant="outline"
+          size="lg"
+          className="order-2 w-full sm:order-1 sm:w-auto"
+        >
+          Previous Question
+        </Button>
       </div>
 
       {onClose && (
