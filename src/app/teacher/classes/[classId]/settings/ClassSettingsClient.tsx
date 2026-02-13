@@ -10,6 +10,7 @@ import GroupSettingsSection from "@/components/Teacher/Classes/Settings/GroupSet
 import ProfileFieldsSection from "@/components/Teacher/Classes/Settings/ProfileFieldsSection";
 import ProgressiveUnlockSection from "@/components/Teacher/Classes/Settings/ProgressiveUnlockSection";
 import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetProgressSection";
+import DuplicateClassSection from "@/components/Teacher/Classes/Settings/DuplicateClassSection";
 import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneSection";
 import { Class } from "@/types/class";
 
@@ -72,6 +73,12 @@ export default function ClassSettingsClient({
           <ResetProgressSection
             classId={initialClassData.id}
             isOwner={true}
+          />
+
+          <DuplicateClassSection
+            classData={initialClassData}
+            isOwner={true}
+            onDuplicated={handleUpdated}
           />
 
           <DangerZoneSection

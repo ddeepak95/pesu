@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase";
 import { Class, ProgressViewConfig } from "@/types/class";
 import { nanoid } from "nanoid";
+import { getProfileFieldsForClass, createProfileField } from "@/lib/queries/profileFields";
+import { getContentItemsByClass } from "@/lib/queries/contentItems";
+import { getClassGroups, reconfigureClassGroups } from "@/lib/queries/groups";
+import { duplicateContentItems } from "@/lib/queries/duplicateContent";
+import type { ContentItem } from "@/types/contentItem";
 
 /**
  * Check if a teacher is approved to create classes
@@ -349,5 +354,115 @@ export async function saveProgressViewConfig(
   } catch {
     // Silently handle if column doesn't exist
   }
+}
+
+const CLASS_COLUMNS_FULL =
+  "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config";
+
+/**
+ * Duplicate a class with all settings, profile fields, groups, and content.
+ * The new class is owned by userId (must be the source class owner).
+ * Returns the new class for redirect. Does not copy students, co-teachers, or invites.
+ */
+export async function duplicateClass(
+  sourceClassDbId: string,
+  userId: string
+): Promise<Class> {
+  const supabase = createClient();
+
+  const { data: sourceClass, error: fetchError } = await supabase
+    .from("classes")
+    .select(CLASS_COLUMNS_FULL)
+    .eq("id", sourceClassDbId)
+    .eq("status", "active")
+    .single();
+
+  if (fetchError || !sourceClass) {
+    console.error("Error fetching source class:", fetchError);
+    throw new Error("Class not found or access denied");
+  }
+
+  const source = sourceClass as Class;
+  if (source.created_by !== userId) {
+    throw new Error("Only the class owner can duplicate the class");
+  }
+
+  const newClassId = generateClassId();
+  const insertPayload = {
+    name: "Copy of " + source.name,
+    class_id: newClassId,
+    created_by: userId,
+    status: "active" as const,
+    preferred_language: source.preferred_language ?? "en",
+    group_count: source.group_count ?? 1,
+    enable_progressive_unlock: source.enable_progressive_unlock ?? false,
+    student_assignment_strategy: source.student_assignment_strategy ?? "round_robin",
+    progress_view_config: source.progress_view_config ?? null,
+  };
+
+  const { data: newClass, error: insertError } = await supabase
+    .from("classes")
+    .insert(insertPayload)
+    .select(CLASS_COLUMNS_FULL)
+    .single();
+
+  if (insertError || !newClass) {
+    console.error("Error creating duplicated class:", insertError);
+    throw insertError ?? new Error("Failed to create class");
+  }
+
+  const newClassRow = newClass as Class;
+
+  const profileFields = await getProfileFieldsForClass(sourceClassDbId);
+  for (const field of profileFields) {
+    await createProfileField(newClassRow.id, {
+      field_name: field.field_name,
+      field_type: field.field_type,
+      options: field.field_type === "dropdown" ? field.options ?? [] : undefined,
+      position: field.position,
+      is_mandatory: field.is_mandatory,
+      is_display_name: field.is_display_name,
+    });
+  }
+
+  let newGroups = await getClassGroups(newClassRow.id);
+  if (newGroups.length === 0 && (source.group_count ?? 1) > 0) {
+    await reconfigureClassGroups({
+      classDbId: newClassRow.id,
+      newGroupCount: source.group_count ?? 1,
+    });
+    newGroups = await getClassGroups(newClassRow.id);
+  }
+
+  const sourceGroups = await getClassGroups(sourceClassDbId);
+  const sourceGroupIdToIndex = new Map<string, number>();
+  sourceGroups.forEach((g, i) => sourceGroupIdToIndex.set(g.id, i));
+  const destGroupIdByIndex = new Map<number, string>();
+  newGroups.forEach((g, i) => destGroupIdByIndex.set(i, g.id));
+
+  const contentItems = await getContentItemsByClass(sourceClassDbId);
+  const itemsByDestGroup = new Map<string | null, ContentItem[]>();
+  for (const item of contentItems) {
+    const destGroupId: string | null =
+      item.class_group_id == null
+        ? null
+        : destGroupIdByIndex.get(sourceGroupIdToIndex.get(item.class_group_id) ?? -1) ?? null;
+    const key = destGroupId ?? "__class_level__";
+    if (!itemsByDestGroup.has(key)) itemsByDestGroup.set(key, []);
+    itemsByDestGroup.get(key)!.push(item);
+  }
+
+  for (const [key, items] of itemsByDestGroup) {
+    const destinationClassGroupId = key === "__class_level__" ? null : key;
+    const sorted = [...items].sort((a, b) => a.position - b.position);
+    await duplicateContentItems({
+      items: sorted,
+      destinationClassDbId: newClassRow.id,
+      destinationClassGroupId,
+      userId,
+    });
+  }
+
+  return newClassRow;
 }
 

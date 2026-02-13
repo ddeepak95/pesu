@@ -25,6 +25,24 @@ export async function getSurveysByIds(ids: string[]): Promise<Survey[]> {
 }
 
 /**
+ * Get surveys by their database UUID primary keys (teacher view) with all columns.
+ * Used for duplication so that all settings and content are copied.
+ */
+export async function getSurveysByIdsFull(ids: string[]): Promise<Survey[]> {
+  const supabase = createClient();
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("surveys")
+    .select(SURVEY_ALL_COLUMNS)
+    .in("id", ids)
+    .in("status", ["active", "draft"]);
+
+  if (error) throw error;
+  return (data || []) as Survey[];
+}
+
+/**
  * Get surveys by their database UUID primary keys (student view).
  * Only returns active surveys (excludes draft and deleted).
  */
