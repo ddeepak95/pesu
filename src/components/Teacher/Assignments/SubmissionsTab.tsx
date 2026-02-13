@@ -35,12 +35,14 @@ interface SubmissionsTabProps {
   assignmentId: string;
   classId: string;
   isPublic: boolean;
+  classGroupId?: string | null;
 }
 
 export default function SubmissionsTab({
   assignmentId,
   classId,
   isPublic,
+  classGroupId,
 }: SubmissionsTabProps) {
   // Class students state
   const [classSubmissions, setClassSubmissions] = useState<
@@ -99,7 +101,11 @@ export default function SubmissionsTab({
         // Fetch submissions, assignment, profile data, and config in parallel
         const [data, assignment, fields, profiles, savedConfig] =
           await Promise.all([
-            getSubmissionsByAssignmentWithStudents(assignmentId, classData.id),
+            getSubmissionsByAssignmentWithStudents(
+              assignmentId,
+              classData.id,
+              classGroupId
+            ),
             getAssignmentByIdForTeacher(assignmentId),
             getProfileFieldsForClass(classData.id),
             getAllStudentProfiles(classData.id),
@@ -154,7 +160,7 @@ export default function SubmissionsTab({
     };
 
     fetchClassSubmissions();
-  }, [assignmentId, classId]);
+  }, [assignmentId, classId, classGroupId]);
 
   // Fetch public submissions (only if assignment is public)
   useEffect(() => {
@@ -216,7 +222,8 @@ export default function SubmissionsTab({
         }
         const data = await getSubmissionsByAssignmentWithStudents(
           assignmentId,
-          classData.id
+          classData.id,
+          classGroupId
         );
         setClassSubmissions(data);
       } else {
@@ -260,7 +267,7 @@ export default function SubmissionsTab({
           <span
             className={`${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200`}
           >
-            Started
+            In Progress
           </span>
         );
       case "not_started":
@@ -493,13 +500,13 @@ export default function SubmissionsTab({
 
   const statusFilterOptions = [
     { value: "completed", label: "Completed" },
-    { value: "started", label: "Started" },
+    { value: "started", label: "In Progress" },
     { value: "not_started", label: "Not Started" },
   ];
 
   const publicStatusFilterOptions = [
     { value: "completed", label: "Completed" },
-    { value: "started", label: "Started" },
+    { value: "started", label: "In Progress" },
   ];
 
   return (
@@ -541,7 +548,11 @@ export default function SubmissionsTab({
               showUnlockColumn={requireTeacherUnlock}
               contentName="this assignment"
               onToggleUnlock={handleToggleUnlock}
-              emptyMessage="No students enrolled in this class yet."
+              emptyMessage={
+                classGroupId != null
+                  ? "No students in this group yet."
+                  : "No students enrolled in this class yet."
+              }
             />
           )}
         </TabsContent>

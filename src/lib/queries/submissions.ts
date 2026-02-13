@@ -863,14 +863,16 @@ export interface PublicSubmissionStatus {
 /**
  * Get all students in a class with their submission status for an assignment.
  * Uses denormalized columns -- does NOT fetch the evaluations JSONB.
+ * When classGroupId is provided, only students in that group are returned.
  */
 export async function getSubmissionsByAssignmentWithStudents(
   assignmentId: string,
-  classId: string
+  classId: string,
+  classGroupId?: string | null
 ): Promise<StudentSubmissionStatus[]> {
   const supabase = createClient();
 
-  const [students, { data: allSubmissions, error: submissionsError }] =
+  const [allStudents, { data: allSubmissions, error: submissionsError }] =
     await Promise.all([
       getClassStudentsWithInfo(classId),
       supabase
@@ -884,6 +886,12 @@ export async function getSubmissionsByAssignmentWithStudents(
   if (submissionsError) {
     console.error("Error fetching submissions:", submissionsError);
   }
+
+  // When assignment is group-scoped, show only students in that group
+  const students =
+    classGroupId != null
+      ? allStudents.filter((s) => s.group_id === classGroupId)
+      : allStudents;
 
   // Build a map: student_id -> most recent submission
   const submissionMap = new Map<string, Submission>();
@@ -908,14 +916,12 @@ export async function getSubmissionsByAssignmentWithStudents(
       // Read directly from denormalized columns
       hasAttempts = submission.has_attempts;
       totalAttempts = submission.total_attempts;
+      highestScore = submission.highest_score;
+      maxScore = submission.max_score;
 
-      if (hasAttempts) {
-        status = "completed";
-        highestScore = submission.highest_score;
-        maxScore = submission.max_score;
-      } else {
-        status = "started";
-      }
+      // Completed only when submission is explicitly marked complete; otherwise in progress
+      status =
+        submission.status === "completed" ? "completed" : "started";
     }
 
     return {
@@ -959,17 +965,11 @@ export async function getPublicSubmissionsByAssignment(
     // Read directly from denormalized columns
     const hasAttempts = submission.has_attempts;
     const totalAttempts = submission.total_attempts;
-    let status: "completed" | "started";
-    let highestScore: number | undefined;
-    let maxScore: number | undefined;
-
-    if (hasAttempts) {
-      status = "completed";
-      highestScore = submission.highest_score;
-      maxScore = submission.max_score;
-    } else {
-      status = "started";
-    }
+    const highestScore = submission.highest_score;
+    const maxScore = submission.max_score;
+    // Completed only when submission is explicitly marked complete
+    const status: "completed" | "started" =
+      submission.status === "completed" ? "completed" : "started";
 
     return {
       submission,

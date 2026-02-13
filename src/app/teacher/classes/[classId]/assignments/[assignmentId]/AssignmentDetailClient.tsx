@@ -491,6 +491,7 @@ export default function AssignmentDetailClient({
                 assignmentId={assignmentData.assignment_id}
                 classId={classId}
                 isPublic={assignmentData.is_public}
+                classGroupId={assignmentData.class_group_id ?? undefined}
               />
             </TabsContent>
           </Tabs>
