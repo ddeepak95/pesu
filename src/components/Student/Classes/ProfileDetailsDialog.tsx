@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { upsertStudentProfile } from "@/lib/queries/profileFields";
+import { validateFieldValue } from "@/lib/profileFieldValidation";
 
 interface ProfileDetailsDialogProps {
   classDbId: string;
@@ -58,28 +59,33 @@ export default function ProfileDetailsDialog({
 
   const isFormValid = () => {
     for (const field of fields) {
-      if (!field.is_mandatory) continue;
-      const response = responses[field.id];
-      if (!response || response.trim() === "") {
-        return false;
-      }
+      const response = responses[field.id] ?? "";
+      const { valid } = validateFieldValue(
+        field.field_type,
+        response,
+        field.is_mandatory
+      );
+      if (!valid) return false;
     }
     return true;
   };
 
   const handleSubmit = async () => {
-    // Validate only mandatory fields are filled
-    const missingFields: string[] = [];
+    const errors: string[] = [];
     for (const field of fields) {
-      if (!field.is_mandatory) continue;
-      const response = responses[field.id];
-      if (!response || response.trim() === "") {
-        missingFields.push(field.field_name);
+      const response = responses[field.id] ?? "";
+      const { valid, message } = validateFieldValue(
+        field.field_type,
+        response,
+        field.is_mandatory
+      );
+      if (!valid) {
+        errors.push(message ? `${field.field_name}: ${message}` : field.field_name);
       }
     }
 
-    if (missingFields.length > 0) {
-      setError(`Please fill in: ${missingFields.join(", ")}`);
+    if (errors.length > 0) {
+      setError(errors.join("; "));
       return;
     }
 
@@ -138,10 +144,20 @@ export default function ProfileDetailsDialog({
                 )}
               </Label>
 
-              {field.field_type === "text" ? (
+              {field.field_type === "text" ||
+              field.field_type === "number" ||
+              field.field_type === "phone" ? (
                 <Input
                   id={`field-${field.id}`}
-                  placeholder={`Enter ${field.field_name.toLowerCase()}`}
+                  type={field.field_type === "number" ? "text" : field.field_type === "phone" ? "tel" : "text"}
+                  inputMode={field.field_type === "number" ? "decimal" : field.field_type === "phone" ? "tel" : "text"}
+                  placeholder={
+                    field.field_type === "number"
+                      ? "e.g., 42 or -3.14"
+                      : field.field_type === "phone"
+                        ? "e.g., (555) 123-4567"
+                        : `Enter ${field.field_name.toLowerCase()}`
+                  }
                   value={responses[field.id] || ""}
                   onChange={(e) =>
                     handleResponseChange(field.id, e.target.value)
