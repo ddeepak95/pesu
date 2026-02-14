@@ -9,13 +9,20 @@ import {
 } from "@/contexts/VoiceAssessmentContext";
 import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
-import { interpolatePromptsForRuntime, interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
+import {
+  interpolatePromptsForRuntime,
+  interpolatePrompt,
+  buildRuntimeContext,
+} from "@/lib/promptInterpolation";
 import {
   usePipecatClient,
   usePipecatClientTransportState,
 } from "@pipecat-ai/client-react";
 import { VoiceVisualizer } from "@pipecat-ai/voice-ui-kit";
-import { getQuestionAttempts, getLatestTranscript } from "@/lib/queries/submissions";
+import {
+  getQuestionAttempts,
+  getLatestTranscript,
+} from "@/lib/queries/submissions";
 import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
 import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCard";
 import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
@@ -194,7 +201,7 @@ function VoiceAssessmentContent({
     // Prevent evaluating if max attempts reached
     if (maxAttemptsReached) {
       alert(
-        "You have reached the maximum number of attempts for this question."
+        "You have reached the maximum number of attempts for this question.",
       );
       return;
     }
@@ -230,14 +237,19 @@ function VoiceAssessmentContent({
           shared_context: sharedContext,
         };
         const evalContext = buildRuntimeContext(
-          assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
+          assignmentForInterpolation as Parameters<
+            typeof buildRuntimeContext
+          >[0],
           question,
           language,
           attempts.length + 1,
           question.order,
-          transcript.trim()
+          transcript.trim(),
         );
-        interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
+        interpolatedEvalPrompt = interpolatePrompt(
+          evaluationPrompt,
+          evalContext,
+        );
       }
 
       const response = await fetch("/api/evaluate", {
@@ -253,7 +265,9 @@ function VoiceAssessmentContent({
           rubric: question.rubric,
           language: language, // Pass user's selected language for feedback
           ...(sharedContext && { shared_context: sharedContext }),
-          ...(interpolatedEvalPrompt && { custom_evaluation_prompt: interpolatedEvalPrompt }),
+          ...(interpolatedEvalPrompt && {
+            custom_evaluation_prompt: interpolatedEvalPrompt,
+          }),
         }),
       });
 
@@ -294,7 +308,7 @@ function VoiceAssessmentContent({
       alert(
         `Failed to evaluate your answer: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setIsEvaluating(false);
@@ -308,7 +322,7 @@ function VoiceAssessmentContent({
 
     const handleBotDisconnected = async () => {
       console.log(
-        "Bot disconnected event received (backend terminated conversation)"
+        "Bot disconnected event received (backend terminated conversation)",
       );
 
       // Prevent double-evaluation
@@ -370,7 +384,7 @@ function VoiceAssessmentContent({
       ) {
         evaluationTriggeredRef.current = true;
         console.log(
-          "Triggering evaluation via transport state change (backup)"
+          "Triggering evaluation via transport state change (backup)",
         );
         handleEvaluate();
       }
@@ -396,9 +410,16 @@ function VoiceAssessmentContent({
       >[0],
       question,
       language,
-      attempts.length + 1
+      attempts.length + 1,
     );
-  }, [botPromptConfig, question, language, maxAttempts, attempts.length, sharedContext]);
+  }, [
+    botPromptConfig,
+    question,
+    language,
+    maxAttempts,
+    attempts.length,
+    sharedContext,
+  ]);
 
   // Prepare connection data to send to server (only used for initial connection)
   // Server-side Pipecat bot handles audio recording via AudioBufferProcessor
@@ -435,7 +456,7 @@ function VoiceAssessmentContent({
   };
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-2 w-full">
       <AssessmentQuestionHeader
         questionNumber={questionNumber}
         totalQuestions={totalQuestions}
