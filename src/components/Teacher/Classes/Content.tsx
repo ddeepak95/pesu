@@ -7,9 +7,14 @@ import { ContentItem } from "@/types/contentItem";
 import {
   updateContentItemPositions,
   softDeleteContentItem,
+  softDeleteContentItemByRef,
   updateContentItem,
   getContentItemsByGroup,
 } from "@/lib/queries/contentItems";
+import { deleteAssignment } from "@/lib/queries/assignments";
+import { deleteLearningContent } from "@/lib/queries/learningContent";
+import { deleteQuiz } from "@/lib/queries/quizzes";
+import { deleteSurvey } from "@/lib/queries/surveys";
 import { Assignment } from "@/types/assignment";
 import { LearningContent } from "@/types/learningContent";
 import { Quiz } from "@/types/quiz";
@@ -315,6 +320,45 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
+  /** Soft-delete both the content_item and the underlying entity so no orphaned rows remain. */
+  const deleteContentItemAndEntity = useCallback(
+    async (item: ContentItem) => {
+      const classId = classData.id;
+      switch (item.type) {
+        case "formative_assignment":
+          await deleteAssignment(item.ref_id, classId);
+          break;
+        case "learning_content":
+          await deleteLearningContent(item.ref_id);
+          await softDeleteContentItemByRef({
+            class_id: classId,
+            type: "learning_content",
+            ref_id: item.ref_id,
+          });
+          break;
+        case "quiz":
+          await deleteQuiz(item.ref_id);
+          await softDeleteContentItemByRef({
+            class_id: classId,
+            type: "quiz",
+            ref_id: item.ref_id,
+          });
+          break;
+        case "survey":
+          await deleteSurvey(item.ref_id);
+          await softDeleteContentItemByRef({
+            class_id: classId,
+            type: "survey",
+            ref_id: item.ref_id,
+          });
+          break;
+        default:
+          await softDeleteContentItem(item.id);
+      }
+    },
+    [classData.id]
+  );
+
   const handleDelete = async (item: ContentItem) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this item? This action cannot be undone."
@@ -322,8 +366,7 @@ export default function Content({ classData }: ContentProps) {
     if (!confirmed) return;
 
     try {
-      await softDeleteContentItem(item.id);
-      // Optimistically remove from UI then revalidate
+      await deleteContentItemAndEntity(item);
       setLocalItems((prev) => (prev ?? items).filter((i) => i.id !== item.id));
       mutateItems();
     } catch (err) {
@@ -339,10 +382,9 @@ export default function Content({ classData }: ContentProps) {
       `Are you sure you want to delete ${count} item(s)? This action cannot be undone.`
     );
     if (!confirmed) return;
+    const toDelete = items.filter((i) => selectedIds.has(i.id));
     try {
-      await Promise.all(
-        Array.from(selectedIds).map((id) => softDeleteContentItem(id))
-      );
+      await Promise.all(toDelete.map((item) => deleteContentItemAndEntity(item)));
       setLocalItems((prev) => (prev ?? items).filter((i) => !selectedIds.has(i.id)));
       exitSelectionMode();
       mutateItems();
