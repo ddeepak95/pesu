@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase";
 import { getCachedUser } from "@/lib/auth-cache";
+import { getClassStudentsWithInfo } from "@/lib/queries/students";
 import { SurveyAnswer, SurveyResponse } from "@/types/survey";
+
+/** Response with student display info for teacher table/dialog */
+export interface SurveyResponseWithStudent extends SurveyResponse {
+  student_display_name: string | null;
+  student_email: string | null;
+}
 
 /** All columns for the survey_responses table */
 const SURVEY_RESPONSE_ALL_COLUMNS =
@@ -89,4 +96,47 @@ export async function getSurveyResponseCount(surveyId: string): Promise<number> 
 
   if (error) throw error;
   return count ?? 0;
+}
+
+/**
+ * Get all responses for a survey with student display info (teacher view)
+ */
+export async function getSurveyResponsesWithStudents(
+  surveyId: string,
+  classDbId: string
+): Promise<SurveyResponseWithStudent[]> {
+  const [responses, students] = await Promise.all([
+    getSurveyResponses(surveyId),
+    getClassStudentsWithInfo(classDbId),
+  ]);
+
+  const studentMap = new Map(
+    students.map((s) => [s.student_id, s])
+  );
+
+  return responses.map((r) => {
+    const student = studentMap.get(r.student_id);
+    return {
+      ...r,
+      student_display_name: student?.student_display_name ?? null,
+      student_email: student?.student_email ?? null,
+    };
+  });
+}
+
+/**
+ * Delete a student's survey response so they can resubmit (teacher only)
+ */
+export async function deleteSurveyResponseForStudent(params: {
+  surveyId: string;
+  studentId: string;
+}): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("survey_responses")
+    .delete()
+    .eq("survey_id", params.surveyId)
+    .eq("student_id", params.studentId);
+
+  if (error) throw error;
 }

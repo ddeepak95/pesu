@@ -5,8 +5,9 @@ import { getContentItemsByClass } from "./contentItems";
 import { getClassStudentsWithInfo } from "./students";
 import { getLearningContentsByIds } from "./learningContent";
 import { getAssignmentsByIdsForTeacher } from "./assignments";
-import { getQuizzesByIds } from "./quizzes";
+import { getQuizzesByIds, deleteQuizSubmissionForStudent } from "./quizzes";
 import { getSurveysByIds } from "./surveys";
+import { deleteSurveyResponseForStudent } from "./surveyResponses";
 
 /**
  * Mark a content item as complete for the current user
@@ -128,6 +129,28 @@ export async function isContentComplete(
 }
 
 /**
+ * Get all completions for a single content item (teacher view).
+ * Returns student_id and completed_at for each completion.
+ */
+export async function getCompletionsByContentItem(
+  contentItemId: string
+): Promise<{ student_id: string; completed_at: string }[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("student_content_completions")
+    .select("student_id, completed_at")
+    .eq("content_item_id", contentItemId);
+
+  if (error) {
+    console.error("Error fetching completions by content item:", error);
+    throw error;
+  }
+
+  return (data || []) as { student_id: string; completed_at: string }[];
+}
+
+/**
  * Get all content completions for a class (for teacher view)
  * Returns a flat list of student-content completion status for all students and content items
  */
@@ -240,8 +263,9 @@ export async function getClassContentCompletions(
 }
 
 /**
- * Reset all content completion progress for a student in a specific class
- * This deletes all completion marks, causing content to lock again if progressive unlock is enabled
+ * Reset all content completion progress for a student in a specific class.
+ * Deletes completion marks, quiz submissions, and survey responses so the student
+ * can redo content from scratch.
  */
 export async function resetStudentProgress(
   classId: string,
@@ -249,10 +273,10 @@ export async function resetStudentProgress(
 ): Promise<void> {
   const supabase = createClient();
 
-  // Get all content items in this class
+  // Get all content items in this class (need type and ref_id to reset quiz/survey data)
   const { data: contentItems, error: fetchError } = await supabase
     .from("content_items")
-    .select("id")
+    .select("id, type, ref_id")
     .eq("class_id", classId)
     .in("status", ["active", "draft"]);
 
@@ -262,13 +286,12 @@ export async function resetStudentProgress(
   }
 
   if (!contentItems || contentItems.length === 0) {
-    // No content items to reset
     return;
   }
 
   const contentItemIds = contentItems.map((item) => item.id);
 
-  // Delete all completions for this student in this class
+  // 1. Delete all completion marks for this student in this class (learning content, quiz, survey, assignment)
   const { error: deleteError } = await supabase
     .from("student_content_completions")
     .delete()
@@ -278,5 +301,32 @@ export async function resetStudentProgress(
   if (deleteError) {
     console.error("Error resetting student progress:", deleteError);
     throw deleteError;
+  }
+
+  // 2. Delete quiz submissions and survey responses for this student (ref_id = quiz/survey UUID)
+  const itemsWithRef = contentItems as { id: string; type: string; ref_id: string }[];
+  for (const item of itemsWithRef) {
+    const { ref_id: refId, type } = item;
+    if (!refId || !type) continue;
+
+    try {
+      if (type === "quiz") {
+        await deleteQuizSubmissionForStudent({
+          quizId: refId,
+          studentId,
+        });
+      } else if (type === "survey") {
+        await deleteSurveyResponseForStudent({
+          surveyId: refId,
+          studentId,
+        });
+      }
+    } catch (err) {
+      console.error(
+        `Error resetting ${type} data for student (ref_id=${refId}):`,
+        err
+      );
+      throw err;
+    }
   }
 }

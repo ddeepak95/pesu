@@ -2,7 +2,15 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Quiz } from "@/types/quiz";
+import type { MCQQuestion } from "@/types/quiz";
 import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import {
   deleteQuizCompletionForStudent,
@@ -26,9 +34,127 @@ import SubmissionsTable, {
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
 import { ProfileField } from "@/types/profileFields";
+import { Check, X } from "lucide-react";
 
 interface QuizSubmissionsTabProps {
   quiz: Quiz;
+}
+
+function QuizSubmissionViewDialog({
+  quiz,
+  item,
+  open,
+  onOpenChange,
+}: {
+  quiz: Quiz;
+  item: QuizSubmissionStatus | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!item?.submission) return null;
+
+  const displayName = getStudentDisplayName(item.student);
+  const submittedAt = item.submittedAt
+    ? new Date(item.submittedAt).toLocaleString()
+    : "—";
+  const scoreDisplay =
+    item.earnedPoints !== undefined && item.totalPoints !== undefined
+      ? `${item.earnedPoints} / ${item.totalPoints} points`
+      : "—";
+
+  const answerByQuestionId = new Map(
+    item.submission.answers.map((a) => [a.question_id, a.selected_option_id])
+  );
+
+  const questionsSorted = [...quiz.questions].sort((a, b) => a.order - b.order);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Quiz submission</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {displayName} · {submittedAt}
+          </p>
+          <p className="text-sm font-medium">{scoreDisplay}</p>
+          <div className="space-y-3">
+            {questionsSorted.map((q: MCQQuestion, idx: number) => {
+              const selectedId = answerByQuestionId.get(q.id);
+              const selectedOption = selectedId
+                ? q.options.find((o) => o.id === selectedId)
+                : null;
+              const isCorrect = selectedId === q.correct_option_id;
+
+              return (
+                <Card key={q.id}>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm font-medium">
+                      Question {idx + 1}: {q.prompt}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 py-0 pb-3">
+                    {q.options.map((opt) => {
+                      const isSelected = opt.id === selectedId;
+                      const isCorrectOption = opt.id === q.correct_option_id;
+                      return (
+                        <div
+                          key={opt.id}
+                          className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                            isSelected
+                              ? isCorrect
+                                ? "border-green-500 bg-green-50 dark:bg-green-950/30"
+                                : "border-red-500 bg-red-50 dark:bg-red-950/30"
+                              : isCorrectOption
+                              ? "border-green-300 bg-green-50/50 dark:bg-green-950/20"
+                              : ""
+                          }`}
+                        >
+                          {isSelected && (
+                            <span className="flex-shrink-0">
+                              {isCorrect ? (
+                                <Check className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <X className="h-4 w-4 text-red-600" />
+                              )}
+                            </span>
+                          )}
+                          {isCorrectOption && !isSelected && (
+                            <span className="flex-shrink-0 text-green-600">
+                              <Check className="h-4 w-4" />
+                            </span>
+                          )}
+                          <span>
+                            {opt.text}
+                            {isSelected && (
+                              <span className="ml-1 text-muted-foreground">
+                                (selected)
+                              </span>
+                            )}
+                            {isCorrectOption && !isSelected && (
+                              <span className="ml-1 text-muted-foreground">
+                                (correct)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {!selectedOption && (
+                      <p className="text-sm text-muted-foreground italic">
+                        No answer selected
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
@@ -37,6 +163,9 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [resetting, setResetting] = useState<string | null>(null);
   const [contentItemId, setContentItemId] = useState<string | null>(null);
+  const [viewSubmission, setViewSubmission] =
+    useState<QuizSubmissionStatus | null>(null);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
 
   // Profile + config state
   const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
@@ -144,6 +273,12 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
     }
   };
 
+  const handleView = (item: QuizSubmissionStatus) => {
+    if (!item.submission) return;
+    setViewSubmission(item);
+    setViewDialogOpen(true);
+  };
+
   // Handle unlock toggle
   const handleToggleUnlock = async (
     studentId: string,
@@ -220,6 +355,13 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => handleView(item)}
+              >
+                View
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => handleReset(item)}
                 disabled={resetting === item.student.student_id}
               >
@@ -288,17 +430,29 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
   }
 
   return (
-    <SubmissionsTable
-      columns={columns}
-      rows={rows}
-      statusFilterOptions={statusFilterOptions}
-      profileFields={profileFields}
-      displayFieldIds={displayFieldIds}
-      filterFieldIds={filterFieldIds}
-      showUnlockColumn={requireTeacherUnlock}
-      contentName={quiz.title}
-      onToggleUnlock={handleToggleUnlock}
-      emptyMessage="No students enrolled yet."
-    />
+    <>
+      <SubmissionsTable
+        columns={columns}
+        rows={rows}
+        statusFilterOptions={statusFilterOptions}
+        profileFields={profileFields}
+        displayFieldIds={displayFieldIds}
+        filterFieldIds={filterFieldIds}
+        showUnlockColumn={requireTeacherUnlock}
+        contentName={quiz.title}
+        onToggleUnlock={handleToggleUnlock}
+        emptyMessage={
+          quiz.class_group_id != null
+            ? "No students in this group yet."
+            : "No students enrolled yet."
+        }
+      />
+      <QuizSubmissionViewDialog
+        quiz={quiz}
+        item={viewSubmission}
+        open={viewDialogOpen}
+        onOpenChange={setViewDialogOpen}
+      />
+    </>
   );
 }
