@@ -13,7 +13,10 @@ import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
+import {
+  interpolatePrompt,
+  buildRuntimeContext,
+} from "@/lib/promptInterpolation";
 
 interface StaticTextAssessmentProps {
   question: Question;
@@ -106,7 +109,7 @@ export function StaticTextAssessment({
   const restoredFromStorageRef = React.useRef(false);
   const storageKey = React.useMemo(
     () => `static-${submissionId}-${question.order}`,
-    [submissionId, question.order]
+    [submissionId, question.order],
   );
 
   // Restore any in-progress answer from localStorage (runs once per question)
@@ -131,7 +134,7 @@ export function StaticTextAssessment({
         const questionAttempts = await getQuestionAttempts(
           submissionId,
           question.order,
-          true // Exclude stale attempts
+          true, // Exclude stale attempts
         );
         setAttempts(questionAttempts);
 
@@ -175,7 +178,7 @@ export function StaticTextAssessment({
   const handleStartWriting = () => {
     if (maxAttemptsReached) {
       alert(
-        "You have reached the maximum number of attempts for this question."
+        "You have reached the maximum number of attempts for this question.",
       );
       return;
     }
@@ -222,7 +225,7 @@ export function StaticTextAssessment({
     // Prevent submitting if max attempts reached
     if (maxAttemptsReached) {
       alert(
-        "You have reached the maximum number of attempts for this question."
+        "You have reached the maximum number of attempts for this question.",
       );
       return;
     }
@@ -238,14 +241,19 @@ export function StaticTextAssessment({
           shared_context: sharedContext,
         };
         const evalContext = buildRuntimeContext(
-          assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
+          assignmentForInterpolation as Parameters<
+            typeof buildRuntimeContext
+          >[0],
           question,
           language,
           attempts.length + 1,
           question.order,
-          trimmedAnswer
+          trimmedAnswer,
         );
-        interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
+        interpolatedEvalPrompt = interpolatePrompt(
+          evaluationPrompt,
+          evalContext,
+        );
       }
 
       const response = await fetch("/api/evaluate", {
@@ -261,7 +269,9 @@ export function StaticTextAssessment({
           rubric: question.rubric,
           language,
           ...(sharedContext && { shared_context: sharedContext }),
-          ...(interpolatedEvalPrompt && { custom_evaluation_prompt: interpolatedEvalPrompt }),
+          ...(interpolatedEvalPrompt && {
+            custom_evaluation_prompt: interpolatedEvalPrompt,
+          }),
         }),
       });
 
@@ -301,7 +311,7 @@ export function StaticTextAssessment({
       alert(
         `Failed to evaluate your answer: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setIsEvaluating(false);
@@ -325,7 +335,7 @@ export function StaticTextAssessment({
   const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <AssessmentQuestionHeader
         questionNumber={questionNumber}
         totalQuestions={totalQuestions}

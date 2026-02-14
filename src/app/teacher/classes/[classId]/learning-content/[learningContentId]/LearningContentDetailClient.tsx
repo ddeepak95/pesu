@@ -24,7 +24,7 @@ import {
 import { LearningContent } from "@/types/learningContent";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import StudentUnlockTab from "@/components/Teacher/Shared/StudentUnlockTab";
+import LearningContentCompletionsTab from "@/components/Teacher/LearningContent/LearningContentCompletionsTab";
 
 interface LearningContentDetailClientProps {
   initialContent: LearningContent;
@@ -136,7 +136,7 @@ export default function LearningContentDetailClient({
           <Tabs defaultValue="content" className="w-full">
             <TabsList>
               <TabsTrigger value="content">Content</TabsTrigger>
-              <TabsTrigger value="students">Students</TabsTrigger>
+              <TabsTrigger value="completions">Completions</TabsTrigger>
             </TabsList>
 
             <TabsContent value="content" className="py-6">
@@ -149,13 +149,8 @@ export default function LearningContentDetailClient({
               </div>
             </TabsContent>
 
-            <TabsContent value="students" className="py-6">
-              <StudentUnlockTab
-                refId={content.id}
-                contentType="learning_content"
-                classId={classId}
-                contentName={content.title}
-              />
+            <TabsContent value="completions" className="py-6">
+              <LearningContentCompletionsTab content={content} classId={classId} />
             </TabsContent>
           </Tabs>
         </div>

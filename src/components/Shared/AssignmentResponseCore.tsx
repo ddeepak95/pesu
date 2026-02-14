@@ -53,12 +53,12 @@ export default function AssignmentResponseCore({
   const [currentQuestionIndex, setCurrentQuestionIndex] =
     useState(initialQuestionIndex);
   const [answers, setAnswers] = useState<{ [key: number]: string }>(
-    existingAnswers
+    existingAnswers,
   );
   const [isComplete, setIsComplete] = useState(false);
   // Use assignment's preferred_language as fallback if initialPreferredLanguage is empty
   const [preferredLanguage, setPreferredLanguage] = useState(
-    initialPreferredLanguage || assignmentData.preferred_language || "en"
+    initialPreferredLanguage || assignmentData.preferred_language || "en",
   );
 
   // Track which questions have at least one attempt
@@ -68,7 +68,7 @@ export default function AssignmentResponseCore({
 
   // Sorted questions for reference
   const sortedQuestions = [...assignmentData.questions].sort(
-    (a, b) => a.order - b.order
+    (a, b) => a.order - b.order,
   );
 
   // Function to check attempts for all questions
@@ -81,7 +81,7 @@ export default function AssignmentResponseCore({
         const attempts = await getQuestionAttempts(
           submissionId,
           question.order,
-          true // Exclude stale attempts
+          true, // Exclude stale attempts
         );
         if (attempts.length > 0) {
           withAttempts.add(question.order);
@@ -89,7 +89,7 @@ export default function AssignmentResponseCore({
       } catch (error) {
         console.error(
           `Error checking attempts for question ${question.order}:`,
-          error
+          error,
         );
       }
     }
@@ -263,10 +263,18 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
-          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          sharedContext={
+            assignmentData.shared_context_enabled
+              ? assignmentData.shared_context
+              : undefined
+          }
           evaluationPrompt={assignmentData.evaluation_prompt}
-          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
-          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
+          experienceRatingEnabled={
+            assignmentData.experience_rating_enabled ?? false
+          }
+          experienceRatingRequired={
+            assignmentData.experience_rating_required ?? false
+          }
         />
       )}
       {assessmentMode === "text_chat" && (
@@ -298,10 +306,18 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
-          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          sharedContext={
+            assignmentData.shared_context_enabled
+              ? assignmentData.shared_context
+              : undefined
+          }
           evaluationPrompt={assignmentData.evaluation_prompt}
-          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
-          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
+          experienceRatingEnabled={
+            assignmentData.experience_rating_enabled ?? false
+          }
+          experienceRatingRequired={
+            assignmentData.experience_rating_required ?? false
+          }
         />
       )}
       {assessmentMode === "static_text" && (
@@ -334,10 +350,18 @@ export default function AssignmentResponseCore({
           onAttemptCreated={handleAttemptCreated}
           onMarkedComplete={() => setIsComplete(true)}
           isComplete={isComplete}
-          sharedContext={assignmentData.shared_context_enabled ? assignmentData.shared_context : undefined}
+          sharedContext={
+            assignmentData.shared_context_enabled
+              ? assignmentData.shared_context
+              : undefined
+          }
           evaluationPrompt={assignmentData.evaluation_prompt}
-          experienceRatingEnabled={assignmentData.experience_rating_enabled ?? false}
-          experienceRatingRequired={assignmentData.experience_rating_required ?? false}
+          experienceRatingEnabled={
+            assignmentData.experience_rating_enabled ?? false
+          }
+          experienceRatingRequired={
+            assignmentData.experience_rating_required ?? false
+          }
         />
       )}
     </div>

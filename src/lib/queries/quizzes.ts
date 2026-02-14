@@ -266,7 +266,13 @@ export async function getQuizSubmissionsByQuizWithStudents(
 ): Promise<QuizSubmissionStatus[]> {
   const supabase = createClient();
 
-  const students = await getClassStudentsWithInfo(quiz.class_id);
+  const allStudents = await getClassStudentsWithInfo(quiz.class_id);
+  // When quiz is group-scoped, show only students in that group
+  const students =
+    quiz.class_group_id != null
+      ? allStudents.filter((s) => s.group_id === quiz.class_group_id)
+      : allStudents;
+
   if (students.length === 0) {
     return [];
   }

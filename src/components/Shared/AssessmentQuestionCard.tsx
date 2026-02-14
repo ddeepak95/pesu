@@ -28,10 +28,12 @@ export function AssessmentQuestionCard({
 
   return (
     <Card className="w-full bg-gray-300/5">
-      <CardHeader>
-        <CardTitle className="text-lg">{question.prompt}</CardTitle>
+      <CardHeader className="p-4">
+        <CardTitle className="text-base font-normal">
+          {question.prompt}
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 p-4 pt-0">
         {/* View Rubric Accordion */}
         {shouldShowRubric && (
           <Accordion type="single" collapsible>

@@ -13,7 +13,11 @@ import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { interpolatePromptsForRuntime, interpolatePrompt, buildRuntimeContext } from "@/lib/promptInterpolation";
+import {
+  interpolatePromptsForRuntime,
+  interpolatePrompt,
+  buildRuntimeContext,
+} from "@/lib/promptInterpolation";
 import { parseSSEStream, SSEEvent } from "@/lib/sseParser";
 
 interface ChatMessage {
@@ -126,9 +130,16 @@ export function ChatAssessment({
       >[0],
       question,
       language,
-      attempts.length + 1
+      attempts.length + 1,
     );
-  }, [botPromptConfig, question, language, maxAttempts, attempts.length, sharedContext]);
+  }, [
+    botPromptConfig,
+    question,
+    language,
+    maxAttempts,
+    attempts.length,
+    sharedContext,
+  ]);
 
   // Activity tracking for question-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
@@ -144,10 +155,12 @@ export function ChatAssessment({
   const activeRequestAbortRef = React.useRef<AbortController | null>(null);
   const restoredFromStorageRef = React.useRef(false);
   // Ref to track end_conversation tool call signals from the LLM
-  const endConversationRef = React.useRef<{ reason: "thorough" | "refusal" } | null>(null);
+  const endConversationRef = React.useRef<{
+    reason: "thorough" | "refusal";
+  } | null>(null);
   const storageKey = React.useMemo(
     () => `chat-${submissionId}-${question.order}`,
-    [submissionId, question.order]
+    [submissionId, question.order],
   );
 
   // Auto-scroll to bottom of chat container whenever messages update
@@ -202,7 +215,7 @@ export function ChatAssessment({
         const questionAttempts = await getQuestionAttempts(
           submissionId,
           question.order,
-          true // Exclude stale attempts
+          true, // Exclude stale attempts
         );
         setAttempts(questionAttempts);
         // If we already restored from storage, never overwrite that state here.
@@ -242,7 +255,7 @@ export function ChatAssessment({
    */
   const streamSSEResponse = async (
     reader: ReadableStreamDefaultReader<Uint8Array>,
-    assistantId: string
+    assistantId: string,
   ): Promise<string> => {
     let content = "";
     endConversationRef.current = null;
@@ -252,9 +265,7 @@ export function ChatAssessment({
         case "text-delta":
           content += event.content;
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content } : m
-            )
+            prev.map((m) => (m.id === assistantId ? { ...m, content } : m)),
           );
           break;
         case "end_conversation":
@@ -275,7 +286,7 @@ export function ChatAssessment({
     // Prevent starting new chat if max attempts reached
     if (maxAttemptsReached) {
       alert(
-        "You have reached the maximum number of attempts for this question."
+        "You have reached the maximum number of attempts for this question.",
       );
       return;
     }
@@ -386,7 +397,7 @@ export function ChatAssessment({
         alert(
           `Failed to start chat: ${
             error instanceof Error ? error.message : "Unknown error"
-          }`
+          }`,
         );
         setMessages([]);
       }
@@ -403,7 +414,7 @@ export function ChatAssessment({
     // Prevent sending messages if max attempts reached
     if (maxAttemptsReached) {
       alert(
-        "You have reached the maximum number of attempts for this question."
+        "You have reached the maximum number of attempts for this question.",
       );
       return;
     }
@@ -510,7 +521,7 @@ export function ChatAssessment({
         alert(
           `Failed to send message: ${
             error instanceof Error ? error.message : "Unknown error"
-          }`
+          }`,
         );
         // On hard error, remove the placeholder assistant bubble
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
@@ -540,7 +551,7 @@ export function ChatAssessment({
     // Prevent evaluating if max attempts reached
     if (maxAttemptsReached) {
       alert(
-        "You have reached the maximum number of attempts for this question."
+        "You have reached the maximum number of attempts for this question.",
       );
       return;
     }
@@ -557,14 +568,19 @@ export function ChatAssessment({
           shared_context: sharedContext,
         };
         const evalContext = buildRuntimeContext(
-          assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
+          assignmentForInterpolation as Parameters<
+            typeof buildRuntimeContext
+          >[0],
           question,
           language,
           attempts.length + 1,
           question.order,
-          answerText
+          answerText,
         );
-        interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
+        interpolatedEvalPrompt = interpolatePrompt(
+          evaluationPrompt,
+          evalContext,
+        );
       }
 
       const response = await fetch("/api/evaluate", {
@@ -580,7 +596,9 @@ export function ChatAssessment({
           rubric: question.rubric,
           language,
           ...(sharedContext && { shared_context: sharedContext }),
-          ...(interpolatedEvalPrompt && { custom_evaluation_prompt: interpolatedEvalPrompt }),
+          ...(interpolatedEvalPrompt && {
+            custom_evaluation_prompt: interpolatedEvalPrompt,
+          }),
         }),
       });
 
@@ -622,7 +640,7 @@ export function ChatAssessment({
       alert(
         `Failed to evaluate your answer: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setIsEvaluating(false);
@@ -645,7 +663,7 @@ export function ChatAssessment({
   const hasStarted = messages.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <AssessmentQuestionHeader
         questionNumber={questionNumber}
         totalQuestions={totalQuestions}

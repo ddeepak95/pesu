@@ -26,7 +26,7 @@ export function AssessmentQuestionHeader({
 }: AssessmentQuestionHeaderProps) {
   return (
     <div className="flex items-center justify-between">
-      <p className="text-md">
+      <p className="text-sm text-muted-foreground">
         Question ({questionNumber}/{totalQuestions})
       </p>
 
