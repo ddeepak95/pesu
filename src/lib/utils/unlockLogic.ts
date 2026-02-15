@@ -14,34 +14,75 @@ export interface UnlockState {
   isTeacherLocked: boolean;
   /** Human-readable reason why the item is locked (null if unlocked) */
   lockReason: string | null;
+  /** Days remaining until unlock (when locked due to day-delay) */
+  daysRemaining?: number;
+}
+
+/** Compute calendar days between two dates (UTC date truncation). */
+function daysBetweenUtc(earlier: string, later: Date): number {
+  const a = new Date(earlier);
+  const aDate = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const bDate = Date.UTC(
+    later.getUTCFullYear(),
+    later.getUTCMonth(),
+    later.getUTCDate()
+  );
+  return Math.floor((bDate - aDate) / (24 * 60 * 60 * 1000));
+}
+
+/** Check if item B is unlocked given previous item A's completion date and B's day-delay. */
+function passesDayDelay(
+  previousCompletedAt: string | undefined,
+  unlockDaysAfterPrevious: number,
+  now: Date = new Date()
+): { passed: boolean; daysRemaining: number } {
+  // Missing completed_at: treat as 0 days ago (unlock immediately) to avoid blocking students
+  if (!previousCompletedAt) {
+    return { passed: true, daysRemaining: 0 };
+  }
+  const daysElapsed = daysBetweenUtc(previousCompletedAt, now);
+  if (daysElapsed >= unlockDaysAfterPrevious) {
+    return { passed: true, daysRemaining: 0 };
+  }
+  return {
+    passed: false,
+    daysRemaining: unlockDaysAfterPrevious - daysElapsed,
+  };
 }
 
 /**
- * Calculate unlock states for all content items based on progressive unlock
- * and teacher unlock rules.
- * 
+ * Calculate unlock states for all content items based on progressive unlock,
+ * teacher unlock rules, and per-item day-delay.
+ *
  * Rules:
  * 1. If an item has require_teacher_unlock=true and hasn't been unlocked by
  *    the teacher for this student, it is teacher-locked (highest priority).
- * 2. If progressive unlock is disabled, all remaining items are unlocked
- *    (unless locked after complete).
+ * 2. If progressive unlock is disabled, all items are unlocked except:
+ *    teacher-lock, lock-after-complete, and items with unlock_days_after_previous
+ *    (which are gated by previous complete + X days).
  * 3. First item (position 0) is always unlocked initially.
- * 4. Subsequent items unlock when the previous item (by position) is marked complete.
+ * 4. Subsequent items unlock when the previous item is complete (and day-delay
+ *    is satisfied if set).
  * 5. Items with lock_after_complete=true become locked after being marked complete.
- * 
+ *
+ * Day-delay is independent of progressive unlock: items with unlock_days_after_previous > 0
+ * are always gated by previous complete + X days.
+ *
  * @param items - Array of content items (should be sorted by position)
- * @param completedIds - Set of content item IDs that have been marked complete
+ * @param completedAtByItemId - Map of content item ID -> ISO completed_at
  * @param progressiveUnlockEnabled - Whether progressive unlock is enabled for the class
  * @param teacherUnlockedIds - Set of content item IDs that have been unlocked by the teacher for this student
  * @returns Map of content item ID to its unlock state
  */
 export function calculateUnlockStates(
   items: ContentItem[],
-  completedIds: Set<string>,
+  completedAtByItemId: Map<string, string>,
   progressiveUnlockEnabled: boolean,
   teacherUnlockedIds: Set<string> = new Set()
 ): Map<string, UnlockState> {
   const unlockStates = new Map<string, UnlockState>();
+  const completedIds = new Set(completedAtByItemId.keys());
+  const now = new Date();
 
   // Helper to check teacher lock
   const isTeacherLocked = (item: ContentItem): boolean => {
@@ -51,10 +92,15 @@ export function calculateUnlockStates(
     );
   };
 
-  // If progressive unlock is disabled, all items are unlocked (unless locked after complete or teacher-locked)
+  // Sort items by position for day-delay checks
+  const sortedItems = [...items].sort((a, b) => a.position - b.position);
+
+  // If progressive unlock is disabled: all items unlocked except teacher-lock,
+  // lock-after-complete, and items with unlock_days_after_previous > 0
   if (!progressiveUnlockEnabled) {
-    for (const item of items) {
-      // Check teacher lock first (highest priority)
+    for (let i = 0; i < sortedItems.length; i++) {
+      const item = sortedItems[i];
+
       if (isTeacherLocked(item)) {
         unlockStates.set(item.id, {
           isUnlocked: false,
@@ -67,29 +113,74 @@ export function calculateUnlockStates(
       }
 
       const isComplete = completedIds.has(item.id);
-      const isLockedAfterComplete = isComplete && (item.lock_after_complete ?? false);
-      
+      const isLockedAfterComplete =
+        isComplete && (item.lock_after_complete ?? false);
+
+      if (isLockedAfterComplete) {
+        unlockStates.set(item.id, {
+          isUnlocked: false,
+          isLocked: true,
+          isLockedAfterComplete: true,
+          isTeacherLocked: false,
+          lockReason: "This item is no longer accessible after completion",
+        });
+        continue;
+      }
+
+      // Day-delay: items with unlock_days_after_previous > 0 are gated
+      const daysRequired = item.unlock_days_after_previous ?? 0;
+      if (daysRequired > 0 && i > 0) {
+        const previousItem = sortedItems[i - 1];
+        const isPreviousComplete = completedIds.has(previousItem.id);
+        if (!isPreviousComplete) {
+          unlockStates.set(item.id, {
+            isUnlocked: false,
+            isLocked: true,
+            isLockedAfterComplete: false,
+            isTeacherLocked: false,
+            lockReason: "Complete the previous item to unlock this content",
+          });
+          continue;
+        }
+        const previousCompletedAt = completedAtByItemId.get(previousItem.id);
+        const { passed, daysRemaining } = passesDayDelay(
+          previousCompletedAt,
+          daysRequired,
+          now
+        );
+
+        if (!passed) {
+          const reason =
+            previousCompletedAt
+              ? `This content unlocks ${daysRequired} days after completing the previous item. Available in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}.`
+              : "Complete the previous item to unlock this content.";
+          unlockStates.set(item.id, {
+            isUnlocked: false,
+            isLocked: true,
+            isLockedAfterComplete: false,
+            isTeacherLocked: false,
+            lockReason: reason,
+            daysRemaining,
+          });
+          continue;
+        }
+      }
+
       unlockStates.set(item.id, {
-        isUnlocked: !isLockedAfterComplete,
-        isLocked: isLockedAfterComplete,
-        isLockedAfterComplete,
+        isUnlocked: true,
+        isLocked: false,
+        isLockedAfterComplete: false,
         isTeacherLocked: false,
-        lockReason: isLockedAfterComplete 
-          ? "This item is no longer accessible after completion" 
-          : null,
+        lockReason: null,
       });
     }
     return unlockStates;
   }
 
-  // Sort items by position to ensure correct ordering
-  const sortedItems = [...items].sort((a, b) => a.position - b.position);
-
-  // Calculate unlock state for each item
+  // Progressive unlock enabled
   for (let i = 0; i < sortedItems.length; i++) {
     const item = sortedItems[i];
 
-    // Check teacher lock first (highest priority)
     if (isTeacherLocked(item)) {
       unlockStates.set(item.id, {
         isUnlocked: false,
@@ -102,9 +193,9 @@ export function calculateUnlockStates(
     }
 
     const isComplete = completedIds.has(item.id);
-    const isLockedAfterComplete = isComplete && (item.lock_after_complete ?? false);
+    const isLockedAfterComplete =
+      isComplete && (item.lock_after_complete ?? false);
 
-    // Check if this item is locked after complete
     if (isLockedAfterComplete) {
       unlockStates.set(item.id, {
         isUnlocked: false,
@@ -116,7 +207,6 @@ export function calculateUnlockStates(
       continue;
     }
 
-    // First item is always unlocked
     if (i === 0) {
       unlockStates.set(item.id, {
         isUnlocked: true,
@@ -128,21 +218,13 @@ export function calculateUnlockStates(
       continue;
     }
 
-    // For subsequent items, check if previous item is complete
     const previousItem = sortedItems[i - 1];
     const isPreviousComplete = completedIds.has(previousItem.id);
+    const previousCompletedAt = completedAtByItemId.get(previousItem.id);
 
-    if (isPreviousComplete) {
-      // Previous item is complete, so this item is unlocked
-      unlockStates.set(item.id, {
-        isUnlocked: true,
-        isLocked: false,
-        isLockedAfterComplete: false,
-        isTeacherLocked: false,
-        lockReason: null,
-      });
-    } else {
-      // Previous item is not complete, so this item is locked
+    const daysRequired = item.unlock_days_after_previous ?? 0;
+
+    if (!isPreviousComplete) {
       unlockStates.set(item.id, {
         isUnlocked: false,
         isLocked: true,
@@ -150,7 +232,36 @@ export function calculateUnlockStates(
         isTeacherLocked: false,
         lockReason: "Complete the previous item to unlock this content",
       });
+      continue;
     }
+
+    // Previous is complete; check day-delay if applicable
+    if (daysRequired > 0) {
+      const { passed, daysRemaining } = passesDayDelay(
+        previousCompletedAt,
+        daysRequired,
+        now
+      );
+      if (!passed) {
+        unlockStates.set(item.id, {
+          isUnlocked: false,
+          isLocked: true,
+          isLockedAfterComplete: false,
+          isTeacherLocked: false,
+          lockReason: `This content unlocks ${daysRequired} days after completing the previous item. Available in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}.`,
+          daysRemaining,
+        });
+        continue;
+      }
+    }
+
+    unlockStates.set(item.id, {
+      isUnlocked: true,
+      isLocked: false,
+      isLockedAfterComplete: false,
+      isTeacherLocked: false,
+      lockReason: null,
+    });
   }
 
   return unlockStates;
@@ -158,21 +269,19 @@ export function calculateUnlockStates(
 
 /**
  * Get the unlock state for a single content item
- * 
- * @param itemId - ID of the content item to check
- * @param items - Array of all content items
- * @param completedIds - Set of completed content item IDs
- * @param progressiveUnlockEnabled - Whether progressive unlock is enabled
- * @param teacherUnlockedIds - Set of content item IDs unlocked by the teacher for this student
- * @returns The unlock state for the specified item, or null if not found
  */
 export function getUnlockState(
   itemId: string,
   items: ContentItem[],
-  completedIds: Set<string>,
+  completedAtByItemId: Map<string, string>,
   progressiveUnlockEnabled: boolean,
   teacherUnlockedIds: Set<string> = new Set()
 ): UnlockState | null {
-  const allStates = calculateUnlockStates(items, completedIds, progressiveUnlockEnabled, teacherUnlockedIds);
+  const allStates = calculateUnlockStates(
+    items,
+    completedAtByItemId,
+    progressiveUnlockEnabled,
+    teacherUnlockedIds
+  );
   return allStates.get(itemId) ?? null;
 }

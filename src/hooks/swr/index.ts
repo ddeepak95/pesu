@@ -6,5 +6,9 @@ export { useAssignmentsByIds, useAssignmentsByIdsForTeacher } from "./useAssignm
 export { useLearningContentsByIds, useLearningContentsByIdsForStudent } from "./useLearningContents";
 export { useQuizzesByIds, useQuizzesByIdsForStudent } from "./useQuizzes";
 export { useSurveysByIds, useSurveysByIdsForStudent } from "./useSurveys";
-export { useCompletionsForStudent, invalidateCompletionsCache } from "./useCompletions";
+export {
+  useCompletionsForStudent,
+  useCompletionsWithDatesForStudent,
+  invalidateCompletionsCache,
+} from "./useCompletions";
 export { useProfileFieldsForClass, useStudentProfileData } from "./useProfiles";

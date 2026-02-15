@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,6 +8,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -19,11 +23,14 @@ import {
   Share2,
   Lock,
   KeyRound,
+  CalendarClock,
+  Settings,
 } from "lucide-react";
 import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
@@ -46,6 +53,7 @@ export default function ContentCard({
   onShareLinks,
   onToggleLockAfterComplete,
   onToggleRequireTeacherUnlock,
+  onUpdateUnlockDaysAfterPrevious,
   language,
 }: {
   item: ContentItem;
@@ -73,7 +81,19 @@ export default function ContentCard({
     itemId: string,
     requireTeacherUnlock: boolean
   ) => void;
+  onUpdateUnlockDaysAfterPrevious?: (
+    itemId: string,
+    days: number | null
+  ) => void;
 }) {
+  const [localDays, setLocalDays] = useState<string>(
+    () => String(item.unlock_days_after_previous ?? 0)
+  );
+
+  useEffect(() => {
+    setLocalDays(String(item.unlock_days_after_previous ?? 0));
+  }, [item.unlock_days_after_previous]);
+
   const labelForType = (type: ContentItemType) => {
     switch (type) {
       case "quiz":
@@ -164,6 +184,12 @@ export default function ContentCard({
                 Teacher Unlock
               </span>
             )}
+            {(item.unlock_days_after_previous ?? 0) > 0 && (
+              <span className="text-xs rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <CalendarClock className="w-3 h-3" />
+                Unlocks {item.unlock_days_after_previous} days after previous
+              </span>
+            )}
           </div>
 
           {/* Title row */}
@@ -210,63 +236,114 @@ export default function ContentCard({
                 Duplicate to…
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {onToggleLockAfterComplete && (
-                <div
-                  className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleLockAfterComplete(
-                      item.id,
-                      !(item.lock_after_complete ?? false)
-                    );
-                  }}
-                >
-                  <Label
-                    htmlFor={`lock-${item.id}`}
-                    className="cursor-pointer flex items-center gap-2"
-                  >
-                    <Lock className="h-4 w-4" />
-                    Lock after complete
-                  </Label>
-                  <Switch
-                    id={`lock-${item.id}`}
-                    checked={item.lock_after_complete ?? false}
-                    onCheckedChange={(checked) => {
-                      onToggleLockAfterComplete(item.id, checked);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
+              {(onToggleLockAfterComplete ||
+                onToggleRequireTeacherUnlock ||
+                onUpdateUnlockDaysAfterPrevious) && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Options
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {onToggleLockAfterComplete && (
+                      <div
+                        className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleLockAfterComplete(
+                            item.id,
+                            !(item.lock_after_complete ?? false)
+                          );
+                        }}
+                      >
+                        <Label
+                          htmlFor={`lock-${item.id}`}
+                          className="cursor-pointer flex items-center gap-2"
+                        >
+                          <Lock className="h-4 w-4" />
+                          Lock after complete
+                        </Label>
+                        <Switch
+                          id={`lock-${item.id}`}
+                          checked={item.lock_after_complete ?? false}
+                          onCheckedChange={(checked) => {
+                            onToggleLockAfterComplete(item.id, checked);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    )}
+                    {onToggleRequireTeacherUnlock && (
+                      <div
+                        className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleRequireTeacherUnlock(
+                            item.id,
+                            !(item.require_teacher_unlock ?? false)
+                          );
+                        }}
+                      >
+                        <Label
+                          htmlFor={`teacher-unlock-${item.id}`}
+                          className="cursor-pointer flex items-center gap-2"
+                        >
+                          <KeyRound className="h-4 w-4" />
+                          Require teacher unlock
+                        </Label>
+                        <Switch
+                          id={`teacher-unlock-${item.id}`}
+                          checked={item.require_teacher_unlock ?? false}
+                          onCheckedChange={(checked) => {
+                            onToggleRequireTeacherUnlock(item.id, checked);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    )}
+                    {onUpdateUnlockDaysAfterPrevious && index > 0 && (
+                      <div
+                        className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm hover:bg-accent rounded-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Label
+                          htmlFor={`unlock-days-${item.id}`}
+                          className="flex items-center gap-2 shrink-0"
+                        >
+                          <CalendarClock className="h-4 w-4" />
+                          Unlock days after previous
+                        </Label>
+                        <Input
+                          id={`unlock-days-${item.id}`}
+                          type="number"
+                          min={0}
+                          max={365}
+                          value={localDays}
+                          onChange={(e) => setLocalDays(e.target.value)}
+                          onBlur={() => {
+                            const num =
+                              localDays === ""
+                                ? 0
+                                : Math.min(
+                                    365,
+                                    Math.max(0, parseInt(localDays, 10) || 0)
+                                  );
+                            setLocalDays(String(num));
+                            onUpdateUnlockDaysAfterPrevious(
+                              item.id,
+                              num === 0 ? null : num
+                            );
+                          }}
+                          className="h-8 w-16"
+                        />
+                      </div>
+                    )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
               )}
-              {onToggleRequireTeacherUnlock && (
-                <div
-                  className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleRequireTeacherUnlock(
-                      item.id,
-                      !(item.require_teacher_unlock ?? false)
-                    );
-                  }}
-                >
-                  <Label
-                    htmlFor={`teacher-unlock-${item.id}`}
-                    className="cursor-pointer flex items-center gap-2"
-                  >
-                    <KeyRound className="h-4 w-4" />
-                    Require teacher unlock
-                  </Label>
-                  <Switch
-                    id={`teacher-unlock-${item.id}`}
-                    checked={item.require_teacher_unlock ?? false}
-                    onCheckedChange={(checked) => {
-                      onToggleRequireTeacherUnlock(item.id, checked);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
-              )}
-              {(onToggleLockAfterComplete || onToggleRequireTeacherUnlock) && (
+              {(onToggleLockAfterComplete ||
+                onToggleRequireTeacherUnlock ||
+                onUpdateUnlockDaysAfterPrevious) && (
                 <DropdownMenuSeparator />
               )}
               <DropdownMenuItem

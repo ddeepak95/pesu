@@ -1,5 +1,8 @@
 import useSWR, { mutate } from "swr";
-import { getCompletionsForStudent } from "@/lib/queries/contentCompletions";
+import {
+  getCompletionsForStudent,
+  getCompletionsWithDatesForStudent,
+} from "@/lib/queries/contentCompletions";
 
 /**
  * Fetch content completions for the current student across a set of content item IDs.
@@ -32,11 +35,38 @@ export function useCompletionsForStudent(contentItemIds: string[]) {
 }
 
 /**
+ * Fetch content completions with dates for the current student.
+ * Returns a Map of content_item_id -> completed_at (ISO string) for unlock logic.
+ */
+export function useCompletionsWithDatesForStudent(contentItemIds: string[]) {
+  const sortedKey =
+    contentItemIds.length > 0 ? [...contentItemIds].sort().join(",") : null;
+  return useSWR<Map<string, string>>(
+    sortedKey ? ["completionsWithDatesForStudent", sortedKey] : null,
+    () => getCompletionsWithDatesForStudent(contentItemIds),
+    {
+      dedupingInterval: 0,
+      compare: (a, b) => {
+        if (a === b) return true;
+        if (!a || !b || a.size !== b.size) return false;
+        for (const [k, v] of a) {
+          if (b.get(k) !== v) return false;
+        }
+        return true;
+      },
+    }
+  );
+}
+
+/**
  * Invalidate all cached completions so the next render fetches fresh data.
  * Call this after markContentAsComplete() to keep the class page in sync.
  */
 export function invalidateCompletionsCache() {
   return mutate(
-    (key) => Array.isArray(key) && key[0] === "completionsForStudent"
+    (key) =>
+      Array.isArray(key) &&
+      (key[0] === "completionsForStudent" ||
+        key[0] === "completionsWithDatesForStudent")
   );
 }

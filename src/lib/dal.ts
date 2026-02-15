@@ -35,7 +35,7 @@ export const verifySession = cache(
 // ---------------------------------------------------------------------------
 
 const CONTENT_ITEM_COLUMNS =
-  "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock";
+  "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock, unlock_days_after_previous";
 
 const CLASS_COLUMNS =
   "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy";
@@ -122,8 +122,8 @@ export async function getContentUnlockState(
     }
   }
 
-  // 5. Check progressive unlock if enabled
-  if (classData?.enable_progressive_unlock) {
+  // 5. Check progressive unlock and day-delay (day-delay applies regardless of progressive unlock)
+  if (classData) {
     try {
       // Get student's group
       const { data: membership } = await supabase
@@ -146,19 +146,21 @@ export async function getContentUnlockState(
           .order("position", { ascending: true });
 
         if (allItems && allItems.length > 0) {
-          // Get completions for all items
           const itemIds = allItems.map((i: ContentItem) => i.id);
+
+          // Get completions with dates (needed for day-delay)
           const { data: completions } = await supabase
             .from("student_content_completions")
-            .select("content_item_id")
+            .select("content_item_id, completed_at")
             .eq("student_id", userId)
             .in("content_item_id", itemIds);
 
-          const completedIds = new Set(
-            (completions ?? []).map(
-              (c: { content_item_id: string }) => c.content_item_id
-            )
-          );
+          const completedAtByItemId = new Map<string, string>();
+          for (const c of completions ?? []) {
+            if (c.completed_at) {
+              completedAtByItemId.set(c.content_item_id, c.completed_at);
+            }
+          }
 
           // Get teacher unlocks for all items in the group
           const { data: teacherUnlocks } = await supabase
@@ -176,8 +178,8 @@ export async function getContentUnlockState(
           const unlockState = getUnlockState(
             contentItem.id,
             allItems as ContentItem[],
-            completedIds,
-            true,
+            completedAtByItemId,
+            classData.enable_progressive_unlock ?? false,
             teacherUnlockedIds
           );
 
