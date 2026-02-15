@@ -101,6 +101,45 @@ export async function getCompletionsForStudent(
 }
 
 /**
+ * Get completions with dates for multiple content items for the current user.
+ * Returns a Map of content_item_id -> completed_at (ISO string) for unlock logic
+ * that needs day-delay calculations.
+ */
+export async function getCompletionsWithDatesForStudent(
+  contentItemIds: string[]
+): Promise<Map<string, string>> {
+  if (contentItemIds.length === 0) {
+    return new Map();
+  }
+
+  const supabase = createClient();
+  const user = await getCachedUser();
+
+  if (!user) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from("student_content_completions")
+    .select("content_item_id, completed_at")
+    .eq("student_id", user.id)
+    .in("content_item_id", contentItemIds);
+
+  if (error) {
+    console.error("Error fetching completions with dates:", error);
+    return new Map();
+  }
+
+  const map = new Map<string, string>();
+  for (const c of data || []) {
+    if (c.completed_at) {
+      map.set(c.content_item_id, c.completed_at);
+    }
+  }
+  return map;
+}
+
+/**
  * Check if a single content item is complete for the current user
  */
 export async function isContentComplete(

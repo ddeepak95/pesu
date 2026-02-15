@@ -19,7 +19,7 @@ import {
   useLearningContentsByIdsForStudent,
   useQuizzesByIdsForStudent,
   useSurveysByIdsForStudent,
-  useCompletionsForStudent,
+  useCompletionsWithDatesForStudent,
 } from "@/hooks/swr";
 import { getTeacherUnlocksForStudent } from "@/lib/queries/teacherUnlocks";
 
@@ -73,10 +73,15 @@ export default function Content({ classData }: ContentProps) {
   const { data: quizzesData } = useQuizzesByIdsForStudent(quizIds);
   const { data: surveysData } = useSurveysByIdsForStudent(surveyIds);
 
-  // Fetch completions
+  // Fetch completions with dates (needed for day-delay unlock logic)
   const contentItemIds = useMemo(() => items.map((item) => item.id), [items]);
-  const { data: completedContentIds = new Set<string>(), mutate: mutateCompletions } =
-    useCompletionsForStudent(contentItemIds);
+  const { data: completedAtByItemId = new Map<string, string>(), mutate: mutateCompletions } =
+    useCompletionsWithDatesForStudent(contentItemIds);
+
+  const completedContentIds = useMemo(
+    () => new Set(completedAtByItemId.keys()),
+    [completedAtByItemId]
+  );
 
   // Revalidate completions when page becomes visible or when shown after navigation (e.g. browser back from quiz/survey)
   useEffect(() => {
@@ -134,12 +139,12 @@ export default function Content({ classData }: ContentProps) {
     return map;
   }, [surveysData]);
 
-  // Calculate unlock states
+  // Calculate unlock states (uses completedAtByItemId for day-delay)
   const unlockStates = useMemo(() => {
     if (items.length === 0) return new Map<string, UnlockState>();
     const progressiveUnlockEnabled = classData.enable_progressive_unlock ?? false;
-    return calculateUnlockStates(items, completedContentIds, progressiveUnlockEnabled, teacherUnlockedIds);
-  }, [items, completedContentIds, classData.enable_progressive_unlock, teacherUnlockedIds]);
+    return calculateUnlockStates(items, completedAtByItemId, progressiveUnlockEnabled, teacherUnlockedIds);
+  }, [items, completedAtByItemId, classData.enable_progressive_unlock, teacherUnlockedIds]);
 
   // Partition items into "To Complete" and "Completed"
   const { toCompleteItems, completedItems } = useMemo(() => {

@@ -15,6 +15,7 @@ export interface ContentItem {
   status: "draft" | "active" | "deleted";
   lock_after_complete?: boolean;
   require_teacher_unlock?: boolean;
+  unlock_days_after_previous?: number | null;
 }
 
 export interface TeacherContentUnlock {

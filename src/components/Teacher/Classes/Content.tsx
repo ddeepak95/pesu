@@ -450,6 +450,28 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
+  const handleUpdateUnlockDaysAfterPrevious = async (
+    itemId: string,
+    days: number | null
+  ) => {
+    try {
+      await updateContentItem(itemId, {
+        unlock_days_after_previous: days,
+      });
+      setLocalItems((prev) =>
+        (prev ?? items).map((item) =>
+          item.id === itemId
+            ? { ...item, unlock_days_after_previous: days }
+            : item
+        )
+      );
+      mutateItems();
+    } catch (err) {
+      console.error("Error updating unlock_days_after_previous:", err);
+      alert("Failed to update unlock days setting. Please try again.");
+    }
+  };
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
@@ -609,6 +631,9 @@ export default function Content({ classData }: ContentProps) {
                       onShareLinks={() => handleShareLinks(item)}
                       onToggleLockAfterComplete={handleToggleLockAfterComplete}
                       onToggleRequireTeacherUnlock={handleToggleRequireTeacherUnlock}
+                      onUpdateUnlockDaysAfterPrevious={
+                        handleUpdateUnlockDaysAfterPrevious
+                      }
                     />
                   );
                 }}
