@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 interface DropdownInputProps {
   options: string[];
@@ -25,22 +19,13 @@ export default function DropdownInput({
 }: DropdownInputProps) {
   return (
     <div className="space-y-2">
-      <Select
-        value={value || undefined}
+      <SearchableSelect
+        value={value ?? ""}
         onValueChange={onChange}
+        options={options}
+        placeholder="Select an option…"
         disabled={disabled}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select an option…" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option, idx) => (
-            <SelectItem key={idx} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      />
       {required && !value && (
         <p className="text-xs text-muted-foreground">
           Please select an option
