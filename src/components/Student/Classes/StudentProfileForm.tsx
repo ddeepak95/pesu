@@ -10,15 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import ProfileFieldsList from "@/components/Student/Classes/ProfileFieldsList";
 import { upsertStudentProfile } from "@/lib/queries/profileFields";
 import { validateFieldValue } from "@/lib/profileFieldValidation";
 
@@ -127,63 +119,13 @@ export default function StudentProfileForm({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {sortedFields.map((field) => (
-            <div key={field.id} className="space-y-2">
-              <Label htmlFor={`profile-${field.id}`}>
-                {field.field_name}
-                {field.is_mandatory ? (
-                  <span className="text-destructive ml-1">*</span>
-                ) : (
-                  <span className="text-muted-foreground ml-1 text-xs font-normal">
-                    (optional)
-                  </span>
-                )}
-              </Label>
-
-              {field.field_type === "text" ||
-              field.field_type === "number" ||
-              field.field_type === "phone" ? (
-                <Input
-                  id={`profile-${field.id}`}
-                  type={field.field_type === "number" ? "text" : field.field_type === "phone" ? "tel" : "text"}
-                  inputMode={field.field_type === "number" ? "decimal" : field.field_type === "phone" ? "tel" : "text"}
-                  placeholder={
-                    field.field_type === "number"
-                      ? "e.g., 42 or -3.14"
-                      : field.field_type === "phone"
-                        ? "e.g., (555) 123-4567"
-                        : `Enter ${field.field_name.toLowerCase()}`
-                  }
-                  value={responses[field.id] || ""}
-                  onChange={(e) =>
-                    handleResponseChange(field.id, e.target.value)
-                  }
-                  disabled={saving}
-                />
-              ) : (
-                <Select
-                  value={responses[field.id] || ""}
-                  onValueChange={(value) =>
-                    handleResponseChange(field.id, value)
-                  }
-                  disabled={saving}
-                >
-                  <SelectTrigger id={`profile-${field.id}`}>
-                    <SelectValue
-                      placeholder={`Select ${field.field_name.toLowerCase()}`}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(field.options || []).map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          ))}
+          <ProfileFieldsList
+            fields={sortedFields}
+            responses={responses}
+            onResponseChange={handleResponseChange}
+            disabled={saving}
+            idPrefix="profile-"
+          />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           {success && (
