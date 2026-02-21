@@ -152,7 +152,12 @@ function VoiceAssessmentContent({
   }, [client]);
 
   React.useEffect(() => {
-    if (transportState === "disconnected" || transportState === "idle") {
+    const notInSession =
+      transportState === "error" ||
+      transportState === "initializing" ||
+      transportState === "initialized" ||
+      transportState === "disconnecting";
+    if (notInSession) {
       setShowGame(false);
     }
   }, [transportState]);
