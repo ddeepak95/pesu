@@ -28,6 +28,7 @@ import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCa
 import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
+import { EmojiMatchGame } from "@/components/EmojiMatchGame";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 
 interface VoiceAssessmentProps {
@@ -128,6 +129,21 @@ function VoiceAssessmentContent({
     subComponentId: String(question.order),
   });
 
+  // Show mini-game only after user clicks Start Answering and we're still warming up (connecting or authenticating)
+  const isWarmingUp =
+    transportState === "connecting" || transportState === "authenticating";
+  const [showGame, setShowGame] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isWarmingUp && !showGame) {
+      const timer = setTimeout(() => setShowGame(true), 7000);
+      return () => clearTimeout(timer);
+    }
+    if (!isWarmingUp) {
+      setShowGame(false);
+    }
+  }, [isWarmingUp, showGame]);
+
   const transportStateRef = React.useRef(transportState);
   React.useEffect(() => {
     transportStateRef.current = transportState;
@@ -198,6 +214,8 @@ function VoiceAssessmentContent({
   // Handle evaluation after disconnect
   // Note: Audio recording is now handled server-side by Pipecat's AudioBufferProcessor
   const handleEvaluate = async () => {
+    logEvent("bot_disconnected");
+
     // Prevent evaluating if max attempts reached
     if (maxAttemptsReached) {
       alert(
@@ -478,6 +496,7 @@ function VoiceAssessmentContent({
             connectionData={connectionData}
             connectLabel={attempts.length > 0 ? "Try Again" : "Start Answering"}
             disconnectLabel="Stop Answering"
+            onConnectStart={() => logEvent("bot_connect_initiated")}
             onBotReady={handleBotReady}
             onDisconnect={handleEvaluate}
             disabled={maxAttemptsReached}
@@ -489,6 +508,14 @@ function VoiceAssessmentContent({
             </p>
           )}
         </div>
+
+        {/* Mini-game during extended warm-up */}
+        {showGame && (
+          <>
+            <hr className="border-muted-foreground/20" />
+            <EmojiMatchGame isActive={showGame} />
+          </>
+        )}
 
         {/* Voice Visualizer */}
         <div className="flex justify-center py-4">

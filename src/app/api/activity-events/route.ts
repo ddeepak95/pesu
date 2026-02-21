@@ -61,9 +61,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate eventType
-    if (!["attempt_started", "attempt_ended"].includes(body.eventType)) {
+    const validEventTypes = [
+      "attempt_started",
+      "attempt_ended",
+      "bot_connect_initiated",
+      "bot_disconnected",
+    ];
+    if (!validEventTypes.includes(body.eventType)) {
       return NextResponse.json(
-        { error: "eventType must be 'attempt_started' or 'attempt_ended'" },
+        { error: `eventType must be one of: ${validEventTypes.join(", ")}` },
         { status: 400 }
       );
     }

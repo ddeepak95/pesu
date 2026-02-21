@@ -129,7 +129,6 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
     }
   }, [transportState]);
 
-  // Determine agent state based on priority hierarchy using useMemo
   const agentState: AgentState = useMemo(() => {
     // Priority 1: Starting up (connecting or connected but bot not ready)
     if (
@@ -173,6 +172,19 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
     isBotSpeaking,
     isUserSpeaking,
   ]);
+
+  // Timer for phased starting messages + game
+  const [startingTimerElapsed, setStartingTimerElapsed] = useState(false);
+
+  useEffect(() => {
+    if (agentState === "starting") {
+      setStartingTimerElapsed(false);
+      const timer = setTimeout(() => setStartingTimerElapsed(true), 7000);
+      return () => clearTimeout(timer);
+    } else {
+      setStartingTimerElapsed(false);
+    }
+  }, [agentState]);
 
   // Get avatar image path based on state
   const getAvatarImage = (state: AgentState): string => {
@@ -242,7 +254,9 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
     switch (agentState) {
       case "starting":
         return {
-          text: "Konvo is preparing for the activity. This takes upto 30 seconds. Please wait for Konvo to speak to you before you speak.",
+          text: startingTimerElapsed
+            ? "Konvo is preparing for the activity. This might take up to 3 minutes. You can think of the answer or play the game below in the meanwhile."
+            : "Please wait while Konvo is starting up. Respond only after Konvo is ready and talking.",
           color: "text-yellow-600",
         };
       case "listening":
@@ -339,7 +353,9 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
       </div>
 
       {/* Status text */}
-      <p className={`text-sm font-medium ${display.color}`}>{display.text}</p>
+      <p className={`text-sm text-center font-medium ${display.color}`}>
+        {display.text}
+      </p>
     </div>
   );
 }
