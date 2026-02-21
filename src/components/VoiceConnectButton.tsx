@@ -11,6 +11,7 @@ interface VoiceConnectButtonProps {
   connectionData: Record<string, unknown> & {
     language: string;
   };
+  onConnectStart?: () => void;
   onConnected?: () => void;
   onBotReady?: () => void;
   onDisconnect?: () => void;
@@ -26,6 +27,7 @@ interface VoiceConnectButtonProps {
 export function VoiceConnectButton({
   endpoint,
   connectionData,
+  onConnectStart,
   onConnected,
   onBotReady,
   onDisconnect,
@@ -41,6 +43,8 @@ export function VoiceConnectButton({
     if (!client || isConnected) {
       return;
     }
+
+    onConnectStart?.();
 
     try {
       console.log("Starting bot and connecting with data:", connectionData);

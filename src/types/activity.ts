@@ -9,7 +9,11 @@ export type ComponentType =
   | "quiz"
   | "survey";
 
-export type EventType = "attempt_started" | "attempt_ended";
+export type EventType =
+  | "attempt_started"
+  | "attempt_ended"
+  | "bot_connect_initiated"
+  | "bot_disconnected";
 
 /**
  * Input for creating/updating an activity log (periodic time tracking)

@@ -198,6 +198,8 @@ function VoiceAssessmentContent({
   // Handle evaluation after disconnect
   // Note: Audio recording is now handled server-side by Pipecat's AudioBufferProcessor
   const handleEvaluate = async () => {
+    logEvent("bot_disconnected");
+
     // Prevent evaluating if max attempts reached
     if (maxAttemptsReached) {
       alert(
@@ -478,6 +480,7 @@ function VoiceAssessmentContent({
             connectionData={connectionData}
             connectLabel={attempts.length > 0 ? "Try Again" : "Start Answering"}
             disconnectLabel="Stop Answering"
+            onConnectStart={() => logEvent("bot_connect_initiated")}
             onBotReady={handleBotReady}
             onDisconnect={handleEvaluate}
             disabled={maxAttemptsReached}
