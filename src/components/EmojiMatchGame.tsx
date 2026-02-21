@@ -35,7 +35,7 @@ const EMOJI_POOL = [
   "🍄",
 ];
 
-const SEQUENCE_LENGTH = 5;
+const SEQUENCE_LENGTH = 4;
 const GRID_SIZE = 6;
 const REVEAL_INTERVAL_MS = 1000;
 const HIDE_INTERVAL_MS = 500;
@@ -329,8 +329,8 @@ export function EmojiMatchGame({ isActive }: EmojiMatchGameProps) {
         )}
       </div>
 
-      {/* Emoji selection row */}
-      <div className="flex justify-center gap-2">
+      {/* Emoji selection: 2 rows on mobile, 1 row on sm+ */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 justify-items-center">
         {gridEmojis.map((emoji, i) => {
           const alreadySelected = userSelections.includes(emoji);
           return (
