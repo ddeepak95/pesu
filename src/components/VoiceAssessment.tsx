@@ -28,6 +28,7 @@ import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCa
 import { AttemptsPanel } from "@/components/Shared/AttemptsPanel";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
+import { EmojiMatchGame } from "@/components/EmojiMatchGame";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 
 interface VoiceAssessmentProps {
@@ -127,6 +128,21 @@ function VoiceAssessmentContent({
     componentId: assignmentId,
     subComponentId: String(question.order),
   });
+
+  // Show mini-game only after user clicks Start Answering and we're still warming up (connecting or authenticating)
+  const isWarmingUp =
+    transportState === "connecting" || transportState === "authenticating";
+  const [showGame, setShowGame] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isWarmingUp && !showGame) {
+      const timer = setTimeout(() => setShowGame(true), 7000);
+      return () => clearTimeout(timer);
+    }
+    if (!isWarmingUp) {
+      setShowGame(false);
+    }
+  }, [isWarmingUp, showGame]);
 
   const transportStateRef = React.useRef(transportState);
   React.useEffect(() => {
@@ -492,6 +508,14 @@ function VoiceAssessmentContent({
             </p>
           )}
         </div>
+
+        {/* Mini-game during extended warm-up */}
+        {showGame && (
+          <>
+            <hr className="border-muted-foreground/20" />
+            <EmojiMatchGame isActive={showGame} />
+          </>
+        )}
 
         {/* Voice Visualizer */}
         <div className="flex justify-center py-4">
