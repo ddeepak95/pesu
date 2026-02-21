@@ -129,20 +129,33 @@ function VoiceAssessmentContent({
     subComponentId: String(question.order),
   });
 
-  // Show mini-game only after user clicks Start Answering and we're still warming up (connecting or authenticating)
-  const isWarmingUp =
+  // Show mini-game after 7s of warm-up; hide only when bot is ready or user disconnects
+  const isConnecting =
     transportState === "connecting" || transportState === "authenticating";
   const [showGame, setShowGame] = React.useState(false);
 
+  // Start 7s timer when user clicks Start (we enter connecting); show game when it fires
   React.useEffect(() => {
-    if (isWarmingUp && !showGame) {
-      const timer = setTimeout(() => setShowGame(true), 7000);
-      return () => clearTimeout(timer);
-    }
-    if (!isWarmingUp) {
+    if (!isConnecting) return;
+    const timer = setTimeout(() => setShowGame(true), 7000);
+    return () => clearTimeout(timer);
+  }, [isConnecting]);
+
+  // Hide game when bot is ready or when disconnected
+  React.useEffect(() => {
+    if (!client) return;
+    const onBotReady = () => setShowGame(false);
+    client.on("botReady", onBotReady);
+    return () => {
+      client.off("botReady", onBotReady);
+    };
+  }, [client]);
+
+  React.useEffect(() => {
+    if (transportState === "disconnected" || transportState === "idle") {
       setShowGame(false);
     }
-  }, [isWarmingUp, showGame]);
+  }, [transportState]);
 
   const transportStateRef = React.useRef(transportState);
   React.useEffect(() => {
