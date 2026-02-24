@@ -58,9 +58,9 @@ export default function ProfileFieldsList({
               }
               placeholder={
                 field.field_type === "number"
-                  ? "e.g., 42 or -3.14"
+                  ? "e.g., 42"
                   : field.field_type === "phone"
-                    ? "e.g., (555) 123-4567"
+                    ? "e.g., 9944874562"
                     : `Enter ${field.field_name.toLowerCase()}`
               }
               value={responses[field.id] || ""}
