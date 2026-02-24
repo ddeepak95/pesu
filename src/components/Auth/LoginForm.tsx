@@ -5,8 +5,6 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -26,12 +24,9 @@ export default function LoginForm({
   defaultRedirect,
 }: LoginFormProps) {
   const { t } = useTranslation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const { signInWithGoogle, user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const hasRedirected = useRef(false);
 
@@ -63,26 +58,6 @@ export default function LoginForm({
       window.location.href = destination;
     }
   }, [user, authLoading, redirectUrl, code, defaultRedirect]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const { error } = await signIn(email, password);
-
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      // Redirect to the return URL if provided, otherwise go to default destination
-      const destination = redirectUrl
-        ? decodeURIComponent(redirectUrl)
-        : defaultRedirect;
-      // Use window.location for reliable redirect
-      window.location.href = destination;
-    }
-  };
 
   const handleGoogleSignIn = async () => {
     setError("");
@@ -127,8 +102,6 @@ export default function LoginForm({
   }
 
   const accountTypeLabel = t(`auth.accountTypes.${userType}`);
-  const emailPlaceholder =
-    userType === "teacher" ? "teacher@example.com" : "student@example.com";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -153,7 +126,7 @@ export default function LoginForm({
               variant="outline"
               className="w-full"
               onClick={handleGoogleSignIn}
-              disabled={loading || googleLoading}
+              disabled={googleLoading}
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                 <path
@@ -177,56 +150,11 @@ export default function LoginForm({
                 ? t("auth.signingIn")
                 : t("auth.continueWithGoogle")}
             </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+            {error && (
+              <div className="p-3 text-sm rounded-md bg-destructive/10 text-destructive border border-destructive/20">
+                {error}
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  {t("auth.orContinueWithEmail")}
-                </span>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">{t("auth.email")}</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={emailPlaceholder}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading || googleLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("auth.password")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading || googleLoading}
-                />
-              </div>
-              {error && (
-                <div className="p-3 text-sm rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-                  {error}
-                </div>
-              )}
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loading || googleLoading}
-              >
-                {loading ? t("auth.signingIn") : t("auth.signIn")}
-              </Button>
-            </form>
+            )}
           </div>
         </CardContent>
       </Card>
