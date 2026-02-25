@@ -1,10 +1,12 @@
 export function getCloudFunctionUrl(functionName: string): string {
+    const projectId = process.env.FIREBASE_PROJECT_ID ?? "";
+    const region = process.env.FIREBASE_FUNCTIONS_REGION ?? "";
+
   if (process.env.CLOUD_FUNCTIONS_LOCAL === "true") {
-    const base = process.env.CLOUD_FUNCTIONS_LOCAL_ENDPOINT ?? "http://localhost:5001";
-    const projectId = process.env.FIREBASE_PROJECT_ID ?? "speak2learn-88da0";
-    const region = process.env.FIREBASE_FUNCTIONS_REGION ?? "us-central1";
+    const base = "http://localhost:5001";
     return `${base}/${projectId}/${region}/${functionName}`;
   }
-  const base = process.env.CLOUD_FUNCTION_PRODUCTION_ENDPOINT;
+
+  const base = `https://${region}-${projectId}.cloudfunctions.net`;
   return `${base}/${functionName}`;
 }
