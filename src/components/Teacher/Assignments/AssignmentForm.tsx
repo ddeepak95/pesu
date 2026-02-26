@@ -106,7 +106,7 @@ export default function AssignmentForm({
   initialMaxAttempts = 3,
   initialBotPromptConfig,
   initialStudentInstructions = "",
-  initialShowRubric = true,
+  initialShowRubric = false,
   initialShowRubricPoints = true,
   initialUseStarDisplay = false,
   initialStarScale = 5,

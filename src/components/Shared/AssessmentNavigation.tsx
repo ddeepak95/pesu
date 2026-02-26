@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,8 +15,12 @@ import { Label } from "@/components/ui/label";
 import { Star } from "lucide-react";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
 import { invalidateCompletionsCache } from "@/hooks/swr";
-import { saveExperienceRating, completeSubmission } from "@/lib/queries/submissions";
+import {
+  saveExperienceRating,
+  completeSubmission,
+} from "@/lib/queries/submissions";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { FinishAssessmentButton } from "@/components/Shared/FinishAssessmentButton";
 
 interface AssessmentNavigationProps {
   isFirstQuestion: boolean;
@@ -41,25 +45,35 @@ interface AssessmentNavigationProps {
   onClose?: () => void;
 }
 
-export function AssessmentNavigation({
-  isFirstQuestion,
-  isLastQuestion,
-  onPrevious,
-  onNext,
-  previousDisabled = false,
-  nextDisabled = false,
-  contentItemId,
-  requireAllAttempts = false,
-  allQuestionsHaveAttempts = true,
-  questionsWithAttempts,
-  totalQuestions = 0,
-  onMarkedComplete,
-  isComplete = false,
-  submissionId,
-  experienceRatingEnabled = false,
-  experienceRatingRequired = false,
-  onClose,
-}: AssessmentNavigationProps) {
+export interface AssessmentNavigationHandle {
+  triggerFinish: () => void;
+}
+
+export const AssessmentNavigation = forwardRef<
+  AssessmentNavigationHandle,
+  AssessmentNavigationProps
+>(function AssessmentNavigation(
+  {
+    isFirstQuestion,
+    isLastQuestion,
+    onPrevious,
+    onNext,
+    previousDisabled = false,
+    nextDisabled = false,
+    contentItemId,
+    requireAllAttempts = false,
+    allQuestionsHaveAttempts = true,
+    questionsWithAttempts,
+    totalQuestions = 0,
+    onMarkedComplete,
+    isComplete = false,
+    submissionId,
+    experienceRatingEnabled = false,
+    experienceRatingRequired = false,
+    onClose,
+  },
+  ref,
+) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,6 +88,12 @@ export function AssessmentNavigation({
     setHoveredRating(null);
     setRatingFeedback("");
   };
+
+  useImperativeHandle(
+    ref,
+    () => ({ triggerFinish: () => handleFinishClick() }),
+    [],
+  );
 
   const handleFinishClick = () => {
     if (isComplete) {
@@ -174,23 +194,26 @@ export function AssessmentNavigation({
         {/* Next/Finish first on mobile (order-1), right on desktop (order-2) */}
         <div className="order-1 flex gap-4 sm:order-2">
           {!isLastQuestion && (
-            <Button onClick={onNext} disabled={nextDisabled} size="lg" className="w-full sm:w-auto">
-              Next Question
-            </Button>
-          )}
-          {isLastQuestion && (
             <Button
-              onClick={handleFinishClick}
+              variant="outline"
+              onClick={onNext}
               disabled={nextDisabled}
               size="lg"
               className="w-full sm:w-auto"
             >
-              {isComplete
-                ? "Already Completed"
-                : contentItemId
-                  ? "Finish & Mark Complete"
-                  : "Finish"}
+              Next Question
             </Button>
+          )}
+          {isLastQuestion && (
+            <FinishAssessmentButton
+              onFinish={handleFinishClick}
+              disabled={nextDisabled}
+              variant="outline"
+              size="lg"
+              className="w-full sm:w-auto"
+              isComplete={isComplete}
+              contentItemId={contentItemId}
+            />
           )}
         </div>
         {/* Previous second on mobile (order-2), left on desktop (order-1) */}
@@ -207,11 +230,7 @@ export function AssessmentNavigation({
 
       {onClose && (
         <div className="mt-6 flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-          >
+          <Button type="button" variant="outline" onClick={onClose}>
             Close
           </Button>
         </div>
@@ -327,4 +346,4 @@ export function AssessmentNavigation({
       </Dialog>
     </>
   );
-}
+});

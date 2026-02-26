@@ -127,7 +127,7 @@ export default function CreateAssignmentPage() {
         max_attempts: data.maxAttempts ?? 1,
         bot_prompt_config: data.botPromptConfig,
         student_instructions: data.studentInstructions,
-        show_rubric: data.showRubric ?? true,
+        show_rubric: data.showRubric ?? false,
         show_rubric_points: data.showRubricPoints ?? true,
         use_star_display: data.useStarDisplay ?? false,
         star_scale: data.starScale ?? 5,

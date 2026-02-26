@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Assignment } from "@/types/assignment";
-import { VoiceAssessment } from "@/components/VoiceAssessment";
-import { ChatAssessment } from "@/components/ChatAssessment";
-import { StaticTextAssessment } from "@/components/StaticTextAssessment";
+import { AssessmentShell } from "@/components/Shared/AssessmentShell";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
@@ -231,139 +229,51 @@ export default function AssignmentResponseCore({
 
       {/* Shared Context is not displayed to students -- it is only passed to AI prompts */}
 
-      {/* Assessment Component based on mode */}
-      {assessmentMode === "voice" && (
-        <VoiceAssessment
-          key={currentQuestion.order}
-          question={currentQuestion}
-          language={preferredLanguage}
-          assignmentId={assignmentData.assignment_id}
-          submissionId={submissionId}
-          questionNumber={currentQuestionIndex + 1}
-          totalQuestions={sortedQuestions.length}
-          onAnswerSave={handleAnswerSave}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-          isFirstQuestion={currentQuestionIndex === 0}
-          isLastQuestion={isLastQuestion}
-          existingAnswer={answers[currentQuestion.order]}
-          onLanguageChange={languageChangeHandler}
-          currentAttemptNumber={currentAttemptNumber}
-          maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
-          botPromptConfig={assignmentData.bot_prompt_config}
-          contentItemId={contentItemId}
-          showRubric={assignmentData.show_rubric ?? true}
-          showRubricPoints={assignmentData.show_rubric_points ?? true}
-          useStarDisplay={assignmentData.use_star_display ?? false}
-          starScale={assignmentData.star_scale ?? 5}
-          requireAllAttempts={assignmentData.require_all_attempts ?? false}
-          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
-          questionsWithAttempts={questionsWithAttempts}
-          onAttemptCreated={handleAttemptCreated}
-          onMarkedComplete={() => setIsComplete(true)}
-          isComplete={isComplete}
-          sharedContext={
-            assignmentData.shared_context_enabled
-              ? assignmentData.shared_context
-              : undefined
-          }
-          evaluationPrompt={assignmentData.evaluation_prompt}
-          experienceRatingEnabled={
-            assignmentData.experience_rating_enabled ?? false
-          }
-          experienceRatingRequired={
-            assignmentData.experience_rating_required ?? false
-          }
-        />
-      )}
-      {assessmentMode === "text_chat" && (
-        <ChatAssessment
-          key={currentQuestion.order}
-          question={currentQuestion}
-          language={preferredLanguage}
-          assignmentId={assignmentData.assignment_id}
-          submissionId={submissionId}
-          questionNumber={currentQuestionIndex + 1}
-          totalQuestions={sortedQuestions.length}
-          onAnswerSave={handleAnswerSave}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-          isFirstQuestion={currentQuestionIndex === 0}
-          isLastQuestion={isLastQuestion}
-          existingAnswer={answers[currentQuestion.order]}
-          onLanguageChange={languageChangeHandler}
-          currentAttemptNumber={currentAttemptNumber}
-          maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
-          botPromptConfig={assignmentData.bot_prompt_config}
-          contentItemId={contentItemId}
-          showRubric={assignmentData.show_rubric ?? true}
-          showRubricPoints={assignmentData.show_rubric_points ?? true}
-          requireAllAttempts={assignmentData.require_all_attempts ?? false}
-          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
-          questionsWithAttempts={questionsWithAttempts}
-          onAttemptCreated={handleAttemptCreated}
-          onMarkedComplete={() => setIsComplete(true)}
-          isComplete={isComplete}
-          sharedContext={
-            assignmentData.shared_context_enabled
-              ? assignmentData.shared_context
-              : undefined
-          }
-          evaluationPrompt={assignmentData.evaluation_prompt}
-          experienceRatingEnabled={
-            assignmentData.experience_rating_enabled ?? false
-          }
-          experienceRatingRequired={
-            assignmentData.experience_rating_required ?? false
-          }
-        />
-      )}
-      {assessmentMode === "static_text" && (
-        <StaticTextAssessment
-          key={currentQuestion.order}
-          question={currentQuestion}
-          language={preferredLanguage}
-          assignmentId={assignmentData.assignment_id}
-          submissionId={submissionId}
-          questionNumber={currentQuestionIndex + 1}
-          totalQuestions={sortedQuestions.length}
-          onAnswerSave={handleAnswerSave}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-          isFirstQuestion={currentQuestionIndex === 0}
-          isLastQuestion={isLastQuestion}
-          existingAnswer={answers[currentQuestion.order]}
-          onLanguageChange={languageChangeHandler}
-          currentAttemptNumber={currentAttemptNumber}
-          maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
-          contentItemId={contentItemId}
-          showRubric={assignmentData.show_rubric ?? true}
-          showRubricPoints={assignmentData.show_rubric_points ?? true}
-          useStarDisplay={assignmentData.use_star_display ?? false}
-          starScale={assignmentData.star_scale ?? 5}
-          requireAllAttempts={assignmentData.require_all_attempts ?? false}
-          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
-          questionsWithAttempts={questionsWithAttempts}
-          onAttemptCreated={handleAttemptCreated}
-          onMarkedComplete={() => setIsComplete(true)}
-          isComplete={isComplete}
-          sharedContext={
-            assignmentData.shared_context_enabled
-              ? assignmentData.shared_context
-              : undefined
-          }
-          evaluationPrompt={assignmentData.evaluation_prompt}
-          experienceRatingEnabled={
-            assignmentData.experience_rating_enabled ?? false
-          }
-          experienceRatingRequired={
-            assignmentData.experience_rating_required ?? false
-          }
-        />
-      )}
+      {/* Assessment Component */}
+      <AssessmentShell
+        key={currentQuestion.order}
+        assessmentMode={assessmentMode}
+        question={currentQuestion}
+        language={preferredLanguage}
+        assignmentId={assignmentData.assignment_id}
+        submissionId={submissionId}
+        questionNumber={currentQuestionIndex + 1}
+        totalQuestions={sortedQuestions.length}
+        onAnswerSave={handleAnswerSave}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        isFirstQuestion={currentQuestionIndex === 0}
+        isLastQuestion={isLastQuestion}
+        existingAnswer={answers[currentQuestion.order]}
+        onLanguageChange={languageChangeHandler}
+        currentAttemptNumber={currentAttemptNumber}
+        maxAttempts={maxAttempts}
+        maxAttemptsReached={maxAttemptsReached}
+        botPromptConfig={assignmentData.bot_prompt_config}
+        contentItemId={contentItemId}
+        showRubric={assignmentData.show_rubric ?? true}
+        showRubricPoints={assignmentData.show_rubric_points ?? true}
+        useStarDisplay={assignmentData.use_star_display ?? false}
+        starScale={assignmentData.star_scale ?? 5}
+        requireAllAttempts={assignmentData.require_all_attempts ?? false}
+        allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+        questionsWithAttempts={questionsWithAttempts}
+        onAttemptCreated={handleAttemptCreated}
+        onMarkedComplete={() => setIsComplete(true)}
+        isComplete={isComplete}
+        sharedContext={
+          assignmentData.shared_context_enabled
+            ? assignmentData.shared_context
+            : undefined
+        }
+        evaluationPrompt={assignmentData.evaluation_prompt}
+        experienceRatingEnabled={
+          assignmentData.experience_rating_enabled ?? false
+        }
+        experienceRatingRequired={
+          assignmentData.experience_rating_required ?? false
+        }
+      />
     </div>
   );
 }

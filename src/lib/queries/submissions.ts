@@ -428,6 +428,13 @@ function convertToNewFormat(
  * Get all attempts for a specific question
  * @param excludeStale - If true, filters out stale attempts (default: false)
  */
+function isNetworkError(err: unknown): boolean {
+  if (err instanceof TypeError && err.message === "Failed to fetch") return true;
+  if (err && typeof err === "object" && "message" in err)
+    return (err as { message?: string }).message === "Failed to fetch";
+  return false;
+}
+
 export async function getQuestionAttempts(
   submissionId: string,
   questionOrder: number,
@@ -435,14 +442,37 @@ export async function getQuestionAttempts(
 ): Promise<SubmissionAttempt[]> {
   const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from("submissions")
-    .select("evaluations")
-    .eq("submission_id", submissionId)
-    .single();
+  let data: { evaluations?: unknown } | null = null;
+  let error: { code?: string; message?: string; details?: unknown } | null = null;
+
+  try {
+    const result = await supabase
+      .from("submissions")
+      .select("evaluations")
+      .eq("submission_id", submissionId)
+      .single();
+    data = result.data;
+    error = result.error;
+  } catch (thrown) {
+    if (isNetworkError(thrown)) {
+      console.warn(
+        "Could not fetch submission (network/connectivity). Returning no attempts.",
+        thrown instanceof Error ? thrown.message : String(thrown)
+      );
+      return [];
+    }
+    throw thrown;
+  }
 
   if (error) {
     if (error.code === "PGRST116") {
+      return [];
+    }
+    if (isNetworkError(error)) {
+      console.warn(
+        "Could not fetch submission (network/connectivity). Returning no attempts.",
+        error.message
+      );
       return [];
     }
     console.error(
@@ -454,9 +484,12 @@ export async function getQuestionAttempts(
     throw error;
   }
 
-  let evaluations = data.evaluations as
+  let evaluations = data?.evaluations as
     | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
+    | SubmissionAnswer[]
+    | undefined;
+
+  if (evaluations == null) return [];
 
   if (!isNewFormat(evaluations)) {
     evaluations = convertToNewFormat(evaluations);

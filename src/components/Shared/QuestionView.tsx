@@ -17,7 +17,7 @@ interface QuestionViewProps {
 export default function QuestionView({
   question,
   index,
-  showRubric = true,
+  showRubric = false,
   showSupportingContent = true,
 }: QuestionViewProps) {
   return (
