@@ -61,8 +61,11 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const resolvedClassId = await resolveClassId(body.classId, supabase);
-    const resolvedUserId = isValidUuid(body.userId) ? body.userId : null;
+    const resolvedUserId = user?.id ?? null;
 
     // Upsert the activity log (insert or update based on session_id)
     const { data, error } = await supabase
