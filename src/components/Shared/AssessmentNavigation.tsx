@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Star } from "lucide-react";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
 import { invalidateCompletionsCache } from "@/hooks/swr";
-import { saveExperienceRating } from "@/lib/queries/submissions";
+import { saveExperienceRating, completeSubmission } from "@/lib/queries/submissions";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface AssessmentNavigationProps {
@@ -136,6 +136,9 @@ export function AssessmentNavigation({
         await saveExperienceRating(submissionId, experienceRating, feedback);
       }
 
+      if (submissionId) {
+        await completeSubmission(submissionId);
+      }
       await markContentAsComplete(contentItemId);
       await invalidateCompletionsCache();
       showSuccessToast("Assessment marked as complete!");
