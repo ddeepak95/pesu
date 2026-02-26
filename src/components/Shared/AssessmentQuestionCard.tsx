@@ -29,7 +29,7 @@ export function AssessmentQuestionCard({
   return (
     <Card className="w-full bg-gray-300/5">
       <CardHeader className="p-4">
-        <CardTitle className="text-base font-normal">
+        <CardTitle className="text-base font-semibold">
           {question.prompt}
         </CardTitle>
       </CardHeader>

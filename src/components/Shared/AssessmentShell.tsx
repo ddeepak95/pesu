@@ -48,6 +48,8 @@ export interface AssessmentShellProps {
   requireAllAttempts?: boolean;
   allQuestionsHaveAttempts?: boolean;
   questionsWithAttempts?: Set<number>;
+  completedQuestionIndices?: number[];
+  onGoToQuestion?: (index: number) => void;
   onAttemptCreated?: () => void;
   onMarkedComplete?: () => void;
   isComplete?: boolean;
@@ -84,6 +86,8 @@ export function AssessmentShell({
   requireAllAttempts = false,
   allQuestionsHaveAttempts = true,
   questionsWithAttempts,
+  completedQuestionIndices,
+  onGoToQuestion,
   onAttemptCreated,
   onMarkedComplete,
   isComplete = false,
@@ -295,6 +299,8 @@ export function AssessmentShell({
         requireAllAttempts={requireAllAttempts}
         allQuestionsHaveAttempts={allQuestionsHaveAttempts}
         questionsWithAttempts={questionsWithAttempts}
+        completedQuestionIndices={completedQuestionIndices}
+        onGoToQuestion={onGoToQuestion}
         totalQuestions={totalQuestions}
         onMarkedComplete={onMarkedComplete}
         isComplete={isComplete}

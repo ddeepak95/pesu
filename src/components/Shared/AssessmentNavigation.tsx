@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, forwardRef, useImperativeHandle } from "react";
+import { useState, forwardRef, useImperativeHandle, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/queries/submissions";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import { FinishAssessmentButton } from "@/components/Shared/FinishAssessmentButton";
+import { QuestionsStatusDialog } from "@/components/Shared/QuestionsStatusDialog";
 
 interface AssessmentNavigationProps {
   isFirstQuestion: boolean;
@@ -34,6 +35,8 @@ interface AssessmentNavigationProps {
   requireAllAttempts?: boolean;
   allQuestionsHaveAttempts?: boolean;
   questionsWithAttempts?: Set<number>;
+  completedQuestionIndices?: number[];
+  onGoToQuestion?: (index: number) => void;
   totalQuestions?: number;
   onMarkedComplete?: () => void;
   isComplete?: boolean;
@@ -64,6 +67,8 @@ export const AssessmentNavigation = forwardRef<
     requireAllAttempts = false,
     allQuestionsHaveAttempts = true,
     questionsWithAttempts,
+    completedQuestionIndices,
+    onGoToQuestion,
     totalQuestions = 0,
     onMarkedComplete,
     isComplete = false,
@@ -75,6 +80,8 @@ export const AssessmentNavigation = forwardRef<
   ref,
 ) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isQuestionsStatusDialogOpen, setIsQuestionsStatusDialogOpen] =
+    useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -89,21 +96,35 @@ export const AssessmentNavigation = forwardRef<
     setRatingFeedback("");
   };
 
-  useImperativeHandle(
-    ref,
-    () => ({ triggerFinish: () => handleFinishClick() }),
-    [],
-  );
-
-  const handleFinishClick = () => {
+  const handleFinishClick = useCallback(() => {
     if (isComplete) {
       showSuccessToast("This assessment is already completed.");
       if (onNext) onNext();
       return;
     }
 
-    // Validate if require_all_attempts is enabled
-    if (requireAllAttempts && !allQuestionsHaveAttempts) {
+    // All questions attempted: go to completion (confirmation dialog or finish)
+    if (allQuestionsHaveAttempts) {
+      if (contentItemId) {
+        setIsDialogOpen(true);
+      } else {
+        if (onNext) onNext();
+      }
+      return;
+    }
+
+    // Not all attempted: show questions-status dialog so user can go to missing questions
+    const canShowQuestionsStatus =
+      totalQuestions > 0 &&
+      onGoToQuestion != null &&
+      completedQuestionIndices != null;
+    if (canShowQuestionsStatus) {
+      setIsQuestionsStatusDialogOpen(true);
+      return;
+    }
+
+    // Fallback when dialog props not provided
+    if (requireAllAttempts) {
       const attemptedCount = questionsWithAttempts?.size ?? 0;
       showErrorToast(
         `Please attempt all questions for this assessment to be marked as complete. You have attempted ${attemptedCount} of ${totalQuestions} questions.`,
@@ -112,13 +133,28 @@ export const AssessmentNavigation = forwardRef<
     }
 
     if (contentItemId) {
-      // Show confirmation dialog
       setIsDialogOpen(true);
     } else {
-      // No content item ID, just call onNext
       if (onNext) onNext();
     }
-  };
+  }, [
+    isComplete,
+    onNext,
+    allQuestionsHaveAttempts,
+    contentItemId,
+    totalQuestions,
+    onGoToQuestion,
+    completedQuestionIndices,
+    requireAllAttempts,
+    questionsWithAttempts,
+  ]);
+
+  useImperativeHandle(
+    ref,
+    () => ({ triggerFinish: () => handleFinishClick() }),
+    [handleFinishClick],
+  );
+
 
   const handleConfirmFinish = async () => {
     if (!contentItemId) {
@@ -236,7 +272,15 @@ export const AssessmentNavigation = forwardRef<
         </div>
       )}
 
-      {/* Dialog 1: Confirmation */}
+      <QuestionsStatusDialog
+        open={isQuestionsStatusDialogOpen}
+        onOpenChange={setIsQuestionsStatusDialogOpen}
+        totalQuestions={totalQuestions}
+        completedQuestionIndices={completedQuestionIndices ?? []}
+        onGoToQuestion={(index) => onGoToQuestion?.(index)}
+      />
+
+      {/* Dialog: Confirmation */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>

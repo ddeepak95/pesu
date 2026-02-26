@@ -49,7 +49,9 @@ export function StaticTextInputArea({
         setAnswer(stored);
         setHasStarted(true);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [storageKey]);
 
   // Reset state when question changes (if no localStorage restore)
@@ -72,31 +74,50 @@ export function StaticTextInputArea({
       setAnswer("");
       try {
         window.localStorage.removeItem(storageKey);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }, [attempts.length, storageKey]);
 
   // Persist draft to localStorage
   React.useEffect(() => {
     if (!answer) return;
-    try { window.localStorage.setItem(storageKey, answer); } catch { /* ignore */ }
+    try {
+      window.localStorage.setItem(storageKey, answer);
+    } catch {
+      /* ignore */
+    }
   }, [answer, storageKey]);
 
   const handleStartWriting = () => {
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question.",
+      );
       return;
     }
     setHasStarted(true);
     logEvent("attempt_started");
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => { e.preventDefault(); };
-  const handleCopy = (e: React.ClipboardEvent) => { e.preventDefault(); };
-  const handleCut = (e: React.ClipboardEvent) => { e.preventDefault(); };
-  const handleContextMenu = (e: React.MouseEvent) => { e.preventDefault(); };
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+  };
+  const handleCopy = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+  };
+  const handleCut = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+  };
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+  };
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "c" || e.key === "x")) {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      (e.key === "v" || e.key === "c" || e.key === "x")
+    ) {
       e.preventDefault();
     }
   };
@@ -108,14 +129,20 @@ export function StaticTextInputArea({
       return;
     }
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question.",
+      );
       return;
     }
 
     // Clear draft state before evaluation
     setAnswer("");
     setHasStarted(false);
-    try { window.localStorage.removeItem(storageKey); } catch { /* ignore */ }
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      /* ignore */
+    }
 
     await onSubmitForEvaluation(trimmedAnswer);
   };
@@ -130,12 +157,8 @@ export function StaticTextInputArea({
           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <FileText className="h-6 w-6 text-primary" />
           </div>
-          <p className="mb-4 text-sm text-muted-foreground text-center max-w-md">
-            Click &quot;Start Writing&quot; to begin typing your answer.
-            Copy and paste are disabled to ensure your work is original.
-          </p>
           <Button onClick={handleStartWriting} disabled={maxAttemptsReached}>
-            {attempts.length > 0 ? "Try Again" : "Start Writing"}
+            Start Writing
           </Button>
           {maxAttemptsReached && (
             <p className="text-xs text-muted-foreground mt-2 text-center">
@@ -163,7 +186,9 @@ export function StaticTextInputArea({
             onContextMenu={handleContextMenu}
             onKeyDown={handleKeyDown}
             placeholder={
-              maxAttemptsReached ? "Maximum attempts reached." : "Type your answer here..."
+              maxAttemptsReached
+                ? "Maximum attempts reached."
+                : "Type your answer here..."
             }
             rows={8}
             className="resize-none min-h-[200px] focus-visible:ring-primary"

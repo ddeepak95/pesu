@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Assignment } from "@/types/assignment";
 import { AssessmentShell } from "@/components/Shared/AssessmentShell";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
@@ -137,6 +137,23 @@ export default function AssignmentResponseCore({
   const allQuestionsHaveAttempts =
     questionsWithAttempts.size === sortedQuestions.length;
 
+  // 0-based indices of questions that have at least one attempt (for questions-status dialog)
+  const completedQuestionIndices = useMemo(
+    () =>
+      sortedQuestions
+        .map((q, i) => i)
+        .filter((i) => questionsWithAttempts.has(sortedQuestions[i].order)),
+    [sortedQuestions, questionsWithAttempts]
+  );
+
+  const handleGoToQuestion = useCallback(
+    (index: number) => {
+      setCurrentQuestionIndex(index);
+      updateQuestionIndex(assignmentId, index);
+    },
+    [assignmentId]
+  );
+
   // Activity tracking for assignment-level time
   // Uses ActivityTrackingContext for userId, classId, submissionId
   useActivityTracking({
@@ -258,6 +275,8 @@ export default function AssignmentResponseCore({
         requireAllAttempts={assignmentData.require_all_attempts ?? false}
         allQuestionsHaveAttempts={allQuestionsHaveAttempts}
         questionsWithAttempts={questionsWithAttempts}
+        completedQuestionIndices={completedQuestionIndices}
+        onGoToQuestion={handleGoToQuestion}
         onAttemptCreated={handleAttemptCreated}
         onMarkedComplete={() => setIsComplete(true)}
         isComplete={isComplete}

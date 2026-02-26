@@ -44,12 +44,21 @@ export function ChatInputArea({
       shared_context: sharedContext,
     };
     return interpolatePromptsForRuntime(
-      assignmentForInterpolation as Parameters<typeof interpolatePromptsForRuntime>[0],
+      assignmentForInterpolation as Parameters<
+        typeof interpolatePromptsForRuntime
+      >[0],
       question,
       language,
       attempts.length + 1,
     );
-  }, [botPromptConfig, question, language, maxAttempts, attempts.length, sharedContext]);
+  }, [
+    botPromptConfig,
+    question,
+    language,
+    maxAttempts,
+    attempts.length,
+    sharedContext,
+  ]);
 
   const { logEvent } = useActivityTracking({
     componentType: "question",
@@ -62,7 +71,9 @@ export function ChatInputArea({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const activeRequestAbortRef = React.useRef<AbortController | null>(null);
   const restoredFromStorageRef = React.useRef(false);
-  const endConversationRef = React.useRef<{ reason: "thorough" | "refusal" } | null>(null);
+  const endConversationRef = React.useRef<{
+    reason: "thorough" | "refusal";
+  } | null>(null);
   const storageKey = React.useMemo(
     () => `chat-${submissionId}-${question.order}`,
     [submissionId, question.order],
@@ -83,7 +94,10 @@ export function ChatInputArea({
 
   React.useEffect(() => {
     if (hasStarted) textareaRef.current?.focus();
-  }, [/* eslint-disable-line react-hooks/exhaustive-deps */ messages.length, hasStarted]);
+  }, [
+    /* eslint-disable-line react-hooks/exhaustive-deps */ messages.length,
+    hasStarted,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -103,7 +117,9 @@ export function ChatInputArea({
           setMessages(parsed);
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [storageKey]);
 
   // Reset messages when attempts change (question navigated)
@@ -116,7 +132,11 @@ export function ChatInputArea({
   // Persist chat draft to localStorage
   React.useEffect(() => {
     if (messages.length === 0) return;
-    try { window.localStorage.setItem(storageKey, JSON.stringify(messages)); } catch { /* ignore */ }
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch {
+      /* ignore */
+    }
   }, [messages, storageKey]);
 
   const streamSSEResponse = async (
@@ -147,7 +167,10 @@ export function ChatInputArea({
   };
 
   const aggregateStudentAnswer = () => {
-    return messages.filter((m) => m.role === "student").map((m) => m.content).join("\n\n");
+    return messages
+      .filter((m) => m.role === "student")
+      .map((m) => m.content)
+      .join("\n\n");
   };
 
   const handleFinishAndEvaluate = async () => {
@@ -157,26 +180,37 @@ export function ChatInputArea({
       return;
     }
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question.",
+      );
       return;
     }
 
     // Clear chat state before evaluation
     setMessages([]);
     setInput("");
-    try { window.localStorage.removeItem(storageKey); } catch { /* ignore */ }
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      /* ignore */
+    }
 
     await onSubmitForEvaluation(answerText);
   };
 
   const handleStartChat = async () => {
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question.",
+      );
       return;
     }
     setIsStarting(true);
     try {
-      if (messages.length > 0) { setIsStarting(false); return; }
+      if (messages.length > 0) {
+        setIsStarting(false);
+        return;
+      }
       if (activeRequestAbortRef.current) {
         activeRequestAbortRef.current.abort();
         activeRequestAbortRef.current = null;
@@ -194,18 +228,22 @@ export function ChatInputArea({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assignmentId, submissionId,
+          assignmentId,
+          submissionId,
           questionOrder: question.order,
           questionPrompt: question.prompt,
           rubric: question.rubric,
-          language, attemptNumber,
+          language,
+          attemptNumber,
           messages: [],
           ...(interpolatedPrompts && {
             system_prompt: interpolatedPrompts.system_prompt,
             greeting: interpolatedPrompts.greeting,
           }),
           ...(sharedContext && { shared_context: sharedContext }),
-          ...(question.expected_answer && { expected_answer: question.expected_answer }),
+          ...(question.expected_answer && {
+            expected_answer: question.expected_answer,
+          }),
         }),
         signal: controller.signal,
       });
@@ -220,17 +258,27 @@ export function ChatInputArea({
       if (!reader) throw new Error("No response body");
       await streamSSEResponse(reader, assistantId);
       logEvent("attempt_started");
-      setTimeout(() => { textareaRef.current?.focus(); }, 0);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
 
       if (endConversationRef.current) {
-        setTimeout(() => { handleFinishAndEvaluate(); }, 1000);
+        setTimeout(() => {
+          handleFinishAndEvaluate();
+        }, 1000);
       }
     } catch (error) {
-      if (error instanceof DOMException && (error.name === "AbortError" || error.message === "The operation was aborted.")) {
+      if (
+        error instanceof DOMException &&
+        (error.name === "AbortError" ||
+          error.message === "The operation was aborted.")
+      ) {
         // aborted
       } else {
         console.error("Error starting chat:", error);
-        alert(`Failed to start chat: ${error instanceof Error ? error.message : "Unknown error"}`);
+        alert(
+          `Failed to start chat: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
         setMessages([]);
       }
     } finally {
@@ -243,7 +291,9 @@ export function ChatInputArea({
     const trimmed = input.trim();
     if (!trimmed) return;
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      alert(
+        "You have reached the maximum number of attempts for this question.",
+      );
       return;
     }
     if (activeRequestAbortRef.current) {
@@ -252,13 +302,20 @@ export function ChatInputArea({
     }
 
     const attemptNumber = attempts.length + 1;
-    const newMessage: ChatMessage = { id: crypto.randomUUID(), role: "student", content: trimmed };
+    const newMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "student",
+      content: trimmed,
+    };
     const nextMessages = [...messages, newMessage];
     setMessages(nextMessages);
     setInput("");
 
     const assistantId = crypto.randomUUID();
-    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", content: "" },
+    ]);
 
     setIsSending(true);
     const controller = new AbortController();
@@ -269,18 +326,25 @@ export function ChatInputArea({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assignmentId, submissionId,
+          assignmentId,
+          submissionId,
           questionOrder: question.order,
           questionPrompt: question.prompt,
           rubric: question.rubric,
-          language, attemptNumber,
-          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          language,
+          attemptNumber,
+          messages: nextMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
           ...(interpolatedPrompts && {
             system_prompt: interpolatedPrompts.system_prompt,
             greeting: interpolatedPrompts.greeting,
           }),
           ...(sharedContext && { shared_context: sharedContext }),
-          ...(question.expected_answer && { expected_answer: question.expected_answer }),
+          ...(question.expected_answer && {
+            expected_answer: question.expected_answer,
+          }),
         }),
         signal: controller.signal,
       });
@@ -296,20 +360,30 @@ export function ChatInputArea({
       await streamSSEResponse(reader, assistantId);
 
       if (endConversationRef.current) {
-        setTimeout(() => { handleFinishAndEvaluate(); }, 1000);
+        setTimeout(() => {
+          handleFinishAndEvaluate();
+        }, 1000);
       }
     } catch (error) {
-      if (error instanceof DOMException && (error.name === "AbortError" || error.message === "The operation was aborted.")) {
+      if (
+        error instanceof DOMException &&
+        (error.name === "AbortError" ||
+          error.message === "The operation was aborted.")
+      ) {
         // aborted by user
       } else {
         console.error("Error sending chat message:", error);
-        alert(`Failed to send message: ${error instanceof Error ? error.message : "Unknown error"}`);
+        alert(
+          `Failed to send message: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       }
     } finally {
       setIsSending(false);
       activeRequestAbortRef.current = null;
-      setTimeout(() => { textareaRef.current?.focus(); }, 0);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -321,9 +395,8 @@ export function ChatInputArea({
             <Bot className="h-6 w-6 text-primary" />
           </div>
           <p className="mb-4 text-sm text-muted-foreground text-center max-w-md">
-            Click &quot;Start Chat&quot; to begin a conversation with the
-            tutor about this question. You can type your answer and get
-            feedback step by step.
+            Begin a conversation with Konvo, the AI teacher assistant, to answer
+            this question.
           </p>
           <Button
             onClick={handleStartChat}
@@ -370,7 +443,9 @@ export function ChatInputArea({
                     </span>
                   )}
                 </div>
-                {message.role === "student" && <div className="w-8 h-8 flex-shrink-0" />}
+                {message.role === "student" && (
+                  <div className="w-8 h-8 flex-shrink-0" />
+                )}
               </div>
             ))}
             <div ref={messagesEndRef} />

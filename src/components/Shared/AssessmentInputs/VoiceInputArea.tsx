@@ -220,7 +220,7 @@ function VoiceInputContent({
       <div className="flex flex-col items-center gap-2">
         <VoiceConnectButton
           connectionData={connectionData}
-          connectLabel={attempts.length > 0 ? "Try Again" : "Start Answering"}
+          connectLabel="Start Answering"
           disconnectLabel="Stop Answering"
           onConnectStart={() => logEvent("bot_connect_initiated")}
           onBotReady={handleBotReady}

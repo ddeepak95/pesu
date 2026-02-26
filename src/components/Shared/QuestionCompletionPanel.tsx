@@ -63,12 +63,6 @@ export function QuestionCompletionPanel({
           <p className="text-base">Answer submitted</p>
           <CheckCircle2 className="text-green-500 size-4" />
         </div>
-
-        <p className="text-sm text-muted-foreground">
-          {isLastQuestion
-            ? "You have answered all questions."
-            : "Proceed to Next Question"}
-        </p>
       </div>
 
       {/* Score / Rating */}
@@ -173,41 +167,48 @@ export function QuestionCompletionPanel({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex flex-col items-center gap-3 w-full max-w-xs">
-        {!isLastQuestion && (
-          <Button onClick={onNext} size="lg" className="w-full">
-            Next Question
-          </Button>
-        )}
-        {isLastQuestion && onFinish && (
-          <FinishAssessmentButton
-            onFinish={onFinish}
-            size="lg"
-            className="w-full"
-            isComplete={isComplete}
-            contentItemId={contentItemId}
-          />
-        )}
-        {canTryAgain && (
-          <div className="flex flex-col items-center gap-1 w-full">
-            <Button
-              onClick={onTryAgain}
-              variant="outline"
+      {/* Action Buttons — hidden when assignment is already complete */}
+      {!isComplete && (
+        <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+          {!isLastQuestion && (
+            <Button onClick={onNext} size="lg" className="w-full">
+              Next Question
+            </Button>
+          )}
+          {isLastQuestion && onFinish && (
+            <FinishAssessmentButton
+              onFinish={onFinish}
               size="lg"
               className="w-full"
-            >
-              Try Again
-            </Button>
-            {remainingAttempts !== null && (
-              <p className="text-xs text-muted-foreground">
-                {remainingAttempts} {remainingAttempts === 1 ? "try" : "tries"}{" "}
-                available
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+              contentItemId={contentItemId}
+            />
+          )}
+          {canTryAgain && (
+            <div className="flex flex-col items-center gap-1 w-full">
+              <Button
+                onClick={onTryAgain}
+                variant="outline"
+                size="lg"
+                className="w-full"
+              >
+                Try Again
+              </Button>
+              {remainingAttempts !== null && (
+                <p className="text-xs text-muted-foreground">
+                  {remainingAttempts}{" "}
+                  {remainingAttempts === 1 ? "try" : "tries"} available
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isComplete && (
+        <p className="text-sm text-muted-foreground text-center pt-2">
+          All the questions are completed. Please proceed to the next item.
+        </p>
+      )}
     </div>
   );
 }
