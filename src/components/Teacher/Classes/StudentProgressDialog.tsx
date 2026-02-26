@@ -684,13 +684,13 @@ export default function StudentProgressDialog({
               <table className="w-full">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium text-sm sticky left-0 bg-muted/50 min-w-[180px]">
+                    <th className="text-left p-3 font-medium text-sm sticky left-0 top-0 z-20 bg-muted/50 min-w-[180px]">
                       Student
                     </th>
                     {contentColumns.map((col) => (
                       <th
                         key={col.contentItemId}
-                        className="text-left p-3 font-medium text-sm min-w-[120px]"
+                        className="text-left p-3 font-medium text-sm sticky top-0 z-10 bg-muted/50 min-w-[120px]"
                       >
                         <div
                           className="truncate max-w-[150px]"
