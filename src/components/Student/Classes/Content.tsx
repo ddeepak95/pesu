@@ -228,12 +228,18 @@ export default function Content({ classData }: ContentProps) {
         ? assignmentById[item.ref_id]?.assessment_mode
         : undefined;
 
+    const preferredLanguageCode =
+      item.type === "formative_assignment"
+        ? assignmentById[item.ref_id]?.preferred_language
+        : undefined;
+
     return (
       <ContentCard
         item={item}
         title={resolvedTitle}
         titleLoading={titleLoading}
         assessmentMode={assessmentMode}
+        preferredLanguageCode={preferredLanguageCode}
         isComplete={completedContentIds.has(item.id)}
         unlockState={unlockStates.get(item.id)}
         onOpen={() => handleOpen(item)}

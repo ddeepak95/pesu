@@ -5,6 +5,7 @@ import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
 import { Check, Lock, KeyRound } from "lucide-react";
 import { UnlockState } from "@/lib/utils/unlockLogic";
+import { supportedLanguages } from "@/utils/supportedLanguages";
 import { useState } from "react";
 import {
   Dialog,
@@ -21,6 +22,7 @@ export default function ContentCard({
   title,
   titleLoading,
   assessmentMode,
+  preferredLanguageCode,
   isComplete,
   unlockState,
   onOpen,
@@ -29,6 +31,8 @@ export default function ContentCard({
   title?: string;
   titleLoading?: boolean;
   assessmentMode?: Assignment["assessment_mode"];
+  /** Language code (e.g. from assignment preferred_language) for display. */
+  preferredLanguageCode?: string;
   isComplete?: boolean;
   unlockState?: UnlockState;
   onOpen: () => void;
@@ -96,6 +100,11 @@ export default function ContentCard({
               {item.type === "formative_assignment" && assessmentMode && (
                 <span className="text-xs rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-primary">
                   {labelForAssessmentMode(assessmentMode)}
+                </span>
+              )}
+              {preferredLanguageCode && (
+                <span className="text-xs rounded-full border px-2 py-0.5 text-muted-foreground">
+                  {supportedLanguages.find((l) => l.code === preferredLanguageCode)?.name ?? preferredLanguageCode}
                 </span>
               )}
               {item.status === "draft" && (

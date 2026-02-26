@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import Content from "@/components/Student/Classes/Content";
@@ -21,9 +21,6 @@ export default function ClassDetailClient({
   userId,
   classId,
 }: ClassDetailClientProps) {
-  // Profile dialog state
-  const [showProfileDialog, setShowProfileDialog] = useState(false);
-
   // Use the profile hook to fetch fields and check completion
   const {
     fields: profileFields,
@@ -33,16 +30,9 @@ export default function ClassDetailClient({
     refetch,
   } = useStudentProfile(classData.id, userId);
 
-  // Show profile dialog if mandatory fields are not completed
-  useEffect(() => {
-    if (profileLoading) return;
-
-    if (profileFields.length > 0 && !hasCompletedRequired) {
-      setShowProfileDialog(true);
-    } else {
-      setShowProfileDialog(false);
-    }
-  }, [profileLoading, profileFields, hasCompletedRequired]);
+  // Show profile dialog when there are required fields and they are not yet completed (derived, no effect)
+  const showProfileDialog =
+    !profileLoading && profileFields.length > 0 && !hasCompletedRequired;
 
   // Restore scroll position when navigating back from a content page
   useEffect(() => {
@@ -59,7 +49,6 @@ export default function ClassDetailClient({
   }, [classId]);
 
   const handleProfileComplete = () => {
-    setShowProfileDialog(false);
     refetch();
   };
 
