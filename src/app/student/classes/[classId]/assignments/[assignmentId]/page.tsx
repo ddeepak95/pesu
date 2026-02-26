@@ -54,6 +54,7 @@ export default async function StudentAssignmentPage({
         classHref={`/student/classes/${classId}`}
         backHref={backHref}
         backLabel={backLabel}
+        showBackButton={!unlockResult.isLockedAfterComplete}
       />
     );
   }

@@ -57,6 +57,7 @@ export default async function StudentSurveyPage({
         classHref={`/student/classes/${classId}`}
         backHref={backHref}
         backLabel={backLabel}
+        showBackButton={!unlockResult.isLockedAfterComplete}
       />
     );
   }

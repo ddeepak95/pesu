@@ -48,6 +48,8 @@ export interface ContentUnlockResult {
   isComplete: boolean;
   /** When locked, the previous item in the student's content sequence (if any). */
   previousItem: { refId: string; type: ContentItem["type"] } | null;
+  /** When true, item is locked because it was completed and lock_after_complete is set (hide "Go to previous item"). */
+  isLockedAfterComplete?: boolean;
 }
 
 /**
@@ -190,6 +192,7 @@ export async function getContentUnlockState(
           if (unlockState?.isLocked) {
             result.isLocked = true;
             result.lockReason = unlockState.lockReason;
+            result.isLockedAfterComplete = unlockState.isLockedAfterComplete ?? false;
             const currentIndex = (allItems as ContentItem[]).findIndex(
               (i) => i.id === contentItem.id
             );

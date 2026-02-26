@@ -11,6 +11,8 @@ export interface ContentLockedViewProps {
   /** URL and label for the bottom action (e.g. "Go to previous item" or "Go to class"). */
   backHref: string;
   backLabel: string;
+  /** When false, the bottom back button is hidden (e.g. when locked after completion). Default true. */
+  showBackButton?: boolean;
 }
 
 /**
@@ -22,6 +24,7 @@ export function ContentLockedView({
   classHref,
   backHref,
   backLabel,
+  showBackButton = true,
 }: ContentLockedViewProps) {
   return (
     <PageLayout>
@@ -50,9 +53,11 @@ export function ContentLockedView({
           </div>
           <h2 className="text-2xl font-bold mb-2">Content Locked</h2>
           <p className="text-muted-foreground mb-4">{lockReason}</p>
-          <Button variant="outline" asChild>
-            <Link href={backHref}>{backLabel}</Link>
-          </Button>
+          {showBackButton && (
+            <Button variant="outline" asChild>
+              <Link href={backHref}>{backLabel}</Link>
+            </Button>
+          )}
         </div>
       </div>
     </PageLayout>
