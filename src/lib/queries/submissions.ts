@@ -39,16 +39,19 @@ export function computeDenormalizedFields(evaluations: {
   highest_score: number;
   max_score: number;
   total_attempts: number;
+  questions_attempted_count: number;
 } {
   let hasAttempts = false;
   let highestScore = 0;
   let maxScore = 0;
   let totalAttempts = 0;
+  let questionsAttemptedCount = 0;
 
   for (const qa of Object.values(evaluations)) {
     const nonStale = (qa.attempts || []).filter((a) => !a.stale);
     if (nonStale.length > 0) {
       hasAttempts = true;
+      questionsAttemptedCount += 1;
       totalAttempts += nonStale.length;
       highestScore += Math.max(...nonStale.map((a) => a.score));
       maxScore += nonStale[0].max_score;
@@ -60,6 +63,7 @@ export function computeDenormalizedFields(evaluations: {
     highest_score: highestScore,
     max_score: maxScore,
     total_attempts: totalAttempts,
+    questions_attempted_count: questionsAttemptedCount,
   };
 }
 
@@ -202,6 +206,7 @@ export async function createSubmission(
     highest_score: 0,
     max_score: 0,
     total_attempts: 0,
+    questions_attempted_count: 0,
   };
 
   // Add student_id if provided
@@ -795,6 +800,40 @@ export function getTotalAttemptCountFromSubmission(
   return totalAttempts;
 }
 
+/**
+ * Get number of questions that have at least one non-stale attempt.
+ * Used for teacher list view "questions attempted / total questions".
+ */
+export function getQuestionsAttemptedCountFromSubmission(
+  submission: Submission
+): number {
+  if (!submission.evaluations) {
+    return 0;
+  }
+
+  let evaluations = submission.evaluations as
+    | { [key: number]: QuestionEvaluations }
+    | SubmissionAnswer[];
+
+  if (!isNewFormat(evaluations)) {
+    evaluations = convertToNewFormat(evaluations);
+  }
+
+  let count = 0;
+  Object.values(evaluations).forEach((questionEvals) => {
+    const qa = questionEvals as QuestionEvaluations;
+    if (
+      qa &&
+      qa.attempts &&
+      Array.isArray(qa.attempts) &&
+      qa.attempts.some((a) => !a.stale)
+    ) {
+      count += 1;
+    }
+  });
+  return count;
+}
+
 // ---------------------------------------------------------------------------
 // Stale / reset
 // ---------------------------------------------------------------------------
@@ -846,6 +885,7 @@ export async function markAttemptsAsStale(
       highest_score: 0,
       max_score: 0,
       total_attempts: 0,
+      questions_attempted_count: 0,
       updated_at: new Date().toISOString(),
     })
     .eq("submission_id", submissionId)
@@ -866,7 +906,7 @@ export async function markAttemptsAsStale(
 
 /** Columns to select for list views (excludes evaluations JSONB) */
 const SUBMISSION_LIST_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count";
 
 /**
  * Student submission status for teacher view
@@ -879,6 +919,8 @@ export interface StudentSubmissionStatus {
   highestScore?: number;
   maxScore?: number;
   totalAttempts: number;
+  /** Number of questions with at least one attempt (from denormalized column) */
+  questionsAttemptedCount: number;
 }
 
 /**
@@ -891,6 +933,8 @@ export interface PublicSubmissionStatus {
   highestScore?: number;
   maxScore?: number;
   totalAttempts: number;
+  /** Number of questions with at least one attempt (from denormalized column) */
+  questionsAttemptedCount: number;
 }
 
 /**
@@ -942,6 +986,7 @@ export async function getSubmissionsByAssignmentWithStudents(
     let maxScore: number | undefined;
     let totalAttempts = 0;
     let hasAttempts = false;
+    let questionsAttemptedCount = 0;
 
     if (!submission) {
       status = "not_started";
@@ -951,6 +996,7 @@ export async function getSubmissionsByAssignmentWithStudents(
       totalAttempts = submission.total_attempts;
       highestScore = submission.highest_score;
       maxScore = submission.max_score;
+      questionsAttemptedCount = submission.questions_attempted_count ?? 0;
 
       // Completed only when submission is explicitly marked complete; otherwise in progress
       status =
@@ -965,6 +1011,7 @@ export async function getSubmissionsByAssignmentWithStudents(
       highestScore,
       maxScore,
       totalAttempts,
+      questionsAttemptedCount,
     };
   });
 
@@ -1000,6 +1047,8 @@ export async function getPublicSubmissionsByAssignment(
     const totalAttempts = submission.total_attempts;
     const highestScore = submission.highest_score;
     const maxScore = submission.max_score;
+    const questionsAttemptedCount =
+      submission.questions_attempted_count ?? 0;
     // Completed only when submission is explicitly marked complete
     const status: "completed" | "started" =
       submission.status === "completed" ? "completed" : "started";
@@ -1011,6 +1060,7 @@ export async function getPublicSubmissionsByAssignment(
       highestScore,
       maxScore,
       totalAttempts,
+      questionsAttemptedCount,
     };
   });
 

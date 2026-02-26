@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
@@ -91,6 +91,27 @@ export default function AssignmentDetailClient({
   const [assignmentData, setAssignmentData] =
     useState<Assignment>(initialAssignment);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
+  const tabParam = searchParams.get("tab");
+  const activeTab = useMemo(() => {
+    if (
+      tabParam === "questions" ||
+      tabParam === "config" ||
+      tabParam === "submissions"
+    ) {
+      return tabParam;
+    }
+    return "questions";
+  }, [tabParam]);
+
+  const setTab = (value: string) => {
+    const current = new URLSearchParams(searchParams.toString());
+    current.set("tab", value);
+    router.replace(
+      `/teacher/classes/${classId}/assignments/${assignmentId}?${current.toString()}`,
+      { scroll: false }
+    );
+  };
 
   const handleEdit = () => {
     const qs = searchParams.toString();
@@ -272,7 +293,11 @@ export default function AssignmentDetailClient({
             )}
           </div>
 
-          <Tabs defaultValue="questions" className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setTab}
+            className="w-full"
+          >
             <TabsList>
               <TabsTrigger value="questions">Questions</TabsTrigger>
               <TabsTrigger value="config">Config</TabsTrigger>

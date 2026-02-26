@@ -107,5 +107,7 @@ export interface Submission {
   highest_score: number;
   max_score: number;
   total_attempts: number;
+  /** Number of questions with at least one non-stale attempt */
+  questions_attempted_count?: number;
 }
 

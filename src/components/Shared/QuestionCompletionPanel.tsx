@@ -10,6 +10,8 @@ import {
 import { SubmissionAttempt } from "@/types/submission";
 import { StarRatingDisplay } from "@/components/StarRatingDisplay";
 import { FinishAssessmentButton } from "@/components/Shared/FinishAssessmentButton";
+import { AttemptFeedbackView } from "@/components/Shared/AttemptFeedbackView";
+import { getScoreColor, getScoreBgColor } from "@/lib/utils/scoreDisplay";
 import { CheckCircle2 } from "lucide-react";
 
 interface QuestionCompletionPanelProps {
@@ -38,21 +40,6 @@ export function QuestionCompletionPanel({
   contentItemId,
 }: QuestionCompletionPanelProps) {
   const scorePercentage = (attempt.score / attempt.max_score) * 100;
-
-  const getScoreColor = (percentage: number) => {
-    if (percentage >= 90) return "text-green-600 dark:text-green-400";
-    if (percentage >= 75) return "text-blue-600 dark:text-blue-400";
-    if (percentage >= 60) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
-  };
-
-  const getScoreBgColor = (percentage: number) => {
-    if (percentage >= 90) return "bg-green-100 dark:bg-green-900/30";
-    if (percentage >= 75) return "bg-blue-100 dark:bg-blue-900/30";
-    if (percentage >= 60) return "bg-yellow-100 dark:bg-yellow-900/30";
-    return "bg-red-100 dark:bg-red-900/30";
-  };
-
   const canTryAgain = remainingAttempts === null || remainingAttempts > 0;
 
   return (
@@ -102,65 +89,12 @@ export function QuestionCompletionPanel({
                 <span className="text-sm font-medium">View Feedback</span>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4 space-y-3">
-                {attempt.evaluation_feedback && (
-                  <div className="p-3 bg-muted/50 rounded-md">
-                    <p className="text-sm whitespace-pre-wrap">
-                      {attempt.evaluation_feedback}
-                    </p>
-                  </div>
-                )}
-                {attempt.rubric_scores && attempt.rubric_scores.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground">
-                      Rubric Breakdown
-                    </p>
-                    {attempt.rubric_scores.map((rubricItem, idx) => {
-                      const itemPercentage =
-                        (rubricItem.points_earned /
-                          rubricItem.points_possible) *
-                        100;
-                      return (
-                        <div
-                          key={idx}
-                          className="p-2 bg-muted/30 rounded-md space-y-1"
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium">
-                              {rubricItem.item}
-                            </span>
-                            {useStarDisplay ? (
-                              <StarRatingDisplay
-                                points={rubricItem.points_earned}
-                                maxPoints={rubricItem.points_possible}
-                                starScale={starScale}
-                                size="small"
-                                showNumeric={false}
-                              />
-                            ) : (
-                              <span
-                                className={`text-sm font-semibold ${
-                                  itemPercentage >= 75
-                                    ? "text-green-600 dark:text-green-400"
-                                    : itemPercentage >= 50
-                                      ? "text-yellow-600 dark:text-yellow-400"
-                                      : "text-red-600 dark:text-red-400"
-                                }`}
-                              >
-                                {rubricItem.points_earned}/
-                                {rubricItem.points_possible} pts
-                              </span>
-                            )}
-                          </div>
-                          {rubricItem.feedback && (
-                            <p className="text-xs text-muted-foreground">
-                              {rubricItem.feedback}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                <AttemptFeedbackView
+                  attempt={attempt}
+                  useStarDisplay={useStarDisplay}
+                  starScale={starScale}
+                  showScoreSummary={false}
+                />
               </AccordionContent>
             </AccordionItem>
           </Accordion>

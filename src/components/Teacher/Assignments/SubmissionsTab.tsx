@@ -84,6 +84,7 @@ export default function SubmissionsTab({
   );
   const [contentItemId, setContentItemId] = useState<string | null>(null);
   const [classDbId, setClassDbId] = useState<string | null>(null);
+  const [totalQuestionCount, setTotalQuestionCount] = useState(0);
 
   // Fetch class student submissions
   useEffect(() => {
@@ -119,6 +120,7 @@ export default function SubmissionsTab({
 
         setClassSubmissions(data);
         setProfileFields(fields);
+        setTotalQuestionCount(assignment?.questions?.length ?? 0);
 
         // Build profile map
         const profilesMap = new Map<string, Record<string, string>>();
@@ -162,7 +164,7 @@ export default function SubmissionsTab({
     fetchClassSubmissions();
   }, [assignmentId, classId, classGroupId]);
 
-  // Fetch public submissions (only if assignment is public)
+  // Fetch public submissions and total question count (only if assignment is public)
   useEffect(() => {
     if (!isPublic) {
       setPublicLoading(false);
@@ -173,8 +175,12 @@ export default function SubmissionsTab({
       setPublicLoading(true);
       setPublicError(null);
       try {
-        const data = await getPublicSubmissionsByAssignment(assignmentId);
+        const [data, assignment] = await Promise.all([
+          getPublicSubmissionsByAssignment(assignmentId),
+          getAssignmentByIdForTeacher(assignmentId),
+        ]);
         setPublicSubmissions(data);
+        setTotalQuestionCount(assignment?.questions?.length ?? 0);
       } catch (err) {
         console.error("Error fetching public submissions:", err);
         setPublicError("Failed to load public submissions.");
@@ -328,12 +334,21 @@ export default function SubmissionsTab({
         sortValue: (row) => (row.data?.highestScore as number) ?? -1,
       },
       {
-        key: "attempts",
-        label: "Attempts",
-        render: (row) => (
-          <div className="text-sm">{row.data?.totalAttempts as number}</div>
-        ),
-        sortValue: (row) => (row.data?.totalAttempts as number) ?? 0,
+        key: "questions",
+        label: "Questions",
+        render: (row) => {
+          const attempted = row.data?.questionsAttemptedCount as
+            | number
+            | undefined;
+          const total = totalQuestionCount;
+          const display =
+            total > 0
+              ? `${attempted ?? "—"}/${total}`
+              : (attempted ?? "—").toString();
+          return <div className="text-sm">{display}</div>;
+        },
+        sortValue: (row) =>
+          (row.data?.questionsAttemptedCount as number) ?? -1,
       },
       {
         key: "actions",
@@ -377,7 +392,7 @@ export default function SubmissionsTab({
     ];
     return cols;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetting]);
+  }, [resetting, totalQuestionCount]);
 
   // Build class students table rows
   const classRows: SubmissionsTableRow[] = useMemo(() => {
@@ -399,6 +414,7 @@ export default function SubmissionsTab({
           scoreDisplay,
           highestScore: item.highestScore,
           totalAttempts: item.totalAttempts,
+          questionsAttemptedCount: item.questionsAttemptedCount,
           _original: item,
         },
       };
@@ -429,12 +445,21 @@ export default function SubmissionsTab({
         sortValue: (row) => (row.data?.highestScore as number) ?? -1,
       },
       {
-        key: "attempts",
-        label: "Attempts",
-        render: (row) => (
-          <div className="text-sm">{row.data?.totalAttempts as number}</div>
-        ),
-        sortValue: (row) => (row.data?.totalAttempts as number) ?? 0,
+        key: "questions",
+        label: "Questions",
+        render: (row) => {
+          const attempted = row.data?.questionsAttemptedCount as
+            | number
+            | undefined;
+          const total = totalQuestionCount;
+          const display =
+            total > 0
+              ? `${attempted ?? "—"}/${total}`
+              : (attempted ?? "—").toString();
+          return <div className="text-sm">{display}</div>;
+        },
+        sortValue: (row) =>
+          (row.data?.questionsAttemptedCount as number) ?? -1,
       },
       {
         key: "actions",
@@ -473,7 +498,7 @@ export default function SubmissionsTab({
       },
     ];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetting]);
+  }, [resetting, totalQuestionCount]);
 
   // Build public submissions table rows
   const publicRows: SubmissionsTableRow[] = useMemo(() => {
@@ -492,6 +517,7 @@ export default function SubmissionsTab({
           scoreDisplay,
           highestScore: item.highestScore,
           totalAttempts: item.totalAttempts,
+          questionsAttemptedCount: item.questionsAttemptedCount,
           _original: item,
         },
       };
