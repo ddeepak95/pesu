@@ -680,7 +680,7 @@ export default function StudentProgressDialog({
               </p>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="inline-block min-w-full rounded-md border align-top">
               <table className="w-full">
                 <thead>
                   <tr className="border-b bg-muted/50">
@@ -763,12 +763,21 @@ export default function StudentProgressDialog({
                                 : "Not completed"
                             }
                           >
-                            <div className="flex items-center gap-1">
-                              {isComplete ? (
-                                <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
-                              ) : (
-                                <XCircle className="h-6 w-6 text-gray-300 dark:text-gray-600" />
-                              )}
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-col items-start">
+                                {isComplete ? (
+                                  <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                ) : (
+                                  <XCircle className="h-6 w-6 text-gray-300 dark:text-gray-600" />
+                                )}
+                                {isComplete && completion?.completedAt && (
+                                  <span className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                                    {new Date(
+                                      completion.completedAt
+                                    ).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
                               {needsTeacherUnlock && (
                                 <button
                                   onClick={() => {
