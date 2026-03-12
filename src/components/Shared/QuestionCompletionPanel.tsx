@@ -11,6 +11,8 @@ import { SubmissionAttempt } from "@/types/submission";
 import { StarRatingDisplay } from "@/components/StarRatingDisplay";
 import { FinishAssessmentButton } from "@/components/Shared/FinishAssessmentButton";
 import { AttemptFeedbackView } from "@/components/Shared/AttemptFeedbackView";
+import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
+import { FeedbackAvailableBanner } from "@/components/Shared/FeedbackAvailableBanner";
 import { getScoreColor, getScoreBgColor } from "@/lib/utils/scoreDisplay";
 import { CheckCircle2 } from "lucide-react";
 
@@ -25,6 +27,10 @@ interface QuestionCompletionPanelProps {
   isLastQuestion: boolean;
   isComplete?: boolean;
   contentItemId?: string | null;
+  /** True when the attempt's feedback is awaiting teacher approval. */
+  feedbackApprovalPending?: boolean;
+  /** True when the assignment is configured to require teacher approval. */
+  feedbackRequiresApproval?: boolean;
 }
 
 export function QuestionCompletionPanel({
@@ -38,9 +44,14 @@ export function QuestionCompletionPanel({
   isLastQuestion,
   isComplete = false,
   contentItemId,
+  feedbackApprovalPending = false,
+  feedbackRequiresApproval = false,
 }: QuestionCompletionPanelProps) {
   const scorePercentage = (attempt.score / attempt.max_score) * 100;
-  const canTryAgain = remainingAttempts === null || remainingAttempts > 0;
+  // Retry is blocked while feedback is pending approval
+  const canTryAgain =
+    !feedbackApprovalPending &&
+    (remainingAttempts === null || remainingAttempts > 0);
 
   return (
     <div className="flex flex-col items-center gap-5 py-8">
@@ -79,27 +90,34 @@ export function QuestionCompletionPanel({
         )}
       </div>
 
-      {/* Feedback (collapsed by default) */}
-      {(attempt.evaluation_feedback ||
-        (attempt.rubric_scores && attempt.rubric_scores.length > 0)) && (
-        <div className="w-full max-w-xl">
-          <Accordion type="single" collapsible>
-            <AccordionItem value="feedback" className="border rounded-lg">
-              <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                <span className="text-sm font-medium">View Feedback</span>
-              </AccordionTrigger>
-              <AccordionContent className="px-4 pb-4 space-y-3">
-                <AttemptFeedbackView
-                  attempt={attempt}
-                  useStarDisplay={useStarDisplay}
-                  starScale={starScale}
-                  showScoreSummary={false}
-                />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </div>
-      )}
+      {/* Feedback section — behaviour depends on approval state */}
+      <div className="w-full max-w-xl space-y-3">
+        {feedbackApprovalPending ? (
+          <FeedbackPendingBanner />
+        ) : (
+          <>
+            {feedbackRequiresApproval && <FeedbackAvailableBanner />}
+            {(attempt.evaluation_feedback ||
+              (attempt.rubric_scores && attempt.rubric_scores.length > 0)) && (
+              <Accordion type="single" collapsible>
+                <AccordionItem value="feedback" className="border rounded-lg">
+                  <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                    <span className="text-sm font-medium">View Feedback</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4 space-y-3">
+                    <AttemptFeedbackView
+                      attempt={attempt}
+                      useStarDisplay={useStarDisplay}
+                      starScale={starScale}
+                      showScoreSummary={false}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Action Buttons — hidden when assignment is already complete */}
       {!isComplete && (

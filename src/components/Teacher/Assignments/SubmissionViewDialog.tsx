@@ -152,6 +152,7 @@ export default function SubmissionViewDialog({
                         questionOrder={question.order}
                         questionPrompt={question.prompt}
                         questionAnswers={questionEvals}
+                        submissionId={submission.submission_id}
                         onViewTranscript={handleViewTranscript}
                       />
                     );

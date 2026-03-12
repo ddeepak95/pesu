@@ -156,5 +156,11 @@ export interface Assignment {
    * Defaults to false.
    */
   experience_rating_required?: boolean;
+  /**
+   * When true, AI-generated feedback is held pending teacher review before being shown to students.
+   * The teacher can edit the feedback before approving it.
+   * Defaults to false (instant feedback).
+   */
+  feedback_requires_approval?: boolean;
 }
 

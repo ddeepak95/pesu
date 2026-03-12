@@ -53,6 +53,7 @@ interface AssignmentFormProps {
   initialEvaluationPrompt?: string;
   initialExperienceRatingEnabled?: boolean;
   initialExperienceRatingRequired?: boolean;
+  initialFeedbackRequiresApproval?: boolean;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -77,6 +78,7 @@ interface AssignmentFormProps {
     evaluationPrompt?: string;
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
+    feedbackRequiresApproval?: boolean;
   }) => Promise<void>;
 }
 
@@ -116,6 +118,7 @@ export default function AssignmentForm({
   initialEvaluationPrompt = "",
   initialExperienceRatingEnabled = false,
   initialExperienceRatingRequired = false,
+  initialFeedbackRequiresApproval = false,
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -169,6 +172,9 @@ export default function AssignmentForm({
   );
   const [experienceRatingRequired, setExperienceRatingRequired] = useState(
     initialExperienceRatingRequired
+  );
+  const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState(
+    initialFeedbackRequiresApproval
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -446,6 +452,7 @@ export default function AssignmentForm({
         evaluationPrompt: evaluationPrompt.trim() || undefined,
         experienceRatingEnabled,
         experienceRatingRequired: experienceRatingEnabled ? experienceRatingRequired : false,
+        feedbackRequiresApproval,
       });
 
       // Navigate based on mode
@@ -798,6 +805,30 @@ export default function AssignmentForm({
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Feedback Approval */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="feedbackRequiresApproval"
+                checked={feedbackRequiresApproval}
+                onCheckedChange={(checked) =>
+                  setFeedbackRequiresApproval(checked === true)
+                }
+                disabled={loading}
+              />
+              <div className="space-y-1">
+                <Label
+                  htmlFor="feedbackRequiresApproval"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Require teacher approval before showing feedback
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, AI-generated feedback is held for your review.
+                  You can edit and approve it before students can see it
+                </p>
+              </div>
             </div>
 
             {/* Public Access Toggle */}

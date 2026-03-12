@@ -51,6 +51,7 @@ export default function EditAssignmentPage() {
   const [evaluationPrompt, setEvaluationPrompt] = useState<string>("");
   const [experienceRatingEnabled, setExperienceRatingEnabled] = useState<boolean>(false);
   const [experienceRatingRequired, setExperienceRatingRequired] = useState<boolean>(false);
+  const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
@@ -84,6 +85,7 @@ export default function EditAssignmentPage() {
           setEvaluationPrompt(assignmentData.evaluation_prompt ?? "");
           setExperienceRatingEnabled(assignmentData.experience_rating_enabled ?? false);
           setExperienceRatingRequired(assignmentData.experience_rating_required ?? false);
+          setFeedbackRequiresApproval(assignmentData.feedback_requires_approval ?? false);
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
           setInitialIsDraft(assignmentData.status === "draft");
@@ -133,6 +135,7 @@ export default function EditAssignmentPage() {
     evaluationPrompt?: string;
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
+    feedbackRequiresApproval?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -167,6 +170,7 @@ export default function EditAssignmentPage() {
       evaluation_prompt: data.evaluationPrompt,
       experience_rating_enabled: data.experienceRatingEnabled ?? false,
       experience_rating_required: data.experienceRatingRequired ?? false,
+      feedback_requires_approval: data.feedbackRequiresApproval ?? false,
     });
 
     // Sync content_item status
@@ -231,6 +235,7 @@ export default function EditAssignmentPage() {
           initialEvaluationPrompt={evaluationPrompt}
           initialExperienceRatingEnabled={experienceRatingEnabled}
           initialExperienceRatingRequired={experienceRatingRequired}
+          initialFeedbackRequiresApproval={feedbackRequiresApproval}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />

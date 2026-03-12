@@ -28,6 +28,12 @@ export interface SubmissionAttempt {
   evaluation_feedback: string;
   timestamp: string;
   stale?: boolean; // Marks attempt as stale when teacher resets attempts
+  /**
+   * Whether the teacher has approved this attempt's feedback for student viewing.
+   * Only present when the assignment has feedback_requires_approval = true.
+   * undefined/absent = approved (backward-compatible); false = pending approval.
+   */
+  feedback_approved?: boolean;
 }
 
 export interface QuestionEvaluations {

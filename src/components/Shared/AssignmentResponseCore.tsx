@@ -292,6 +292,9 @@ export default function AssignmentResponseCore({
         experienceRatingRequired={
           assignmentData.experience_rating_required ?? false
         }
+        feedbackRequiresApproval={
+          assignmentData.feedback_requires_approval ?? false
+        }
       />
     </div>
   );

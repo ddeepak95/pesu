@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { SubmissionAttempt } from "@/types/submission";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,11 +10,13 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { AttemptFeedbackView } from "@/components/Shared/AttemptFeedbackView";
+import { FeedbackApprovalEditor } from "@/components/Teacher/Assignments/FeedbackApprovalEditor";
 import { getScoreColor } from "@/lib/utils/scoreDisplay";
 
 interface SubmissionAttemptRowProps {
   attempt: SubmissionAttempt;
   questionOrder: number;
+  submissionId: string;
   onViewTranscript: (
     attempt: SubmissionAttempt,
     questionOrder: number
@@ -21,12 +24,17 @@ interface SubmissionAttemptRowProps {
 }
 
 export function SubmissionAttemptRow({
-  attempt,
+  attempt: initialAttempt,
   questionOrder,
+  submissionId,
   onViewTranscript,
 }: SubmissionAttemptRowProps) {
+  const [attempt, setAttempt] = useState<SubmissionAttempt>(initialAttempt);
+
   const scorePercentage =
     attempt.max_score > 0 ? (attempt.score / attempt.max_score) * 100 : 0;
+
+  const isPendingApproval = attempt.feedback_approved === false;
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -43,6 +51,11 @@ export function SubmissionAttemptRow({
                     Stale
                   </span>
                 )}
+                {isPendingApproval && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    Pending Approval
+                  </span>
+                )}
               </div>
               <span
                 className={`text-sm font-semibold ${getScoreColor(
@@ -54,7 +67,16 @@ export function SubmissionAttemptRow({
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4 pt-0 space-y-3">
-            <AttemptFeedbackView attempt={attempt} />
+            {isPendingApproval ? (
+              <FeedbackApprovalEditor
+                attempt={attempt}
+                submissionId={submissionId}
+                questionOrder={questionOrder}
+                onApproved={(updatedAttempt) => setAttempt(updatedAttempt)}
+              />
+            ) : (
+              <AttemptFeedbackView attempt={attempt} />
+            )}
             <Button
               variant="outline"
               size="sm"

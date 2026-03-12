@@ -14,6 +14,7 @@ interface SubmissionQuestionCardProps {
   questionOrder: number;
   questionPrompt: string;
   questionAnswers: QuestionEvaluations | undefined;
+  submissionId: string;
   onViewTranscript: (attempt: SubmissionAttempt, questionOrder: number) => void;
 }
 
@@ -21,6 +22,7 @@ export function SubmissionQuestionCard({
   questionOrder,
   questionPrompt,
   questionAnswers,
+  submissionId,
   onViewTranscript,
 }: SubmissionQuestionCardProps) {
   const attempts = questionAnswers?.attempts ?? [];
@@ -66,6 +68,7 @@ export function SubmissionQuestionCard({
                   key={attempt.attempt_number}
                   attempt={attempt}
                   questionOrder={questionOrder}
+                  submissionId={submissionId}
                   onViewTranscript={onViewTranscript}
                 />
               ))}

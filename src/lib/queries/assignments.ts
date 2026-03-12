@@ -204,6 +204,7 @@ export async function createAssignment(
     evaluation_prompt?: string; // Custom evaluation prompt template
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
+    feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it
   },
   userId: string
 ): Promise<Assignment> {
@@ -239,6 +240,7 @@ export async function createAssignment(
       evaluation_prompt: assignment.evaluation_prompt ?? null,
       experience_rating_enabled: assignment.experience_rating_enabled ?? false,
       experience_rating_required: assignment.experience_rating_required ?? false,
+      feedback_requires_approval: assignment.feedback_requires_approval ?? false,
     })
     .select()
     .single();
@@ -287,6 +289,7 @@ export async function updateAssignment(
     evaluation_prompt?: string; // Custom evaluation prompt template
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
+    feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -313,6 +316,7 @@ export async function updateAssignment(
     evaluation_prompt: assignment.evaluation_prompt ?? null,
     experience_rating_enabled: assignment.experience_rating_enabled ?? false,
     experience_rating_required: assignment.experience_rating_required ?? false,
+    feedback_requires_approval: assignment.feedback_requires_approval ?? false,
     updated_at: new Date().toISOString(),
   };
 

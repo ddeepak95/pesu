@@ -57,6 +57,7 @@ export interface AssessmentShellProps {
   evaluationPrompt?: string;
   experienceRatingEnabled?: boolean;
   experienceRatingRequired?: boolean;
+  feedbackRequiresApproval?: boolean;
   onClose?: () => void;
 }
 
@@ -95,6 +96,7 @@ export function AssessmentShell({
   evaluationPrompt,
   experienceRatingEnabled = false,
   experienceRatingRequired = false,
+  feedbackRequiresApproval = false,
   onClose,
 }: AssessmentShellProps) {
   const [isEvaluating, setIsEvaluating] = React.useState(false);
@@ -178,6 +180,7 @@ export function AssessmentShell({
             ...(interpolatedEvalPrompt && {
               custom_evaluation_prompt: interpolatedEvalPrompt,
             }),
+            ...(feedbackRequiresApproval && { feedback_requires_approval: true }),
           }),
         });
 
@@ -225,6 +228,9 @@ export function AssessmentShell({
 
   const latestAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
   const remainingAttempts = maxAttempts ? maxAttempts - attempts.length : null;
+  // Feedback is pending when the latest attempt explicitly has feedback_approved = false.
+  // undefined/absent means approved (instant feedback or legacy attempt).
+  const feedbackApprovalPending = latestAttempt?.feedback_approved === false;
 
   const inputProps = {
     question,
@@ -277,6 +283,8 @@ export function AssessmentShell({
             isLastQuestion={isLastQuestion}
             isComplete={isComplete}
             contentItemId={contentItemId}
+            feedbackApprovalPending={feedbackApprovalPending}
+            feedbackRequiresApproval={feedbackRequiresApproval}
           />
         ) : (
           <>

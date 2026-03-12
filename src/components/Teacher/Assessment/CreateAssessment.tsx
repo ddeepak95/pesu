@@ -29,6 +29,7 @@ export default function CreateAssessment() {
     evaluationPrompt?: string;
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
+    feedbackRequiresApproval?: boolean;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -49,6 +50,7 @@ export default function CreateAssessment() {
         evaluation_prompt: data.evaluationPrompt,
         experience_rating_enabled: data.experienceRatingEnabled ?? false,
         experience_rating_required: data.experienceRatingRequired ?? false,
+        feedback_requires_approval: data.feedbackRequiresApproval ?? false,
       },
       user.id
     );

@@ -44,6 +44,7 @@ interface EvaluateRequestBody {
   language: string; // Language code for feedback (e.g., "en", "hi", "kn")
   shared_context?: string; // Optional shared context (e.g. case study, passage)
   custom_evaluation_prompt?: string; // Optional custom evaluation prompt (already interpolated)
+  feedback_requires_approval?: boolean; // When true, feedback is held pending teacher approval
 }
 
 interface LLMRubricScore {
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
       language,
       shared_context: sharedContext,
       custom_evaluation_prompt: customEvaluationPrompt,
+      feedback_requires_approval: feedbackRequiresApproval,
     } = body;
 
     // Validate required fields
@@ -260,6 +262,9 @@ The users are students. All feedback must be age-appropriate, supportive, and re
       rubric_scores: validatedRubricScores, // Validated scores
       evaluation_feedback: evaluationResult.overall_feedback,
       timestamp: new Date().toISOString(),
+      // When feedback_requires_approval is true, hold feedback until teacher approves.
+      // false means pending; undefined/absent means approved (backward-compatible).
+      feedback_approved: feedbackRequiresApproval ? false : undefined,
     };
 
     // Add new attempt to the question's evaluations
