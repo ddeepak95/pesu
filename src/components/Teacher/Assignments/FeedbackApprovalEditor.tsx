@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { SubmissionAttempt, RubricScore } from "@/types/submission";
+import { getTranscript } from "@/lib/queries/submissions";
 
 interface FeedbackApprovalEditorProps {
   attempt: SubmissionAttempt;
@@ -34,6 +35,15 @@ export function FeedbackApprovalEditor({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [answerText, setAnswerText] = useState<string | null>(null);
+  const [loadingAnswer, setLoadingAnswer] = useState(true);
+
+  useEffect(() => {
+    getTranscript(submissionId, questionOrder, attempt.attempt_number)
+      .then(setAnswerText)
+      .catch(() => setAnswerText(null))
+      .finally(() => setLoadingAnswer(false));
+  }, [submissionId, questionOrder, attempt.attempt_number]);
 
   const handleRubricFeedbackChange = (index: number, value: string) => {
     setRubricFeedbacks((prev) => {
@@ -90,6 +100,18 @@ export function FeedbackApprovalEditor({
 
   return (
     <div className="space-y-4">
+      {/* Student's response */}
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium">Student&apos;s Response</Label>
+        {loadingAnswer ? (
+          <div className="h-20 rounded-md border bg-muted/40 animate-pulse" />
+        ) : answerText ? (
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm whitespace-pre-wrap">
+            {answerText}
+          </div>
+        ) : null}
+      </div>
+
       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
         Review and optionally edit the AI-generated feedback before approving.
         Students will not see this until you approve it.

@@ -33,10 +33,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
 
-    // Fetch the current evaluations JSONB
+    // Fetch evaluations + fields needed to create the student notification
     const { data: submission, error: fetchError } = await supabase
       .from("submissions")
-      .select("evaluations")
+      .select("evaluations, student_id, assignment_id")
       .eq("submission_id", submissionId)
       .single();
 
@@ -103,6 +103,49 @@ export async function POST(request: NextRequest) {
         { error: "Failed to save approved feedback" },
         { status: 500 }
       );
+    }
+
+    // Insert student notification (best-effort — don't fail the request if this errors)
+    if (submission.student_id && submission.assignment_id) {
+      try {
+        // Fetch assignment title + class UUID in parallel with class short ID lookup
+        const { data: assignment } = await supabase
+          .from("assignments")
+          .select("title, class_id")
+          .eq("assignment_id", submission.assignment_id)
+          .single();
+
+        if (assignment) {
+          // class_id on the assignments row is the DB UUID of the class; look up the
+          // human-readable class_id (short public ID) used in the student URL.
+          const { data: classRow } = await supabase
+            .from("classes")
+            .select("class_id")
+            .eq("id", assignment.class_id)
+            .single();
+
+          const shortClassId = classRow?.class_id;
+          const navPath = shortClassId
+            ? `/student/classes/${shortClassId}/assignments/${submission.assignment_id}`
+            : null;
+
+          if (navPath) {
+            await supabase.from("student_notifications").insert({
+              student_id: submission.student_id,
+              type: "feedback_available",
+              title: "Feedback available",
+              message: `Your feedback for "${assignment.title}" is ready to view.`,
+              data: {
+                nav_path: navPath,
+                assignment_title: assignment.title,
+              },
+            });
+          }
+        }
+      } catch (notifErr) {
+        // Notification failure must never break the approval response
+        console.error("Failed to create feedback notification:", notifErr);
+      }
     }
 
     return NextResponse.json({

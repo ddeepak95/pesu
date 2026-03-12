@@ -63,32 +63,36 @@ export function QuestionCompletionPanel({
         </div>
       </div>
 
-      {/* Score / Rating */}
-      <div className="flex flex-col items-center gap-1">
-        <h6 className="text-sm text-muted-foreground">Your score</h6>
-        {useStarDisplay ? (
-          <StarRatingDisplay
-            points={attempt.score}
-            maxPoints={attempt.max_score}
-            starScale={starScale}
-            size="large"
-            showNumeric={false}
-          />
-        ) : (
-          <div
-            className={`px-5 py-2.5 rounded-lg ${getScoreBgColor(scorePercentage)}`}
-          >
-            <span
-              className={`text-2xl font-bold ${getScoreColor(scorePercentage)}`}
+      {/* Score / Rating — hidden while feedback is pending approval.
+          The stub score is 0 and even the real score should not be revealed
+          until the teacher approves the feedback. */}
+      {!feedbackApprovalPending && (
+        <div className="flex flex-col items-center gap-1">
+          <h6 className="text-sm text-muted-foreground">Your score</h6>
+          {useStarDisplay ? (
+            <StarRatingDisplay
+              points={attempt.score}
+              maxPoints={attempt.max_score}
+              starScale={starScale}
+              size="large"
+              showNumeric={false}
+            />
+          ) : (
+            <div
+              className={`px-5 py-2.5 rounded-lg ${getScoreBgColor(scorePercentage)}`}
             >
-              {attempt.score}/{attempt.max_score}
-            </span>
-            <span className="text-sm ml-2 text-muted-foreground">
-              ({Math.round(scorePercentage)}%)
-            </span>
-          </div>
-        )}
-      </div>
+              <span
+                className={`text-2xl font-bold ${getScoreColor(scorePercentage)}`}
+              >
+                {attempt.score}/{attempt.max_score}
+              </span>
+              <span className="text-sm ml-2 text-muted-foreground">
+                ({Math.round(scorePercentage)}%)
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Feedback section — behaviour depends on approval state */}
       <div className="w-full max-w-xl space-y-3">

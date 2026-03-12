@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationBell } from "@/components/Student/NotificationBell";
 
 interface HeaderProps {
   userName?: string;
@@ -42,6 +43,10 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
         />
         {hasUserMenu && (
           <div className="flex items-center gap-2">
+            {/* Show notification bell for authenticated students (not anonymous submission flow) */}
+            {user && !onLogoutSubmission && (
+              <NotificationBell studentId={user.id} />
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
@@ -56,13 +61,21 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
                       clipRule="evenodd"
                     />
                   </svg>
-                  <span className="text-base font-medium">{displayName}</span>
+                  {/* Name hidden on mobile — shown in the dropdown instead */}
+                  <span className="hidden sm:inline text-base font-medium">{displayName}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 {user && !onLogoutSubmission && (
                   <>
-                    <DropdownMenuLabel>{t("header.myAccount")}</DropdownMenuLabel>
+                    <DropdownMenuLabel>
+                      <p className="font-medium leading-none">{displayName}</p>
+                      {user.email && (
+                        <p className="text-xs text-muted-foreground font-normal mt-1 truncate">
+                          {user.email}
+                        </p>
+                      )}
+                    </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                   </>
                 )}

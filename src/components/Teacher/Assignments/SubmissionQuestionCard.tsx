@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { QuestionEvaluations } from "@/types/submission";
 import {
   Accordion,
@@ -25,10 +26,23 @@ export function SubmissionQuestionCard({
   submissionId,
   onViewTranscript,
 }: SubmissionQuestionCardProps) {
-  const attempts = questionAnswers?.attempts ?? [];
+  // Own local state so approval updates from child rows are reflected immediately
+  const [attempts, setAttempts] = useState<SubmissionAttempt[]>(
+    questionAnswers?.attempts ?? []
+  );
+
+  const handleAttemptUpdated = (updated: SubmissionAttempt) => {
+    setAttempts((prev) =>
+      prev.map((a) => (a.attempt_number === updated.attempt_number ? updated : a))
+    );
+  };
+
   const topScore =
     attempts.length > 0 ? Math.max(...attempts.map((a) => a.score)) : 0;
   const maxScore = attempts[0]?.max_score ?? 0;
+  const hasPendingApprovals = attempts.some(
+    (a) => a.feedback_approved === false && !a.is_evaluating
+  );
 
   return (
     <Accordion type="single" collapsible>
@@ -55,6 +69,11 @@ export function SubmissionQuestionCard({
                 "—"
               )}
             </span>
+            {hasPendingApprovals && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                Pending Approval
+              </span>
+            )}
           </div>
         </AccordionTrigger>
         <AccordionContent className="pb-4 space-y-4">
@@ -70,6 +89,7 @@ export function SubmissionQuestionCard({
                   questionOrder={questionOrder}
                   submissionId={submissionId}
                   onViewTranscript={onViewTranscript}
+                  onAttemptUpdated={handleAttemptUpdated}
                 />
               ))}
             </div>

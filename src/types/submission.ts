@@ -121,5 +121,10 @@ export interface Submission {
   total_attempts: number;
   /** Number of questions with at least one non-stale attempt */
   questions_attempted_count?: number;
+  /**
+   * True when at least one attempt has feedback_approved = false and is_evaluating = false.
+   * Updated on every evaluate / approve write alongside other denormalized fields.
+   */
+  has_pending_approvals?: boolean;
 }
 

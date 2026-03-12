@@ -21,6 +21,8 @@ interface SubmissionAttemptRowProps {
     attempt: SubmissionAttempt,
     questionOrder: number
   ) => void;
+  /** Called when this attempt is updated (e.g. feedback approved) so parents can react */
+  onAttemptUpdated?: (updatedAttempt: SubmissionAttempt) => void;
 }
 
 export function SubmissionAttemptRow({
@@ -28,6 +30,7 @@ export function SubmissionAttemptRow({
   questionOrder,
   submissionId,
   onViewTranscript,
+  onAttemptUpdated,
 }: SubmissionAttemptRowProps) {
   const [attempt, setAttempt] = useState<SubmissionAttempt>(initialAttempt);
 
@@ -72,7 +75,10 @@ export function SubmissionAttemptRow({
                 attempt={attempt}
                 submissionId={submissionId}
                 questionOrder={questionOrder}
-                onApproved={(updatedAttempt) => setAttempt(updatedAttempt)}
+                onApproved={(updatedAttempt) => {
+                  setAttempt(updatedAttempt);
+                  onAttemptUpdated?.(updatedAttempt);
+                }}
               />
             ) : (
               <AttemptFeedbackView attempt={attempt} />

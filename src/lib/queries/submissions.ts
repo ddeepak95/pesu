@@ -11,7 +11,7 @@ import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
 /** All columns for the submissions table (includes evaluations JSONB — use SUBMISSION_LIST_COLUMNS for list views) */
 const SUBMISSION_ALL_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, has_pending_approvals";
 
 /** All columns for the submission_transcripts table */
 const TRANSCRIPT_ALL_COLUMNS =
@@ -40,12 +40,14 @@ export function computeDenormalizedFields(evaluations: {
   max_score: number;
   total_attempts: number;
   questions_attempted_count: number;
+  has_pending_approvals: boolean;
 } {
   let hasAttempts = false;
   let highestScore = 0;
   let maxScore = 0;
   let totalAttempts = 0;
   let questionsAttemptedCount = 0;
+  let hasPendingApprovals = false;
 
   for (const qa of Object.values(evaluations)) {
     const nonStale = (qa.attempts || []).filter((a) => !a.stale);
@@ -56,6 +58,10 @@ export function computeDenormalizedFields(evaluations: {
       highestScore += Math.max(...nonStale.map((a) => a.score));
       maxScore += nonStale[0].max_score;
     }
+    // Pending = feedback_approved explicitly false AND LLM has finished (not is_evaluating)
+    if (nonStale.some((a) => a.feedback_approved === false && !a.is_evaluating)) {
+      hasPendingApprovals = true;
+    }
   }
 
   return {
@@ -64,6 +70,7 @@ export function computeDenormalizedFields(evaluations: {
     max_score: maxScore,
     total_attempts: totalAttempts,
     questions_attempted_count: questionsAttemptedCount,
+    has_pending_approvals: hasPendingApprovals,
   };
 }
 
@@ -906,7 +913,7 @@ export async function markAttemptsAsStale(
 
 /** Columns to select for list views (excludes evaluations JSONB) */
 const SUBMISSION_LIST_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals";
 
 /**
  * Student submission status for teacher view
@@ -921,6 +928,8 @@ export interface StudentSubmissionStatus {
   totalAttempts: number;
   /** Number of questions with at least one attempt (from denormalized column) */
   questionsAttemptedCount: number;
+  /** True when at least one attempt is awaiting teacher feedback approval */
+  hasPendingApprovals: boolean;
 }
 
 /**
@@ -935,6 +944,8 @@ export interface PublicSubmissionStatus {
   totalAttempts: number;
   /** Number of questions with at least one attempt (from denormalized column) */
   questionsAttemptedCount: number;
+  /** True when at least one attempt is awaiting teacher feedback approval */
+  hasPendingApprovals: boolean;
 }
 
 /**
@@ -988,6 +999,8 @@ export async function getSubmissionsByAssignmentWithStudents(
     let hasAttempts = false;
     let questionsAttemptedCount = 0;
 
+    let hasPendingApprovals = false;
+
     if (!submission) {
       status = "not_started";
     } else {
@@ -997,6 +1010,7 @@ export async function getSubmissionsByAssignmentWithStudents(
       highestScore = submission.highest_score;
       maxScore = submission.max_score;
       questionsAttemptedCount = submission.questions_attempted_count ?? 0;
+      hasPendingApprovals = submission.has_pending_approvals ?? false;
 
       // Completed only when submission is explicitly marked complete; otherwise in progress
       status =
@@ -1012,6 +1026,7 @@ export async function getSubmissionsByAssignmentWithStudents(
       maxScore,
       totalAttempts,
       questionsAttemptedCount,
+      hasPendingApprovals,
     };
   });
 
@@ -1049,6 +1064,7 @@ export async function getPublicSubmissionsByAssignment(
     const maxScore = submission.max_score;
     const questionsAttemptedCount =
       submission.questions_attempted_count ?? 0;
+    const hasPendingApprovals = submission.has_pending_approvals ?? false;
     // Completed only when submission is explicitly marked complete
     const status: "completed" | "started" =
       submission.status === "completed" ? "completed" : "started";
@@ -1061,6 +1077,7 @@ export async function getPublicSubmissionsByAssignment(
       maxScore,
       totalAttempts,
       questionsAttemptedCount,
+      hasPendingApprovals,
     };
   });
 

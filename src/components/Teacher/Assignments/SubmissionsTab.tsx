@@ -317,7 +317,16 @@ export default function SubmissionsTab({
       {
         key: "status",
         label: "Status",
-        render: (row) => getStatusBadge(row.data?.status as "completed" | "started" | "not_started"),
+        render: (row) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {getStatusBadge(row.data?.status as "completed" | "started" | "not_started")}
+            {row.data?.hasPendingApprovals && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                Pending Approval
+              </span>
+            )}
+          </div>
+        ),
         sortValue: (row) => {
           const s = row.data?.status as string;
           return s === "completed" ? 0 : s === "started" ? 1 : 2;
@@ -415,6 +424,7 @@ export default function SubmissionsTab({
           highestScore: item.highestScore,
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
+          hasPendingApprovals: item.hasPendingApprovals,
           _original: item,
         },
       };
@@ -427,10 +437,16 @@ export default function SubmissionsTab({
       {
         key: "status",
         label: "Status",
-        render: (row) =>
-          getStatusBadge(
-            row.data?.status as "completed" | "started" | "not_started"
-          ),
+        render: (row) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {getStatusBadge(row.data?.status as "completed" | "started" | "not_started")}
+            {row.data?.hasPendingApprovals && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                Pending Approval
+              </span>
+            )}
+          </div>
+        ),
         sortValue: (row) =>
           (row.data?.status as string) === "completed" ? 0 : 1,
       },
@@ -518,6 +534,7 @@ export default function SubmissionsTab({
           highestScore: item.highestScore,
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
+          hasPendingApprovals: item.hasPendingApprovals,
           _original: item,
         },
       };
@@ -610,7 +627,24 @@ export default function SubmissionsTab({
       {selectedSubmission && (
         <SubmissionViewDialog
           open={viewDialogOpen}
-          onOpenChange={setViewDialogOpen}
+          onOpenChange={async (open) => {
+            setViewDialogOpen(open);
+            // Re-fetch the lightweight list when the dialog closes so the table
+            // badges (has_pending_approvals) reflect any approvals just made.
+            if (!open) {
+              if ("student" in selectedSubmission && classDbId) {
+                const data = await getSubmissionsByAssignmentWithStudents(
+                  assignmentId,
+                  classDbId,
+                  classGroupId
+                );
+                setClassSubmissions(data);
+              } else if (!("student" in selectedSubmission)) {
+                const data = await getPublicSubmissionsByAssignment(assignmentId);
+                setPublicSubmissions(data);
+              }
+            }
+          }}
           studentSubmission={selectedSubmission}
         />
       )}
