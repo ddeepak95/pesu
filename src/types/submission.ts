@@ -34,6 +34,12 @@ export interface SubmissionAttempt {
    * undefined/absent = approved (backward-compatible); false = pending approval.
    */
   feedback_approved?: boolean;
+  /**
+   * True while the background LLM evaluation is still running (two-step approval flow).
+   * The attempt exists in the DB as a stub; score and feedback are placeholders until
+   * the process step completes and sets this to false.
+   */
+  is_evaluating?: boolean;
 }
 
 export interface QuestionEvaluations {

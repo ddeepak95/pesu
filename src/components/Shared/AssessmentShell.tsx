@@ -16,10 +16,11 @@ import {
 } from "@/components/Shared/AssessmentNavigation";
 import { QuestionCompletionPanel } from "@/components/Shared/QuestionCompletionPanel";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { VoiceInputArea } from "@/components/Shared/AssessmentInputs/VoiceInputArea";
 import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputArea";
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
+import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
 
 export interface AssessmentShellProps {
   assessmentMode: "voice" | "text_chat" | "static_text";
@@ -105,6 +106,9 @@ export function AssessmentShell({
   const [showCompletion, setShowCompletion] = React.useState(false);
   const [languageDisabled, setLanguageDisabled] = React.useState(false);
   const [navigationDisabled, setNavigationDisabled] = React.useState(false);
+  // When feedback requires approval, flip this true immediately on submit so the
+  // student sees the pending view right away instead of watching the evaluating spinner.
+  const [submittingForApproval, setSubmittingForApproval] = React.useState(false);
   const navigationRef = useRef<AssessmentNavigationHandle>(null);
 
   const { logEvent } = useActivityTracking({
@@ -145,8 +149,14 @@ export function AssessmentShell({
         return;
       }
 
+      if (feedbackRequiresApproval) {
+        // Show pending screen immediately — student won't watch LLM spinner
+        setSubmittingForApproval(true);
+      }
       setIsEvaluating(true);
+
       try {
+        // Build interpolated prompt up-front (needed by both paths)
         let interpolatedEvalPrompt: string | undefined;
         if (evaluationPrompt) {
           const assignmentForInterpolation = {
@@ -166,6 +176,9 @@ export function AssessmentShell({
           interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
         }
 
+        // Single call for both modes. When feedback_requires_approval is true
+        // the route saves a stub, schedules the LLM via after(), and returns
+        // immediately — so isEvaluating clears fast and navigation is unblocked.
         const response = await fetch("/api/evaluate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -191,16 +204,20 @@ export function AssessmentShell({
 
         const result = await response.json();
         const newAttempt = result.attempt as SubmissionAttempt;
-        if (!newAttempt) {
-          throw new Error("No attempt data received from evaluation API");
-        }
+        if (!newAttempt) throw new Error("No attempt data received from evaluation API");
 
         setAttempts((prev) => [...prev, newAttempt]);
+        setSubmittingForApproval(false);
         setShowCompletion(true);
+        if (feedbackRequiresApproval) {
+          // Unblock navigation immediately — LLM is running server-side
+          setIsEvaluating(false);
+        }
         onAnswerSave(answerText);
         logEvent("attempt_ended");
         onAttemptCreated?.();
       } catch (error) {
+        setSubmittingForApproval(false);
         console.error("Error evaluating answer:", error);
         alert(
           `Failed to evaluate your answer: ${
@@ -208,13 +225,14 @@ export function AssessmentShell({
           }`,
         );
       } finally {
-        setIsEvaluating(false);
+        setIsEvaluating(false); // Safety net for all paths
       }
     },
     [
       maxAttemptsReached, evaluationPrompt, question, maxAttempts,
       botPromptConfig, sharedContext, language, attempts.length,
       submissionId, onAnswerSave, logEvent, onAttemptCreated,
+      feedbackRequiresApproval,
     ],
   );
 
@@ -270,6 +288,16 @@ export function AssessmentShell({
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        ) : submittingForApproval ? (
+          <div className="flex flex-col items-center gap-5 py-8">
+            <div className="flex items-center gap-1">
+              <p className="text-base">Answer submitted</p>
+              <CheckCircle2 className="text-green-500 size-4" />
+            </div>
+            <div className="w-full max-w-xl">
+              <FeedbackPendingBanner />
+            </div>
           </div>
         ) : showCompletion && latestAttempt ? (
           <QuestionCompletionPanel

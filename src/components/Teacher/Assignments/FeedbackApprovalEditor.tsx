@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { SubmissionAttempt, RubricScore } from "@/types/submission";
 
 interface FeedbackApprovalEditorProps {
@@ -77,6 +77,16 @@ export function FeedbackApprovalEditor({
       setSaving(false);
     }
   };
+
+  // LLM is still running — show a non-interactive placeholder
+  if (attempt.is_evaluating) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-muted bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+        <p>Evaluation in progress. Please refresh in a moment.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
