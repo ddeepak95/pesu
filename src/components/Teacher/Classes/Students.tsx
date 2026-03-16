@@ -1,21 +1,32 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase";
-import List from "@/components/ui/List";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
 import ChangeGroupDialog from "./ChangeGroupDialog";
 import StudentProgressDialog from "./StudentProgressDialog";
+import SubmissionsTable, {
+  SubmissionsTableColumn,
+  SubmissionsTableRow,
+} from "@/components/Teacher/Shared/SubmissionsTable";
 import {
   StudentWithInfo,
   getClassStudentsWithInfo,
 } from "@/lib/queries/students";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
+import {
+  getProfileFieldsForClass,
+  getAllStudentProfiles,
+} from "@/lib/queries/profileFields";
+import { getProgressViewConfig } from "@/lib/queries/classes";
+import { ProfileField } from "@/types/profileFields";
 
 interface StudentsProps {
   classData: Class;
@@ -28,13 +39,22 @@ export default function Students({ classData }: StudentsProps) {
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [students, setStudents] = useState<StudentWithInfo[]>([]);
   const [groups, setGroups] = useState<ClassGroup[]>([]);
+  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
+  const [studentProfilesMap, setStudentProfilesMap] = useState<
+    Map<string, Record<string, string>>
+  >(new Map());
+  const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Change group dialog state
   const [changeGroupDialogOpen, setChangeGroupDialogOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<StudentWithInfo | null>(null);
-  
+  const [selectedStudent, setSelectedStudent] =
+    useState<StudentWithInfo | null>(null);
+
   // Progress dialog state
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
 
@@ -69,7 +89,7 @@ export default function Students({ classData }: StudentsProps) {
     checkTeacherStatus();
   }, [user, classData.id, isOwner]);
 
-  // Fetch enrolled students and groups
+  // Fetch enrolled students, groups, profile fields, profiles, and view config
   const fetchData = async () => {
     if (!isTeacher) {
       setLoading(false);
@@ -79,13 +99,29 @@ export default function Students({ classData }: StudentsProps) {
     setLoading(true);
     setError(null);
     try {
-      const [studentsData, groupsData] = await Promise.all([
-        getClassStudentsWithInfo(classData.id),
-        getClassGroups(classData.id),
-      ]);
+      const [studentsData, groupsData, fields, profiles, savedConfig] =
+        await Promise.all([
+          getClassStudentsWithInfo(classData.id),
+          getClassGroups(classData.id),
+          getProfileFieldsForClass(classData.id),
+          getAllStudentProfiles(classData.id),
+          classData.progress_view_config != null
+            ? Promise.resolve(classData.progress_view_config)
+            : getProgressViewConfig(classData.id),
+        ]);
 
       setStudents(studentsData);
       setGroups(groupsData);
+      setProfileFields(fields);
+
+      const profilesMap = new Map<string, Record<string, string>>();
+      profiles.forEach((p) => {
+        profilesMap.set(p.student_id, p.field_responses);
+      });
+      setStudentProfilesMap(profilesMap);
+
+      setDisplayFieldIds(new Set(savedConfig?.display_fields ?? []));
+      setFilterFieldIds(new Set(savedConfig?.filter_fields ?? []));
     } catch (err) {
       console.error("Error fetching students:", err);
       setError("Failed to load students.");
@@ -108,13 +144,138 @@ export default function Students({ classData }: StudentsProps) {
     fetchData();
   };
 
+  const tableRows: SubmissionsTableRow[] = useMemo(() => {
+    return students.map((s) => {
+      const groupDisplayName =
+        s.group_name ||
+        (s.group_index !== null ? `Group ${s.group_index + 1}` : "No group");
+      return {
+        id: s.student_id,
+        name: getStudentDisplayName(s),
+        email: s.student_email,
+        profileData: studentProfilesMap.get(s.student_id) ?? {},
+        data: {
+          groupDisplayName,
+          _student: s,
+          _groups: groups,
+        },
+      };
+    });
+  }, [students, studentProfilesMap, groups]);
+
+  const visibleDisplayFields = useMemo(() => {
+    if (displayFieldIds.size === 0) return [];
+    return profileFields.filter((f) => displayFieldIds.has(f.id));
+  }, [profileFields, displayFieldIds]);
+
+  const tableColumns: SubmissionsTableColumn[] = useMemo(() => {
+    const profileColumns: SubmissionsTableColumn[] = visibleDisplayFields.map(
+      (field) => ({
+        key: `profile_${field.id}`,
+        label: field.field_name,
+        render: (row) => (
+          <span className="text-sm">
+            {row.profileData?.[field.id]?.trim() ?? "—"}
+          </span>
+        ),
+        sortValue: (row) => (row.profileData?.[field.id] ?? "").trim(),
+      }),
+    );
+    return [
+      ...profileColumns,
+      {
+        key: "group",
+        label: "Group",
+        render: (row) => (
+          <span className="text-sm">
+            {(row.data?.groupDisplayName as string) ?? "—"}
+          </span>
+        ),
+        sortValue: (row) => (row.data?.groupDisplayName as string) ?? "",
+      },
+      {
+        key: "actions",
+        label: "Actions",
+        align: "right",
+        sortable: false,
+        render: (row) => {
+          const student = row.data?._student as StudentWithInfo | undefined;
+          const groupList = row.data?._groups as ClassGroup[] | undefined;
+          if (!student || !groupList) return null;
+          return (
+            <StudentListItemMenu
+              student={student}
+              groups={groupList}
+              onChangeGroup={handleChangeGroup}
+            />
+          );
+        },
+      },
+    ];
+  }, [handleChangeGroup, visibleDisplayFields]);
+
+  const filterableFields = useMemo(() => {
+    if (filterFieldIds.size === 0) return [];
+    return profileFields.filter(
+      (f) =>
+        filterFieldIds.has(f.id) &&
+        f.field_type === "dropdown" &&
+        f.options &&
+        f.options.length > 0,
+    );
+  }, [profileFields, filterFieldIds]);
+
+  const groupCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tableRows.forEach((row) => {
+      const label =
+        (row.data?.groupDisplayName as string)?.trim() || "No group";
+      counts[label] = (counts[label] ?? 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [tableRows]);
+
+  const categoryCounts = useMemo(() => {
+    return filterableFields.map((field) => {
+      const optionCounts: Record<string, number> = {};
+      (field.options ?? []).forEach((opt) => {
+        optionCounts[opt] = 0;
+      });
+      optionCounts["(Not set)"] = 0;
+
+      tableRows.forEach((row) => {
+        const value = row.profileData?.[field.id];
+        if (value == null || value.trim() === "") {
+          optionCounts["(Not set)"] += 1;
+        } else if (value in optionCounts) {
+          optionCounts[value] += 1;
+        } else {
+          optionCounts[value] = (optionCounts[value] ?? 0) + 1;
+        }
+      });
+
+      return {
+        field,
+        counts: Object.entries(optionCounts).map(([label, count]) => ({
+          label,
+          count,
+        })),
+      };
+    });
+  }, [filterableFields, tableRows]);
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Students</h2>
         {isTeacher && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setProgressDialogOpen(true)}>
+            <Button
+              variant="outline"
+              onClick={() => setProgressDialogOpen(true)}
+            >
               View Student Progress
             </Button>
             <Button onClick={() => setManageDialogOpen(true)}>
@@ -137,38 +298,98 @@ export default function Students({ classData }: StudentsProps) {
           <p className="text-destructive">{error}</p>
         </div>
       ) : (
-        <List
-          items={students}
-          emptyMessage="No students enrolled yet. Use the 'Invite Students' button to generate an invite link."
-          renderItem={(s) => {
-            const displayName = getStudentDisplayName(s);
-            const groupDisplayName =
-              s.group_name || (s.group_index !== null ? `Group ${s.group_index + 1}` : "No group");
+        <Tabs defaultValue="list" className="w-full">
+          <TabsList className="mb-4 h-auto w-auto gap-1 rounded-md border bg-muted/30 p-1">
+            <TabsTrigger value="list" className="rounded-sm px-4 py-2">
+              List
+            </TabsTrigger>
+            <TabsTrigger value="by-category" className="rounded-sm px-4 py-2">
+              Count by category
+            </TabsTrigger>
+          </TabsList>
 
-            return (
-              <div className="flex items-center justify-between rounded-md border p-3 gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">
-                    {displayName}
-                  </div>
-                  {s.student_email && s.student_display_name && (
-                    <div className="text-xs text-muted-foreground truncate">
-                      {s.student_email}
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Joined: {new Date(s.joined_at).toLocaleDateString()} • Group: {groupDisplayName}
-                  </div>
-                </div>
-                <StudentListItemMenu
-                  student={s}
-                  groups={groups}
-                  onChangeGroup={handleChangeGroup}
-                />
+          <TabsContent value="list" className="mt-0">
+            {students.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <p>
+                  No students enrolled yet. Use the &apos;Invite Students&apos;
+                  button to generate an invite link.
+                </p>
               </div>
-            );
-          }}
-        />
+            ) : (
+              <SubmissionsTable
+                columns={tableColumns}
+                rows={tableRows}
+                statusFilterOptions={[]}
+                profileFields={profileFields}
+                displayFieldIds={new Set()}
+                filterFieldIds={filterFieldIds}
+                showUnlockColumn={false}
+                emptyMessage="No students enrolled yet."
+                searchPlaceholder="Search by student name..."
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="by-category" className="mt-0">
+            <div className="space-y-6">
+              {groupCounts.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <h3 className="text-base font-medium">Group</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-1.5">
+                      {groupCounts.map(({ label, count }) => (
+                        <li
+                          key={label}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="font-medium">{count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+              {filterableFields.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>
+                    No category fields configured. Add profile fields and mark
+                    them as filter fields in Class settings → Profile fields →
+                    View Config.
+                  </p>
+                </div>
+              ) : (
+                categoryCounts.map(({ field, counts }) => (
+                  <Card key={field.id}>
+                    <CardHeader className="pb-2">
+                      <h3 className="text-base font-medium">
+                        {field.field_name}
+                      </h3>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-1.5">
+                        {counts.map(({ label, count }) => (
+                          <li
+                            key={label}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="text-muted-foreground">
+                              {label}
+                            </span>
+                            <span className="font-medium">{count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
 
       <ManageStudentsDialog
