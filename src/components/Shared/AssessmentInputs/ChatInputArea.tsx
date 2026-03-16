@@ -173,12 +173,25 @@ export function ChatInputArea({
       .join("\n\n");
   };
 
+  /** Full conversation (student + bot) for submission_transcripts.answer_text */
+  const formatFullConversation = (msgs: ChatMessage[]) => {
+    return msgs
+      .map((m) => {
+        const label = m.role === "student" ? "Student" : "Bot";
+        return `${label}: ${m.content ?? ""}`;
+      })
+      .join("\n\n");
+  };
+
   const handleFinishAndEvaluate = async () => {
-    const answerText = aggregateStudentAnswer().trim();
-    if (!answerText) {
+    const hasStudentMessage = messages.some(
+      (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
+    );
+    if (!hasStudentMessage) {
       alert("Please provide at least one response before finishing.");
       return;
     }
+    const answerText = formatFullConversation(messages).trim();
     if (maxAttemptsReached) {
       alert(
         "You have reached the maximum number of attempts for this question.",
