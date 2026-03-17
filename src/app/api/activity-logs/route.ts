@@ -35,6 +35,11 @@ const resolveClassId = async (
  * Simplified: only tracks total time
  */
 export async function POST(request: NextRequest) {
+
+  if (process.env.NODE_ENV === "development") {
+    return NextResponse.json({ success: true, skipped: "dev mode" });
+  }
+
   try {
     const body: ActivityLogInput = await request.json();
 

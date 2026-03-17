@@ -9,7 +9,7 @@ import { parseSSEStream } from "@/lib/sseParser";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
-import { createMoreThanTwoWordsGuard } from "./wordLimitGuards";
+import { createBulkInputGuard } from "./wordLimitGuards";
 
 interface ChatMessage {
   id: string;
@@ -115,7 +115,10 @@ export function ChatInputArea({
     }
   };
 
-  const handleBeforeInput = createMoreThanTwoWordsGuard(submissionId);
+  const { guard, sync } = React.useMemo(
+    () => createBulkInputGuard(submissionId),
+    [submissionId],
+  );
 
   // Restore in-progress chat from localStorage
   React.useEffect(() => {
@@ -213,6 +216,7 @@ export function ChatInputArea({
     // Clear chat state before evaluation
     setMessages([]);
     setInput("");
+    sync("");
     try {
       window.localStorage.removeItem(storageKey);
     } catch {
@@ -334,6 +338,7 @@ export function ChatInputArea({
     const nextMessages = [...messages, newMessage];
     setMessages(nextMessages);
     setInput("");
+    sync("");
 
     const assistantId = crypto.randomUUID();
     setMessages((prev) => [
@@ -411,8 +416,30 @@ export function ChatInputArea({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+  };
+
   const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    const { allowed, nextValue } = guard(newValue);
+    setInput(nextValue);
+    if (!allowed && textareaRef.current) {
+      textareaRef.current.value = nextValue;
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.value = nextValue;
+        }
+      });
+    }
   };
 
   return (
@@ -484,8 +511,9 @@ export function ChatInputArea({
               <Textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onBeforeInput={handleBeforeInput}
+                onChange={handleChange}
+                onPaste={handlePaste}
+                onDrop={handleDrop}
                 onContextMenu={handleContextMenu}
                 onKeyDown={handleKeyDown}
                 placeholder={

@@ -7,11 +7,10 @@ import { Loader2, FileText } from "lucide-react";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
-import { createMoreThanTwoWordsGuard } from "./wordLimitGuards";
+import { createBulkInputGuard } from "./wordLimitGuards";
 
 export function StaticTextInputArea({
   question,
-  language,
   assignmentId,
   submissionId,
   existingAnswer,
@@ -24,6 +23,8 @@ export function StaticTextInputArea({
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
 
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
   const { logEvent } = useActivityTracking({
     componentType: "question",
     componentId: assignmentId,
@@ -34,6 +35,11 @@ export function StaticTextInputArea({
   const storageKey = React.useMemo(
     () => `static-${submissionId}-${question.order}`,
     [submissionId, question.order],
+  );
+
+  const { guard, sync } = React.useMemo(
+    () => createBulkInputGuard(submissionId),
+    [submissionId],
   );
 
   // Report language-disabled state to the shell
@@ -48,21 +54,24 @@ export function StaticTextInputArea({
       if (stored) {
         restoredFromStorageRef.current = true;
         setAnswer(stored);
+        sync(stored);
         setHasStarted(true);
       }
     } catch {
       /* ignore */
     }
-  }, [storageKey]);
+  }, [storageKey, sync]);
 
   // Reset state when question changes (if no localStorage restore)
   React.useEffect(() => {
     if (!restoredFromStorageRef.current) {
       if (existingAnswer && attempts.length === 0) {
         setAnswer(existingAnswer);
+        sync(existingAnswer);
         setHasStarted(true);
       } else {
         setAnswer("");
+        sync("");
         setHasStarted(false);
       }
     }
@@ -73,13 +82,14 @@ export function StaticTextInputArea({
   React.useEffect(() => {
     if (attempts.length > 0) {
       setAnswer("");
+      sync("");
       try {
         window.localStorage.removeItem(storageKey);
       } catch {
         /* ignore */
       }
     }
-  }, [attempts.length, storageKey]);
+  }, [attempts.length, storageKey, sync]);
 
   // Persist draft to localStorage
   React.useEffect(() => {
@@ -102,8 +112,6 @@ export function StaticTextInputArea({
     logEvent("attempt_started");
   };
 
-  const handleBeforeInput = createMoreThanTwoWordsGuard(submissionId);
-
   const handleSubmit = async () => {
     const trimmedAnswer = answer.trim();
     if (!trimmedAnswer) {
@@ -119,6 +127,7 @@ export function StaticTextInputArea({
 
     // Clear draft state before evaluation
     setAnswer("");
+    sync("");
     setHasStarted(false);
     try {
       window.localStorage.removeItem(storageKey);
@@ -132,6 +141,14 @@ export function StaticTextInputArea({
   const hasContent = answer.trim().length > 0;
   const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+  };
+
   const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
   };
@@ -142,6 +159,21 @@ export function StaticTextInputArea({
       (e.key === "c" || e.key === "v" || e.key === "x")
     ) {
       e.preventDefault();
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    const { allowed, nextValue } = guard(newValue);
+    setAnswer(nextValue);
+    if (!allowed && textareaRef.current) {
+      textareaRef.current.value = nextValue;
+      // Post-render write to override mobile IME buffer that may fight back
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.value = nextValue;
+        }
+      });
     }
   };
 
@@ -173,9 +205,11 @@ export function StaticTextInputArea({
           </div>
 
           <Textarea
+            ref={textareaRef}
             value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            onBeforeInput={handleBeforeInput}
+            onChange={handleChange}
+            onPaste={handlePaste}
+            onDrop={handleDrop}
             onContextMenu={handleContextMenu}
             onKeyDown={handleKeyDown}
             placeholder={
