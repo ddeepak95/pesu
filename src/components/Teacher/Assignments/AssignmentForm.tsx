@@ -85,7 +85,7 @@ interface AssignmentFormProps {
 export default function AssignmentForm({
   mode,
   classId,
-  assignmentId,
+  assignmentId: _assignmentId,
   initialTitle = "",
   initialQuestions = [
     {

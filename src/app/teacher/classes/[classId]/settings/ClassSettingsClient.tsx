@@ -21,7 +21,7 @@ interface ClassSettingsClientProps {
 
 export default function ClassSettingsClient({
   classData: initialClassData,
-  classId,
+  classId: _classId,
 }: ClassSettingsClientProps) {
   const router = useRouter();
 

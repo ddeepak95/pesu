@@ -32,8 +32,10 @@ export function TranscriptDialog({
 
   useEffect(() => {
     if (open && submissionId && attempt && questionOrder !== null) {
-      setLoading(true);
-      setTranscriptText(null);
+      queueMicrotask(() => {
+        setLoading(true);
+        setTranscriptText(null);
+      });
       getTranscript(submissionId, questionOrder, attempt.attempt_number)
         .then((text) => setTranscriptText(text))
         .catch((err) => {

@@ -37,6 +37,7 @@ export function SearchableSelect({
   className,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const listboxId = React.useId()
 
   const handleSelect = (selected: string) => {
     onValueChange(selected)
@@ -51,6 +52,7 @@ export function SearchableSelect({
           id={id}
           role="combobox"
           aria-expanded={open}
+          aria-controls={listboxId}
           aria-haspopup="listbox"
           disabled={disabled}
           className={cn(
@@ -71,7 +73,7 @@ export function SearchableSelect({
       >
         <Command shouldFilter={true}>
           <CommandInput placeholder="Search..." className="h-9" />
-          <CommandList>
+          <CommandList id={listboxId}>
             <CommandEmpty>No option found.</CommandEmpty>
             {options.map((option) => (
               <CommandItem

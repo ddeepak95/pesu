@@ -5,10 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  PROMPT_VARIABLES,
-  getVariablesByCategory,
-} from "@/lib/promptTemplates";
+import { getVariablesByCategory } from "@/lib/promptTemplates";
 import { QuestionPromptOverride } from "@/types/assignment";
 import { Variable, RotateCcw } from "lucide-react";
 

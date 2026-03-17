@@ -3,7 +3,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Bot, Send } from "lucide-react";
+import { Loader2, Bot } from "lucide-react";
 import { interpolatePromptsForRuntime } from "@/lib/promptInterpolation";
 import { parseSSEStream } from "@/lib/sseParser";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
@@ -34,7 +34,7 @@ export function ChatInputArea({
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
   const [isStarting, setIsStarting] = React.useState(false);
-  const [isSending, setIsSending] = React.useState(false);
+  const [_isSending, setIsSending] = React.useState(false);
 
   const getInterpolatedPrompts = React.useCallback(() => {
     if (!botPromptConfig) return null;
@@ -95,10 +95,7 @@ export function ChatInputArea({
 
   React.useEffect(() => {
     if (hasStarted) textareaRef.current?.focus();
-  }, [
-    /* eslint-disable-line react-hooks/exhaustive-deps */ messages.length,
-    hasStarted,
-  ]);
+  }, [messages.length, hasStarted]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (
@@ -180,7 +177,7 @@ export function ChatInputArea({
     return content;
   };
 
-  const aggregateStudentAnswer = () => {
+  const _aggregateStudentAnswer = () => {
     return messages
       .filter((m) => m.role === "student")
       .map((m) => m.content)

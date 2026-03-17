@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 
 interface StarIconProps {
   /**
@@ -21,7 +21,7 @@ interface StarIconProps {
  */
 export function StarIcon({ fill, size = 24, className = "" }: StarIconProps) {
   const fillPercentage = Math.max(0, Math.min(1, fill)); // Clamp between 0 and 1
-  const id = `star-fill-${Math.random().toString(36).substr(2, 9)}`; // Unique ID for clip path
+  const id = useId();
 
   return (
     <svg

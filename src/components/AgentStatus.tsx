@@ -178,11 +178,11 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
 
   useEffect(() => {
     if (agentState === "starting") {
-      setStartingTimerElapsed(false);
+      queueMicrotask(() => setStartingTimerElapsed(false));
       const timer = setTimeout(() => setStartingTimerElapsed(true), 7000);
       return () => clearTimeout(timer);
     } else {
-      setStartingTimerElapsed(false);
+      queueMicrotask(() => setStartingTimerElapsed(false));
     }
   }, [agentState]);
 

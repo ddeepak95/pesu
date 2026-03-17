@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -135,10 +135,10 @@ export default function Students({ classData }: StudentsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher, classData.id]);
 
-  const handleChangeGroup = (student: StudentWithInfo) => {
+  const handleChangeGroup = useCallback((student: StudentWithInfo) => {
     setSelectedStudent(student);
     setChangeGroupDialogOpen(true);
-  };
+  }, []);
 
   const handleGroupChanged = () => {
     fetchData();

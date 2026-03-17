@@ -44,7 +44,10 @@ export function useStudentProfile(
     mutate: mutateProfile,
   } = useStudentProfileData(classDbId || null, studentId || null);
 
-  const responses = studentProfile?.field_responses ?? {};
+  const responses = useMemo(
+    () => studentProfile?.field_responses ?? {},
+    [studentProfile?.field_responses]
+  );
   const loading = fieldsLoading || profileLoading;
   const error = fieldsError?.message || profileError?.message || null;
 

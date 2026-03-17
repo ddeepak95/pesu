@@ -152,7 +152,7 @@ export function EmojiMatchGame({ isActive }: EmojiMatchGameProps) {
     if (!isActive || gamePhase !== "hiding") return;
 
     if (hideIndex >= SEQUENCE_LENGTH) {
-      setGamePhase("recalling");
+      queueMicrotask(() => setGamePhase("recalling"));
       return;
     }
 

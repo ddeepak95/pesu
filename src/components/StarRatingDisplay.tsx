@@ -43,7 +43,7 @@ export function StarRatingDisplay({
   showNumeric = false,
   className = "",
 }: StarRatingDisplayProps) {
-  const { stars, maxStars, percentage } = pointsToStars(
+  const { stars, maxStars, percentage: _percentage } = pointsToStars(
     points,
     maxPoints,
     starScale

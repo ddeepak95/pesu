@@ -39,7 +39,7 @@ export default function AssignmentResponseCore({
   preferredLanguage: initialPreferredLanguage,
   contentItemId,
   onComplete,
-  onBack,
+  onBack: _onBack,
   onLanguageChange,
   assignmentId,
   initialQuestionIndex = 0,

@@ -91,7 +91,9 @@ export default function ContentCard({
   );
 
   useEffect(() => {
-    setLocalDays(String(item.unlock_days_after_previous ?? 0));
+    queueMicrotask(() =>
+      setLocalDays(String(item.unlock_days_after_previous ?? 0))
+    );
   }, [item.unlock_days_after_previous]);
 
   const labelForType = (type: ContentItemType) => {

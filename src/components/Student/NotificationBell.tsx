@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,14 +38,9 @@ export function NotificationBell({ studentId }: NotificationBellProps) {
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
-  const load = useCallback(async () => {
-    const data = await getStudentNotifications(studentId);
-    setNotifications(data);
-  }, [studentId]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    getStudentNotifications(studentId).then(setNotifications);
+  }, [studentId]);
 
   const handleClick = async (notification: StudentNotification) => {
     setOpen(false);

@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 interface HowItWorksStepProps {
   stepNumber: number;
   imageSrc: string;
@@ -20,9 +22,11 @@ export default function HowItWorksStep({
   return (
     <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
       <div className="relative flex-shrink-0 w-full md:w-48">
-        <img
+        <Image
           src={imageSrc}
           alt={imageAlt}
+          width={192}
+          height={192}
           className="w-full h-auto rounded-lg border-2 shadow-lg"
           style={{ borderColor }}
         />

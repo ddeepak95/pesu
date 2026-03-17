@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import YouTubeEmbed from "@/components/Shared/YouTubeEmbed";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 

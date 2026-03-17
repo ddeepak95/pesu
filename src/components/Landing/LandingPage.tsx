@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Mic, Languages, Users, BarChart3 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import LandingNavbar from "./LandingNavbar";
 import HowItWorksStep from "./HowItWorksStep";
@@ -202,9 +203,11 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-[55%_45%] gap-6 lg:gap-3 items-center">
             {/* Hero illustration - appears first on mobile, second on desktop */}
             <div className="relative z-20 flex items-center justify-center lg:justify-start order-1 lg:order-2">
-              <img
+              <Image
                 src="/home/hero.png"
                 alt="Hero illustration"
+                width={512}
+                height={512}
                 className="h-auto w-full max-w-xs sm:max-w-sm lg:max-w-lg mx-auto lg:mx-0"
               />
             </div>
@@ -292,9 +295,11 @@ export default function LandingPage() {
 
             {/* Right column: Challenge illustration */}
             <div className="flex items-center justify-center lg:pr-20 order-1 lg:order-2">
-              <img
+              <Image
                 src="/home/challenge.png"
                 alt="Challenge illustration"
+                width={448}
+                height={448}
                 className="w-full h-auto max-w-md mx-auto lg:mx-0"
               />
             </div>
@@ -309,9 +314,11 @@ export default function LandingPage() {
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-8 text-foreground">
               Our Solution
             </h2>
-            <img
+            <Image
               src="/home/konvo.png"
               alt="Solution illustration"
+              width={384}
+              height={384}
               className="w-full h-auto max-w-sm mx-auto mt-8"
             />
             <div className="text-center mb-6 mt-10">
@@ -486,47 +493,63 @@ export default function LandingPage() {
                   }`}
                 >
                   {/* First set of logos */}
-                  <img
+                  <Image
                     src="/home/supported_by/cornell_logo 1.png"
                     alt="Cornell University"
+                    width={120}
+                    height={32}
                     className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                   />
-                  <img
+                  <Image
                     src="/home/supported_by/msr.png"
                     alt="Microsoft Research"
+                    width={120}
+                    height={32}
                     className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                   />
-                  <img
+                  <Image
                     src="/home/supported_by/sikshana.png"
                     alt="Sikshana"
+                    width={120}
+                    height={32}
                     className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                   />
-                  <img
+                  <Image
                     src="/home/supported_by/cartesia_logo 1.png"
                     alt="Cartesia"
+                    width={120}
+                    height={32}
                     className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                   />
                   {/* Duplicate set for seamless scrolling - only render if scrolling is needed */}
                   {needsScrolling && (
                     <>
-                      <img
+                      <Image
                         src="/home/supported_by/cornell_logo 1.png"
                         alt="Cornell University"
+                        width={120}
+                        height={32}
                         className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                       />
-                      <img
+                      <Image
                         src="/home/supported_by/msr.png"
                         alt="Microsoft Research"
+                        width={120}
+                        height={32}
                         className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                       />
-                      <img
+                      <Image
                         src="/home/supported_by/sikshana.png"
                         alt="Sikshana"
+                        width={120}
+                        height={32}
                         className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                       />
-                      <img
+                      <Image
                         src="/home/supported_by/cartesia_logo 1.png"
                         alt="Cartesia"
+                        width={120}
+                        height={32}
                         className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                       />
                     </>
@@ -566,9 +589,11 @@ export default function LandingPage() {
         {/* Image - Appears to come out of the footer */}
         <div className="relative flex justify-center pb-0">
           <div className="w-64 sm:w-64 md:w-80 lg:w-96 mt-6">
-            <img
+            <Image
               src="/home/cta-2.png"
               alt="ConvoEd"
+              width={384}
+              height={384}
               className="w-full h-auto"
             />
           </div>
@@ -582,9 +607,11 @@ export default function LandingPage() {
             {/* Project Details Section - Takes more space */}
             <div className="md:col-span-5 lg:col-span-4">
               <div className="flex items-center gap-2 mb-4">
-                <img
+                <Image
                   src="/convoed-logo.svg"
                   alt="ConvoEd Logo"
+                  width={120}
+                  height={32}
                   className="h-8 w-auto"
                 />
               </div>

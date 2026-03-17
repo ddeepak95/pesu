@@ -59,7 +59,7 @@ interface ProfileFieldsSectionProps {
 
 export default function ProfileFieldsSection({
   classData,
-  isOwner,
+  isOwner: _isOwner,
 }: ProfileFieldsSectionProps) {
   const [fields, setFields] = useState<LocalField[]>([]);
   const [loading, setLoading] = useState(false);

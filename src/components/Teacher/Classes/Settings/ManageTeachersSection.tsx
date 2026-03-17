@@ -35,7 +35,7 @@ export default function ManageTeachersSection({
   classData,
   isOwner,
 }: ManageTeachersSectionProps) {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

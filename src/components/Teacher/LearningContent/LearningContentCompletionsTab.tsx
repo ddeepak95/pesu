@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { LearningContent } from "@/types/learningContent";
 import { getClassStudentsWithInfo } from "@/lib/queries/students";
@@ -28,7 +28,7 @@ interface LearningContentCompletionsTabProps {
 
 export default function LearningContentCompletionsTab({
   content,
-  classId,
+  classId: _classId,
 }: LearningContentCompletionsTabProps) {
   const [students, setStudents] = useState<StudentWithInfo[]>([]);
   const [completions, setCompletions] = useState<
@@ -43,7 +43,7 @@ export default function LearningContentCompletionsTab({
   );
   const [resetting, setResetting] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -76,11 +76,11 @@ export default function LearningContentCompletionsTab({
     } finally {
       setLoading(false);
     }
-  };
+  }, [content.id, content.class_id]);
 
   useEffect(() => {
     fetchData();
-  }, [content.id, content.class_id]);
+  }, [fetchData]);
 
   // When content is group-scoped, show only students in that group
   const studentsInScope = useMemo(() => {
@@ -118,27 +118,30 @@ export default function LearningContentCompletionsTab({
     }
   };
 
-  const handleReset = async (studentId: string) => {
-    if (!contentItemId) return;
-    const confirmed = window.confirm(
-      "Remove completion for this student? They can mark it complete again."
-    );
-    if (!confirmed) return;
+  const handleReset = useCallback(
+    async (studentId: string) => {
+      if (!contentItemId) return;
+      const confirmed = window.confirm(
+        "Remove completion for this student? They can mark it complete again."
+      );
+      if (!confirmed) return;
 
-    setResetting(studentId);
-    try {
-      await deleteQuizCompletionForStudent({
-        contentItemId,
-        studentId,
-      });
-      await fetchData();
-    } catch (err) {
-      console.error("Error resetting completion:", err);
-      alert("Failed to reset completion. Please try again.");
-    } finally {
-      setResetting(null);
-    }
-  };
+      setResetting(studentId);
+      try {
+        await deleteQuizCompletionForStudent({
+          contentItemId,
+          studentId,
+        });
+        await fetchData();
+      } catch (err) {
+        console.error("Error resetting completion:", err);
+        alert("Failed to reset completion. Please try again.");
+      } finally {
+        setResetting(null);
+      }
+    },
+    [contentItemId, fetchData]
+  );
 
   const columns: SubmissionsTableColumn[] = useMemo(
     () => [
@@ -194,7 +197,7 @@ export default function LearningContentCompletionsTab({
         },
       },
     ],
-    [resetting]
+    [resetting, handleReset]
   );
 
   const rows: SubmissionsTableRow[] = useMemo(() => {

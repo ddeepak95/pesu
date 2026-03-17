@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -120,7 +120,7 @@ function SurveyResponseViewDialog({
 
 export default function SurveyResponsesTab({
   survey,
-  classId,
+  classId: _classId,
 }: SurveyResponsesTabProps) {
   const [students, setStudents] = useState<StudentWithInfo[]>([]);
   const [responsesWithStudents, setResponsesWithStudents] = useState<
@@ -138,7 +138,7 @@ export default function SurveyResponsesTab({
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [resetting, setResetting] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -163,11 +163,11 @@ export default function SurveyResponsesTab({
     } finally {
       setLoading(false);
     }
-  };
+  }, [survey.id, survey.class_id]);
 
   useEffect(() => {
     fetchData();
-  }, [survey.id, survey.class_id]);
+  }, [fetchData]);
 
   const responseByStudentId = useMemo(() => {
     const map = new Map<string, SurveyResponseWithStudent>();
@@ -211,33 +211,36 @@ export default function SurveyResponsesTab({
     setViewDialogOpen(true);
   };
 
-  const handleReset = async (item: SurveyRowItem) => {
-    if (!item.response) return;
-    const confirmed = window.confirm(
-      `Reset response for ${getStudentDisplayName(item.student)}? They will be able to submit the survey again.`
-    );
-    if (!confirmed) return;
+  const handleReset = useCallback(
+    async (item: SurveyRowItem) => {
+      if (!item.response) return;
+      const confirmed = window.confirm(
+        `Reset response for ${getStudentDisplayName(item.student)}? They will be able to submit the survey again.`
+      );
+      if (!confirmed) return;
 
-    setResetting(item.student.student_id);
-    try {
-      await deleteSurveyResponseForStudent({
-        surveyId: survey.id,
-        studentId: item.student.student_id,
-      });
-      if (contentItemId) {
-        await deleteQuizCompletionForStudent({
-          contentItemId,
+      setResetting(item.student.student_id);
+      try {
+        await deleteSurveyResponseForStudent({
+          surveyId: survey.id,
           studentId: item.student.student_id,
         });
+        if (contentItemId) {
+          await deleteQuizCompletionForStudent({
+            contentItemId,
+            studentId: item.student.student_id,
+          });
+        }
+        await fetchData();
+      } catch (err) {
+        console.error("Error resetting survey response:", err);
+        alert("Failed to reset response. Please try again.");
+      } finally {
+        setResetting(null);
       }
-      await fetchData();
-    } catch (err) {
-      console.error("Error resetting survey response:", err);
-      alert("Failed to reset response. Please try again.");
-    } finally {
-      setResetting(null);
-    }
-  };
+    },
+    [survey.id, contentItemId, fetchData]
+  );
 
   const columns: SubmissionsTableColumn[] = useMemo(
     () => [
@@ -301,7 +304,7 @@ export default function SurveyResponsesTab({
         },
       },
     ],
-    [resetting]
+    [resetting, handleReset]
   );
 
   const rows: SubmissionsTableRow[] = useMemo(() => {

@@ -9,7 +9,6 @@ import {
   softDeleteContentItem,
   softDeleteContentItemByRef,
   updateContentItem,
-  getContentItemsByGroup,
 } from "@/lib/queries/contentItems";
 import { deleteAssignment } from "@/lib/queries/assignments";
 import { deleteLearningContent } from "@/lib/queries/learningContent";
@@ -28,7 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CheckSquare, X, Copy, MoreVertical, Trash2 } from "lucide-react";
+import { X, Copy, MoreVertical, Trash2 } from "lucide-react";
 import DuplicateContentDialog from "@/components/Teacher/Classes/DuplicateContentDialog";
 import BulkDuplicateContentDialog from "@/components/Teacher/Classes/BulkDuplicateContentDialog";
 import CreateContentMenu from "@/components/Teacher/Classes/ContentParts/CreateContentMenu";
@@ -96,7 +95,10 @@ export default function Content({ classData }: ContentProps) {
   } = useContentItemsByGroup(classData.id, selectedGroupId);
 
   // Use localItems for optimistic UI, fall back to SWR data
-  const items = localItems ?? swrItems ?? [];
+  const items = useMemo(
+    () => localItems ?? swrItems ?? [],
+    [localItems, swrItems]
+  );
 
   // Sync localItems when SWR data changes (unless we're in the middle of an optimistic update)
   useEffect(() => {
