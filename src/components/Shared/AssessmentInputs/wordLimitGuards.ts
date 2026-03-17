@@ -38,10 +38,11 @@ const VIOLATION_ACCUMULATION_MS = 500;
 const VIOLATION_EXTEND_MS = 300;
 
 /**
- * Blocks bulk text insertion by tracking how many characters are added
- * within a sliding time window. When the threshold is exceeded, violation
- * accumulation mode captures all further insertions for a short period
- * so the full attempted text (including IME chunks) is logged once.
+ * Logs bulk text insertion (and optionally reports it) by tracking how many
+ * characters are added within a sliding time window. When the threshold is
+ * exceeded, violation accumulation mode captures all further insertions for
+ * a short period so the full attempted text (including IME chunks) is logged
+ * once. Does not block input — all entry is always allowed.
  */
 export function createBulkInputGuard(
   submissionId?: string,
@@ -72,7 +73,7 @@ export function createBulkInputGuard(
     if (now - lastLogTime < 1000) return;
     lastLogTime = now;
 
-    console.warn("[BulkInputGuard] Blocked:", text.length, "chars →", text);
+    console.warn("[BulkInputGuard] Detected bulk input:", text.length, "chars →", text);
 
     if (submissionId) {
       appendInputViolationEvent(submissionId, {
@@ -102,11 +103,12 @@ export function createBulkInputGuard(
       return { allowed: true, nextValue: newValue };
     }
 
-    // Still in violation accumulation window — append chunk and keep rejecting
+    // Still in violation accumulation window — append chunk, allow entry, log later
     if (violationModeUntil > 0 && now < violationModeUntil) {
       violationBuffer += extractInserted(lastValue, newValue);
       violationModeUntil = now + VIOLATION_EXTEND_MS;
-      return { allowed: false, nextValue: violationRevertTo };
+      lastValue = newValue;
+      return { allowed: true, nextValue: newValue };
     }
 
     // Start a new main window if the previous one expired
@@ -125,11 +127,11 @@ export function createBulkInputGuard(
       violationModeUntil = now + VIOLATION_ACCUMULATION_MS;
       violationBuffer = burstBuffer;
       violationRevertTo = valueBeforeWindow;
-      lastValue = valueBeforeWindow;
       charsInWindow = 0;
       valueBeforeWindow = violationRevertTo;
       burstBuffer = "";
-      return { allowed: false, nextValue: violationRevertTo };
+      lastValue = newValue;
+      return { allowed: true, nextValue: newValue };
     }
 
     lastValue = newValue;
