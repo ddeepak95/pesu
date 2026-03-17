@@ -469,8 +469,9 @@ export function ChatInputArea({
         <>
           <div
             ref={messagesContainerRef}
-            className="h-96 overflow-y-auto p-4 space-y-4 bg-muted/20"
+            className="h-96 overflow-y-auto py-4 px-2 bg-muted/20"
           >
+            <div className="min-h-full flex flex-col justify-end gap-4">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -478,18 +479,19 @@ export function ChatInputArea({
                   message.role === "student" ? "flex-row-reverse" : "flex-row"
                 }`}
               >
-                {message.role === "assistant" && (
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Bot className="h-4 w-4 text-primary" />
-                  </div>
-                )}
                 <div
-                  className={`max-w-[75%] px-4 py-2.5 text-sm whitespace-pre-wrap shadow-sm ${
+                  className={`max-w-[95%] sm:max-w-[75%] px-4 py-2.5 text-sm whitespace-pre-wrap shadow-sm ${
                     message.role === "student"
                       ? "bg-primary text-primary-foreground rounded-2xl rounded-br-md"
                       : "bg-card border border-border text-card-foreground rounded-2xl rounded-bl-md"
                   }`}
                 >
+                  {message.role === "assistant" && (
+                    <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-muted-foreground">
+                      <Bot className="h-3.5 w-3.5 shrink-0" />
+                      Konvo
+                    </div>
+                  )}
                   {message.content || (
                     <span className="inline-flex items-center gap-1">
                       <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
@@ -504,10 +506,11 @@ export function ChatInputArea({
               </div>
             ))}
             <div ref={messagesEndRef} />
+            </div>
           </div>
 
-          <div className="p-4 border-t bg-background rounded-b-xl">
-            <div className="flex gap-2 items-end">
+          <div className="py-4 px-2 border-t bg-background rounded-b-xl">
+            <div className="flex flex-col gap-2">
               <Textarea
                 ref={textareaRef}
                 value={input}
@@ -522,7 +525,7 @@ export function ChatInputArea({
                     : "Type your message... (Enter to send, Shift+Enter for new line)"
                 }
                 rows={2}
-                className="resize-none flex-1 min-h-[60px] max-h-32"
+                className="resize-none flex-1 min-h-[60px] max-h-32 w-full"
                 disabled={maxAttemptsReached}
               />
               <Button
@@ -530,12 +533,13 @@ export function ChatInputArea({
                 size="icon"
                 onClick={handleSend}
                 disabled={!input.trim() || maxAttemptsReached}
-                className="h-10 w-10 flex-shrink-0"
+                className="flex-shrink-0 self-end py-2 px-10"
               >
-                <Send className="h-4 w-4" />
+                Send
               </Button>
             </div>
-            <div className="flex justify-end mt-3">
+            <hr className="my-4" />
+            <div className="flex justify-center mt-3">
               <Button
                 type="button"
                 variant="outline"
