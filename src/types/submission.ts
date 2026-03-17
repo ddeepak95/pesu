@@ -126,5 +126,12 @@ export interface Submission {
    * Updated on every evaluate / approve write alongside other denormalized fields.
    */
   has_pending_approvals?: boolean;
+  /**
+   * Client-side activity metrics (optional JSON columns on submissions table)
+   * - tab_leave_events: array of ISO timestamps when the student left the tab.
+   * - input_violation_events: array of objects describing \"more-than-two-words\" input attempts.
+   */
+  tab_leave_events?: string[] | null;
+  input_violation_events?: { timestamp: string; text: string }[] | null;
 }
 

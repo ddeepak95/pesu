@@ -9,6 +9,7 @@ import { parseSSEStream } from "@/lib/sseParser";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
+import { createMoreThanTwoWordsGuard } from "./wordLimitGuards";
 
 interface ChatMessage {
   id: string;
@@ -100,11 +101,21 @@ export function ChatInputArea({
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      (e.key === "c" || e.key === "v" || e.key === "x")
+    ) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (input.trim()) handleSend();
     }
   };
+
+  const handleBeforeInput = createMoreThanTwoWordsGuard(submissionId);
 
   // Restore in-progress chat from localStorage
   React.useEffect(() => {
@@ -400,6 +411,10 @@ export function ChatInputArea({
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+  };
+
   return (
     <div className="relative mt-4 border rounded-xl bg-background shadow-sm">
       {!hasStarted ? (
@@ -470,6 +485,8 @@ export function ChatInputArea({
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onBeforeInput={handleBeforeInput}
+                onContextMenu={handleContextMenu}
                 onKeyDown={handleKeyDown}
                 placeholder={
                   maxAttemptsReached

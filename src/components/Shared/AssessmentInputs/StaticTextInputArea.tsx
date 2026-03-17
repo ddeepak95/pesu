@@ -7,6 +7,7 @@ import { Loader2, FileText } from "lucide-react";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
+import { createMoreThanTwoWordsGuard } from "./wordLimitGuards";
 
 export function StaticTextInputArea({
   question,
@@ -101,26 +102,7 @@ export function StaticTextInputArea({
     logEvent("attempt_started");
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-  };
-  const handleCopy = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-  };
-  const handleCut = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-  };
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-  };
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (
-      (e.ctrlKey || e.metaKey) &&
-      (e.key === "v" || e.key === "c" || e.key === "x")
-    ) {
-      e.preventDefault();
-    }
-  };
+  const handleBeforeInput = createMoreThanTwoWordsGuard(submissionId);
 
   const handleSubmit = async () => {
     const trimmedAnswer = answer.trim();
@@ -149,6 +131,19 @@ export function StaticTextInputArea({
 
   const hasContent = answer.trim().length > 0;
   const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      (e.key === "c" || e.key === "v" || e.key === "x")
+    ) {
+      e.preventDefault();
+    }
+  };
 
   return (
     <div className="relative mt-4 border rounded-xl bg-background shadow-sm">
@@ -180,9 +175,7 @@ export function StaticTextInputArea({
           <Textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            onPaste={handlePaste}
-            onCopy={handleCopy}
-            onCut={handleCut}
+            onBeforeInput={handleBeforeInput}
             onContextMenu={handleContextMenu}
             onKeyDown={handleKeyDown}
             placeholder={

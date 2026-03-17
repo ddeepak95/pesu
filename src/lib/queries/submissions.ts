@@ -9,9 +9,9 @@ import {
 import { nanoid } from "nanoid";
 import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
-/** All columns for the submissions table (includes evaluations JSONB — use SUBMISSION_LIST_COLUMNS for list views) */
+/** All columns for the submissions table (includes evaluations JSONB and activity metrics — use SUBMISSION_LIST_COLUMNS for list views) */
 const SUBMISSION_ALL_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, has_pending_approvals";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, has_pending_approvals, tab_leave_events, input_violation_events";
 
 /** All columns for the submission_transcripts table */
 const TRANSCRIPT_ALL_COLUMNS =
@@ -1114,3 +1114,88 @@ export async function saveExperienceRating(
     throw error;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Lightweight activity metrics (tab leaves, input violations)
+// ---------------------------------------------------------------------------
+
+/**
+ * Append a single tab-leave timestamp to the submission's tab_leave_events array.
+ * The array is stored as a JSON column on the submissions table.
+ */
+export async function appendTabLeaveEvent(
+  submissionId: string,
+  timestamp: string
+): Promise<void> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("tab_leave_events")
+    .eq("submission_id", submissionId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching tab_leave_events:", error);
+    return;
+  }
+
+  const existing =
+    (data?.tab_leave_events as string[] | null | undefined) ?? [];
+
+  const { error: updateError } = await supabase
+    .from("submissions")
+    .update({
+      tab_leave_events: [...existing, timestamp],
+      updated_at: new Date().toISOString(),
+    })
+    .eq("submission_id", submissionId);
+
+  if (updateError) {
+    console.error("Error appending tab_leave_event:", updateError);
+  }
+}
+
+export interface InputViolationEventPayload {
+  timestamp: string;
+  text: string;
+}
+
+/**
+ * Append a single input violation event (timestamp + attempted text) to
+ * the submission's input_violation_events array.
+ */
+export async function appendInputViolationEvent(
+  submissionId: string,
+  event: InputViolationEventPayload
+): Promise<void> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("input_violation_events")
+    .eq("submission_id", submissionId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching input_violation_events:", error);
+    return;
+  }
+
+  const existing =
+    (data?.input_violation_events as InputViolationEventPayload[] | null | undefined) ??
+    [];
+
+  const { error: updateError } = await supabase
+    .from("submissions")
+    .update({
+      input_violation_events: [...existing, event],
+      updated_at: new Date().toISOString(),
+    })
+    .eq("submission_id", submissionId);
+
+  if (updateError) {
+    console.error("Error appending input_violation_event:", updateError);
+  }
+}
+

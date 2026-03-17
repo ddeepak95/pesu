@@ -7,6 +7,7 @@ import {
   getSubmissionByStudentAndAssignment,
   getMaxAttemptCountAcrossQuestions,
   getTranscriptsForSubmission,
+  appendTabLeaveEvent,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
 import {
@@ -61,6 +62,7 @@ export default function StudentAssignmentResponse({
   }>({});
   const [currentAttemptNumber, setCurrentAttemptNumber] = useState<number>(1);
   const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
+  const [showTabWarning, setShowTabWarning] = useState(false);
   const isInitializingRef = useRef(false);
 
   // Restore session or create new submission
@@ -337,6 +339,38 @@ export default function StudentAssignmentResponse({
     }
   };
 
+  // Track when the student leaves and returns to the tab.
+  useEffect(() => {
+    if (!submissionId) return;
+
+    let lastVisibility: DocumentVisibilityState | undefined =
+      typeof document !== "undefined" ? document.visibilityState : undefined;
+
+    const handleVisibilityChange = () => {
+      if (typeof document === "undefined") return;
+      const current = document.visibilityState;
+
+      if (current === "hidden") {
+        const timestamp = new Date().toISOString();
+        appendTabLeaveEvent(submissionId, timestamp);
+      } else if (current === "visible" && lastVisibility === "hidden") {
+        setShowTabWarning(true);
+      }
+
+      lastVisibility = current;
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    return () => {
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+    };
+  }, [submissionId]);
+
   if (restoringSession || !submissionId) {
     return (
       <div className="w-full space-y-6">
@@ -355,32 +389,55 @@ export default function StudentAssignmentResponse({
   // Phase: Question Answering or Completion (delegated to core component)
   // Wrap with ActivityTrackingProvider to provide context for activity tracking
   return (
-    <ActivityTrackingProvider
-      userId={user?.id}
-      classId={classId}
-      submissionId={submissionId}
-    >
-      <AssignmentResponseCore
-        assignmentData={assignmentData}
+    <>
+      {showTabWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="max-w-md rounded-lg bg-background p-6 shadow-lg border space-y-4">
+            <h2 className="text-lg font-semibold">Stay on this tab</h2>
+            <p className="text-sm text-muted-foreground">
+              Please do not leave this tab until you finish the activity. Your
+              activity is being monitored.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-1.5 text-sm rounded-md border bg-background hover:bg-muted"
+                onClick={() => setShowTabWarning(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ActivityTrackingProvider
+        userId={user?.id}
+        classId={classId}
         submissionId={submissionId}
-        displayName={displayName}
-        preferredLanguage={preferredLanguage}
-        contentItemId={contentItemId}
-        onComplete={() => {
-          // Attempts are automatically saved, no explicit completion needed
-          if (onComplete) {
-            onComplete();
-          }
-        }}
-        onBack={onBack}
-        onLanguageChange={handleLanguageChange}
-        assignmentId={assignmentId}
-        initialQuestionIndex={currentQuestionIndex}
-        existingAnswers={existingAnswers}
-        currentAttemptNumber={currentAttemptNumber}
-        maxAttempts={maxAttempts}
-        maxAttemptsReached={maxAttemptsReached}
-      />
-    </ActivityTrackingProvider>
+      >
+        <AssignmentResponseCore
+          assignmentData={assignmentData}
+          submissionId={submissionId}
+          displayName={displayName}
+          preferredLanguage={preferredLanguage}
+          contentItemId={contentItemId}
+          onComplete={() => {
+            // Attempts are automatically saved, no explicit completion needed
+            if (onComplete) {
+              onComplete();
+            }
+          }}
+          onBack={onBack}
+          onLanguageChange={handleLanguageChange}
+          assignmentId={assignmentId}
+          initialQuestionIndex={currentQuestionIndex}
+          existingAnswers={existingAnswers}
+          currentAttemptNumber={currentAttemptNumber}
+          maxAttempts={maxAttempts}
+          maxAttemptsReached={maxAttemptsReached}
+        />
+      </ActivityTrackingProvider>
+    </>
   );
 }
