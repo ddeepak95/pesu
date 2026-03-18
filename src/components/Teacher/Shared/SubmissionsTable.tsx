@@ -17,18 +17,12 @@ import {
   Lock,
   Unlock,
   Search,
-  Filter,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ProfileField } from "@/types/profileFields";
 import UnlockConfirmDialog from "./UnlockConfirmDialog";
+import ProfileFieldFilters, {
+  ProfileFiltersState,
+} from "./ProfileFieldFilters";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,6 +81,8 @@ interface SubmissionsTableProps {
   displayFieldIds?: Set<string>;
   /** IDs of profile fields to show as filter dropdowns (dropdown-type only) */
   filterFieldIds?: Set<string>;
+  /** If set, dropdown checkbox selections are persisted to localStorage under this key. */
+  profileFilterStorageKey?: string;
   /** Whether to show the unlock column */
   showUnlockColumn?: boolean;
   /** Content name for unlock dialog */
@@ -110,6 +106,7 @@ export default function SubmissionsTable({
   profileFields = [],
   displayFieldIds = new Set(),
   filterFieldIds = new Set(),
+  profileFilterStorageKey,
   showUnlockColumn = false,
   contentName = "",
   onToggleUnlock,
@@ -134,33 +131,8 @@ export default function SubmissionsTable({
 
   // Profile filter state
   const [profileFilters, setProfileFilters] = useState<
-    Record<string, Set<string>>
+    ProfileFiltersState
   >({});
-
-  // Filterable dropdown fields
-  const filterableFields = useMemo(() => {
-    if (filterFieldIds.size === 0) return [];
-    return profileFields.filter(
-      (f) => filterFieldIds.has(f.id) && f.options && f.options.length > 0
-    );
-  }, [profileFields, filterFieldIds]);
-
-  // Toggle a profile filter option value
-  const toggleProfileFilterValue = useCallback(
-    (fieldId: string, value: string) => {
-      setProfileFilters((prev) => {
-        const currentSet = prev[fieldId] ?? new Set<string>();
-        const next = new Set(currentSet);
-        if (next.has(value)) {
-          next.delete(value);
-        } else {
-          next.add(value);
-        }
-        return { ...prev, [fieldId]: next };
-      });
-    },
-    []
-  );
 
   // Profile fields to show
   const visibleProfileFields = useMemo(() => {
@@ -322,46 +294,12 @@ export default function SubmissionsTable({
           </Select>
         )}
 
-        {/* Dynamic profile filter dropdowns */}
-        {filterableFields.map((field) => {
-          const activeCount = profileFilters[field.id]?.size ?? 0;
-          return (
-            <DropdownMenu key={`profile-filter-${field.id}`}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={`gap-2 ${activeCount > 0 ? "border-primary" : ""}`}
-                >
-                  <Filter className="h-4 w-4" />
-                  {field.field_name}
-                  {activeCount > 0 && (
-                    <span className="ml-1 rounded-full bg-primary text-primary-foreground text-xs px-1.5 py-0.5">
-                      {activeCount}
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-[220px] max-h-[300px] overflow-y-auto"
-              >
-                <DropdownMenuLabel>{field.field_name}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {field.options!.map((option) => (
-                  <DropdownMenuCheckboxItem
-                    key={option}
-                    checked={profileFilters[field.id]?.has(option) ?? false}
-                    onCheckedChange={() =>
-                      toggleProfileFilterValue(field.id, option)
-                    }
-                  >
-                    {option}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        })}
+        <ProfileFieldFilters
+          profileFields={profileFields}
+          filterFieldIds={filterFieldIds}
+          storageKey={profileFilterStorageKey}
+          onFiltersChange={setProfileFilters}
+        />
 
         <div className="text-sm text-muted-foreground ml-auto">
           {sortedRows.length} of {rows.length} student

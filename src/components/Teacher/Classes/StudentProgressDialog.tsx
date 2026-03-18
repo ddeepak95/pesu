@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +30,7 @@ import {
   StudentContentCompletionWithDetails,
   ContentItemType,
 } from "@/types/contentCompletion";
-import { CheckCircle2, XCircle, Columns3, Filter, Lock, Unlock } from "lucide-react";
+import { CheckCircle2, XCircle, Columns3, Lock, Unlock } from "lucide-react";
 import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
 import { ProfileField } from "@/types/profileFields";
 import {
@@ -48,6 +48,7 @@ import {
 } from "@/lib/queries/teacherUnlocks";
 import { TeacherContentUnlock } from "@/types/contentItem";
 import UnlockConfirmDialog from "@/components/Teacher/Shared/UnlockConfirmDialog";
+import ProfileFieldFilters from "@/components/Teacher/Shared/ProfileFieldFilters";
 
 interface StudentProgressDialogProps {
   open: boolean;
@@ -194,25 +195,6 @@ export default function StudentProgressDialog({
         setDisplayFields(savedDisplayFields);
         setFilterFields(savedFilterFields);
 
-        // Restore profile filter selections from localStorage
-        try {
-          const stored = localStorage.getItem(
-            `progress-filters-${classDbId}`
-          );
-          if (stored) {
-            const parsed = JSON.parse(stored) as Record<string, string[]>;
-            const restored: Record<string, Set<string>> = {};
-            for (const [fieldId, values] of Object.entries(parsed)) {
-              // Only restore filters for fields still in the shared config
-              if (savedFilterFields.has(fieldId)) {
-                restored[fieldId] = new Set(values);
-              }
-            }
-            setProfileFilters(restored);
-          }
-        } catch {
-          // Ignore localStorage errors
-        }
       } catch (err) {
         console.error("Error fetching progress data:", err);
         setError("Failed to load student progress data.");
@@ -243,47 +225,6 @@ export default function StudentProgressDialog({
     }
     onOpenChange(newOpen);
   };
-
-  // Persist profile filter selections to localStorage
-  const persistProfileFilters = useCallback(
-    (filters: Record<string, Set<string>>) => {
-      try {
-        const serialized: Record<string, string[]> = {};
-        for (const [fieldId, values] of Object.entries(filters)) {
-          if (values.size > 0) {
-            serialized[fieldId] = Array.from(values);
-          }
-        }
-        localStorage.setItem(
-          `progress-filters-${classDbId}`,
-          JSON.stringify(serialized)
-        );
-      } catch {
-        // Ignore localStorage errors
-      }
-    },
-    [classDbId]
-  );
-
-  // Toggle a profile filter option value
-  const toggleProfileFilterValue = useCallback(
-    (fieldId: string, value: string) => {
-      setProfileFilters((prev) => {
-        const currentSet = prev[fieldId] ?? new Set<string>();
-        const next = new Set(currentSet);
-        if (next.has(value)) {
-          next.delete(value);
-        } else {
-          next.add(value);
-        }
-        const updated = { ...prev, [fieldId]: next };
-        // Save to localStorage
-        persistProfileFilters(updated);
-        return updated;
-      });
-    },
-    [persistProfileFilters]
-  );
 
   // Get all unique content columns (filtered by selected group)
   const allContentColumns = useMemo(() => {
@@ -606,48 +547,12 @@ export default function StudentProgressDialog({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Dynamic profile filter dropdowns */}
-          {profileFields
-            .filter((f) => filterFields.has(f.id) && f.options && f.options.length > 0)
-            .map((field) => {
-              const activeCount = profileFilters[field.id]?.size ?? 0;
-              return (
-                <DropdownMenu key={`profile-filter-${field.id}`}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={`gap-2 ${activeCount > 0 ? "border-primary" : ""}`}
-                    >
-                      <Filter className="h-4 w-4" />
-                      {field.field_name}
-                      {activeCount > 0 && (
-                        <span className="ml-1 rounded-full bg-primary text-primary-foreground text-xs px-1.5 py-0.5">
-                          {activeCount}
-                        </span>
-                      )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-[220px] max-h-[300px] overflow-y-auto"
-                  >
-                    <DropdownMenuLabel>{field.field_name}</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {field.options!.map((option) => (
-                      <DropdownMenuCheckboxItem
-                        key={option}
-                        checked={profileFilters[field.id]?.has(option) ?? false}
-                        onCheckedChange={() =>
-                          toggleProfileFilterValue(field.id, option)
-                        }
-                      >
-                        {option}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              );
-            })}
+          <ProfileFieldFilters
+            profileFields={profileFields}
+            filterFieldIds={filterFields}
+            storageKey={`progress-filters-${classDbId}`}
+            onFiltersChange={setProfileFilters}
+          />
         </div>
 
         {/* Content */}

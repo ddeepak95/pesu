@@ -588,6 +588,7 @@ export default function SubmissionsTab({
               profileFields={profileFields}
               displayFieldIds={displayFieldIds}
               filterFieldIds={filterFieldIds}
+              profileFilterStorageKey={`assignment-submissions-filters-${classId}-${assignmentId}`}
               showUnlockColumn={requireTeacherUnlock}
               contentName="this assignment"
               onToggleUnlock={handleToggleUnlock}

@@ -438,6 +438,7 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
         profileFields={profileFields}
         displayFieldIds={displayFieldIds}
         filterFieldIds={filterFieldIds}
+        profileFilterStorageKey={`quiz-submissions-filters-${quiz.class_id}-${quiz.id}`}
         showUnlockColumn={requireTeacherUnlock}
         contentName={quiz.title}
         onToggleUnlock={handleToggleUnlock}

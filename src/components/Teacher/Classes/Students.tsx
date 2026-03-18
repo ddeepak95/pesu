@@ -611,6 +611,7 @@ export default function Students({ classData }: StudentsProps) {
                 profileFields={profileFields}
                 displayFieldIds={new Set()}
                 filterFieldIds={filterFieldIds}
+                profileFilterStorageKey={`class-students-filters-${classData.id}`}
                 showUnlockColumn={false}
                 emptyMessage="No students enrolled yet."
                 searchPlaceholder="Search by student name..."
@@ -641,6 +642,7 @@ export default function Students({ classData }: StudentsProps) {
                 profileFields={profileFields}
                 displayFieldIds={new Set()}
                 filterFieldIds={filterFieldIds}
+                profileFilterStorageKey={`class-students-filters-${classData.id}`}
                 showUnlockColumn={false}
                 emptyMessage="No students enrolled yet."
                 searchPlaceholder="Search by student name..."

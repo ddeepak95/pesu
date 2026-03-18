@@ -216,6 +216,7 @@ export default function StudentUnlockTab({
       profileFields={profileFields}
       displayFieldIds={displayFieldIds}
       filterFieldIds={filterFieldIds}
+      profileFilterStorageKey={`unlock-students-filters-${classId}-${refId}`}
       showUnlockColumn={requireTeacherUnlock}
       contentName={contentName}
       onToggleUnlock={handleToggleUnlock}
