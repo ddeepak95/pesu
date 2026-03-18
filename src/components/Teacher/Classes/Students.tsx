@@ -28,6 +28,8 @@ import {
 } from "@/lib/queries/profileFields";
 import { getProgressViewConfig } from "@/lib/queries/classes";
 import { ProfileField } from "@/types/profileFields";
+import { getClassContentCompletions } from "@/lib/queries/contentCompletions";
+import { StudentContentCompletionWithDetails } from "@/types/contentCompletion";
 
 interface StudentsProps {
   classData: Class;
@@ -64,6 +66,14 @@ export default function Students({ classData }: StudentsProps) {
     useState(false);
   const [individualProgressStudent, setIndividualProgressStudent] =
     useState<StudentWithInfo | null>(null);
+
+  // Progress tab state (lazy-loaded)
+  const [activeTab, setActiveTab] = useState("list");
+  const [progressData, setProgressData] = useState<
+    StudentContentCompletionWithDetails[]
+  >([]);
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [progressLoaded, setProgressLoaded] = useState(false);
 
   // Check if user is a co-teacher
   useEffect(() => {
@@ -142,6 +152,26 @@ export default function Students({ classData }: StudentsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher, classData.id]);
 
+  // Lazy-fetch progress data when the Progress tab is first activated
+  useEffect(() => {
+    if (activeTab !== "progress" || progressLoaded || progressLoading) return;
+
+    const fetchProgressData = async () => {
+      setProgressLoading(true);
+      try {
+        const completions = await getClassContentCompletions(classData.id);
+        setProgressData(completions);
+        setProgressLoaded(true);
+      } catch (err) {
+        console.error("Error fetching progress data:", err);
+      } finally {
+        setProgressLoading(false);
+      }
+    };
+
+    fetchProgressData();
+  }, [activeTab, progressLoaded, progressLoading, classData.id]);
+
   const handleChangeGroup = useCallback((student: StudentWithInfo) => {
     setSelectedStudent(student);
     setChangeGroupDialogOpen(true);
@@ -219,13 +249,17 @@ export default function Students({ classData }: StudentsProps) {
           if (!student) return null;
           return (
             <div className="flex items-center justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleViewIndividualProgress(student)}
-              >
-                View progress
-              </Button>
+              {false && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    handleViewIndividualProgress(student as StudentWithInfo)
+                  }
+                >
+                  View progress
+                </Button>
+              )}
               <StudentListItemMenu
                 student={student}
                 groups={groupList ?? []}
@@ -290,18 +324,185 @@ export default function Students({ classData }: StudentsProps) {
     });
   }, [filterableFields, tableRows]);
 
+  // Per-student progress stats: { completed, total } scoped to each student's group
+  const progressStatsMap = useMemo(() => {
+    if (progressData.length === 0)
+      return new Map<string, { completed: number; total: number }>();
+
+    const map = new Map<string, { completed: number; total: number }>();
+
+    // Group content item IDs by group
+    const contentByGroup = new Map<string, Set<string>>();
+    progressData.forEach((item) => {
+      const gId = item.contentGroupId ?? "__none__";
+      if (!contentByGroup.has(gId)) contentByGroup.set(gId, new Set());
+      contentByGroup.get(gId)!.add(item.contentItemId);
+    });
+
+    // Build completion set per student
+    const studentCompletions = new Map<string, Set<string>>();
+    progressData.forEach((item) => {
+      if (!item.isComplete) return;
+      if (!studentCompletions.has(item.studentId))
+        studentCompletions.set(item.studentId, new Set());
+      studentCompletions.get(item.studentId)!.add(item.contentItemId);
+    });
+
+    students.forEach((s) => {
+      const gId = s.group_id ?? "__none__";
+      const groupContentIds = contentByGroup.get(gId);
+      const total = groupContentIds?.size ?? 0;
+      const completedIds = studentCompletions.get(s.student_id);
+      let completed = 0;
+      if (completedIds && groupContentIds) {
+        groupContentIds.forEach((cId) => {
+          if (completedIds.has(cId)) completed++;
+        });
+      }
+      map.set(s.student_id, { completed, total });
+    });
+
+    return map;
+  }, [progressData, students]);
+
+  const progressTableRows: SubmissionsTableRow[] = useMemo(() => {
+    return students.map((s) => {
+      const groupDisplayName =
+        s.group_name ||
+        (s.group_index !== null ? `Group ${s.group_index + 1}` : "No group");
+      const stats = progressStatsMap.get(s.student_id) ?? {
+        completed: 0,
+        total: 0,
+      };
+      const pct = stats.total > 0 ? stats.completed / stats.total : 0;
+
+      return {
+        id: s.student_id,
+        name: getStudentDisplayName(s),
+        email: s.student_email,
+        profileData: studentProfilesMap.get(s.student_id) ?? {},
+        status:
+          stats.total === 0
+            ? "no_content"
+            : pct >= 1
+              ? "complete"
+              : stats.completed > 0
+                ? "in_progress"
+                : "not_started",
+        data: {
+          groupDisplayName,
+          progressStats: stats,
+          _student: s,
+          _groups: groups,
+        },
+      };
+    });
+  }, [students, studentProfilesMap, groups, progressStatsMap]);
+
+  const progressTableColumns: SubmissionsTableColumn[] = useMemo(() => {
+    const profileColumns: SubmissionsTableColumn[] = visibleDisplayFields.map(
+      (field) => ({
+        key: `profile_${field.id}`,
+        label: field.field_name,
+        render: (row: SubmissionsTableRow) => (
+          <span className="text-sm">
+            {row.profileData?.[field.id]?.trim() ?? "—"}
+          </span>
+        ),
+        sortValue: (row: SubmissionsTableRow) =>
+          (row.profileData?.[field.id] ?? "").trim(),
+      }),
+    );
+    return [
+      ...profileColumns,
+      {
+        key: "group",
+        label: "Group",
+        render: (row: SubmissionsTableRow) => (
+          <span className="text-sm">
+            {(row.data?.groupDisplayName as string) ?? "—"}
+          </span>
+        ),
+        sortValue: (row: SubmissionsTableRow) =>
+          (row.data?.groupDisplayName as string) ?? "",
+      },
+      {
+        key: "progress",
+        label: "Progress",
+        render: (row: SubmissionsTableRow) => {
+          const stats = row.data?.progressStats as
+            | { completed: number; total: number }
+            | undefined;
+          if (!stats || stats.total === 0) {
+            return (
+              <span className="text-xs text-muted-foreground">No content</span>
+            );
+          }
+          const pct = Math.round((stats.completed / stats.total) * 100);
+          return (
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    pct >= 100
+                      ? "bg-green-500"
+                      : pct > 0
+                        ? "bg-primary"
+                        : "bg-muted"
+                  }`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {stats.completed}/{stats.total}
+              </span>
+            </div>
+          );
+        },
+        sortValue: (row: SubmissionsTableRow) => {
+          const stats = row.data?.progressStats as
+            | { completed: number; total: number }
+            | undefined;
+          if (!stats || stats.total === 0) return -1;
+          return stats.completed / stats.total;
+        },
+      },
+      {
+        key: "actions",
+        label: "",
+        align: "right" as const,
+        sortable: false,
+        render: (row: SubmissionsTableRow) => {
+          const student = row.data?._student as StudentWithInfo | undefined;
+          if (!student) return null;
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleViewIndividualProgress(student)}
+            >
+              View details
+            </Button>
+          );
+        },
+      },
+    ];
+  }, [handleViewIndividualProgress, visibleDisplayFields]);
+
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Students</h2>
         {isTeacher && (
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setProgressDialogOpen(true)}
-            >
-              View Student Progress
-            </Button>
+            {false && (
+              <Button
+                variant="outline"
+                onClick={() => setProgressDialogOpen(true)}
+              >
+                View Student Progress
+              </Button>
+            )}
             <Button onClick={() => setManageDialogOpen(true)}>
               Invite Students
             </Button>
@@ -322,13 +523,16 @@ export default function Students({ classData }: StudentsProps) {
           <p className="text-destructive">{error}</p>
         </div>
       ) : (
-        <Tabs defaultValue="list" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-4 h-auto w-auto gap-1 rounded-md border bg-muted/30 p-1">
             <TabsTrigger value="list" className="rounded-sm px-4 py-2">
-              List
+              Info
+            </TabsTrigger>
+            <TabsTrigger value="progress" className="rounded-sm px-4 py-2">
+              Progress
             </TabsTrigger>
             <TabsTrigger value="by-category" className="rounded-sm px-4 py-2">
-              Count by category
+              Analytics
             </TabsTrigger>
           </TabsList>
 
@@ -345,6 +549,36 @@ export default function Students({ classData }: StudentsProps) {
                 columns={tableColumns}
                 rows={tableRows}
                 statusFilterOptions={[]}
+                profileFields={profileFields}
+                displayFieldIds={new Set()}
+                filterFieldIds={filterFieldIds}
+                showUnlockColumn={false}
+                emptyMessage="No students enrolled yet."
+                searchPlaceholder="Search by student name..."
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="progress" className="mt-0">
+            {progressLoading ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">
+                  Loading progress data...
+                </p>
+              </div>
+            ) : students.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <p>No students enrolled yet.</p>
+              </div>
+            ) : (
+              <SubmissionsTable
+                columns={progressTableColumns}
+                rows={progressTableRows}
+                statusFilterOptions={[
+                  { value: "complete", label: "All Complete" },
+                  { value: "in_progress", label: "In Progress" },
+                  { value: "not_started", label: "Not Started" },
+                ]}
                 profileFields={profileFields}
                 displayFieldIds={new Set()}
                 filterFieldIds={filterFieldIds}
