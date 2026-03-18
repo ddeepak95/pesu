@@ -103,6 +103,38 @@ export async function getTeacherUnlocksForClass(
 }
 
 /**
+ * Get teacher unlocks for exactly one student, restricted to a set of content
+ * items (typically already scoped to the student's assigned group).
+ */
+export async function getTeacherUnlocksForStudentInClass(params: {
+  classDbId: string;
+  studentId: string;
+  contentItemIds: string[];
+}): Promise<Set<string>> {
+  const { studentId, contentItemIds } = params;
+
+  if (contentItemIds.length === 0) {
+    return new Set();
+  }
+
+  const supabase = createClient();
+
+  // Note: `contentItemIds` should already be derived from the provided `classDbId`.
+  const { data, error } = await supabase
+    .from("teacher_content_unlocks")
+    .select("content_item_id")
+    .eq("student_id", studentId)
+    .in("content_item_id", contentItemIds);
+
+  if (error) {
+    console.error("Error fetching teacher unlocks for student:", error);
+    throw error;
+  }
+
+  return new Set(data?.map((row) => row.content_item_id) || []);
+}
+
+/**
  * Unlock a content item for a specific student.
  */
 export async function unlockContentForStudent(

@@ -11,6 +11,7 @@ import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
 import ChangeGroupDialog from "./ChangeGroupDialog";
 import StudentProgressDialog from "./StudentProgressDialog";
+import StudentIndividualProgressDialog from "./StudentIndividualProgressDialog";
 import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
@@ -57,6 +58,12 @@ export default function Students({ classData }: StudentsProps) {
 
   // Progress dialog state
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
+
+  // Individual progress dialog state
+  const [individualProgressDialogOpen, setIndividualProgressDialogOpen] =
+    useState(false);
+  const [individualProgressStudent, setIndividualProgressStudent] =
+    useState<StudentWithInfo | null>(null);
 
   // Check if user is a co-teacher
   useEffect(() => {
@@ -140,6 +147,14 @@ export default function Students({ classData }: StudentsProps) {
     setChangeGroupDialogOpen(true);
   }, []);
 
+  const handleViewIndividualProgress = useCallback(
+    (student: StudentWithInfo) => {
+      setIndividualProgressStudent(student);
+      setIndividualProgressDialogOpen(true);
+    },
+    []
+  );
+
   const handleGroupChanged = () => {
     fetchData();
   };
@@ -201,18 +216,27 @@ export default function Students({ classData }: StudentsProps) {
         render: (row) => {
           const student = row.data?._student as StudentWithInfo | undefined;
           const groupList = row.data?._groups as ClassGroup[] | undefined;
-          if (!student || !groupList) return null;
+          if (!student) return null;
           return (
-            <StudentListItemMenu
-              student={student}
-              groups={groupList}
-              onChangeGroup={handleChangeGroup}
-            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleViewIndividualProgress(student)}
+              >
+                View progress
+              </Button>
+              <StudentListItemMenu
+                student={student}
+                groups={groupList ?? []}
+                onChangeGroup={handleChangeGroup}
+              />
+            </div>
           );
         },
       },
     ];
-  }, [handleChangeGroup, visibleDisplayFields]);
+  }, [handleChangeGroup, handleViewIndividualProgress, visibleDisplayFields]);
 
   const filterableFields = useMemo(() => {
     if (filterFieldIds.size === 0) return [];
@@ -411,6 +435,16 @@ export default function Students({ classData }: StudentsProps) {
         open={progressDialogOpen}
         onOpenChange={setProgressDialogOpen}
         classDbId={classData.id}
+      />
+
+      <StudentIndividualProgressDialog
+        open={individualProgressDialogOpen}
+        onOpenChange={(newOpen) => {
+          setIndividualProgressDialogOpen(newOpen);
+          if (!newOpen) setIndividualProgressStudent(null);
+        }}
+        classDbId={classData.id}
+        student={individualProgressStudent}
       />
     </div>
   );

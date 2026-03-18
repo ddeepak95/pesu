@@ -301,6 +301,112 @@ export async function getClassContentCompletions(
   return result;
 }
 
+export interface StudentContentCompletionForStudent {
+  contentItemId: string;
+  contentName: string;
+  contentType: ContentItemType;
+  isComplete: boolean;
+  completedAt: string | null;
+  requireTeacherUnlock: boolean;
+  /** Ordering for rendering (matches `content_items.position`). */
+  position: number;
+}
+
+/**
+ * Get completion status for a single student (teacher view).
+ *
+ * Unlike `getClassContentCompletions`, this fetches completion rows for exactly
+ * one student and scopes the returned content items to the student's assigned
+ * group (class-level content if `studentGroupId` is null).
+ */
+export async function getClassStudentContentCompletions(params: {
+  classDbId: string;
+  studentId: string;
+  studentGroupId: string | null;
+}): Promise<StudentContentCompletionForStudent[]> {
+  const { classDbId, studentId, studentGroupId } = params;
+  const supabase = createClient();
+
+  const contentItems = await getContentItemsByClass(classDbId);
+  if (contentItems.length === 0) return [];
+
+  const scopedContentItems = contentItems.filter((ci) => {
+    if (studentGroupId === null) return ci.class_group_id === null || ci.class_group_id === undefined;
+    return ci.class_group_id === studentGroupId;
+  });
+
+  if (scopedContentItems.length === 0) return [];
+
+  // Collect ref_ids for content names (only for the scoped content items).
+  const learningContentIds: string[] = [];
+  const assignmentIds: string[] = [];
+  const quizIds: string[] = [];
+  const surveyIds: string[] = [];
+
+  for (const item of scopedContentItems) {
+    if (item.type === "learning_content") {
+      learningContentIds.push(item.ref_id);
+    } else if (item.type === "formative_assignment") {
+      assignmentIds.push(item.ref_id);
+    } else if (item.type === "quiz") {
+      quizIds.push(item.ref_id);
+    } else if (item.type === "survey") {
+      surveyIds.push(item.ref_id);
+    }
+  }
+
+  const [learningContents, assignments, quizzes, surveys] = await Promise.all([
+    learningContentIds.length > 0
+      ? getLearningContentsByIds(learningContentIds)
+      : Promise.resolve([]),
+    assignmentIds.length > 0
+      ? getAssignmentsByIdsForTeacher(assignmentIds)
+      : Promise.resolve([]),
+    quizIds.length > 0 ? getQuizzesByIds(quizIds) : Promise.resolve([]),
+    surveyIds.length > 0 ? getSurveysByIds(surveyIds) : Promise.resolve([]),
+  ]);
+
+  const contentNameMap = new Map<string, string>();
+  for (const lc of learningContents) contentNameMap.set(lc.id, lc.title);
+  for (const a of assignments) contentNameMap.set(a.id, a.title);
+  for (const q of quizzes) contentNameMap.set(q.id, q.title);
+  for (const s of surveys) contentNameMap.set(s.id, s.title);
+
+  const contentItemIds = scopedContentItems.map((ci) => ci.id);
+  const { data: completionsData, error: completionsError } = await supabase
+    .from("student_content_completions")
+    .select("content_item_id, completed_at")
+    .eq("student_id", studentId)
+    .in("content_item_id", contentItemIds);
+
+  if (completionsError) {
+    console.error("Error fetching completions:", completionsError);
+    throw completionsError;
+  }
+
+  const completionMap = new Map<string, string | null>();
+  for (const c of completionsData || []) {
+    completionMap.set(c.content_item_id, c.completed_at ?? null);
+  }
+
+  const result: StudentContentCompletionForStudent[] = scopedContentItems.map(
+    (contentItem) => {
+      const completedAt = completionMap.get(contentItem.id) ?? null;
+      return {
+        contentItemId: contentItem.id,
+        contentName: contentNameMap.get(contentItem.ref_id) || "Unknown",
+        contentType: contentItem.type as ContentItemType,
+        isComplete: !!completedAt,
+        completedAt,
+        requireTeacherUnlock: !!contentItem.require_teacher_unlock,
+        position: contentItem.position,
+      };
+    }
+  );
+
+  return result.sort((a, b) => a.position - b.position);
+}
+
 /**
  * Reset all content completion progress for a student in a specific class.
  * Deletes completion marks, quiz submissions, and survey responses so the student
