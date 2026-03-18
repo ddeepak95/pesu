@@ -324,12 +324,18 @@ export default function Students({ classData }: StudentsProps) {
     });
   }, [filterableFields, tableRows]);
 
-  // Per-student progress stats: { completed, total } scoped to each student's group
+  // Per-student progress stats scoped to each student's group
   const progressStatsMap = useMemo(() => {
     if (progressData.length === 0)
-      return new Map<string, { completed: number; total: number }>();
+      return new Map<
+        string,
+        { completed: number; total: number; lastCompletedAt: string | null }
+      >();
 
-    const map = new Map<string, { completed: number; total: number }>();
+    const map = new Map<
+      string,
+      { completed: number; total: number; lastCompletedAt: string | null }
+    >();
 
     // Group content item IDs by group
     const contentByGroup = new Map<string, Set<string>>();
@@ -339,13 +345,28 @@ export default function Students({ classData }: StudentsProps) {
       contentByGroup.get(gId)!.add(item.contentItemId);
     });
 
-    // Build completion set per student
+    // Build completion set + completion date index per student
     const studentCompletions = new Map<string, Set<string>>();
+    const studentCompletionDates = new Map<string, Map<string, string>>();
     progressData.forEach((item) => {
       if (!item.isComplete) return;
       if (!studentCompletions.has(item.studentId))
         studentCompletions.set(item.studentId, new Set());
       studentCompletions.get(item.studentId)!.add(item.contentItemId);
+
+      // completedAt should be non-null when isComplete=true, but guard anyway.
+      if (item.completedAt) {
+        if (!studentCompletionDates.has(item.studentId)) {
+          studentCompletionDates.set(
+            item.studentId,
+            new Map<string, string>()
+          );
+        }
+        studentCompletionDates.get(item.studentId)!.set(
+          item.contentItemId,
+          item.completedAt
+        );
+      }
     });
 
     students.forEach((s) => {
@@ -353,13 +374,24 @@ export default function Students({ classData }: StudentsProps) {
       const groupContentIds = contentByGroup.get(gId);
       const total = groupContentIds?.size ?? 0;
       const completedIds = studentCompletions.get(s.student_id);
+      const completionDatesByContent =
+        studentCompletionDates.get(s.student_id);
       let completed = 0;
+      let lastCompletedAt: string | null = null;
       if (completedIds && groupContentIds) {
         groupContentIds.forEach((cId) => {
           if (completedIds.has(cId)) completed++;
+
+          const iso = completionDatesByContent?.get(cId);
+          if (iso) {
+            if (!lastCompletedAt || Date.parse(iso) > Date.parse(lastCompletedAt)) {
+              lastCompletedAt = iso;
+            }
+          }
         });
       }
-      map.set(s.student_id, { completed, total });
+
+      map.set(s.student_id, { completed, total, lastCompletedAt });
     });
 
     return map;
@@ -373,6 +405,7 @@ export default function Students({ classData }: StudentsProps) {
       const stats = progressStatsMap.get(s.student_id) ?? {
         completed: 0,
         total: 0,
+        lastCompletedAt: null,
       };
       const pct = stats.total > 0 ? stats.completed / stats.total : 0;
 
@@ -431,7 +464,7 @@ export default function Students({ classData }: StudentsProps) {
         label: "Progress",
         render: (row: SubmissionsTableRow) => {
           const stats = row.data?.progressStats as
-            | { completed: number; total: number }
+            | { completed: number; total: number; lastCompletedAt: string | null }
             | undefined;
           if (!stats || stats.total === 0) {
             return (
@@ -461,10 +494,36 @@ export default function Students({ classData }: StudentsProps) {
         },
         sortValue: (row: SubmissionsTableRow) => {
           const stats = row.data?.progressStats as
-            | { completed: number; total: number }
+            | { completed: number; total: number; lastCompletedAt: string | null }
             | undefined;
           if (!stats || stats.total === 0) return -1;
           return stats.completed / stats.total;
+        },
+      },
+      {
+        key: "last_completed",
+        label: "Last completed",
+        render: (row: SubmissionsTableRow) => {
+          const stats = row.data?.progressStats as
+            | { completed: number; total: number; lastCompletedAt: string | null }
+            | undefined;
+          if (!stats || !stats.lastCompletedAt) {
+            return (
+              <span className="text-sm text-muted-foreground">—</span>
+            );
+          }
+          return (
+            <span className="text-sm">
+              {new Date(stats.lastCompletedAt).toLocaleDateString()}
+            </span>
+          );
+        },
+        sortValue: (row: SubmissionsTableRow) => {
+          const stats = row.data?.progressStats as
+            | { completed: number; total: number; lastCompletedAt: string | null }
+            | undefined;
+          if (!stats || !stats.lastCompletedAt) return -1;
+          return Date.parse(stats.lastCompletedAt);
         },
       },
       {
