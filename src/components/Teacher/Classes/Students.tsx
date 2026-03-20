@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
 import ChangeGroupDialog from "./ChangeGroupDialog";
+import DeleteStudentDialog from "./DeleteStudentDialog";
 import StudentProgressDialog from "./StudentProgressDialog";
 import StudentIndividualProgressDialog from "./StudentIndividualProgressDialog";
 import SubmissionsTable, {
@@ -56,6 +57,12 @@ export default function Students({ classData }: StudentsProps) {
   // Change group dialog state
   const [changeGroupDialogOpen, setChangeGroupDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] =
+    useState<StudentWithInfo | null>(null);
+
+  // Delete student dialog state
+  const [deleteStudentDialogOpen, setDeleteStudentDialogOpen] =
+    useState(false);
+  const [studentToDelete, setStudentToDelete] =
     useState<StudentWithInfo | null>(null);
 
   // Progress dialog state
@@ -189,6 +196,15 @@ export default function Students({ classData }: StudentsProps) {
     fetchData();
   };
 
+  const handleStudentDeleted = () => {
+    fetchData();
+  };
+
+  const handleDeleteStudent = useCallback((student: StudentWithInfo) => {
+    setStudentToDelete(student);
+    setDeleteStudentDialogOpen(true);
+  }, []);
+
   const tableRows: SubmissionsTableRow[] = useMemo(() => {
     return students.map((s) => {
       const groupDisplayName =
@@ -264,13 +280,19 @@ export default function Students({ classData }: StudentsProps) {
                 student={student}
                 groups={groupList ?? []}
                 onChangeGroup={handleChangeGroup}
+                onDeleteStudent={handleDeleteStudent}
               />
             </div>
           );
         },
       },
     ];
-  }, [handleChangeGroup, handleViewIndividualProgress, visibleDisplayFields]);
+  }, [
+    handleChangeGroup,
+    handleViewIndividualProgress,
+    handleDeleteStudent,
+    visibleDisplayFields,
+  ]);
 
   const filterableFields = useMemo(() => {
     if (filterFieldIds.size === 0) return [];
@@ -724,6 +746,17 @@ export default function Students({ classData }: StudentsProps) {
         groups={groups}
         classDbId={classData.id}
         onGroupChanged={handleGroupChanged}
+      />
+
+      <DeleteStudentDialog
+        open={deleteStudentDialogOpen}
+        onOpenChange={(newOpen) => {
+          setDeleteStudentDialogOpen(newOpen);
+          if (!newOpen) setStudentToDelete(null);
+        }}
+        student={studentToDelete}
+        classDbId={classData.id}
+        onStudentDeleted={handleStudentDeleted}
       />
 
       <StudentProgressDialog

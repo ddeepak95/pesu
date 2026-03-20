@@ -266,7 +266,8 @@ export async function getClassesByStudent(studentId: string): Promise<Class[]> {
   const { data: studentRows, error: studentError } = await supabase
     .from("class_students")
     .select("class_id")
-    .eq("student_id", studentId);
+    .eq("student_id", studentId)
+    .eq("status", "active");
 
   if (studentError) {
     console.error("Error fetching class_students rows:", studentError);

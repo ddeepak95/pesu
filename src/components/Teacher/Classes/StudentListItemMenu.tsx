@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical, Users } from "lucide-react";
+import { MoreVertical, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,18 +15,16 @@ interface StudentListItemMenuProps {
   student: StudentWithInfo;
   groups: ClassGroup[];
   onChangeGroup: (student: StudentWithInfo) => void;
+  onDeleteStudent: (student: StudentWithInfo) => void;
 }
 
 export default function StudentListItemMenu({
   student,
   groups,
   onChangeGroup,
+  onDeleteStudent,
 }: StudentListItemMenuProps) {
   const hasGroups = groups.length > 0;
-
-  if (!hasGroups) {
-    return null;
-  }
 
   return (
     <DropdownMenu>
@@ -37,9 +35,18 @@ export default function StudentListItemMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onChangeGroup(student)}>
-          <Users className="mr-2 h-4 w-4" />
-          Change Group
+        {hasGroups && (
+          <DropdownMenuItem onClick={() => onChangeGroup(student)}>
+            <Users className="mr-2 h-4 w-4" />
+            Change Group
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          onClick={() => onDeleteStudent(student)}
+          className="text-destructive focus:text-destructive"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Remove from class
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

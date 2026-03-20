@@ -41,6 +41,7 @@ export async function getClassStudentsWithInfo(
     .from("class_students")
     .select("student_id, joined_at")
     .eq("class_id", classDbId)
+    .eq("status", "active")
     .order("joined_at", { ascending: false });
 
   if (studentError) throw studentError;
@@ -128,5 +129,32 @@ export async function reassignStudentToGroup(params: {
     );
 
   if (upsertError) throw upsertError;
+}
+
+/**
+ * Soft-delete (remove) a student's enrollment from a class.
+ *
+ * Notes:
+ * - This relies on `class_students.status` and `class_students.deleted_at`,
+ *   which will be added via the corresponding Supabase migration.
+ * - We do not delete class_group_memberships; access should be blocked
+ *   via enrollment status checks.
+ */
+export async function removeStudentFromClass(params: {
+  classDbId: string;
+  studentId: string;
+}): Promise<void> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("class_students")
+    .update({
+      status: "deleted",
+      deleted_at: new Date().toISOString(),
+    })
+    .eq("class_id", params.classDbId)
+    .eq("student_id", params.studentId);
+
+  if (error) throw error;
 }
 
