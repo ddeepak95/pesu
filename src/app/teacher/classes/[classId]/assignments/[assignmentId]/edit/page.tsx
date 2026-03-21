@@ -91,6 +91,9 @@ export default function EditAssignmentPage() {
           setExperienceRatingEnabled(assignmentData.experience_rating_enabled ?? false);
           setExperienceRatingRequired(assignmentData.experience_rating_required ?? false);
           setFeedbackRequiresApproval(assignmentData.feedback_requires_approval ?? false);
+          setAllowCopyPaste(assignmentData.allow_copy_paste ?? false);
+          setTabSwitchPolicy(assignmentData.tab_switch_policy ?? "warn");
+          setTabSwitchMaxLeaves(assignmentData.tab_switch_max_leaves ?? 3);
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
           setInitialIsDraft(assignmentData.status === "draft");

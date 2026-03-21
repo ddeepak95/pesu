@@ -9,11 +9,7 @@ import {
   getTranscriptsForSubmission,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
-import {
-  Submission,
-  SubmissionAnswer,
-  QuestionEvaluations,
-} from "@/types/submission";
+import { Submission } from "@/types/submission";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
 import {

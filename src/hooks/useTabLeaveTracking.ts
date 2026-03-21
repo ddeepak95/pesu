@@ -38,9 +38,15 @@ export function useTabLeaveTracking(params: {
     null,
   );
   const onAccessRevokedRef = useRef(onAccessRevoked);
-  onAccessRevokedRef.current = onAccessRevoked;
   const integrityAccessRevokedRef = useRef(!!integrityAccessRevoked);
-  integrityAccessRevokedRef.current = !!integrityAccessRevoked;
+
+  useEffect(() => {
+    onAccessRevokedRef.current = onAccessRevoked;
+  }, [onAccessRevoked]);
+
+  useEffect(() => {
+    integrityAccessRevokedRef.current = !!integrityAccessRevoked;
+  }, [integrityAccessRevoked]);
 
   /** Leave count after the most recent recorded leave. */
   const lastLeaveCountRef = useRef<number | null>(null);
@@ -57,7 +63,8 @@ export function useTabLeaveTracking(params: {
   }, []);
 
   useEffect(() => {
-    if (integrityAccessRevoked) dismissTabWarning();
+    if (!integrityAccessRevoked) return;
+    queueMicrotask(() => dismissTabWarning());
   }, [integrityAccessRevoked, dismissTabWarning]);
 
   useEffect(() => {
@@ -68,7 +75,7 @@ export function useTabLeaveTracking(params: {
 
   useEffect(() => {
     if (!active) {
-      dismissTabWarning();
+      queueMicrotask(() => dismissTabWarning());
       return;
     }
     if (!submissionId || typeof document === "undefined") return;

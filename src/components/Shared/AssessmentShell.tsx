@@ -245,7 +245,6 @@ export function AssessmentShell({
       botPromptConfig, sharedContext, language, attempts.length,
       submissionId, onAnswerSave, logEvent, onAttemptCreated,
       feedbackRequiresApproval,
-      onIntegrityAccessRevoked,
     ],
   );
 
