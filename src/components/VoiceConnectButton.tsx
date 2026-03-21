@@ -5,6 +5,7 @@ import {
   usePipecatClientTransportState,
 } from "@pipecat-ai/client-react";
 import { Button } from "@/components/ui/button";
+import { showErrorToast } from "@/lib/toast";
 
 interface VoiceConnectButtonProps {
   endpoint?: string;
@@ -63,7 +64,9 @@ export function VoiceConnectButton({
       onConnected?.();
     } catch (error) {
       console.error("Connection error:", error);
-      alert(`Connection failed. Check console for details.`);
+      showErrorToast(
+        `Connection failed: ${error instanceof Error ? error.message : "Check the console for details."}`,
+      );
     }
   };
 

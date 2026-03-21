@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { deleteClass } from "@/lib/queries/classes";
 import { useAuth } from "@/contexts/AuthContext";
+import { showErrorToast } from "@/lib/toast";
 
 interface DangerZoneSectionProps {
   classData: Class;
@@ -42,7 +43,7 @@ export default function DangerZoneSection({
       router.push("/teacher/classes");
     } catch (err) {
       console.error("Error deleting class:", err);
-      alert("Failed to delete class. Please try again.");
+      showErrorToast("Failed to delete class. Please try again.");
       setDeleting(false);
     }
   };

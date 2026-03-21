@@ -25,6 +25,7 @@ import {
   listTeacherInvites,
   revokeTeacherInvite,
 } from "@/lib/queries/teacherInvites";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 
 interface ManageTeachersSectionProps {
   classData: Class;
@@ -122,7 +123,7 @@ export default function ManageTeachersSection({
   const handleCopyInvite = async () => {
     if (!inviteUrl) return;
     await navigator.clipboard.writeText(inviteUrl);
-    alert("Invite link copied to clipboard.");
+    showSuccessToast("Invite link copied to clipboard.");
   };
 
   const handleRevokeInvite = async (inviteId: string) => {
@@ -137,7 +138,7 @@ export default function ManageTeachersSection({
       await refresh();
     } catch (err) {
       console.error("Error revoking invite:", err);
-      alert("Failed to revoke invite.");
+      showErrorToast("Failed to revoke invite.");
     } finally {
       setLoading(false);
     }
@@ -154,7 +155,7 @@ export default function ManageTeachersSection({
       await refresh();
     } catch (err) {
       console.error("Error removing teacher:", err);
-      alert("Failed to remove co-teacher.");
+      showErrorToast("Failed to remove co-teacher.");
     } finally {
       setLoading(false);
     }

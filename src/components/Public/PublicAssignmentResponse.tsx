@@ -35,6 +35,7 @@ import {
   removeSubmissionIdFromUrl,
 } from "@/utils/sessionStorage";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import { showErrorToast } from "@/lib/toast";
 import { Submission } from "@/types/submission";
 import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
 
@@ -290,7 +291,7 @@ const PublicAssignmentResponse = forwardRef<
       updateUrlWithSubmissionId(assignmentId, submission.submission_id);
     } catch (err) {
       console.error("Error creating submission:", err);
-      alert("Failed to start assignment. Please try again.");
+      showErrorToast("Failed to start assignment. Please try again.");
     }
   };
 

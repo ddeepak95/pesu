@@ -21,6 +21,7 @@ import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { EmojiMatchGame } from "@/components/EmojiMatchGame";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
+import { showWarningToast } from "@/lib/toast";
 
 function VoiceInputContent({
   question,
@@ -125,11 +126,15 @@ function VoiceInputContent({
   const handleEvaluate = async () => {
     logEvent("bot_disconnected");
     if (maxAttemptsReached) {
-      alert("You have reached the maximum number of attempts for this question.");
+      showWarningToast(
+        "You have reached the maximum number of attempts for this question.",
+      );
       return;
     }
     if (!transcript.trim()) {
-      alert("No answer recorded. Please try speaking your answer again.");
+      showWarningToast(
+        "No answer recorded. Please try speaking your answer again.",
+      );
       return;
     }
     await onSubmitForEvaluation(transcript.trim());

@@ -22,6 +22,7 @@ import {
 import { Survey } from "@/types/survey";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SurveyResponsesTab from "@/components/Teacher/Surveys/SurveyResponsesTab";
+import { showErrorToast } from "@/lib/toast";
 
 interface SurveyDetailClientProps {
   initialSurvey: Survey;
@@ -69,7 +70,7 @@ export default function SurveyDetailClient({
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting survey:", err);
-      alert("Failed to delete survey. Please try again.");
+      showErrorToast("Failed to delete survey. Please try again.");
     }
   };
 
@@ -94,7 +95,7 @@ export default function SurveyDetailClient({
       setSurvey(updated);
     } catch (err) {
       console.error("Error publishing survey:", err);
-      alert("Failed to publish survey. Please try again.");
+      showErrorToast("Failed to publish survey. Please try again.");
     }
   };
 

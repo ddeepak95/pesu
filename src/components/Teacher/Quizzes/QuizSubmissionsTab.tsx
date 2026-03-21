@@ -35,6 +35,7 @@ import SubmissionsTable, {
 } from "@/components/Teacher/Shared/SubmissionsTable";
 import { ProfileField } from "@/types/profileFields";
 import { Check, X } from "lucide-react";
+import { showErrorToast } from "@/lib/toast";
 
 interface QuizSubmissionsTabProps {
   quiz: Quiz;
@@ -267,7 +268,7 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
       await fetchSubmissions();
     } catch (err) {
       console.error("Error resetting submission:", err);
-      alert("Failed to reset submission. Please try again.");
+      showErrorToast("Failed to reset submission. Please try again.");
     } finally {
       setResetting(null);
     }

@@ -8,6 +8,7 @@ import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
 import { createBulkInputGuard } from "./wordLimitGuards";
+import { showWarningToast } from "@/lib/toast";
 
 export function StaticTextInputArea({
   question,
@@ -104,7 +105,7 @@ export function StaticTextInputArea({
 
   const handleStartWriting = () => {
     if (maxAttemptsReached) {
-      alert(
+      showWarningToast(
         "You have reached the maximum number of attempts for this question.",
       );
       return;
@@ -116,11 +117,11 @@ export function StaticTextInputArea({
   const handleSubmit = async () => {
     const trimmedAnswer = answer.trim();
     if (!trimmedAnswer) {
-      alert("Please type your answer before submitting.");
+      showWarningToast("Please type your answer before submitting.");
       return;
     }
     if (maxAttemptsReached) {
-      alert(
+      showWarningToast(
         "You have reached the maximum number of attempts for this question.",
       );
       return;

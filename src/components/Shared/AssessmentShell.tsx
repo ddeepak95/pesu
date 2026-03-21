@@ -21,7 +21,7 @@ import { VoiceInputArea } from "@/components/Shared/AssessmentInputs/VoiceInputA
 import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputArea";
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
 import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
-import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
+import { showErrorToast, showWarningToast } from "@/lib/toast";
 
 export interface AssessmentShellProps {
   assessmentMode: "voice" | "text_chat" | "static_text";
@@ -155,7 +155,9 @@ export function AssessmentShell({
   const handleEvaluate = useCallback(
     async (answerText: string) => {
       if (maxAttemptsReached) {
-        alert("You have reached the maximum number of attempts for this question.");
+        showWarningToast(
+          "You have reached the maximum number of attempts for this question.",
+        );
         return;
       }
 
@@ -229,7 +231,7 @@ export function AssessmentShell({
       } catch (error) {
         setSubmittingForApproval(false);
         console.error("Error evaluating answer:", error);
-        alert(
+        showErrorToast(
           `Failed to evaluate your answer: ${
             error instanceof Error ? error.message : "Unknown error"
           }`,

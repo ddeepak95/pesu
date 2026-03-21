@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Link as LinkIcon, Share2 } from "lucide-react";
+import { showErrorToast } from "@/lib/toast";
 
 interface AssignmentLinkShareProps {
   open: boolean;
@@ -41,7 +42,7 @@ export function AssignmentLinkShare({
       }, 2000);
     } catch (err) {
       console.error("Failed to copy link:", err);
-      alert("Failed to copy link. Please try again.");
+      showErrorToast("Failed to copy link. Please try again.");
     }
   };
 

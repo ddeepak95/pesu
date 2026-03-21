@@ -24,6 +24,7 @@ import {
 } from "@/utils/sessionStorage";
 import { useAuth } from "@/contexts/AuthContext";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import { showErrorToast } from "@/lib/toast";
 
 // No phase needed - students can always view and attempt questions
 
@@ -267,7 +268,7 @@ export default function StudentAssignmentResponse({
       updateUrlWithSubmissionId(assignmentId, submission.submission_id);
     } catch (err) {
       console.error("Error creating submission:", err);
-      alert("Failed to start assignment. Please try again.");
+      showErrorToast("Failed to start assignment. Please try again.");
     }
   };
 

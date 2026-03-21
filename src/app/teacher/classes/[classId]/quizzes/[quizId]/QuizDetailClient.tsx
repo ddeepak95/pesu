@@ -23,6 +23,7 @@ import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import QuizSubmissionsTab from "@/components/Teacher/Quizzes/QuizSubmissionsTab";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
+import { showErrorToast } from "@/lib/toast";
 
 interface QuizDetailClientProps {
   initialQuiz: Quiz;
@@ -65,7 +66,7 @@ export default function QuizDetailClient({
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting quiz:", err);
-      alert("Failed to delete quiz. Please try again.");
+      showErrorToast("Failed to delete quiz. Please try again.");
     }
   };
 
@@ -93,7 +94,7 @@ export default function QuizDetailClient({
       setQuiz(updated);
     } catch (err) {
       console.error("Error publishing quiz:", err);
-      alert("Failed to publish quiz. Please try again.");
+      showErrorToast("Failed to publish quiz. Please try again.");
     }
   };
 

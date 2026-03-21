@@ -13,6 +13,7 @@ import {
   getAssignmentsByClassForTeacher,
   deleteAssignment,
 } from "@/lib/queries/assignments";
+import { showErrorToast } from "@/lib/toast";
 
 interface AssignmentsProps {
   classData: Class;
@@ -67,7 +68,7 @@ export default function Assignments({ classData }: AssignmentsProps) {
       await fetchAssignments();
     } catch (err) {
       console.error("Error deleting assignment:", err);
-      alert("Failed to delete assignment. Please try again.");
+      showErrorToast("Failed to delete assignment. Please try again.");
     }
   };
 

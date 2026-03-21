@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { X, Copy, MoreVertical, Trash2 } from "lucide-react";
+import { showErrorToast } from "@/lib/toast";
 import DuplicateContentDialog from "@/components/Teacher/Classes/DuplicateContentDialog";
 import BulkDuplicateContentDialog from "@/components/Teacher/Classes/BulkDuplicateContentDialog";
 import CreateContentMenu from "@/components/Teacher/Classes/ContentParts/CreateContentMenu";
@@ -222,7 +223,7 @@ export default function Content({ classData }: ContentProps) {
       mutateItems();
     } catch (err) {
       console.error("Error updating content item positions:", err);
-      alert("Failed to update order. Please try again.");
+      showErrorToast("Failed to update order. Please try again.");
       // Refetch on failure
       mutateItems();
     } finally {
@@ -373,7 +374,7 @@ export default function Content({ classData }: ContentProps) {
       mutateItems();
     } catch (err) {
       console.error("Error deleting content item:", err);
-      alert("Failed to delete item. Please try again.");
+      showErrorToast("Failed to delete item. Please try again.");
     }
   };
 
@@ -392,7 +393,7 @@ export default function Content({ classData }: ContentProps) {
       mutateItems();
     } catch (err) {
       console.error("Error bulk deleting content items:", err);
-      alert("Failed to delete some items. Please try again.");
+      showErrorToast("Failed to delete some items. Please try again.");
     }
   };
 
@@ -425,7 +426,7 @@ export default function Content({ classData }: ContentProps) {
       mutateItems();
     } catch (err) {
       console.error("Error updating lock_after_complete:", err);
-      alert("Failed to update lock setting. Please try again.");
+      showErrorToast("Failed to update lock setting. Please try again.");
     }
   };
 
@@ -448,7 +449,7 @@ export default function Content({ classData }: ContentProps) {
       mutateItems();
     } catch (err) {
       console.error("Error updating require_teacher_unlock:", err);
-      alert("Failed to update teacher unlock setting. Please try again.");
+      showErrorToast("Failed to update teacher unlock setting. Please try again.");
     }
   };
 
@@ -470,7 +471,7 @@ export default function Content({ classData }: ContentProps) {
       mutateItems();
     } catch (err) {
       console.error("Error updating unlock_days_after_previous:", err);
-      alert("Failed to update unlock days setting. Please try again.");
+      showErrorToast("Failed to update unlock days setting. Please try again.");
     }
   };
 

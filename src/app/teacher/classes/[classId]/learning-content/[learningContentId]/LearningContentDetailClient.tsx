@@ -25,6 +25,7 @@ import { LearningContent } from "@/types/learningContent";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LearningContentCompletionsTab from "@/components/Teacher/LearningContent/LearningContentCompletionsTab";
+import { showErrorToast } from "@/lib/toast";
 
 interface LearningContentDetailClientProps {
   initialContent: LearningContent;
@@ -69,7 +70,7 @@ export default function LearningContentDetailClient({
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting learning content:", err);
-      alert("Failed to delete learning content. Please try again.");
+      showErrorToast("Failed to delete learning content. Please try again.");
     }
   };
 
@@ -94,7 +95,7 @@ export default function LearningContentDetailClient({
       setContent(updated);
     } catch (err) {
       console.error("Error publishing learning content:", err);
-      alert("Failed to publish learning content. Please try again.");
+      showErrorToast("Failed to publish learning content. Please try again.");
     }
   };
 

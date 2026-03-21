@@ -38,6 +38,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { showErrorToast } from "@/lib/toast";
 
 function CollapsibleSection({
   icon: Icon,
@@ -145,7 +146,7 @@ export default function AssignmentDetailClient({
         err instanceof Error
           ? err.message
           : "Failed to delete assignment. Please try again.";
-      alert(errorMessage);
+      showErrorToast(errorMessage);
     }
   };
 
@@ -187,7 +188,7 @@ export default function AssignmentDetailClient({
       setAssignmentData(updated);
     } catch (err) {
       console.error("Error publishing assignment:", err);
-      alert("Failed to publish assignment. Please try again.");
+      showErrorToast("Failed to publish assignment. Please try again.");
     }
   };
 

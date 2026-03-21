@@ -11,6 +11,7 @@ import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
 import { createBulkInputGuard } from "./wordLimitGuards";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
+import { showErrorToast, showWarningToast } from "@/lib/toast";
 
 interface ChatMessage {
   id: string;
@@ -203,12 +204,12 @@ export function ChatInputArea({
       (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
     );
     if (!hasStudentMessage) {
-      alert("Please provide at least one response before finishing.");
+      showWarningToast("Please provide at least one response before finishing.");
       return;
     }
     const answerText = formatFullConversation(messages).trim();
     if (maxAttemptsReached) {
-      alert(
+      showWarningToast(
         "You have reached the maximum number of attempts for this question.",
       );
       return;
@@ -229,7 +230,7 @@ export function ChatInputArea({
 
   const handleStartChat = async () => {
     if (maxAttemptsReached) {
-      alert(
+      showWarningToast(
         "You have reached the maximum number of attempts for this question.",
       );
       return;
@@ -288,7 +289,7 @@ export function ChatInputArea({
           errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
         ) {
           onIntegrityAccessRevoked?.();
-          alert(
+          showErrorToast(
             errorData.error ||
               "Access to this assessment has been suspended.",
           );
@@ -319,7 +320,7 @@ export function ChatInputArea({
         // aborted
       } else {
         console.error("Error starting chat:", error);
-        alert(
+        showErrorToast(
           `Failed to start chat: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
         setMessages([]);
@@ -334,7 +335,7 @@ export function ChatInputArea({
     const trimmed = input.trim();
     if (!trimmed) return;
     if (maxAttemptsReached) {
-      alert(
+      showWarningToast(
         "You have reached the maximum number of attempts for this question.",
       );
       return;
@@ -404,7 +405,7 @@ export function ChatInputArea({
           errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
         ) {
           onIntegrityAccessRevoked?.();
-          alert(
+          showErrorToast(
             errorData.error ||
               "Access to this assessment has been suspended.",
           );
@@ -431,7 +432,7 @@ export function ChatInputArea({
         // aborted by user
       } else {
         console.error("Error sending chat message:", error);
-        alert(
+        showErrorToast(
           `Failed to send message: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));

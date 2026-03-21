@@ -20,6 +20,7 @@ import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
+import { showErrorToast } from "@/lib/toast";
 
 interface LearningContentCompletionsTabProps {
   content: LearningContent;
@@ -135,7 +136,7 @@ export default function LearningContentCompletionsTab({
         await fetchData();
       } catch (err) {
         console.error("Error resetting completion:", err);
-        alert("Failed to reset completion. Please try again.");
+        showErrorToast("Failed to reset completion. Please try again.");
       } finally {
         setResetting(null);
       }

@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Lock, Unlock } from "lucide-react";
 import { useState } from "react";
+import { showErrorToast } from "@/lib/toast";
 
 interface UnlockConfirmDialogProps {
   open: boolean;
@@ -41,7 +42,7 @@ export default function UnlockConfirmDialog({
       onOpenChange(false);
     } catch (err) {
       console.error(`Error ${action}ing content:`, err);
-      alert(`Failed to ${action} content. Please try again.`);
+      showErrorToast(`Failed to ${action} content. Please try again.`);
     } finally {
       setLoading(false);
     }

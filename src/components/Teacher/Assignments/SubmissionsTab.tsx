@@ -31,6 +31,7 @@ import SubmissionsTable, {
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
 import { ProfileField } from "@/types/profileFields";
+import { showErrorToast } from "@/lib/toast";
 
 interface SubmissionsTabProps {
   assignmentId: string;
@@ -224,7 +225,7 @@ export default function SubmissionsTab({
       if ("student" in item) {
         const classData = await getClassByClassId(classId);
         if (!classData) {
-          alert("Class not found");
+          showErrorToast("Class not found");
           return;
         }
         const data = await getSubmissionsByAssignmentWithStudents(
@@ -239,7 +240,7 @@ export default function SubmissionsTab({
       }
     } catch (err) {
       console.error("Error resetting attempts:", err);
-      alert("Failed to reset attempts. Please try again.");
+      showErrorToast("Failed to reset attempts. Please try again.");
     } finally {
       setResetting(null);
     }

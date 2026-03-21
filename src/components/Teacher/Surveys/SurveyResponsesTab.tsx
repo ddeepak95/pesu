@@ -23,6 +23,7 @@ import {
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
+import { showErrorToast } from "@/lib/toast";
 import { deleteQuizCompletionForStudent } from "@/lib/queries/quizzes";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import type { StudentWithInfo } from "@/lib/queries/students";
@@ -234,7 +235,7 @@ export default function SurveyResponsesTab({
         await fetchData();
       } catch (err) {
         console.error("Error resetting survey response:", err);
-        alert("Failed to reset response. Please try again.");
+        showErrorToast("Failed to reset response. Please try again.");
       } finally {
         setResetting(null);
       }
