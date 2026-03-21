@@ -156,7 +156,6 @@ CREATE OR REPLACE FUNCTION public.upsert_student_class_info(
 RETURNS student_class_info
 LANGUAGE plpgsql
 SECURITY DEFINER
-STABLE
 AS $$
 DECLARE
   v_result student_class_info;
@@ -190,7 +189,6 @@ CREATE OR REPLACE FUNCTION public.accept_student_invite(p_token TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-STABLE
 AS $$
 DECLARE
   v_hash TEXT;
