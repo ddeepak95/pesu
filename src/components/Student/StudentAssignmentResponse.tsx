@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createSubmission,
   getSubmissionById,
   getSubmissionByStudentAndAssignment,
   getMaxAttemptCountAcrossQuestions,
   getTranscriptsForSubmission,
-  appendTabLeaveEvent,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
 import {
+  Submission,
   SubmissionAnswer,
   QuestionEvaluations,
 } from "@/types/submission";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
+import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
 import {
   saveSession,
   loadSession,
@@ -62,8 +63,25 @@ export default function StudentAssignmentResponse({
   }>({});
   const [currentAttemptNumber, setCurrentAttemptNumber] = useState<number>(1);
   const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
-  const [showTabWarning, setShowTabWarning] = useState(false);
+  const [integrityRevoked, setIntegrityRevoked] = useState<{
+    at: string;
+    reason: string | null;
+  } | null>(null);
   const isInitializingRef = useRef(false);
+
+  const applyIntegrityFromSubmission = useCallback(
+    (s: Pick<Submission, "integrity_access_revoked_at" | "integrity_access_revoked_reason">) => {
+      if (s.integrity_access_revoked_at) {
+        setIntegrityRevoked({
+          at: s.integrity_access_revoked_at,
+          reason: s.integrity_access_revoked_reason ?? null,
+        });
+      } else {
+        setIntegrityRevoked(null);
+      }
+    },
+    [],
+  );
 
   // Restore session or create new submission
   useEffect(() => {
@@ -136,6 +154,7 @@ export default function StudentAssignmentResponse({
 
         // Restore in-progress submission
         setSubmissionId(submission.submission_id);
+        applyIntegrityFromSubmission(submission);
         const name = getDisplayName(submission);
         setDisplayName(name);
         setPreferredLanguage(submission.preferred_language);
@@ -224,6 +243,7 @@ export default function StudentAssignmentResponse({
         }
       );
       setSubmissionId(submission.submission_id);
+      applyIntegrityFromSubmission(submission);
       const name = getDisplayName(submission);
       setDisplayName(name);
       // For new submission, current attempt is 1 (no attempts yet)
@@ -251,13 +271,9 @@ export default function StudentAssignmentResponse({
     }
   };
 
-  const restoreSubmission = async (submission: {
-    submission_id: string;
-    preferred_language: string;
-    responder_details?: Record<string, string>;
-    evaluations?: { [key: number]: QuestionEvaluations } | SubmissionAnswer[];
-  }) => {
+  const restoreSubmission = async (submission: Submission) => {
     setSubmissionId(submission.submission_id);
+    applyIntegrityFromSubmission(submission);
     const name = getDisplayName(submission);
     setDisplayName(name);
     setPreferredLanguage(submission.preferred_language);
@@ -339,38 +355,6 @@ export default function StudentAssignmentResponse({
     }
   };
 
-  // Track when the student leaves and returns to the tab.
-  useEffect(() => {
-    if (!submissionId) return;
-
-    let lastVisibility: DocumentVisibilityState | undefined =
-      typeof document !== "undefined" ? document.visibilityState : undefined;
-
-    const handleVisibilityChange = () => {
-      if (typeof document === "undefined") return;
-      const current = document.visibilityState;
-
-      if (current === "hidden") {
-        const timestamp = new Date().toISOString();
-        appendTabLeaveEvent(submissionId, timestamp);
-      } else if (current === "visible" && lastVisibility === "hidden") {
-        setShowTabWarning(true);
-      }
-
-      lastVisibility = current;
-    };
-
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-    }
-
-    return () => {
-      if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-      }
-    };
-  }, [submissionId]);
-
   if (restoringSession || !submissionId) {
     return (
       <div className="w-full space-y-6">
@@ -386,31 +370,29 @@ export default function StudentAssignmentResponse({
 
   const maxAttempts = assignmentData.max_attempts ?? 1;
 
+  const handleIntegrityAccessRevoked = async () => {
+    const s = await getSubmissionById(submissionId);
+    if (s) applyIntegrityFromSubmission(s);
+  };
+
+  if (integrityRevoked) {
+    return (
+      <>
+        <div className="w-full space-y-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
+          </div>
+          <IntegrityAccessRevokedScreen
+            reasonCode={integrityRevoked.reason}
+          />
+        </div>
+      </>
+    );
+  }
+
   // Phase: Question Answering or Completion (delegated to core component)
-  // Wrap with ActivityTrackingProvider to provide context for activity tracking
   return (
     <>
-      {showTabWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="max-w-md rounded-lg bg-background p-6 shadow-lg border space-y-4">
-            <h2 className="text-lg font-semibold">Stay on this tab</h2>
-            <p className="text-sm text-muted-foreground">
-              Please do not leave this tab until you finish the activity. Your
-              activity is being monitored.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="px-4 py-1.5 text-sm rounded-md border bg-background hover:bg-muted"
-                onClick={() => setShowTabWarning(false)}
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <ActivityTrackingProvider
         userId={user?.id}
         classId={classId}
@@ -423,7 +405,6 @@ export default function StudentAssignmentResponse({
           preferredLanguage={preferredLanguage}
           contentItemId={contentItemId}
           onComplete={() => {
-            // Attempts are automatically saved, no explicit completion needed
             if (onComplete) {
               onComplete();
             }
@@ -436,6 +417,8 @@ export default function StudentAssignmentResponse({
           currentAttemptNumber={currentAttemptNumber}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
+          onIntegrityAccessRevoked={handleIntegrityAccessRevoked}
+          integrityAccessRevoked={!!integrityRevoked}
         />
       </ActivityTrackingProvider>
     </>

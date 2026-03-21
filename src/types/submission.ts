@@ -133,5 +133,13 @@ export interface Submission {
    */
   tab_leave_events?: string[] | null;
   input_violation_events?: { timestamp: string; text: string }[] | null;
+  /**
+   * When set, the student cannot continue the assessment until a teacher clears the lock.
+   */
+  integrity_access_revoked_at?: string | null;
+  /**
+   * Machine-readable reason (e.g. tab_switch_threshold).
+   */
+  integrity_access_revoked_reason?: string | null;
 }
 

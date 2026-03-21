@@ -23,4 +23,8 @@ export interface AssessmentInputProps {
   maxAttempts?: number;
   sharedContext?: string;
   evaluationPrompt?: string;
+  /** When true, paste and clipboard shortcuts are allowed in text areas */
+  allowCopyPaste?: boolean;
+  /** Chat API returned integrity lock */
+  onIntegrityAccessRevoked?: () => void;
 }

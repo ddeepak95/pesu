@@ -11,7 +11,11 @@ import { createAssignment } from "@/lib/queries/assignments";
 import { getClassByClassId } from "@/lib/queries/classes";
 import { createContentItem } from "@/lib/queries/contentItems";
 import { getClassGroups } from "@/lib/queries/groups";
-import { ResponderFieldConfig, BotPromptConfig } from "@/types/assignment";
+import {
+  ResponderFieldConfig,
+  BotPromptConfig,
+} from "@/types/assignment";
+import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 
 export default function CreateAssignmentPage() {
   const params = useParams();
@@ -102,6 +106,9 @@ export default function CreateAssignmentPage() {
     requireAllAttempts?: boolean;
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
+    allowCopyPaste?: boolean;
+    tabSwitchPolicy?: TabSwitchPolicy;
+    tabSwitchMaxLeaves?: number;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -134,6 +141,12 @@ export default function CreateAssignmentPage() {
         require_all_attempts: data.requireAllAttempts ?? false,
         experience_rating_enabled: data.experienceRatingEnabled ?? false,
         experience_rating_required: data.experienceRatingRequired ?? false,
+        allow_copy_paste: data.allowCopyPaste ?? false,
+        tab_switch_policy: data.tabSwitchPolicy ?? "warn",
+        tab_switch_max_leaves:
+          data.tabSwitchPolicy === "block_after_threshold"
+            ? data.tabSwitchMaxLeaves ?? null
+            : null,
       },
       user.id
     );

@@ -24,6 +24,7 @@ import {
 import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
 import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import SubmissionViewDialog from "./SubmissionViewDialog";
+import { IntegrityLockBadge } from "@/components/Shared/Integrity/IntegrityLockBadge";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import SubmissionsTable, {
   SubmissionsTableColumn,
@@ -257,6 +258,28 @@ export default function SubmissionsTab({
     return submission.submission_id.substring(0, 8) + "...";
   };
 
+  const refetchSubmissionLists = async () => {
+    if (!classDbId) return;
+    try {
+      const classData = await getSubmissionsByAssignmentWithStudents(
+        assignmentId,
+        classDbId,
+        classGroupId,
+      );
+      setClassSubmissions(classData);
+    } catch (e) {
+      console.error(e);
+    }
+    if (isPublic) {
+      try {
+        const pub = await getPublicSubmissionsByAssignment(assignmentId);
+        setPublicSubmissions(pub);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
   const getStatusBadge = (status: "completed" | "started" | "not_started") => {
     const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
     switch (status) {
@@ -320,6 +343,10 @@ export default function SubmissionsTab({
         render: (row) => (
           <div className="flex flex-wrap items-center gap-1.5">
             {getStatusBadge(row.data?.status as "completed" | "started" | "not_started")}
+            <IntegrityLockBadge
+              revokedAt={row.data?.integrityRevokedAt as string | undefined}
+              reasonCode={row.data?.integrityRevokedReason as string | undefined}
+            />
             {!!(row.data?.hasPendingApprovals) && (
               <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                 Pending Approval
@@ -425,6 +452,8 @@ export default function SubmissionsTab({
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
           hasPendingApprovals: item.hasPendingApprovals,
+          integrityRevokedAt: item.submission?.integrity_access_revoked_at,
+          integrityRevokedReason: item.submission?.integrity_access_revoked_reason,
           _original: item,
         },
       };
@@ -440,6 +469,10 @@ export default function SubmissionsTab({
         render: (row) => (
           <div className="flex flex-wrap items-center gap-1.5">
             {getStatusBadge(row.data?.status as "completed" | "started" | "not_started")}
+            <IntegrityLockBadge
+              revokedAt={row.data?.integrityRevokedAt as string | undefined}
+              reasonCode={row.data?.integrityRevokedReason as string | undefined}
+            />
             {!!(row.data?.hasPendingApprovals) && (
               <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                 Pending Approval
@@ -535,6 +568,8 @@ export default function SubmissionsTab({
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
           hasPendingApprovals: item.hasPendingApprovals,
+          integrityRevokedAt: item.submission.integrity_access_revoked_at,
+          integrityRevokedReason: item.submission.integrity_access_revoked_reason,
           _original: item,
         },
       };
@@ -647,6 +682,7 @@ export default function SubmissionsTab({
             }
           }}
           studentSubmission={selectedSubmission}
+          onIntegrityRestored={refetchSubmissionLists}
         />
       )}
     </div>

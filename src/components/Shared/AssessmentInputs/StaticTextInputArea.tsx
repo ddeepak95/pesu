@@ -19,6 +19,7 @@ export function StaticTextInputArea({
   isEvaluating,
   onSubmitForEvaluation,
   onLanguageDisabledChange,
+  allowCopyPaste = false,
 }: AssessmentInputProps) {
   const [hasStarted, setHasStarted] = React.useState(false);
   const [answer, setAnswer] = React.useState("");
@@ -142,19 +143,20 @@ export function StaticTextInputArea({
   const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
+    if (!allowCopyPaste) e.preventDefault();
   };
 
   const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
+    if (!allowCopyPaste) e.preventDefault();
   };
 
   const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
+    if (!allowCopyPaste) e.preventDefault();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (
+      !allowCopyPaste &&
       (e.ctrlKey || e.metaKey) &&
       (e.key === "c" || e.key === "v" || e.key === "x")
     ) {
@@ -200,7 +202,9 @@ export function StaticTextInputArea({
               <FileText className="h-4 w-4 text-primary" />
             </div>
             <p className="text-sm text-muted-foreground">
-              Type your answer below. Copy and paste are disabled.
+              {allowCopyPaste
+                ? "Type your answer below."
+                : "Type your answer below. Copy and paste are disabled."}
             </p>
           </div>
 

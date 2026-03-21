@@ -23,6 +23,12 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
 } from "@/types/assignment";
+import type { TabSwitchPolicy } from "@/lib/integrity/constants";
+import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
+import {
+  AssignmentIntegritySettings,
+  type AssignmentIntegritySettingsValues,
+} from "@/components/Shared/Integrity/AssignmentIntegritySettings";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { getDefaultBotPromptConfig, getDefaultEvaluationPrompt } from "@/lib/promptTemplates";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +60,9 @@ interface AssignmentFormProps {
   initialExperienceRatingEnabled?: boolean;
   initialExperienceRatingRequired?: boolean;
   initialFeedbackRequiresApproval?: boolean;
+  initialAllowCopyPaste?: boolean;
+  initialTabSwitchPolicy?: TabSwitchPolicy;
+  initialTabSwitchMaxLeaves?: number;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -79,6 +88,9 @@ interface AssignmentFormProps {
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
+    allowCopyPaste?: boolean;
+    tabSwitchPolicy?: TabSwitchPolicy;
+    tabSwitchMaxLeaves?: number;
   }) => Promise<void>;
 }
 
@@ -119,6 +131,9 @@ export default function AssignmentForm({
   initialExperienceRatingEnabled = false,
   initialExperienceRatingRequired = false,
   initialFeedbackRequiresApproval = false,
+  initialAllowCopyPaste = false,
+  initialTabSwitchPolicy = DEFAULT_TAB_SWITCH_POLICY,
+  initialTabSwitchMaxLeaves = 3,
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -176,6 +191,12 @@ export default function AssignmentForm({
   const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState(
     initialFeedbackRequiresApproval
   );
+  const [integritySettings, setIntegritySettings] =
+    useState<AssignmentIntegritySettingsValues>({
+      allowCopyPaste: initialAllowCopyPaste,
+      tabSwitchPolicy: initialTabSwitchPolicy,
+      tabSwitchMaxLeaves: initialTabSwitchMaxLeaves,
+    });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
@@ -453,6 +474,9 @@ export default function AssignmentForm({
         experienceRatingEnabled,
         experienceRatingRequired: experienceRatingEnabled ? experienceRatingRequired : false,
         feedbackRequiresApproval,
+        allowCopyPaste: integritySettings.allowCopyPaste,
+        tabSwitchPolicy: integritySettings.tabSwitchPolicy,
+        tabSwitchMaxLeaves: integritySettings.tabSwitchMaxLeaves,
       });
 
       // Navigate based on mode
@@ -830,6 +854,12 @@ export default function AssignmentForm({
                 </p>
               </div>
             </div>
+
+            <AssignmentIntegritySettings
+              values={integritySettings}
+              onChange={setIntegritySettings}
+              disabled={loading}
+            />
 
             {/* Public Access Toggle */}
             <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">

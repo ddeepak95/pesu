@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -108,6 +109,17 @@ export async function POST(request: NextRequest) {
       hasSharedContext: !!sharedContext,
       hasExpectedAnswer: !!expectedAnswer,
     });
+
+    if (submissionId) {
+      const supabase = await createServerSupabaseClient();
+      const integrityBlock = await assertSubmissionNotIntegrityLocked(
+        supabase,
+        submissionId,
+      );
+      if (integrityBlock) {
+        return integrityBlock;
+      }
+    }
 
     const languageNames = Object.fromEntries(
       supportedLanguages.map((lang) => [lang.code, lang.name])

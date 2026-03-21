@@ -17,6 +17,7 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
 } from "@/types/assignment";
+import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 
 export default function EditAssignmentPage() {
   const params = useParams();
@@ -52,6 +53,10 @@ export default function EditAssignmentPage() {
   const [experienceRatingEnabled, setExperienceRatingEnabled] = useState<boolean>(false);
   const [experienceRatingRequired, setExperienceRatingRequired] = useState<boolean>(false);
   const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState<boolean>(false);
+  const [allowCopyPaste, setAllowCopyPaste] = useState(false);
+  const [tabSwitchPolicy, setTabSwitchPolicy] =
+    useState<TabSwitchPolicy>("warn");
+  const [tabSwitchMaxLeaves, setTabSwitchMaxLeaves] = useState(3);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
@@ -136,6 +141,9 @@ export default function EditAssignmentPage() {
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
+    allowCopyPaste?: boolean;
+    tabSwitchPolicy?: TabSwitchPolicy;
+    tabSwitchMaxLeaves?: number;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -171,6 +179,12 @@ export default function EditAssignmentPage() {
       experience_rating_enabled: data.experienceRatingEnabled ?? false,
       experience_rating_required: data.experienceRatingRequired ?? false,
       feedback_requires_approval: data.feedbackRequiresApproval ?? false,
+      allow_copy_paste: data.allowCopyPaste ?? false,
+      tab_switch_policy: data.tabSwitchPolicy ?? "warn",
+      tab_switch_max_leaves:
+        data.tabSwitchPolicy === "block_after_threshold"
+          ? data.tabSwitchMaxLeaves ?? null
+          : null,
     });
 
     // Sync content_item status
@@ -236,6 +250,9 @@ export default function EditAssignmentPage() {
           initialExperienceRatingEnabled={experienceRatingEnabled}
           initialExperienceRatingRequired={experienceRatingRequired}
           initialFeedbackRequiresApproval={feedbackRequiresApproval}
+          initialAllowCopyPaste={allowCopyPaste}
+          initialTabSwitchPolicy={tabSwitchPolicy}
+          initialTabSwitchMaxLeaves={tabSwitchMaxLeaves}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />

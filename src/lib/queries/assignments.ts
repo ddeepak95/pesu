@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { Assignment, ResponderFieldConfig, BotPromptConfig } from "@/types/assignment";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
@@ -208,6 +209,9 @@ export async function createAssignment(
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
     feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it
+    allow_copy_paste?: boolean;
+    tab_switch_policy?: TabSwitchPolicy;
+    tab_switch_max_leaves?: number | null;
   },
   userId: string
 ): Promise<Assignment> {
@@ -244,6 +248,12 @@ export async function createAssignment(
       experience_rating_enabled: assignment.experience_rating_enabled ?? false,
       experience_rating_required: assignment.experience_rating_required ?? false,
       feedback_requires_approval: assignment.feedback_requires_approval ?? false,
+      allow_copy_paste: assignment.allow_copy_paste ?? false,
+      tab_switch_policy: assignment.tab_switch_policy ?? "warn",
+      tab_switch_max_leaves:
+        assignment.tab_switch_policy === "block_after_threshold"
+          ? assignment.tab_switch_max_leaves ?? null
+          : null,
     })
     .select()
     .single();
@@ -293,6 +303,9 @@ export async function updateAssignment(
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
     feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it
+    allow_copy_paste?: boolean;
+    tab_switch_policy?: TabSwitchPolicy;
+    tab_switch_max_leaves?: number | null;
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -320,6 +333,12 @@ export async function updateAssignment(
     experience_rating_enabled: assignment.experience_rating_enabled ?? false,
     experience_rating_required: assignment.experience_rating_required ?? false,
     feedback_requires_approval: assignment.feedback_requires_approval ?? false,
+    allow_copy_paste: assignment.allow_copy_paste ?? false,
+    tab_switch_policy: assignment.tab_switch_policy ?? "warn",
+    tab_switch_max_leaves:
+      assignment.tab_switch_policy === "block_after_threshold"
+        ? assignment.tab_switch_max_leaves ?? null
+        : null,
     updated_at: new Date().toISOString(),
   };
 

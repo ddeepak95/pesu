@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
 import { SubmissionAttempt, QuestionEvaluations } from "@/types/submission";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { runBackgroundEvaluation } from "@/lib/backgroundEvaluation";
@@ -90,8 +91,16 @@ export async function POST(request: NextRequest) {
 
     const maxScore = rubric.reduce((sum, item) => sum + item.points, 0);
 
-    // --- Fetch submission (needed by both paths) ---
     const supabase = await createServerSupabaseClient();
+    const integrityBlock = await assertSubmissionNotIntegrityLocked(
+      supabase,
+      submissionId,
+    );
+    if (integrityBlock) {
+      return integrityBlock;
+    }
+
+    // --- Fetch submission (needed by both paths) ---
     const { data: currentSubmission, error: fetchError } = await supabase
       .from("submissions")
       .select("evaluations, submission_mode, assignment_id")

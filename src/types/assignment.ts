@@ -1,3 +1,5 @@
+import type { TabSwitchPolicy } from "@/lib/integrity/constants";
+
 export interface RubricItem {
   item: string;
   points: number;
@@ -162,5 +164,19 @@ export interface Assignment {
    * Defaults to false (instant feedback).
    */
   feedback_requires_approval?: boolean;
+  /**
+   * When true, students may use copy/paste in text chat and static text answer fields.
+   * Defaults to false (matches legacy restrictive behavior).
+   */
+  allow_copy_paste?: boolean;
+  /**
+   * Tab visibility policy: allow (log only), warn (modal on return), block_after_threshold (lock after N leaves).
+   * Defaults to warn when missing (legacy behavior for class assignments).
+   */
+  tab_switch_policy?: TabSwitchPolicy;
+  /**
+   * Max tab hidden events before integrity lock; required when tab_switch_policy is block_after_threshold.
+   */
+  tab_switch_max_leaves?: number | null;
 }
 

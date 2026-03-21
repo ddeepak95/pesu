@@ -10,6 +10,7 @@ import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
 import { createBulkInputGuard } from "./wordLimitGuards";
+import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 
 interface ChatMessage {
   id: string;
@@ -30,6 +31,8 @@ export function ChatInputArea({
   botPromptConfig,
   maxAttempts,
   sharedContext,
+  allowCopyPaste = false,
+  onIntegrityAccessRevoked,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -99,6 +102,7 @@ export function ChatInputArea({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (
+      !allowCopyPaste &&
       (e.ctrlKey || e.metaKey) &&
       (e.key === "c" || e.key === "v" || e.key === "x")
     ) {
@@ -275,7 +279,21 @@ export function ChatInputArea({
 
       if (!response.ok) {
         setMessages([]);
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+        if (
+          response.status === 403 &&
+          errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
+        ) {
+          onIntegrityAccessRevoked?.();
+          alert(
+            errorData.error ||
+              "Access to this assessment has been suspended.",
+          );
+          return;
+        }
         throw new Error(errorData.error || "Failed to start chat");
       }
 
@@ -377,7 +395,21 @@ export function ChatInputArea({
 
       if (!response.ok) {
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+        if (
+          response.status === 403 &&
+          errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
+        ) {
+          onIntegrityAccessRevoked?.();
+          alert(
+            errorData.error ||
+              "Access to this assessment has been suspended.",
+          );
+          return;
+        }
         throw new Error(errorData.error || "Failed to send message");
       }
 
@@ -414,15 +446,15 @@ export function ChatInputArea({
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
+    if (!allowCopyPaste) e.preventDefault();
   };
 
   const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
+    if (!allowCopyPaste) e.preventDefault();
   };
 
   const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
+    if (!allowCopyPaste) e.preventDefault();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

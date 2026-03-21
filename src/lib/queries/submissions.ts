@@ -11,7 +11,7 @@ import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
 /** All columns for the submissions table (includes evaluations JSONB and activity metrics — use SUBMISSION_LIST_COLUMNS for list views) */
 const SUBMISSION_ALL_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, has_pending_approvals, tab_leave_events, input_violation_events";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, has_pending_approvals, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason";
 
 /** All columns for the submission_transcripts table */
 const TRANSCRIPT_ALL_COLUMNS =
@@ -913,7 +913,7 @@ export async function markAttemptsAsStale(
 
 /** Columns to select for list views (excludes evaluations JSONB) */
 const SUBMISSION_LIST_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals, integrity_access_revoked_at, integrity_access_revoked_reason";
 
 /**
  * Student submission status for teacher view
@@ -1123,10 +1123,13 @@ export async function saveExperienceRating(
  * Append a single tab-leave timestamp to the submission's tab_leave_events array.
  * The array is stored as a JSON column on the submissions table.
  */
+/**
+ * Appends a tab-leave timestamp. Returns the new event count, or null on failure.
+ */
 export async function appendTabLeaveEvent(
   submissionId: string,
   timestamp: string
-): Promise<void> {
+): Promise<number | null> {
   const supabase = createClient();
 
   const { data, error } = await supabase
@@ -1137,22 +1140,82 @@ export async function appendTabLeaveEvent(
 
   if (error) {
     console.error("Error fetching tab_leave_events:", error);
-    return;
+    return null;
   }
 
   const existing =
     (data?.tab_leave_events as string[] | null | undefined) ?? [];
 
+  const next = [...existing, timestamp];
+
   const { error: updateError } = await supabase
     .from("submissions")
     .update({
-      tab_leave_events: [...existing, timestamp],
+      tab_leave_events: next,
       updated_at: new Date().toISOString(),
     })
     .eq("submission_id", submissionId);
 
   if (updateError) {
     console.error("Error appending tab_leave_event:", updateError);
+    return null;
+  }
+
+  return next.length;
+}
+
+export interface SetSubmissionIntegrityRevokedParams {
+  reason: string;
+}
+
+/**
+ * Locks the submission for integrity violations (student cannot continue until teacher clears).
+ */
+export async function setSubmissionIntegrityRevoked(
+  submissionId: string,
+  params: SetSubmissionIntegrityRevokedParams
+): Promise<void> {
+  const supabase = createClient();
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("submissions")
+    .update({
+      integrity_access_revoked_at: now,
+      integrity_access_revoked_reason: params.reason,
+      updated_at: now,
+    })
+    .eq("submission_id", submissionId);
+
+  if (error) {
+    console.error("Error setting submission integrity revoked:", error);
+    throw error;
+  }
+}
+
+/**
+ * Clears integrity lock (teacher action).
+ * Also resets `tab_leave_events` so tab-switch counting starts fresh and the
+ * student is not immediately locked again on the next leave.
+ */
+export async function clearSubmissionIntegrityRevocation(
+  submissionId: string
+): Promise<void> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("submissions")
+    .update({
+      integrity_access_revoked_at: null,
+      integrity_access_revoked_reason: null,
+      tab_leave_events: [],
+      updated_at: new Date().toISOString(),
+    })
+    .eq("submission_id", submissionId);
+
+  if (error) {
+    console.error("Error clearing submission integrity revocation:", error);
+    throw error;
   }
 }
 

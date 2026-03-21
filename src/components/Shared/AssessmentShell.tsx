@@ -21,6 +21,7 @@ import { VoiceInputArea } from "@/components/Shared/AssessmentInputs/VoiceInputA
 import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputArea";
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
 import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
+import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 
 export interface AssessmentShellProps {
   assessmentMode: "voice" | "text_chat" | "static_text";
@@ -60,6 +61,12 @@ export interface AssessmentShellProps {
   experienceRatingRequired?: boolean;
   feedbackRequiresApproval?: boolean;
   onClose?: () => void;
+  /** When false (default), text inputs block paste/clipboard shortcuts */
+  allowCopyPaste?: boolean;
+  /** Fired when the server rejects because the submission is integrity-locked */
+  onIntegrityAccessRevoked?: () => void;
+  /** When the voice / chat / static input surface is shown (not loading, results, or evaluating). */
+  onTabTrackingActiveChange?: (active: boolean) => void;
 }
 
 export function AssessmentShell({
@@ -99,6 +106,9 @@ export function AssessmentShell({
   experienceRatingRequired = false,
   feedbackRequiresApproval = false,
   onClose,
+  allowCopyPaste = false,
+  onIntegrityAccessRevoked,
+  onTabTrackingActiveChange,
 }: AssessmentShellProps) {
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(true);
@@ -233,6 +243,7 @@ export function AssessmentShell({
       botPromptConfig, sharedContext, language, attempts.length,
       submissionId, onAnswerSave, logEvent, onAttemptCreated,
       feedbackRequiresApproval,
+      onIntegrityAccessRevoked,
     ],
   );
 
@@ -246,6 +257,20 @@ export function AssessmentShell({
 
   const latestAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
   const remainingAttempts = maxAttempts ? maxAttempts - attempts.length : null;
+
+  const tabTrackingInputsActive =
+    !isComplete &&
+    !isLoadingAttempts &&
+    !submittingForApproval &&
+    !(showCompletion && latestAttempt) &&
+    !isEvaluating;
+
+  React.useEffect(() => {
+    onTabTrackingActiveChange?.(tabTrackingInputsActive);
+    return () => {
+      onTabTrackingActiveChange?.(false);
+    };
+  }, [tabTrackingInputsActive, onTabTrackingActiveChange]);
   // Feedback is pending when the latest attempt explicitly has feedback_approved = false.
   // undefined/absent means approved (instant feedback or legacy attempt).
   const feedbackApprovalPending = latestAttempt?.feedback_approved === false;
@@ -266,6 +291,8 @@ export function AssessmentShell({
     maxAttempts,
     sharedContext,
     evaluationPrompt,
+    allowCopyPaste,
+    onIntegrityAccessRevoked,
   };
 
   return (

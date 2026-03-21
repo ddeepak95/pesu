@@ -3,6 +3,8 @@ import {
   runBackgroundEvaluation,
   BackgroundEvaluationParams,
 } from "@/lib/backgroundEvaluation";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
 
 /**
  * Retry endpoint for failed background evaluations.
@@ -42,6 +44,15 @@ export async function POST(request: NextRequest) {
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    const supabase = await createServerSupabaseClient();
+    const integrityBlock = await assertSubmissionNotIntegrityLocked(
+      supabase,
+      submissionId,
+    );
+    if (integrityBlock) {
+      return integrityBlock;
     }
 
     const params: BackgroundEvaluationParams = {

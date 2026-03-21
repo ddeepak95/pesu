@@ -6,9 +6,12 @@ import { AssessmentShell } from "@/components/Shared/AssessmentShell";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
+import { getEffectiveAllowCopyPaste } from "@/lib/integrity/assignmentPolicy";
 import { isContentComplete } from "@/lib/queries/contentCompletions";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import PageTitle from "@/components/Shared/PageTitle";
+import { TabSwitchWarningDialog } from "@/components/Shared/Integrity/TabSwitchWarningDialog";
+import { useTabLeaveTracking } from "@/hooks/useTabLeaveTracking";
 
 interface AssignmentResponseCoreProps {
   assignmentData: Assignment;
@@ -25,6 +28,10 @@ interface AssignmentResponseCoreProps {
   currentAttemptNumber?: number; // Current attempt number (for student assignments)
   maxAttempts?: number; // Maximum attempts allowed
   maxAttemptsReached?: boolean; // Whether max attempts have been reached
+  /** When server returns integrity lock during evaluate */
+  onIntegrityAccessRevoked?: () => void;
+  /** True when the wrapper is showing the integrity-revoked screen (hook safety; Core usually unmounts). */
+  integrityAccessRevoked?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
 }
 
@@ -47,6 +54,8 @@ export default function AssignmentResponseCore({
   currentAttemptNumber,
   maxAttempts,
   maxAttemptsReached,
+  onIntegrityAccessRevoked,
+  integrityAccessRevoked = false,
 }: AssignmentResponseCoreProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] =
     useState(initialQuestionIndex);
@@ -217,6 +226,18 @@ export default function AssignmentResponseCore({
   const isLastQuestion = currentQuestionIndex === sortedQuestions.length - 1;
 
   const assessmentMode = assignmentData.assessment_mode ?? "voice";
+  const allowCopyPaste = getEffectiveAllowCopyPaste(assignmentData);
+
+  const [tabTrackingActive, setTabTrackingActive] = useState(false);
+
+  const { showTabWarning, dismissTabWarning, tabWarningQuota } =
+    useTabLeaveTracking({
+      submissionId,
+      assignment: assignmentData,
+      integrityAccessRevoked,
+      active: tabTrackingActive,
+      onAccessRevoked: onIntegrityAccessRevoked,
+    });
 
   // If language is locked, don't allow students to change it
   const languageChangeHandler = assignmentData.lock_language
@@ -224,7 +245,15 @@ export default function AssignmentResponseCore({
     : handleLanguageChange;
 
   return (
-    <div className="w-full space-y-6">
+    <>
+      <TabSwitchWarningDialog
+        open={showTabWarning}
+        quota={tabWarningQuota}
+        onOpenChange={(open) => {
+          if (!open) dismissTabWarning();
+        }}
+      />
+      <div className="w-full space-y-6">
       {/* Assignment Title and Language Selector */}
       <PageTitle
         title={assignmentData.title}
@@ -295,7 +324,11 @@ export default function AssignmentResponseCore({
         feedbackRequiresApproval={
           assignmentData.feedback_requires_approval ?? false
         }
+        allowCopyPaste={allowCopyPaste}
+        onIntegrityAccessRevoked={onIntegrityAccessRevoked}
+        onTabTrackingActiveChange={setTabTrackingActive}
       />
     </div>
+    </>
   );
 }

@@ -23,17 +23,21 @@ import { useState, useEffect } from "react";
 import { SubmissionQuestionCard } from "./SubmissionQuestionCard";
 import { TranscriptDialog } from "./TranscriptDialog";
 import { SubmissionDisplayName } from "./SubmissionDisplayName";
+import { SubmissionIntegrityLockBanner } from "@/components/Shared/Integrity/SubmissionIntegrityLockBanner";
 
 interface SubmissionViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   studentSubmission: StudentSubmissionStatus | PublicSubmissionStatus;
+  /** Refetch list views after teacher clears integrity lock */
+  onIntegrityRestored?: () => void | Promise<void>;
 }
 
 export default function SubmissionViewDialog({
   open,
   onOpenChange,
   studentSubmission,
+  onIntegrityRestored,
 }: SubmissionViewDialogProps) {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [fullSubmission, setFullSubmission] = useState<Submission | null>(null);
@@ -132,6 +136,20 @@ export default function SubmissionViewDialog({
           </div>
         ) : (
           <div className="space-y-6 mt-4">
+            {fullSubmission?.integrity_access_revoked_at ? (
+              <SubmissionIntegrityLockBanner
+                submissionId={fullSubmission.submission_id}
+                revokedAt={fullSubmission.integrity_access_revoked_at}
+                reasonCode={fullSubmission.integrity_access_revoked_reason}
+                onRestored={async () => {
+                  const s = await getSubmissionById(
+                    fullSubmission.submission_id,
+                  );
+                  setFullSubmission(s);
+                  await onIntegrityRestored?.();
+                }}
+              />
+            ) : null}
             {/* Attempts by Question */}
             {assignment && (
               <div className="space-y-6">

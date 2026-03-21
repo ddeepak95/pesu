@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -28,6 +35,8 @@ import {
   removeSubmissionIdFromUrl,
 } from "@/utils/sessionStorage";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import { Submission } from "@/types/submission";
+import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
 
 type Phase = "info" | "answering" | "completed";
 
@@ -74,7 +83,25 @@ const PublicAssignmentResponse = forwardRef<
     [key: number]: string;
   }>({});
   const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
+  const [integrityRevoked, setIntegrityRevoked] = useState<{
+    at: string;
+    reason: string | null;
+  } | null>(null);
   const isRestoringRef = useRef(false);
+
+  const applyIntegrityFromSubmission = useCallback(
+    (s: Pick<Submission, "integrity_access_revoked_at" | "integrity_access_revoked_reason">) => {
+      if (s.integrity_access_revoked_at) {
+        setIntegrityRevoked({
+          at: s.integrity_access_revoked_at,
+          reason: s.integrity_access_revoked_reason ?? null,
+        });
+      } else {
+        setIntegrityRevoked(null);
+      }
+    },
+    [],
+  );
 
   // Get max attempts from assignment config
   const maxAttempts = assignmentData.max_attempts ?? 1;
@@ -140,6 +167,7 @@ const PublicAssignmentResponse = forwardRef<
       if (submission.status === "completed") {
         // Submission is completed, show completion screen
         setSubmissionId(submission.submission_id);
+        applyIntegrityFromSubmission(submission);
         const name = getDisplayName(submission);
         setDisplayName(name);
         if (onDisplayNameChange) {
@@ -152,6 +180,7 @@ const PublicAssignmentResponse = forwardRef<
 
       // Restore in-progress submission
       setSubmissionId(submission.submission_id);
+      applyIntegrityFromSubmission(submission);
       const name = getDisplayName(submission);
       setDisplayName(name);
       setPreferredLanguage(submission.preferred_language);
@@ -239,6 +268,7 @@ const PublicAssignmentResponse = forwardRef<
         }
       );
       setSubmissionId(submission.submission_id);
+      applyIntegrityFromSubmission(submission);
       const name = getDisplayName(submission);
       setDisplayName(name);
       setPhase("answering");
@@ -292,6 +322,7 @@ const PublicAssignmentResponse = forwardRef<
     setPhase("info");
     setPreferredLanguage(assignmentData.preferred_language || "en");
     setMaxAttemptsReached(false);
+    setIntegrityRevoked(null);
 
     // Clear display name in parent
     if (onDisplayNameChange) {
@@ -308,6 +339,12 @@ const PublicAssignmentResponse = forwardRef<
   useImperativeHandle(ref, () => ({
     resetSubmission,
   }));
+
+  const handleIntegrityAccessRevoked = async () => {
+    if (!submissionId) return;
+    const s = await getSubmissionById(submissionId);
+    if (s) applyIntegrityFromSubmission(s);
+  };
 
   if (restoringSession) {
     return (
@@ -364,34 +401,49 @@ const PublicAssignmentResponse = forwardRef<
   }
 
   // Phase 2: Question Answering (delegated to core component)
-  // Wrap with ActivityTrackingProvider - userId is undefined for public submissions
   if (phase === "answering" && submissionId) {
+    if (integrityRevoked) {
+      return (
+        <>
+          <div className="w-full space-y-6 px-4">
+            <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
+            <IntegrityAccessRevokedScreen
+              reasonCode={integrityRevoked.reason}
+            />
+          </div>
+        </>
+      );
+    }
+
     return (
-      <ActivityTrackingProvider
-        submissionId={submissionId}
-        classId={assignmentData.class_id}
-      >
-        <AssignmentResponseCore
-          assignmentData={assignmentData}
+      <>
+        <ActivityTrackingProvider
           submissionId={submissionId}
-          displayName={displayName}
-          preferredLanguage={preferredLanguage}
-          onComplete={() => {
-            setPhase("completed");
-            clearSession(assignmentId);
-            if (onComplete) {
-              onComplete();
-            }
-          }}
-          onBack={onBack}
-          onLanguageChange={handleLanguageChange}
-          assignmentId={assignmentId}
-          initialQuestionIndex={currentQuestionIndex}
-          existingAnswers={existingAnswers}
-          maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
-        />
-      </ActivityTrackingProvider>
+          classId={assignmentData.class_id}
+        >
+          <AssignmentResponseCore
+            assignmentData={assignmentData}
+            submissionId={submissionId}
+            displayName={displayName}
+            preferredLanguage={preferredLanguage}
+            onComplete={() => {
+              setPhase("completed");
+              clearSession(assignmentId);
+              if (onComplete) {
+                onComplete();
+              }
+            }}
+            onBack={onBack}
+            onLanguageChange={handleLanguageChange}
+            assignmentId={assignmentId}
+            initialQuestionIndex={currentQuestionIndex}
+            existingAnswers={existingAnswers}
+            maxAttempts={maxAttempts}
+            maxAttemptsReached={maxAttemptsReached}
+            onIntegrityAccessRevoked={handleIntegrityAccessRevoked}
+          />
+        </ActivityTrackingProvider>
+      </>
     );
   }
 
@@ -414,6 +466,7 @@ const PublicAssignmentResponse = forwardRef<
           existingAnswers={{}}
           maxAttempts={maxAttempts}
           maxAttemptsReached={maxAttemptsReached}
+          integrityAccessRevoked={!!integrityRevoked}
         />
       </ActivityTrackingProvider>
     );
