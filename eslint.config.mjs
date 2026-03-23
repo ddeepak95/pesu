@@ -22,6 +22,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local python venvs / vendor files:
     "pesu-server/.venv/**",
+    // Docusaurus generated artifacts:
+    "convoed-docs/.docusaurus/**",
   ]),
 ]);
 

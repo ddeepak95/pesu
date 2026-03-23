@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
 import ChangeGroupDialog from "./ChangeGroupDialog";
@@ -19,18 +18,14 @@ import SubmissionsTable, {
 } from "@/components/Teacher/Shared/SubmissionsTable";
 import {
   StudentWithInfo,
-  getClassStudentsWithInfo,
 } from "@/lib/queries/students";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
-import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
+import { ClassGroup } from "@/lib/queries/groups";
 import {
-  getProfileFieldsForClass,
-  getAllStudentProfiles,
-} from "@/lib/queries/profileFields";
-import { getProgressViewConfig } from "@/lib/queries/classes";
-import { ProfileField } from "@/types/profileFields";
-import { getClassContentCompletions } from "@/lib/queries/contentCompletions";
-import { StudentContentCompletionWithDetails } from "@/types/contentCompletion";
+  getStudentGroupLabel,
+  useClassStudentsData,
+} from "./hooks/useClassStudentsData";
+import StudentsAnalyticsTab from "./StudentsAnalyticsTab";
 
 interface StudentsProps {
   classData: Class;
@@ -41,18 +36,6 @@ export default function Students({ classData }: StudentsProps) {
   const [isTeacher, setIsTeacher] = useState(false);
   const isOwner = user?.id === classData.created_by;
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
-  const [students, setStudents] = useState<StudentWithInfo[]>([]);
-  const [groups, setGroups] = useState<ClassGroup[]>([]);
-  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
-  const [studentProfilesMap, setStudentProfilesMap] = useState<
-    Map<string, Record<string, string>>
-  >(new Map());
-  const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Change group dialog state
   const [changeGroupDialogOpen, setChangeGroupDialogOpen] = useState(false);
@@ -74,13 +57,7 @@ export default function Students({ classData }: StudentsProps) {
   const [individualProgressStudent, setIndividualProgressStudent] =
     useState<StudentWithInfo | null>(null);
 
-  // Progress tab state (lazy-loaded)
   const [activeTab, setActiveTab] = useState("list");
-  const [progressData, setProgressData] = useState<
-    StudentContentCompletionWithDetails[]
-  >([]);
-  const [progressLoading, setProgressLoading] = useState(false);
-  const [progressLoaded, setProgressLoaded] = useState(false);
 
   // Check if user is a co-teacher
   useEffect(() => {
@@ -113,71 +90,31 @@ export default function Students({ classData }: StudentsProps) {
     checkTeacherStatus();
   }, [user, classData.id, isOwner]);
 
-  // Fetch enrolled students, groups, profile fields, profiles, and view config
-  const fetchData = async () => {
-    if (!isTeacher) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const [studentsData, groupsData, fields, profiles, savedConfig] =
-        await Promise.all([
-          getClassStudentsWithInfo(classData.id),
-          getClassGroups(classData.id),
-          getProfileFieldsForClass(classData.id),
-          getAllStudentProfiles(classData.id),
-          classData.progress_view_config != null
-            ? Promise.resolve(classData.progress_view_config)
-            : getProgressViewConfig(classData.id),
-        ]);
-
-      setStudents(studentsData);
-      setGroups(groupsData);
-      setProfileFields(fields);
-
-      const profilesMap = new Map<string, Record<string, string>>();
-      profiles.forEach((p) => {
-        profilesMap.set(p.student_id, p.field_responses);
-      });
-      setStudentProfilesMap(profilesMap);
-
-      setDisplayFieldIds(new Set(savedConfig?.display_fields ?? []));
-      setFilterFieldIds(new Set(savedConfig?.filter_fields ?? []));
-    } catch (err) {
-      console.error("Error fetching students:", err);
-      setError("Failed to load students.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    loading,
+    progressLoading,
+    error,
+    students,
+    groups,
+    profileFields,
+    studentProfilesMap,
+    displayFieldIds,
+    filterFieldIds,
+    filterableFields,
+    progressStatsMap,
+    refreshBase,
+    ensureProgressDataLoaded,
+    buildGroupAnalyticsBuckets,
+    buildProfileAnalyticsBuckets,
+  } = useClassStudentsData({
+    classData,
+    isTeacher,
+  });
 
   useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTeacher, classData.id]);
-
-  // Lazy-fetch progress data when the Progress tab is first activated
-  useEffect(() => {
-    if (activeTab !== "progress" || progressLoaded || progressLoading) return;
-
-    const fetchProgressData = async () => {
-      setProgressLoading(true);
-      try {
-        const completions = await getClassContentCompletions(classData.id);
-        setProgressData(completions);
-        setProgressLoaded(true);
-      } catch (err) {
-        console.error("Error fetching progress data:", err);
-      } finally {
-        setProgressLoading(false);
-      }
-    };
-
-    fetchProgressData();
-  }, [activeTab, progressLoaded, progressLoading, classData.id]);
+    if (activeTab !== "progress" && activeTab !== "by-category") return;
+    ensureProgressDataLoaded();
+  }, [activeTab, ensureProgressDataLoaded]);
 
   const handleChangeGroup = useCallback((student: StudentWithInfo) => {
     setSelectedStudent(student);
@@ -193,11 +130,11 @@ export default function Students({ classData }: StudentsProps) {
   );
 
   const handleGroupChanged = () => {
-    fetchData();
+    refreshBase();
   };
 
   const handleStudentDeleted = () => {
-    fetchData();
+    refreshBase();
   };
 
   const handleDeleteStudent = useCallback((student: StudentWithInfo) => {
@@ -207,9 +144,7 @@ export default function Students({ classData }: StudentsProps) {
 
   const tableRows: SubmissionsTableRow[] = useMemo(() => {
     return students.map((s) => {
-      const groupDisplayName =
-        s.group_name ||
-        (s.group_index !== null ? `Group ${s.group_index + 1}` : "No group");
+      const groupDisplayName = getStudentGroupLabel(s);
       return {
         id: s.student_id,
         name: getStudentDisplayName(s),
@@ -294,142 +229,15 @@ export default function Students({ classData }: StudentsProps) {
     visibleDisplayFields,
   ]);
 
-  const filterableFields = useMemo(() => {
-    if (filterFieldIds.size === 0) return [];
-    return profileFields.filter(
-      (f) =>
-        filterFieldIds.has(f.id) &&
-        f.field_type === "dropdown" &&
-        f.options &&
-        f.options.length > 0,
-    );
-  }, [profileFields, filterFieldIds]);
-
-  const groupCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    tableRows.forEach((row) => {
-      const label =
-        (row.data?.groupDisplayName as string)?.trim() || "No group";
-      counts[label] = (counts[label] ?? 0) + 1;
-    });
-    return Object.entries(counts)
-      .map(([label, count]) => ({ label, count }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [tableRows]);
-
-  const categoryCounts = useMemo(() => {
-    return filterableFields.map((field) => {
-      const optionCounts: Record<string, number> = {};
-      (field.options ?? []).forEach((opt) => {
-        optionCounts[opt] = 0;
-      });
-      optionCounts["(Not set)"] = 0;
-
-      tableRows.forEach((row) => {
-        const value = row.profileData?.[field.id];
-        if (value == null || value.trim() === "") {
-          optionCounts["(Not set)"] += 1;
-        } else if (value in optionCounts) {
-          optionCounts[value] += 1;
-        } else {
-          optionCounts[value] = (optionCounts[value] ?? 0) + 1;
-        }
-      });
-
-      return {
-        field,
-        counts: Object.entries(optionCounts).map(([label, count]) => ({
-          label,
-          count,
-        })),
-      };
-    });
-  }, [filterableFields, tableRows]);
-
-  // Per-student progress stats scoped to each student's group
-  const progressStatsMap = useMemo(() => {
-    if (progressData.length === 0)
-      return new Map<
-        string,
-        { completed: number; total: number; lastCompletedAt: string | null }
-      >();
-
-    const map = new Map<
-      string,
-      { completed: number; total: number; lastCompletedAt: string | null }
-    >();
-
-    // Group content item IDs by group
-    const contentByGroup = new Map<string, Set<string>>();
-    progressData.forEach((item) => {
-      const gId = item.contentGroupId ?? "__none__";
-      if (!contentByGroup.has(gId)) contentByGroup.set(gId, new Set());
-      contentByGroup.get(gId)!.add(item.contentItemId);
-    });
-
-    // Build completion set + completion date index per student
-    const studentCompletions = new Map<string, Set<string>>();
-    const studentCompletionDates = new Map<string, Map<string, string>>();
-    progressData.forEach((item) => {
-      if (!item.isComplete) return;
-      if (!studentCompletions.has(item.studentId))
-        studentCompletions.set(item.studentId, new Set());
-      studentCompletions.get(item.studentId)!.add(item.contentItemId);
-
-      // completedAt should be non-null when isComplete=true, but guard anyway.
-      if (item.completedAt) {
-        if (!studentCompletionDates.has(item.studentId)) {
-          studentCompletionDates.set(
-            item.studentId,
-            new Map<string, string>()
-          );
-        }
-        studentCompletionDates.get(item.studentId)!.set(
-          item.contentItemId,
-          item.completedAt
-        );
-      }
-    });
-
-    students.forEach((s) => {
-      const gId = s.group_id ?? "__none__";
-      const groupContentIds = contentByGroup.get(gId);
-      const total = groupContentIds?.size ?? 0;
-      const completedIds = studentCompletions.get(s.student_id);
-      const completionDatesByContent =
-        studentCompletionDates.get(s.student_id);
-      let completed = 0;
-      let lastCompletedAt: string | null = null;
-      if (completedIds && groupContentIds) {
-        groupContentIds.forEach((cId) => {
-          if (completedIds.has(cId)) completed++;
-
-          const iso = completionDatesByContent?.get(cId);
-          if (iso) {
-            if (!lastCompletedAt || Date.parse(iso) > Date.parse(lastCompletedAt)) {
-              lastCompletedAt = iso;
-            }
-          }
-        });
-      }
-
-      map.set(s.student_id, { completed, total, lastCompletedAt });
-    });
-
-    return map;
-  }, [progressData, students]);
-
   const progressTableRows: SubmissionsTableRow[] = useMemo(() => {
     return students.map((s) => {
-      const groupDisplayName =
-        s.group_name ||
-        (s.group_index !== null ? `Group ${s.group_index + 1}` : "No group");
+      const groupDisplayName = getStudentGroupLabel(s);
       const stats = progressStatsMap.get(s.student_id) ?? {
         completed: 0,
         total: 0,
         lastCompletedAt: null,
+        status: "not_started",
       };
-      const pct = stats.total > 0 ? stats.completed / stats.total : 0;
 
       return {
         id: s.student_id,
@@ -437,13 +245,7 @@ export default function Students({ classData }: StudentsProps) {
         email: s.student_email,
         profileData: studentProfilesMap.get(s.student_id) ?? {},
         status:
-          stats.total === 0
-            ? "no_content"
-            : pct >= 1
-              ? "complete"
-              : stats.completed > 0
-                ? "in_progress"
-                : "not_started",
+          stats.status === "no_content" ? "not_started" : stats.status,
         data: {
           groupDisplayName,
           progressStats: stats,
@@ -486,7 +288,11 @@ export default function Students({ classData }: StudentsProps) {
         label: "Progress",
         render: (row: SubmissionsTableRow) => {
           const stats = row.data?.progressStats as
-            | { completed: number; total: number; lastCompletedAt: string | null }
+            | {
+                completed: number;
+                total: number;
+                lastCompletedAt: string | null;
+              }
             | undefined;
           if (!stats || stats.total === 0) {
             return (
@@ -516,7 +322,11 @@ export default function Students({ classData }: StudentsProps) {
         },
         sortValue: (row: SubmissionsTableRow) => {
           const stats = row.data?.progressStats as
-            | { completed: number; total: number; lastCompletedAt: string | null }
+            | {
+                completed: number;
+                total: number;
+                lastCompletedAt: string | null;
+              }
             | undefined;
           if (!stats || stats.total === 0) return -1;
           return stats.completed / stats.total;
@@ -527,7 +337,11 @@ export default function Students({ classData }: StudentsProps) {
         label: "Last completed",
         render: (row: SubmissionsTableRow) => {
           const stats = row.data?.progressStats as
-            | { completed: number; total: number; lastCompletedAt: string | null }
+            | {
+                completed: number;
+                total: number;
+                lastCompletedAt: string | null;
+              }
             | undefined;
           if (!stats || !stats.lastCompletedAt) {
             return (
@@ -542,7 +356,11 @@ export default function Students({ classData }: StudentsProps) {
         },
         sortValue: (row: SubmissionsTableRow) => {
           const stats = row.data?.progressStats as
-            | { completed: number; total: number; lastCompletedAt: string | null }
+            | {
+                completed: number;
+                total: number;
+                lastCompletedAt: string | null;
+              }
             | undefined;
           if (!stats || !stats.lastCompletedAt) return -1;
           return Date.parse(stats.lastCompletedAt);
@@ -673,62 +491,12 @@ export default function Students({ classData }: StudentsProps) {
           </TabsContent>
 
           <TabsContent value="by-category" className="mt-0">
-            <div className="space-y-6">
-              {groupCounts.length > 0 && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <h3 className="text-base font-medium">Group</h3>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-1.5">
-                      {groupCounts.map(({ label, count }) => (
-                        <li
-                          key={label}
-                          className="flex items-center justify-between text-sm"
-                        >
-                          <span className="text-muted-foreground">{label}</span>
-                          <span className="font-medium">{count}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-              {filterableFields.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>
-                    No category fields configured. Add profile fields and mark
-                    them as filter fields in Class settings → Profile fields →
-                    View Config.
-                  </p>
-                </div>
-              ) : (
-                categoryCounts.map(({ field, counts }) => (
-                  <Card key={field.id}>
-                    <CardHeader className="pb-2">
-                      <h3 className="text-base font-medium">
-                        {field.field_name}
-                      </h3>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-1.5">
-                        {counts.map(({ label, count }) => (
-                          <li
-                            key={label}
-                            className="flex items-center justify-between text-sm"
-                          >
-                            <span className="text-muted-foreground">
-                              {label}
-                            </span>
-                            <span className="font-medium">{count}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
+            <StudentsAnalyticsTab
+              filterableFields={filterableFields}
+              groupBuckets={buildGroupAnalyticsBuckets()}
+              buildProfileBuckets={buildProfileAnalyticsBuckets}
+              progressLoading={progressLoading}
+            />
           </TabsContent>
         </Tabs>
       )}
