@@ -37,9 +37,7 @@ export interface AssessmentShellProps {
   isLastQuestion: boolean;
   existingAnswer?: string;
   onLanguageChange?: (language: string) => void;
-  currentAttemptNumber?: number;
   maxAttempts?: number;
-  maxAttemptsReached?: boolean;
   botPromptConfig?: BotPromptConfig;
   contentItemId?: string | null;
   showRubric?: boolean;
@@ -78,7 +76,6 @@ export function AssessmentShell({
   existingAnswer,
   onLanguageChange,
   maxAttempts,
-  maxAttemptsReached,
   botPromptConfig,
   contentItemId,
   showRubric = true,
@@ -110,6 +107,8 @@ export function AssessmentShell({
   // student sees the pending view right away instead of watching the evaluating spinner.
   const [submittingForApproval, setSubmittingForApproval] = React.useState(false);
   const navigationRef = useRef<AssessmentNavigationHandle>(null);
+
+  const maxAttemptsReached = maxAttempts != null && attempts.length >= maxAttempts;
 
   const { logEvent } = useActivityTracking({
     componentType: "question",

@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/select";
 import {
   createSubmission,
-  getSubmissionById,
-  getMaxAttemptCountAcrossQuestions,
+  getSubmissionForSessionRestore,
   getTranscriptsForSubmission,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
@@ -73,11 +72,7 @@ const PublicAssignmentResponse = forwardRef<
   const [existingAnswers, setExistingAnswers] = useState<{
     [key: number]: string;
   }>({});
-  const [maxAttemptsReached, setMaxAttemptsReached] = useState<boolean>(false);
   const isRestoringRef = useRef(false);
-
-  // Get max attempts from assignment config
-  const maxAttempts = assignmentData.max_attempts ?? 1;
 
   // Get responder fields config or default to name field
   const responderFields = assignmentData.responder_fields_config || [
@@ -126,11 +121,9 @@ const PublicAssignmentResponse = forwardRef<
         return;
       }
 
-      // Fetch the submission from database
-      const submission = await getSubmissionById(sessionSubmissionId);
+      const submission = await getSubmissionForSessionRestore(sessionSubmissionId);
 
       if (!submission || submission.assignment_id !== assignmentId) {
-        // Invalid or mismatched submission
         console.warn("Invalid submission ID, clearing session");
         clearSession(assignmentId);
         setRestoringSession(false);
@@ -138,7 +131,6 @@ const PublicAssignmentResponse = forwardRef<
       }
 
       if (submission.status === "completed") {
-        // Submission is completed, show completion screen
         setSubmissionId(submission.submission_id);
         const name = getDisplayName(submission);
         setDisplayName(name);
@@ -150,21 +142,12 @@ const PublicAssignmentResponse = forwardRef<
         return;
       }
 
-      // Restore in-progress submission
       setSubmissionId(submission.submission_id);
       const name = getDisplayName(submission);
       setDisplayName(name);
       setPreferredLanguage(submission.preferred_language);
       if (onDisplayNameChange) {
         onDisplayNameChange(name);
-      }
-
-      // Check if max attempts reached
-      const attemptCount = await getMaxAttemptCountAcrossQuestions(
-        submission.submission_id
-      );
-      if (attemptCount >= maxAttempts) {
-        setMaxAttemptsReached(true);
       }
 
       // Reconstruct answers from transcripts table
@@ -291,7 +274,6 @@ const PublicAssignmentResponse = forwardRef<
     setExistingAnswers({});
     setPhase("info");
     setPreferredLanguage(assignmentData.preferred_language || "en");
-    setMaxAttemptsReached(false);
 
     // Clear display name in parent
     if (onDisplayNameChange) {
@@ -388,8 +370,6 @@ const PublicAssignmentResponse = forwardRef<
           assignmentId={assignmentId}
           initialQuestionIndex={currentQuestionIndex}
           existingAnswers={existingAnswers}
-          maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
         />
       </ActivityTrackingProvider>
     );
@@ -412,8 +392,6 @@ const PublicAssignmentResponse = forwardRef<
           assignmentId={assignmentId}
           initialQuestionIndex={0}
           existingAnswers={{}}
-          maxAttempts={maxAttempts}
-          maxAttemptsReached={maxAttemptsReached}
         />
       </ActivityTrackingProvider>
     );
