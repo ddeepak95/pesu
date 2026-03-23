@@ -342,16 +342,14 @@ The users are students. All feedback must be age-appropriate, supportive, and re
       evaluations as { [key: number]: QuestionEvaluations }
     );
 
-    const { data: updatedSubmission, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from("submissions")
       .update({
         evaluations,
         ...denormalized,
         updated_at: new Date().toISOString(),
       })
-      .eq("submission_id", submissionId)
-      .select()
-      .single();
+      .eq("submission_id", submissionId);
 
     if (updateError) {
       console.error("Error updating submission:", updateError);
@@ -370,7 +368,6 @@ The users are students. All feedback must be age-appropriate, supportive, and re
     return NextResponse.json({
       success: true,
       attempt: newAttempt,
-      submission: updatedSubmission,
     });
   } catch (error) {
     console.error("=== Evaluation error ===");

@@ -5,7 +5,7 @@ import { Assignment } from "@/types/assignment";
 import { AssessmentShell } from "@/components/Shared/AssessmentShell";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { getQuestionAttempts } from "@/lib/queries/submissions";
+import { getQuestionsWithAttempts } from "@/lib/queries/submissions";
 import { getEffectiveAllowCopyPaste } from "@/lib/integrity/assignmentPolicy";
 import { isContentComplete } from "@/lib/queries/contentCompletions";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
@@ -25,9 +25,6 @@ interface AssignmentResponseCoreProps {
   assignmentId: string; // For session storage
   initialQuestionIndex?: number; // Initial question index
   existingAnswers?: { [key: number]: string }; // Existing answers to restore
-  currentAttemptNumber?: number; // Current attempt number (for student assignments)
-  maxAttempts?: number; // Maximum attempts allowed
-  maxAttemptsReached?: boolean; // Whether max attempts have been reached
   /** When server returns integrity lock during evaluate */
   onIntegrityAccessRevoked?: () => void;
   /** True when the wrapper is showing the integrity-revoked screen (hook safety; Core usually unmounts). */
@@ -51,9 +48,6 @@ export default function AssignmentResponseCore({
   assignmentId,
   initialQuestionIndex = 0,
   existingAnswers = {},
-  currentAttemptNumber,
-  maxAttempts,
-  maxAttemptsReached,
   onIntegrityAccessRevoked,
   integrityAccessRevoked = false,
 }: AssignmentResponseCoreProps) {
@@ -73,35 +67,23 @@ export default function AssignmentResponseCore({
     Set<number>
   >(new Set());
 
-  // Sorted questions for reference
-  const sortedQuestions = [...assignmentData.questions].sort(
-    (a, b) => a.order - b.order,
+  // Sorted questions — memoized so the reference is stable across renders
+  const sortedQuestions = useMemo(
+    () => [...assignmentData.questions].sort((a, b) => a.order - b.order),
+    [assignmentData.questions],
   );
 
-  // Function to check attempts for all questions
+  // Single-query check: which questions have at least one non-stale attempt?
   const checkAttempts = useCallback(async () => {
     if (!submissionId) return;
 
-    const withAttempts = new Set<number>();
-    for (const question of sortedQuestions) {
-      try {
-        const attempts = await getQuestionAttempts(
-          submissionId,
-          question.order,
-          true, // Exclude stale attempts
-        );
-        if (attempts.length > 0) {
-          withAttempts.add(question.order);
-        }
-      } catch (error) {
-        console.error(
-          `Error checking attempts for question ${question.order}:`,
-          error,
-        );
-      }
+    try {
+      const withAttempts = await getQuestionsWithAttempts(submissionId);
+      setQuestionsWithAttempts(withAttempts);
+    } catch (error) {
+      console.error("Error checking question attempts:", error);
     }
-    setQuestionsWithAttempts(withAttempts);
-  }, [submissionId, sortedQuestions]);
+  }, [submissionId]);
 
   // Check attempts when component mounts and when navigating between questions
   useEffect(() => {
@@ -292,9 +274,7 @@ export default function AssignmentResponseCore({
         isLastQuestion={isLastQuestion}
         existingAnswer={answers[currentQuestion.order]}
         onLanguageChange={languageChangeHandler}
-        currentAttemptNumber={currentAttemptNumber}
-        maxAttempts={maxAttempts}
-        maxAttemptsReached={maxAttemptsReached}
+        maxAttempts={assignmentData.max_attempts ?? 1}
         botPromptConfig={assignmentData.bot_prompt_config}
         contentItemId={contentItemId}
         showRubric={assignmentData.show_rubric ?? true}

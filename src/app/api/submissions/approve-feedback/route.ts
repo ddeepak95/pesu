@@ -86,16 +86,14 @@ export async function POST(request: NextRequest) {
     // Recompute denormalized fields (score edits may affect highest_score)
     const denormalized = computeDenormalizedFields(evaluations);
 
-    const { data: updatedSubmission, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from("submissions")
       .update({
         evaluations,
         ...denormalized,
         updated_at: new Date().toISOString(),
       })
-      .eq("submission_id", submissionId)
-      .select()
-      .single();
+      .eq("submission_id", submissionId);
 
     if (updateError) {
       console.error("Error saving approved feedback:", updateError);
@@ -151,7 +149,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       attempt: updatedAttempt,
-      submission: updatedSubmission,
     });
   } catch (error) {
     console.error("Approve feedback error:", error);

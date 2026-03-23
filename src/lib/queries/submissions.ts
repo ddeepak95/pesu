@@ -11,7 +11,11 @@ import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
 /** All columns for the submissions table (includes evaluations JSONB and activity metrics — use SUBMISSION_LIST_COLUMNS for list views) */
 const SUBMISSION_ALL_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, has_pending_approvals, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason";
+
+/** Slim columns for session restore — excludes evaluations JSONB */
+const SUBMISSION_SESSION_RESTORE_COLUMNS =
+  "submission_id, assignment_id, student_id, responder_details, preferred_language, status, integrity_access_revoked_at, integrity_access_revoked_reason";
 
 /** All columns for the submission_transcripts table */
 const TRANSCRIPT_ALL_COLUMNS =
@@ -58,7 +62,6 @@ export function computeDenormalizedFields(evaluations: {
       highestScore += Math.max(...nonStale.map((a) => a.score));
       maxScore += nonStale[0].max_score;
     }
-    // Pending = feedback_approved explicitly false AND LLM has finished (not is_evaluating)
     if (nonStale.some((a) => a.feedback_approved === false && !a.is_evaluating)) {
       hasPendingApprovals = true;
     }
@@ -224,7 +227,7 @@ export async function createSubmission(
   const { data, error } = await supabase
     .from("submissions")
     .insert(insertData)
-    .select()
+    .select(SUBMISSION_SESSION_RESTORE_COLUMNS)
     .single();
 
   if (error) {
@@ -232,21 +235,23 @@ export async function createSubmission(
     throw error;
   }
 
-  return data;
+  return data as unknown as Submission;
 }
 
 /**
- * Get submission by student ID and assignment ID (for authenticated students)
+ * Look up whether a student already has a submission for this assignment.
+ * Returns only the submission_id (callers use getSubmissionForSessionRestore
+ * or getSubmissionById when they need more columns).
  */
 export async function getSubmissionByStudentAndAssignment(
   studentId: string,
   assignmentId: string
-): Promise<Submission | null> {
+): Promise<{ submission_id: string } | null> {
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("submissions")
-    .select(SUBMISSION_ALL_COLUMNS)
+    .select("submission_id")
     .eq("student_id", studentId)
     .eq("assignment_id", assignmentId)
     .order("created_at", { ascending: false })
@@ -262,87 +267,27 @@ export async function getSubmissionByStudentAndAssignment(
 }
 
 /**
- * Update or add an answer for a specific question (legacy path)
- * Merges with existing evaluations array
- */
-export async function updateSubmissionAnswer(
-  submissionId: string,
-  questionOrder: number,
-  answerText: string
-): Promise<Submission> {
-  const supabase = createClient();
-
-  // First, get the current evaluations
-  const { data: currentSubmission, error: fetchError } = await supabase
-    .from("submissions")
-    .select("evaluations")
-    .eq("submission_id", submissionId)
-    .single();
-
-  if (fetchError) {
-    console.error("Error fetching submission:", fetchError);
-    throw fetchError;
-  }
-
-  // Update the evaluations array
-  const evals = currentSubmission.evaluations as SubmissionAnswer[];
-  const existingAnswerIndex = evals.findIndex(
-    (a) => a.question_order === questionOrder
-  );
-
-  if (existingAnswerIndex >= 0) {
-    // Update existing answer
-    evals[existingAnswerIndex].answer_text = answerText;
-  } else {
-    // Add new answer
-    evals.push({ question_order: questionOrder, answer_text: answerText });
-  }
-
-  // Save updated evaluations
-  const { data, error } = await supabase
-    .from("submissions")
-    .update({
-      evaluations: evals,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("submission_id", submissionId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error updating submission answer:", error);
-    throw error;
-  }
-
-  return data;
-}
-
-/**
  * Mark a submission as completed
  * Sets status to 'completed' and updates submitted_at timestamp
  */
 export async function completeSubmission(
   submissionId: string
-): Promise<Submission> {
+): Promise<void> {
   const supabase = createClient();
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("submissions")
     .update({
       status: "completed",
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq("submission_id", submissionId)
-    .select()
-    .single();
+    .eq("submission_id", submissionId);
 
   if (error) {
     console.error("Error completing submission:", error);
     throw error;
   }
-
-  return data;
 }
 
 /**
@@ -370,25 +315,38 @@ export async function getSubmissionById(
 }
 
 /**
- * Get all submissions for a specific assignment
+ * Lightweight session-restore fetch — excludes evaluations JSONB.
+ * Use for student/public session restore; prefer getSubmissionById when
+ * the full evaluations blob is genuinely needed (e.g. teacher detail view).
  */
-export async function getSubmissionsByAssignment(
-  assignmentId: string
-): Promise<Submission[]> {
+export async function getSubmissionForSessionRestore(
+  submissionId: string
+): Promise<{
+  submission_id: string;
+  assignment_id: string;
+  student_id?: string | null;
+  responder_details?: Record<string, string>;
+  preferred_language: string;
+  status: "in_progress" | "completed";
+  integrity_access_revoked_at?: string | null;
+  integrity_access_revoked_reason?: string | null;
+} | null> {
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("submissions")
-    .select(SUBMISSION_ALL_COLUMNS)
-    .eq("assignment_id", assignmentId)
-    .order("submitted_at", { ascending: false });
+    .select(SUBMISSION_SESSION_RESTORE_COLUMNS)
+    .eq("submission_id", submissionId)
+    .maybeSingle();
 
   if (error) {
-    console.error("Error fetching submissions:", error);
-    throw error;
+    if (error.code !== "PGRST116") {
+      console.error("Error fetching submission for session restore:", error);
+    }
+    return null;
   }
 
-  return data || [];
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -435,6 +393,40 @@ function convertToNewFormat(
 // ---------------------------------------------------------------------------
 // Attempt queries
 // ---------------------------------------------------------------------------
+
+/**
+ * Return the set of question orders that have at least one non-stale attempt.
+ * Single DB round-trip — replaces per-question getQuestionAttempts loops.
+ */
+export async function getQuestionsWithAttempts(
+  submissionId: string
+): Promise<Set<number>> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("evaluations")
+    .eq("submission_id", submissionId)
+    .single();
+
+  if (error || !data?.evaluations) return new Set();
+
+  let evaluations = data.evaluations as
+    | { [key: number]: QuestionEvaluations }
+    | SubmissionAnswer[];
+
+  if (!isNewFormat(evaluations)) {
+    evaluations = convertToNewFormat(evaluations);
+  }
+
+  const result = new Set<number>();
+  for (const [key, qa] of Object.entries(evaluations)) {
+    if ((qa as QuestionEvaluations).attempts?.some((a) => !a.stale)) {
+      result.add(Number(key));
+    }
+  }
+  return result;
+}
 
 /**
  * Get all attempts for a specific question
@@ -516,330 +508,6 @@ export async function getQuestionAttempts(
   return attempts;
 }
 
-/**
- * Get the latest or best attempt for a question
- * Excludes stale attempts when finding the best score
- */
-export async function getQuestionBestAttempt(
-  submissionId: string,
-  questionOrder: number
-): Promise<SubmissionAttempt | null> {
-  const attempts = await getQuestionAttempts(
-    submissionId,
-    questionOrder,
-    true
-  );
-
-  if (attempts.length === 0) return null;
-
-  return attempts.reduce((best, current) =>
-    current.score > best.score ? current : best
-  );
-}
-
-/**
- * Select which attempt should count for final grading
- */
-export async function selectAttemptForGrading(
-  submissionId: string,
-  questionOrder: number,
-  attemptNumber: number
-): Promise<Submission> {
-  const supabase = createClient();
-
-  const { data: currentSubmission, error: fetchError } = await supabase
-    .from("submissions")
-    .select("evaluations")
-    .eq("submission_id", submissionId)
-    .single();
-
-  if (fetchError) {
-    console.error("Error fetching submission:", fetchError);
-    throw fetchError;
-  }
-
-  let evaluations = currentSubmission.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
-
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
-
-  if (evaluations[questionOrder]) {
-    evaluations[questionOrder].selected_attempt = attemptNumber;
-  }
-
-  const { data, error } = await supabase
-    .from("submissions")
-    .update({
-      evaluations: evaluations,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("submission_id", submissionId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error updating submission:", error);
-    throw error;
-  }
-
-  return data;
-}
-
-/**
- * Get the number of attempts for a specific question
- * Excludes stale attempts from the count
- */
-export async function getAttemptCountForQuestion(
-  submissionId: string,
-  questionOrder: number
-): Promise<number> {
-  const attempts = await getQuestionAttempts(
-    submissionId,
-    questionOrder,
-    true
-  );
-  return attempts.length;
-}
-
-/**
- * Get the maximum number of attempts across all questions in a submission
- * Excludes stale attempts from the count
- */
-export async function getMaxAttemptCountAcrossQuestions(
-  submissionId: string
-): Promise<number> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase
-    .from("submissions")
-    .select("evaluations")
-    .eq("submission_id", submissionId)
-    .single();
-
-  if (error) {
-    console.error("Error fetching submission:", error);
-    return 0;
-  }
-
-  let evaluations = data.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
-
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
-
-  let maxAttempts = 0;
-  Object.values(evaluations).forEach((questionEvals) => {
-    const qa = questionEvals as QuestionEvaluations;
-    if (qa.attempts) {
-      const nonStaleCount = qa.attempts.filter(
-        (attempt) => !attempt.stale
-      ).length;
-      if (nonStaleCount > maxAttempts) {
-        maxAttempts = nonStaleCount;
-      }
-    }
-  });
-
-  return maxAttempts;
-}
-
-/**
- * Reset submission status to in_progress to allow retake
- */
-export async function resetSubmissionForRetake(
-  submissionId: string
-): Promise<Submission> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase
-    .from("submissions")
-    .update({
-      status: "in_progress",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("submission_id", submissionId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error resetting submission:", error);
-    throw error;
-  }
-
-  return data;
-}
-
-// ---------------------------------------------------------------------------
-// Submission analysis helpers (operate on in-memory Submission objects)
-// ---------------------------------------------------------------------------
-
-/**
- * Helper: Check if a submission has any non-stale attempts
- */
-export function hasNonStaleAttempts(submission: Submission): boolean {
-  if (!submission.evaluations || submission.evaluations === null) {
-    return false;
-  }
-
-  let evalsRaw = submission.evaluations;
-  if (typeof evalsRaw === "string") {
-    try {
-      evalsRaw = JSON.parse(evalsRaw);
-    } catch {
-      return false;
-    }
-  }
-
-  if (Array.isArray(evalsRaw)) {
-    evalsRaw = convertToNewFormat(evalsRaw);
-  }
-
-  if (typeof evalsRaw !== "object" || evalsRaw === null) {
-    return false;
-  }
-
-  const keys = Object.keys(evalsRaw);
-  if (keys.length === 0) {
-    return false;
-  }
-
-  const evaluations = evalsRaw as
-    | { [key: number]: QuestionEvaluations }
-    | { [key: string]: QuestionEvaluations }
-    | SubmissionAnswer[];
-
-  for (const [, questionEvals] of Object.entries(evaluations)) {
-    const qa = questionEvals as QuestionEvaluations;
-
-    if (
-      qa &&
-      qa.attempts &&
-      Array.isArray(qa.attempts) &&
-      qa.attempts.length > 0
-    ) {
-      const hasNonStale = qa.attempts.some((attempt) => !attempt.stale);
-      if (hasNonStale) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-/**
- * Get the highest score across all questions and attempts in a submission
- * Only considers non-stale attempts
- */
-export function getHighestScoreFromSubmission(submission: Submission): {
-  highestScore: number;
-  maxScore: number;
-} {
-  if (!submission.evaluations) {
-    return { highestScore: 0, maxScore: 0 };
-  }
-
-  let evaluations = submission.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
-
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
-
-  let highestScore = 0;
-  let maxScore = 0;
-
-  Object.values(evaluations).forEach((questionEvals) => {
-    const qa = questionEvals as QuestionEvaluations;
-    if (qa && qa.attempts && Array.isArray(qa.attempts)) {
-      const nonStaleAttempts = qa.attempts.filter(
-        (attempt) => !attempt.stale
-      );
-
-      if (nonStaleAttempts.length > 0) {
-        const questionHighest = Math.max(
-          ...nonStaleAttempts.map((attempt) => attempt.score)
-        );
-        highestScore += questionHighest;
-        maxScore += nonStaleAttempts[0].max_score;
-      }
-    }
-  });
-
-  return { highestScore, maxScore };
-}
-
-/**
- * Get total count of non-stale attempts across all questions in a submission
- */
-export function getTotalAttemptCountFromSubmission(
-  submission: Submission
-): number {
-  if (!submission.evaluations) {
-    return 0;
-  }
-
-  let evaluations = submission.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
-
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
-
-  let totalAttempts = 0;
-
-  Object.values(evaluations).forEach((questionEvals) => {
-    const qa = questionEvals as QuestionEvaluations;
-    if (qa && qa.attempts && Array.isArray(qa.attempts)) {
-      totalAttempts += qa.attempts.filter(
-        (attempt) => !attempt.stale
-      ).length;
-    }
-  });
-
-  return totalAttempts;
-}
-
-/**
- * Get number of questions that have at least one non-stale attempt.
- * Used for teacher list view "questions attempted / total questions".
- */
-export function getQuestionsAttemptedCountFromSubmission(
-  submission: Submission
-): number {
-  if (!submission.evaluations) {
-    return 0;
-  }
-
-  let evaluations = submission.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
-
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
-
-  let count = 0;
-  Object.values(evaluations).forEach((questionEvals) => {
-    const qa = questionEvals as QuestionEvaluations;
-    if (
-      qa &&
-      qa.attempts &&
-      Array.isArray(qa.attempts) &&
-      qa.attempts.some((a) => !a.stale)
-    ) {
-      count += 1;
-    }
-  });
-  return count;
-}
 
 // ---------------------------------------------------------------------------
 // Stale / reset
@@ -851,7 +519,7 @@ export function getQuestionsAttemptedCountFromSubmission(
  */
 export async function markAttemptsAsStale(
   submissionId: string
-): Promise<Submission> {
+): Promise<void> {
   const supabase = createClient();
 
   const { data: currentSubmission, error: fetchError } = await supabase
@@ -873,7 +541,6 @@ export async function markAttemptsAsStale(
     evaluations = convertToNewFormat(evaluations);
   }
 
-  // Mark all attempts as stale
   Object.values(evaluations).forEach((questionEvals) => {
     const qa = questionEvals as QuestionEvaluations;
     if (qa.attempts) {
@@ -883,8 +550,7 @@ export async function markAttemptsAsStale(
     }
   });
 
-  // Update the submission with stale evaluations and reset denormalized columns
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("submissions")
     .update({
       evaluations: evaluations,
@@ -895,16 +561,12 @@ export async function markAttemptsAsStale(
       questions_attempted_count: 0,
       updated_at: new Date().toISOString(),
     })
-    .eq("submission_id", submissionId)
-    .select()
-    .single();
+    .eq("submission_id", submissionId);
 
   if (error) {
     console.error("Error marking attempts as stale:", error);
     throw error;
   }
-
-  return data;
 }
 
 // ---------------------------------------------------------------------------
