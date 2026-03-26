@@ -131,6 +131,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Append file id to submissions.file_ids
+    const { data: sub } = await supabase
+      .from("submissions")
+      .select("file_ids")
+      .eq("submission_id", submissionId)
+      .single();
+
+    const currentIds: string[] = sub?.file_ids ?? [];
+    await supabase
+      .from("submissions")
+      .update({ file_ids: [...currentIds, fileRecord.id] })
+      .eq("submission_id", submissionId);
+
     return NextResponse.json({ signedUrl, fileRecord });
   } catch (err) {
     console.error("Error in request-upload:", err);

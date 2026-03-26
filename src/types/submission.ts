@@ -141,6 +141,10 @@ export interface Submission {
    * Machine-readable reason (e.g. tab_switch_threshold).
    */
   integrity_access_revoked_reason?: string | null;
+  /**
+   * UUIDs of associated submission_files rows.
+   */
+  file_ids?: string[] | null;
 }
 
 export interface SubmissionFile {

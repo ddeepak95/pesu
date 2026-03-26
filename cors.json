@@ -1,0 +1,16 @@
+[
+    {
+        "origin": [
+            "http://localhost:3000",
+            "https://convoed.com",
+            "https://viva.convoed.com"
+        ],
+        "method": [
+            "PUT"
+        ],
+        "responseHeader": [
+            "Content-Type"
+        ],
+        "maxAgeSeconds": 3600
+    }
+]

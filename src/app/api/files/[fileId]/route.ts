@@ -18,10 +18,10 @@ export async function DELETE(
 
     const supabase = await createServerSupabaseClient();
 
-    // Fetch the file record to get storage_path
+    // Fetch the file record to get storage_path and submission_id
     const { data: fileRecord, error: fetchError } = await supabase
       .from("submission_files")
-      .select("id, storage_path")
+      .select("id, storage_path, submission_id")
       .eq("id", fileId)
       .single();
 
@@ -53,6 +53,22 @@ export async function DELETE(
         { error: "Failed to delete file record" },
         { status: 500 },
       );
+    }
+
+    // Remove file id from submissions.file_ids
+    const { data: sub } = await supabase
+      .from("submissions")
+      .select("file_ids")
+      .eq("submission_id", fileRecord.submission_id)
+      .single();
+
+    if (sub?.file_ids) {
+      await supabase
+        .from("submissions")
+        .update({
+          file_ids: sub.file_ids.filter((id: string) => id !== fileId),
+        })
+        .eq("submission_id", fileRecord.submission_id);
     }
 
     return NextResponse.json({ success: true });
