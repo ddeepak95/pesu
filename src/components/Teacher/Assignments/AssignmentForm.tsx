@@ -33,6 +33,9 @@ import { supportedLanguages } from "@/utils/supportedLanguages";
 import {
   getDefaultBotPromptConfig,
   getDefaultEvaluationPrompt,
+  buildDefaultBotPromptConfig,
+  buildDefaultEvaluationPrompt,
+  type ActivityType,
 } from "@/lib/promptTemplates";
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, ChevronDown, Bot, Eye } from "lucide-react";
@@ -47,6 +50,7 @@ interface AssignmentFormProps {
   initialLanguage?: string;
   initialLockLanguage?: boolean;
   initialIsPublic?: boolean;
+  initialActivityType?: ActivityType;
   initialAssessmentMode?: "voice" | "text_chat" | "static_text";
   initialResponderFieldsConfig?: ResponderFieldConfig[];
   initialMaxAttempts?: number;
@@ -74,6 +78,7 @@ interface AssignmentFormProps {
     preferredLanguage: string;
     lockLanguage: boolean;
     isPublic: boolean;
+    activityType: ActivityType;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
@@ -118,6 +123,7 @@ export default function AssignmentForm({
   initialLanguage = "en",
   initialLockLanguage = false,
   initialIsPublic = false,
+  initialActivityType = "learning",
   initialAssessmentMode = "voice",
   initialResponderFieldsConfig,
   initialMaxAttempts = 3,
@@ -146,6 +152,7 @@ export default function AssignmentForm({
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
   const [lockLanguage, setLockLanguage] = useState(initialLockLanguage);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
+  const [activityType, setActivityType] = useState<ActivityType>(initialActivityType);
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >(initialAssessmentMode);
@@ -460,6 +467,7 @@ export default function AssignmentForm({
         preferredLanguage,
         lockLanguage,
         isPublic,
+        activityType,
         assessmentMode,
         isDraft: draft,
         responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
@@ -544,6 +552,31 @@ export default function AssignmentForm({
         </p>
       </div>
 
+      {/* Activity Type */}
+      <div className="space-y-2">
+        <Label htmlFor="activityType">
+          Activity Type <span className="text-destructive">*</span>
+        </Label>
+        <Select
+          value={activityType}
+          onValueChange={(value) => {
+            const newType = value as ActivityType;
+            setActivityType(newType);
+            setBotPromptConfig(buildDefaultBotPromptConfig(newType, assessmentMode));
+            setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
+          }}
+          disabled={loading}
+        >
+          <SelectTrigger id="activityType">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="learning">Learning</SelectItem>
+            <SelectItem value="assessment">Assessment</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Interaction Type */}
       <div className="space-y-2">
         <Label htmlFor="assessmentMode">
@@ -551,9 +584,11 @@ export default function AssignmentForm({
         </Label>
         <Select
           value={assessmentMode}
-          onValueChange={(value) =>
-            setAssessmentMode(value as "voice" | "text_chat" | "static_text")
-          }
+          onValueChange={(value) => {
+            const newMode = value as "voice" | "text_chat" | "static_text";
+            setAssessmentMode(newMode);
+            setBotPromptConfig(buildDefaultBotPromptConfig(activityType, newMode));
+          }}
           disabled={loading}
         >
           <SelectTrigger id="assessmentMode">
@@ -1181,6 +1216,8 @@ export default function AssignmentForm({
                 }
                 evaluationPrompt={evaluationPrompt}
                 onEvaluationPromptChange={setEvaluationPrompt}
+                activityType={activityType}
+                interactionType={assessmentMode}
               />
             )}
           </div>

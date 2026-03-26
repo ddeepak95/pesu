@@ -9,8 +9,10 @@ import {
   PROMPT_VARIABLES,
   getVariablesByCategory,
   getMissingRequiredVariables,
-  getDefaultBotPromptConfig,
-  getDefaultEvaluationPrompt,
+  buildDefaultBotPromptConfig,
+  buildDefaultEvaluationPrompt,
+  type ActivityType,
+  type InteractionType,
 } from "@/lib/promptTemplates";
 import { BotPromptConfig } from "@/types/assignment";
 import {
@@ -31,6 +33,10 @@ interface PromptConfigEditorProps {
   evaluationPrompt?: string;
   /** Callback when evaluation prompt changes */
   onEvaluationPromptChange?: (value: string) => void;
+  /** Used by "Reset to Default" to pick the right prompt combo */
+  activityType?: ActivityType;
+  /** Used by "Reset to Default" to pick the right prompt combo */
+  interactionType?: InteractionType;
 }
 
 /**
@@ -44,6 +50,8 @@ export function PromptConfigEditor({
   showBotPrompts = true,
   evaluationPrompt = "",
   onEvaluationPromptChange,
+  activityType = "learning",
+  interactionType = "voice",
 }: PromptConfigEditorProps) {
   const systemPromptRef = useRef<HTMLTextAreaElement>(null);
   const firstQuestionRef = useRef<HTMLTextAreaElement>(null);
@@ -141,16 +149,13 @@ export function PromptConfigEditor({
     [activeTextarea, config, onChange, evaluationPrompt, onEvaluationPromptChange]
   );
 
-  // Reset bot prompts to default configuration
   const handleResetBotPrompts = useCallback(() => {
-    const defaultConfig = getDefaultBotPromptConfig();
-    onChange(defaultConfig);
-  }, [onChange]);
+    onChange(buildDefaultBotPromptConfig(activityType, interactionType));
+  }, [onChange, activityType, interactionType]);
 
-  // Reset evaluation prompt to default
   const handleResetEvaluation = useCallback(() => {
-    onEvaluationPromptChange?.(getDefaultEvaluationPrompt());
-  }, [onEvaluationPromptChange]);
+    onEvaluationPromptChange?.(buildDefaultEvaluationPrompt(activityType));
+  }, [onEvaluationPromptChange, activityType]);
 
   const staticVariables = getVariablesByCategory("static");
   const runtimeVariables = getVariablesByCategory("runtime");

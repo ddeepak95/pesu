@@ -192,6 +192,7 @@ export async function createAssignment(
     preferred_language: string;
     lock_language?: boolean;
     is_public?: boolean;
+    activity_type?: "assessment" | "learning";
     assessment_mode?: "voice" | "text_chat" | "static_text";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
@@ -232,6 +233,7 @@ export async function createAssignment(
       preferred_language: assignment.preferred_language,
       lock_language: assignment.lock_language ?? false,
       is_public: assignment.is_public ?? false,
+      activity_type: assignment.activity_type ?? "learning",
       assessment_mode: assignment.assessment_mode ?? "voice",
       responder_fields_config: assignment.responder_fields_config ?? null,
       max_attempts: assignment.max_attempts ?? 1,
@@ -286,6 +288,7 @@ export async function updateAssignment(
     preferred_language: string;
     lock_language?: boolean;
     is_public?: boolean;
+    activity_type?: "assessment" | "learning";
     assessment_mode?: "voice" | "text_chat" | "static_text";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
@@ -317,6 +320,7 @@ export async function updateAssignment(
     preferred_language: assignment.preferred_language,
     lock_language: assignment.lock_language ?? false,
     is_public: assignment.is_public ?? false,
+    activity_type: assignment.activity_type ?? "learning",
     assessment_mode: assignment.assessment_mode ?? "voice",
     responder_fields_config: assignment.responder_fields_config ?? null,
     max_attempts: assignment.max_attempts ?? 1,

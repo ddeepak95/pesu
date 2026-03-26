@@ -17,6 +17,7 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
 } from "@/types/assignment";
+import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 
 export default function EditAssignmentPage() {
@@ -31,6 +32,7 @@ export default function EditAssignmentPage() {
   const [preferredLanguage, setPreferredLanguage] = useState("en");
   const [lockLanguage, setLockLanguage] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
+  const [activityType, setActivityType] = useState<ActivityType>("learning");
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >("voice");
@@ -75,6 +77,7 @@ export default function EditAssignmentPage() {
           setPreferredLanguage(assignmentData.preferred_language);
           setLockLanguage(assignmentData.lock_language ?? false);
           setIsPublic(assignmentData.is_public);
+          setActivityType(assignmentData.activity_type ?? "learning");
           setAssessmentMode(assignmentData.assessment_mode ?? "voice");
           setResponderFieldsConfig(assignmentData.responder_fields_config);
           setMaxAttempts(assignmentData.max_attempts ?? 1);
@@ -127,6 +130,7 @@ export default function EditAssignmentPage() {
     preferredLanguage: string;
     lockLanguage: boolean;
     isPublic: boolean;
+    activityType: ActivityType;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
@@ -165,6 +169,7 @@ export default function EditAssignmentPage() {
       preferred_language: data.preferredLanguage,
       lock_language: data.lockLanguage,
       is_public: data.isPublic,
+      activity_type: data.activityType,
       assessment_mode: data.assessmentMode,
       status: newStatus,
       responder_fields_config: data.responderFieldsConfig,
@@ -237,6 +242,7 @@ export default function EditAssignmentPage() {
           initialLanguage={preferredLanguage}
           initialLockLanguage={lockLanguage}
           initialIsPublic={isPublic}
+          initialActivityType={activityType}
           initialAssessmentMode={assessmentMode}
           initialResponderFieldsConfig={responderFieldsConfig}
           initialMaxAttempts={maxAttempts}

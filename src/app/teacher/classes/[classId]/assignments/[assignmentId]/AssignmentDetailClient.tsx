@@ -248,6 +248,16 @@ export default function AssignmentDetailClient({
 
           {/* Assignment Configuration */}
           <div className="flex flex-wrap items-center gap-3 mb-6">
+            {/* Activity Type */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-sm font-medium">
+              <BookOpen className="h-4 w-4" />
+              <span>
+                {assignmentData.activity_type === "assessment"
+                  ? "Assessment"
+                  : "Learning"}
+              </span>
+            </div>
+
             {/* Interaction Type */}
             {(() => {
               const modeInfo = getAssessmentModeInfo(

@@ -15,6 +15,7 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
 } from "@/types/assignment";
+import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 
 export default function CreateAssignmentPage() {
@@ -93,6 +94,7 @@ export default function CreateAssignmentPage() {
     preferredLanguage: string;
     lockLanguage: boolean;
     isPublic: boolean;
+    activityType: ActivityType;
     assessmentMode: "voice" | "text_chat" | "static_text";
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
@@ -128,6 +130,7 @@ export default function CreateAssignmentPage() {
         preferred_language: data.preferredLanguage,
         lock_language: data.lockLanguage,
         is_public: data.isPublic,
+        activity_type: data.activityType,
         assessment_mode: data.assessmentMode,
         status: data.isDraft ? "draft" : "active",
         responder_fields_config: data.responderFieldsConfig,
