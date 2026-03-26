@@ -10,7 +10,7 @@ import {
   getFileDownloadUrl,
 } from "@/lib/queries/submissionFiles";
 import { Button } from "@/components/ui/button";
-import { Upload, X, FileText, CheckCircle, Loader2, AlertCircle, Download, FileCode } from "lucide-react";
+import { Upload, X, FileText, Loader2, Download, FileCode, Check, AlertCircle } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 
 interface FileUploadZoneProps {
@@ -29,18 +29,116 @@ interface UploadingFile {
   error?: string;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  uploading: "Uploading...",
-  uploaded: "Uploaded",
-  processing: "Processing...",
-  processed: "Ready",
-  failed: "Processing failed",
+type StepState = "completed" | "active" | "failed" | "pending";
+
+const STEPS = ["Uploading", "Processing", "Ready"] as const;
+
+function getStepStates(
+  status: string,
+): [StepState, StepState, StepState] {
+  switch (status) {
+    case "uploading":
+      return ["active", "pending", "pending"];
+    case "uploaded":
+      return ["completed", "active", "pending"];
+    case "processing":
+      return ["completed", "active", "pending"];
+    case "processed":
+      return ["completed", "completed", "completed"];
+    case "failed":
+      return ["completed", "failed", "pending"];
+    default:
+      return ["active", "pending", "pending"];
+  }
+}
+
+function stepTooltip(label: string, state: StepState, index: number): string {
+  if (state === "failed" && index === 1) return "Failed";
+  if (state === "completed" && index === 0) return "Uploaded";
+  if (state === "completed" && index === 1) return "Processed";
+  return label;
+}
+
+const STATUS_TEXT: Record<string, { label: string; className: string }> = {
+  uploading: { label: "Uploading…", className: "text-blue-600 dark:text-blue-400" },
+  uploaded: { label: "Uploaded", className: "text-blue-600 dark:text-blue-400" },
+  processing: { label: "Processing…", className: "text-blue-600 dark:text-blue-400" },
+  processed: { label: "Ready", className: "text-green-600 dark:text-green-500" },
+  failed: { label: "Failed", className: "text-destructive" },
 };
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function FileStatusStepper({ status }: { status: string }) {
+  const states = getStepStates(status);
+  const info = STATUS_TEXT[status] ?? STATUS_TEXT.uploading;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0 w-full max-w-[100px]">
+        {STEPS.map((label, i) => (
+          <div key={label} className="flex items-center flex-1 min-w-0">
+            <span title={stepTooltip(label, states[i], i)}>
+              <StepDot state={states[i]} />
+            </span>
+            {i < STEPS.length - 1 && (
+              <div className="flex-1 mx-1">
+                <div
+                  className={`h-[2px] w-full rounded-full ${
+                    states[i + 1] === "completed" || states[i + 1] === "active"
+                      ? "bg-green-500 dark:bg-green-400"
+                      : states[i] === "failed"
+                        ? "bg-destructive/30"
+                        : "bg-muted-foreground/20"
+                  }`}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <span className={`text-xs font-medium shrink-0 ${info.className}`}>
+        {info.label}
+      </span>
+    </div>
+  );
+}
+
+function StepDot({ state }: { state: StepState }) {
+  const base = "h-3.5 w-3.5 rounded-full flex items-center justify-center shrink-0";
+
+  switch (state) {
+    case "completed":
+      return (
+        <span className={`${base} bg-green-500 dark:bg-green-400`}>
+          <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+        </span>
+      );
+    case "active":
+      return (
+        <span className={`${base} bg-blue-500 dark:bg-blue-400 animate-pulse`}>
+          <Loader2 className="h-2.5 w-2.5 text-white animate-spin" />
+        </span>
+      );
+    case "failed":
+      return (
+        <span className={`${base} bg-destructive`}>
+          <AlertCircle className="h-2.5 w-2.5 text-white" />
+        </span>
+      );
+    case "pending":
+    default:
+      return (
+        <span
+          className={`${base} border-2 border-muted-foreground/25 bg-background`}
+        />
+      );
+  }
+}
+
+function truncateFilename(name: string, max = 20): string {
+  if (name.length <= max) return name;
+  const ext = name.lastIndexOf(".") !== -1 ? name.slice(name.lastIndexOf(".")) : "";
+  const base = name.slice(0, max - ext.length - 1);
+  return `${base}…${ext}`;
 }
 
 export default function FileUploadZone({
@@ -52,6 +150,7 @@ export default function FileUploadZone({
   disabled = false,
 }: FileUploadZoneProps) {
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
+  const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -173,12 +272,19 @@ export default function FileUploadZone({
   };
 
   const handleDelete = async (fileId: string) => {
+    setDeleting((prev) => new Set(prev).add(fileId));
     try {
       await deleteSubmissionFile(fileId);
       onFilesChanged(existingFiles.filter((f) => f.id !== fileId));
     } catch (err) {
       console.error("Delete error:", err);
       showErrorToast("Failed to delete file");
+    } finally {
+      setDeleting((prev) => {
+        const next = new Set(prev);
+        next.delete(fileId);
+        return next;
+      });
     }
   };
 
@@ -201,20 +307,6 @@ export default function FileUploadZone({
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-  };
-
-  const statusIcon = (status: string) => {
-    switch (status) {
-      case "uploaded":
-      case "processed":
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case "processing":
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
-      case "failed":
-        return <AlertCircle className="h-4 w-4 text-destructive" />;
-      default:
-        return <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />;
-    }
   };
 
   const isUploadDisabled =
@@ -274,32 +366,27 @@ export default function FileUploadZone({
       {uploading.map((u) => (
         <div
           key={u.id}
-          className="flex items-center gap-3 p-3 border rounded-lg"
+          className="flex items-center gap-3 px-3 py-2.5 border rounded-lg"
         >
-          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+          <FileText className="h-5 w-5 text-muted-foreground/60 shrink-0" />
+          <p
+            className="text-sm font-medium shrink-0"
+            title={u.name}
+          >
+            {truncateFilename(u.name)}
+          </p>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{u.name}</p>
             {u.error ? (
               <p className="text-xs text-destructive">{u.error}</p>
             ) : (
-              <div className="mt-1">
-                <div className="w-full bg-muted rounded-full h-1.5">
-                  <div
-                    className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${u.progress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {u.progress}%
-                </p>
-              </div>
+              <FileStatusStepper status="uploading" />
             )}
           </div>
           {u.error && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0"
+              className="h-7 w-7 p-0 shrink-0"
               onClick={() =>
                 setUploading((prev) => prev.filter((x) => x.id !== u.id))
               }
@@ -314,51 +401,55 @@ export default function FileUploadZone({
       {existingFiles.map((file) => (
         <div
           key={file.id}
-          className="flex items-center gap-3 p-3 border rounded-lg"
+          className="flex items-center gap-3 px-3 py-2.5 border rounded-lg"
         >
-          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{file.filename}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              {statusIcon(file.processing_status)}
-              <span className="text-xs text-muted-foreground">
-                {STATUS_LABELS[file.processing_status] || file.processing_status}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {formatFileSize(file.file_size)}
-              </span>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-            onClick={() => handleDownload(file)}
-            title="Download original"
+          <FileText className="h-5 w-5 text-muted-foreground/60 shrink-0" />
+          <p
+            className="text-sm font-medium shrink-0"
+            title={file.filename}
           >
-            <Download className="h-4 w-4" />
-          </Button>
-          {process.env.NODE_ENV === "development" && file.processing_status === "processed" && file.parsed_content_url && (
+            {truncateFilename(file.filename)}
+          </p>
+          <div className="flex-1 min-w-0">
+            <FileStatusStepper status={file.processing_status} />
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
             <Button
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-              onClick={() => handleDownload(file, "parsed")}
-              title="View parsed content"
+              onClick={() => handleDownload(file)}
+              title="Download original"
             >
-              <FileCode className="h-4 w-4" />
+              <Download className="h-4 w-4" />
             </Button>
-          )}
-          {!disabled && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-              onClick={() => handleDelete(file.id)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+            {process.env.NODE_ENV === "development" && file.processing_status === "processed" && file.parsed_content_url && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                onClick={() => handleDownload(file, "parsed")}
+                title="View parsed content"
+              >
+                <FileCode className="h-4 w-4" />
+              </Button>
+            )}
+            {!disabled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                onClick={() => handleDelete(file.id)}
+                disabled={deleting.has(file.id)}
+              >
+                {deleting.has(file.id) ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       ))}
     </div>
