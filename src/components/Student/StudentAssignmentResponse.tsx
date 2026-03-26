@@ -11,7 +11,6 @@ import {
 import { Assignment } from "@/types/assignment";
 import { Submission, SubmissionFile } from "@/types/submission";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
-import FileUploadZone from "@/components/Shared/FileUploadZone";
 import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
 import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import {
@@ -65,12 +64,9 @@ export default function StudentAssignmentResponse({
     reason: string | null;
   } | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<SubmissionFile[]>([]);
-  const [filesChecked, setFilesChecked] = useState(false);
   const isInitializingRef = useRef(false);
 
   const fileUploadRequired = !!assignmentData.file_submission_config?.required;
-  const fileUploadPending =
-    fileUploadRequired && filesChecked && uploadedFiles.length === 0;
 
   const applyIntegrityFromSubmission = useCallback(
     (s: Pick<Submission, "integrity_access_revoked_at" | "integrity_access_revoked_reason">) => {
@@ -97,16 +93,11 @@ export default function StudentAssignmentResponse({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentData, user, restoringSession]);
 
-  // Check for existing files when submission is ready
   useEffect(() => {
-    if (!submissionId || !fileUploadRequired) {
-      setFilesChecked(true);
-      return;
-    }
+    if (!submissionId || !fileUploadRequired) return;
     getSubmissionFiles(submissionId).then((files) => {
       const completed = files.filter((f) => f.processing_status !== "uploading");
       setUploadedFiles(completed);
-      setFilesChecked(true);
     });
   }, [submissionId, fileUploadRequired]);
 
@@ -170,9 +161,11 @@ export default function StudentAssignmentResponse({
 
         let questionIndex = localSession?.currentQuestionIndex ?? 0;
 
+        const maxValidIndex =
+          assignmentData.questions.length + (fileUploadRequired ? 1 : 0) - 1;
         if (
           !assignmentData?.questions ||
-          questionIndex >= assignmentData.questions.length
+          questionIndex > maxValidIndex
         ) {
           questionIndex = 0;
         }
@@ -282,14 +275,14 @@ export default function StudentAssignmentResponse({
     }
     setExistingAnswers(reconstructedAnswers);
 
-    // Determine current question index
     const localSession = loadSession(assignmentId);
     let questionIndex = localSession?.currentQuestionIndex ?? 0;
 
-    // Validate the index is within bounds
+    const maxValidIndex =
+      assignmentData.questions.length + (fileUploadRequired ? 1 : 0) - 1;
     if (
       !assignmentData?.questions ||
-      questionIndex >= assignmentData.questions.length
+      questionIndex > maxValidIndex
     ) {
       questionIndex = 0;
     }
@@ -370,38 +363,6 @@ export default function StudentAssignmentResponse({
     );
   }
 
-  // Phase: File Upload (when required and no files uploaded yet)
-  if (fileUploadPending) {
-    return (
-      <div className="w-full space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
-        </div>
-        <div className="max-w-2xl">
-          <h2 className="text-lg font-semibold mb-4">Upload Required Files</h2>
-          <FileUploadZone
-            submissionId={submissionId}
-            assignmentId={assignmentData.assignment_id}
-            config={assignmentData.file_submission_config!}
-            existingFiles={uploadedFiles}
-            onFilesChanged={setUploadedFiles}
-          />
-          {uploadedFiles.length > 0 && (
-            <button
-              onClick={() => setUploadedFiles([...uploadedFiles])}
-              className="mt-4 w-full"
-            >
-              <span className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
-                Continue to Questions
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Phase: Question Answering or Completion (delegated to core component)
   return (
     <>
       <ActivityTrackingProvider
@@ -427,6 +388,9 @@ export default function StudentAssignmentResponse({
           existingAnswers={existingAnswers}
           onIntegrityAccessRevoked={handleIntegrityAccessRevoked}
           integrityAccessRevoked={!!integrityRevoked}
+          fileUploadRequired={fileUploadRequired}
+          uploadedFiles={uploadedFiles}
+          onUploadedFilesChanged={setUploadedFiles}
         />
       </ActivityTrackingProvider>
     </>

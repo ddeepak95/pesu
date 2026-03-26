@@ -237,7 +237,7 @@ export const AssessmentNavigation = forwardRef<
               size="lg"
               className="w-full sm:w-auto"
             >
-              Next Question
+              Next
             </Button>
           )}
           {isLastQuestion && (
@@ -260,7 +260,7 @@ export const AssessmentNavigation = forwardRef<
           size="lg"
           className="order-2 w-full sm:order-1 sm:w-auto"
         >
-          Previous Question
+          Previous
         </Button>
       </div>
 

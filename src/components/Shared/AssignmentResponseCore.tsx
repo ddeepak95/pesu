@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Assignment } from "@/types/assignment";
+import { SubmissionFile } from "@/types/submission";
 import { AssessmentShell } from "@/components/Shared/AssessmentShell";
+import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import FileUploadZone from "@/components/Shared/FileUploadZone";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { getQuestionsWithAttempts } from "@/lib/queries/submissions";
@@ -12,6 +16,7 @@ import MarkdownContent from "@/components/Shared/MarkdownContent";
 import PageTitle from "@/components/Shared/PageTitle";
 import { TabSwitchWarningDialog } from "@/components/Shared/Integrity/TabSwitchWarningDialog";
 import { useTabLeaveTracking } from "@/hooks/useTabLeaveTracking";
+import { showWarningToast } from "@/lib/toast";
 
 interface AssignmentResponseCoreProps {
   assignmentData: Assignment;
@@ -30,6 +35,10 @@ interface AssignmentResponseCoreProps {
   /** True when the wrapper is showing the integrity-revoked screen (hook safety; Core usually unmounts). */
   integrityAccessRevoked?: boolean;
   // Note: classId and userId for activity tracking are provided via ActivityTrackingContext
+  /** File upload integration -- when true, step 0 is a file upload step */
+  fileUploadRequired?: boolean;
+  uploadedFiles?: SubmissionFile[];
+  onUploadedFilesChanged?: (files: SubmissionFile[]) => void;
 }
 
 /**
@@ -50,8 +59,11 @@ export default function AssignmentResponseCore({
   existingAnswers = {},
   onIntegrityAccessRevoked,
   integrityAccessRevoked = false,
+  fileUploadRequired = false,
+  uploadedFiles = [],
+  onUploadedFilesChanged,
 }: AssignmentResponseCoreProps) {
-  const [currentQuestionIndex, setCurrentQuestionIndex] =
+  const [currentStepIndex, setCurrentStepIndex] =
     useState(initialQuestionIndex);
   const [answers, setAnswers] = useState<{ [key: number]: string }>(
     existingAnswers,
@@ -73,6 +85,11 @@ export default function AssignmentResponseCore({
     [assignmentData.questions],
   );
 
+  const questionOffset = fileUploadRequired ? 1 : 0;
+  const totalSteps = sortedQuestions.length + questionOffset;
+  const isOnFileUploadStep = fileUploadRequired && currentStepIndex === 0;
+  const questionIndex = currentStepIndex - questionOffset;
+
   // Single-query check: which questions have at least one non-stale attempt?
   const checkAttempts = useCallback(async () => {
     if (!submissionId) return;
@@ -89,7 +106,7 @@ export default function AssignmentResponseCore({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAttempts();
-  }, [checkAttempts, currentQuestionIndex]);
+  }, [checkAttempts, currentStepIndex]);
 
   useEffect(() => {
     let isMounted = true;
@@ -138,11 +155,12 @@ export default function AssignmentResponseCore({
   );
 
   const handleGoToQuestion = useCallback(
-    (index: number) => {
-      setCurrentQuestionIndex(index);
-      updateQuestionIndex(assignmentId, index);
+    (qIdx: number) => {
+      const stepIdx = qIdx + questionOffset;
+      setCurrentStepIndex(stepIdx);
+      updateQuestionIndex(assignmentId, stepIdx);
     },
-    [assignmentId]
+    [assignmentId, questionOffset]
   );
 
   // Activity tracking for assignment-level time
@@ -153,39 +171,32 @@ export default function AssignmentResponseCore({
   });
 
   const handleAnswerSave = async (transcript: string) => {
-    if (!assignmentData || !submissionId) return;
+    if (!assignmentData || !submissionId || isOnFileUploadStep) return;
 
-    const currentQuestion = assignmentData.questions[currentQuestionIndex];
+    const currentQuestion = sortedQuestions[questionIndex];
 
-    // Update local state
     setAnswers((prev) => ({
       ...prev,
       [currentQuestion.order]: transcript,
     }));
 
-    // Update current question index in localStorage
-    updateQuestionIndex(assignmentId, currentQuestionIndex);
+    updateQuestionIndex(assignmentId, currentStepIndex);
   };
 
   const handlePrevious = () => {
-    if (currentQuestionIndex > 0) {
-      const newIndex = currentQuestionIndex - 1;
-      setCurrentQuestionIndex(newIndex);
+    if (currentStepIndex > 0) {
+      const newIndex = currentStepIndex - 1;
+      setCurrentStepIndex(newIndex);
       updateQuestionIndex(assignmentId, newIndex);
     }
   };
 
   const handleNext = () => {
-    if (
-      assignmentData &&
-      currentQuestionIndex < assignmentData.questions.length - 1
-    ) {
-      const newIndex = currentQuestionIndex + 1;
-      setCurrentQuestionIndex(newIndex);
+    if (currentStepIndex < totalSteps - 1) {
+      const newIndex = currentStepIndex + 1;
+      setCurrentStepIndex(newIndex);
       updateQuestionIndex(assignmentId, newIndex);
     } else {
-      // Reached last question - student can navigate back or finish
-      // Attempts are automatically saved, no explicit submission needed
       if (onComplete) {
         onComplete();
       }
@@ -202,10 +213,8 @@ export default function AssignmentResponseCore({
     }
   };
 
-  // Always show question answering interface - no completion phase needed
-  // Attempts are automatically saved as students answer questions
-  const currentQuestion = sortedQuestions[currentQuestionIndex];
-  const isLastQuestion = currentQuestionIndex === sortedQuestions.length - 1;
+  const currentQuestion = isOnFileUploadStep ? null : sortedQuestions[questionIndex];
+  const isLastQuestion = !isOnFileUploadStep && questionIndex === sortedQuestions.length - 1;
 
   const assessmentMode = assignmentData.assessment_mode ?? "voice";
   const allowCopyPaste = getEffectiveAllowCopyPaste(assignmentData);
@@ -257,57 +266,92 @@ export default function AssignmentResponseCore({
 
       {/* Additional context is not shown as a separate student block; it is passed to AI prompts */}
 
-      {/* Assessment Component */}
-      <AssessmentShell
-        key={currentQuestion.order}
-        assessmentMode={assessmentMode}
-        question={currentQuestion}
-        language={preferredLanguage}
-        assignmentId={assignmentData.assignment_id}
-        submissionId={submissionId}
-        questionNumber={currentQuestionIndex + 1}
-        totalQuestions={sortedQuestions.length}
-        onAnswerSave={handleAnswerSave}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        isFirstQuestion={currentQuestionIndex === 0}
-        isLastQuestion={isLastQuestion}
-        existingAnswer={answers[currentQuestion.order]}
-        onLanguageChange={languageChangeHandler}
-        maxAttempts={assignmentData.max_attempts ?? 1}
-        botPromptConfig={assignmentData.bot_prompt_config}
-        contentItemId={contentItemId}
-        showRubric={assignmentData.show_rubric ?? true}
-        showRubricPoints={assignmentData.show_rubric_points ?? true}
-        useStarDisplay={assignmentData.use_star_display ?? false}
-        starScale={assignmentData.star_scale ?? 5}
-        requireAllAttempts={assignmentData.require_all_attempts ?? false}
-        allQuestionsHaveAttempts={allQuestionsHaveAttempts}
-        questionsWithAttempts={questionsWithAttempts}
-        completedQuestionIndices={completedQuestionIndices}
-        onGoToQuestion={handleGoToQuestion}
-        onAttemptCreated={handleAttemptCreated}
-        onMarkedComplete={() => setIsComplete(true)}
-        isComplete={isComplete}
-        sharedContext={
-          assignmentData.shared_context_enabled
-            ? assignmentData.shared_context
-            : undefined
-        }
-        evaluationPrompt={assignmentData.evaluation_prompt}
-        experienceRatingEnabled={
-          assignmentData.experience_rating_enabled ?? false
-        }
-        experienceRatingRequired={
-          assignmentData.experience_rating_required ?? false
-        }
-        feedbackRequiresApproval={
-          assignmentData.feedback_requires_approval ?? false
-        }
-        allowCopyPaste={allowCopyPaste}
-        onIntegrityAccessRevoked={onIntegrityAccessRevoked}
-        onTabTrackingActiveChange={setTabTrackingActive}
-      />
+      {/* File Upload Step (step 0) or Question Assessment */}
+      {isOnFileUploadStep ? (
+        <div className="space-y-2 w-full">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Upload Files</p>
+          </div>
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle className="text-lg">Upload Required Files</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {assignmentData.file_submission_config && (
+                <FileUploadZone
+                  submissionId={submissionId}
+                  assignmentId={assignmentData.assignment_id}
+                  config={assignmentData.file_submission_config}
+                  existingFiles={uploadedFiles}
+                  onFilesChanged={(files) => onUploadedFilesChanged?.(files)}
+                />
+              )}
+            </CardContent>
+          </Card>
+          <AssessmentNavigation
+            isFirstQuestion={true}
+            isLastQuestion={sortedQuestions.length === 0}
+            onNext={() => {
+              if (uploadedFiles.length === 0) {
+                showWarningToast("Please upload the required files to continue.");
+                return;
+              }
+              handleNext();
+            }}
+          />
+        </div>
+      ) : currentQuestion ? (
+        <AssessmentShell
+          key={currentQuestion.order}
+          assessmentMode={assessmentMode}
+          question={currentQuestion}
+          language={preferredLanguage}
+          assignmentId={assignmentData.assignment_id}
+          submissionId={submissionId}
+          questionNumber={questionIndex + 1}
+          totalQuestions={sortedQuestions.length}
+          onAnswerSave={handleAnswerSave}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          isFirstQuestion={currentStepIndex === 0}
+          isLastQuestion={isLastQuestion}
+          existingAnswer={answers[currentQuestion.order]}
+          onLanguageChange={languageChangeHandler}
+          maxAttempts={assignmentData.max_attempts ?? 1}
+          botPromptConfig={assignmentData.bot_prompt_config}
+          contentItemId={contentItemId}
+          showRubric={assignmentData.show_rubric ?? true}
+          showRubricPoints={assignmentData.show_rubric_points ?? true}
+          useStarDisplay={assignmentData.use_star_display ?? false}
+          starScale={assignmentData.star_scale ?? 5}
+          requireAllAttempts={assignmentData.require_all_attempts ?? false}
+          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+          questionsWithAttempts={questionsWithAttempts}
+          completedQuestionIndices={completedQuestionIndices}
+          onGoToQuestion={handleGoToQuestion}
+          onAttemptCreated={handleAttemptCreated}
+          onMarkedComplete={() => setIsComplete(true)}
+          isComplete={isComplete}
+          sharedContext={
+            assignmentData.shared_context_enabled
+              ? assignmentData.shared_context
+              : undefined
+          }
+          evaluationPrompt={assignmentData.evaluation_prompt}
+          experienceRatingEnabled={
+            assignmentData.experience_rating_enabled ?? false
+          }
+          experienceRatingRequired={
+            assignmentData.experience_rating_required ?? false
+          }
+          feedbackRequiresApproval={
+            assignmentData.feedback_requires_approval ?? false
+          }
+          allowCopyPaste={allowCopyPaste}
+          onIntegrityAccessRevoked={onIntegrityAccessRevoked}
+          onTabTrackingActiveChange={setTabTrackingActive}
+        />
+      ) : null}
     </div>
     </>
   );

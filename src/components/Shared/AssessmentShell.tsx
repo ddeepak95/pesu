@@ -65,6 +65,12 @@ export interface AssessmentShellProps {
   onIntegrityAccessRevoked?: () => void;
   /** When the voice / chat / static input surface is shown (not loading, results, or evaluating). */
   onTabTrackingActiveChange?: (active: boolean) => void;
+  /** Override the header label (default "Question") */
+  headerLabel?: string;
+  /** Override the number shown in the header (defaults to questionNumber) */
+  headerQuestionNumber?: number;
+  /** Override the total shown in the header (defaults to totalQuestions) */
+  headerTotalQuestions?: number;
 }
 
 export function AssessmentShell({
@@ -106,6 +112,9 @@ export function AssessmentShell({
   allowCopyPaste = false,
   onIntegrityAccessRevoked,
   onTabTrackingActiveChange,
+  headerLabel,
+  headerQuestionNumber,
+  headerTotalQuestions,
 }: AssessmentShellProps) {
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(true);
@@ -298,11 +307,12 @@ export function AssessmentShell({
   return (
     <div className="space-y-2 w-full">
       <AssessmentQuestionHeader
-        questionNumber={questionNumber}
-        totalQuestions={totalQuestions}
+        questionNumber={headerQuestionNumber ?? questionNumber}
+        totalQuestions={headerTotalQuestions ?? totalQuestions}
         language={language}
         onLanguageChange={onLanguageChange}
         languageDisabled={languageDisabled || isEvaluating}
+        label={headerLabel}
       />
 
       <AssessmentQuestionCard

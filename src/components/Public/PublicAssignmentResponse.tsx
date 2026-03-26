@@ -26,7 +26,6 @@ import { Assignment } from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
-import FileUploadZone from "@/components/Shared/FileUploadZone";
 import ResponderDetailsForm from "./ResponderDetailsForm";
 import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import {
@@ -42,7 +41,7 @@ import { showErrorToast } from "@/lib/toast";
 import { Submission } from "@/types/submission";
 import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
 
-type Phase = "info" | "file_upload" | "answering" | "completed";
+type Phase = "info" | "answering" | "completed";
 
 interface PublicAssignmentResponseProps {
   assignmentData: Assignment;
@@ -200,44 +199,36 @@ const PublicAssignmentResponse = forwardRef<
       }
       setExistingAnswers(reconstructedAnswers);
 
-      // Determine current question index
       let questionIndex = localSession?.currentQuestionIndex ?? 0;
 
-      // Validate the index is within bounds
+      const maxValidIndex =
+        assignmentData.questions.length + (fileUploadRequired ? 1 : 0) - 1;
       if (
         !assignmentData?.questions ||
-        questionIndex >= assignmentData.questions.length
+        questionIndex > maxValidIndex
       ) {
         questionIndex = 0;
       }
 
       setCurrentQuestionIndex(questionIndex);
 
-      // Check if file upload is required and files are missing
-      let nextPhase: Phase = "answering";
       if (fileUploadRequired) {
         const files = await getSubmissionFiles(submission.submission_id);
         const completed = files.filter((f) => f.processing_status !== "uploading");
-        if (completed.length > 0) {
-          setUploadedFiles(completed);
-        } else {
-          nextPhase = "file_upload";
-        }
+        setUploadedFiles(completed);
       }
-      setPhase(nextPhase);
+      setPhase("answering");
 
-      // Ensure URL has the submission ID
       if (!urlSubmissionId) {
         updateUrlWithSubmissionId(assignmentId, submission.submission_id);
       }
 
-      // Save/update localStorage
       saveSession(assignmentId, {
         submissionId: submission.submission_id,
         studentName: name,
         preferredLanguage: submission.preferred_language,
         currentQuestionIndex: questionIndex,
-        phase: nextPhase === "file_upload" ? "answering" : "answering",
+        phase: "answering",
       });
     } catch (err) {
       console.error("Error restoring session:", err);
@@ -275,7 +266,7 @@ const PublicAssignmentResponse = forwardRef<
       applyIntegrityFromSubmission(submission);
       const name = getDisplayName(submission);
       setDisplayName(name);
-      setPhase(fileUploadRequired ? "file_upload" : "answering");
+      setPhase("answering");
 
       if (onDisplayNameChange) {
         onDisplayNameChange(name);
@@ -403,39 +394,6 @@ const PublicAssignmentResponse = forwardRef<
     );
   }
 
-  // Phase 1.5: File Upload (when required)
-  if (phase === "file_upload" && submissionId) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-lg">
-          <CardHeader>
-            <CardTitle className="text-center text-2xl">
-              {assignmentData.title}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <h2 className="text-lg font-semibold">Upload Required Files</h2>
-            <FileUploadZone
-              submissionId={submissionId}
-              assignmentId={assignmentData.assignment_id}
-              config={assignmentData.file_submission_config!}
-              existingFiles={uploadedFiles}
-              onFilesChanged={setUploadedFiles}
-            />
-            {uploadedFiles.length > 0 && (
-              <button
-                onClick={() => setPhase("answering")}
-                className="w-full inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Continue to Questions
-              </button>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   // Phase 2: Question Answering (delegated to core component)
   if (phase === "answering" && submissionId) {
     if (integrityRevoked) {
@@ -475,6 +433,9 @@ const PublicAssignmentResponse = forwardRef<
             initialQuestionIndex={currentQuestionIndex}
             existingAnswers={existingAnswers}
             onIntegrityAccessRevoked={handleIntegrityAccessRevoked}
+            fileUploadRequired={fileUploadRequired}
+            uploadedFiles={uploadedFiles}
+            onUploadedFilesChanged={setUploadedFiles}
           />
         </ActivityTrackingProvider>
       </>

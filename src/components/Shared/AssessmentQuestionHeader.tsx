@@ -15,6 +15,7 @@ interface AssessmentQuestionHeaderProps {
   language: string;
   onLanguageChange?: (language: string) => void;
   languageDisabled?: boolean;
+  label?: string;
 }
 
 export function AssessmentQuestionHeader({
@@ -23,11 +24,12 @@ export function AssessmentQuestionHeader({
   language,
   onLanguageChange,
   languageDisabled = false,
+  label = "Question",
 }: AssessmentQuestionHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <p className="text-sm text-muted-foreground">
-        Question ({questionNumber}/{totalQuestions})
+        {label} ({questionNumber}/{totalQuestions})
       </p>
 
       {onLanguageChange && (
