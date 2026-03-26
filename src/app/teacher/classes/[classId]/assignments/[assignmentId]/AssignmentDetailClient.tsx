@@ -195,13 +195,13 @@ export default function AssignmentDetailClient({
   const getAssessmentModeInfo = (mode: string | undefined) => {
     switch (mode) {
       case "voice":
-        return { label: "Voice Assessment", icon: Mic };
+        return { label: "Voice", icon: Mic };
       case "text_chat":
-        return { label: "Text Chat Assessment", icon: MessageSquare };
+        return { label: "Text Chat", icon: MessageSquare };
       case "static_text":
-        return { label: "Static Text Assessment", icon: FileText };
+        return { label: "Static Text", icon: FileText };
       default:
-        return { label: "Voice Assessment", icon: Mic };
+        return { label: "Voice", icon: Mic };
     }
   };
 
@@ -248,7 +248,7 @@ export default function AssignmentDetailClient({
 
           {/* Assignment Configuration */}
           <div className="flex flex-wrap items-center gap-3 mb-6">
-            {/* Assessment Type */}
+            {/* Interaction Type */}
             {(() => {
               const modeInfo = getAssessmentModeInfo(
                 assignmentData.assessment_mode

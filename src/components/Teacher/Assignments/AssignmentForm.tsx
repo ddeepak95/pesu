@@ -544,10 +544,10 @@ export default function AssignmentForm({
         </p>
       </div>
 
-      {/* Assessment Mode */}
+      {/* Interaction Type */}
       <div className="space-y-2">
         <Label htmlFor="assessmentMode">
-          Assessment Type <span className="text-destructive">*</span>
+          Interaction Type <span className="text-destructive">*</span>
         </Label>
         <Select
           value={assessmentMode}
@@ -560,9 +560,9 @@ export default function AssignmentForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="voice">Voice assessment</SelectItem>
-            <SelectItem value="text_chat">Text chat assessment</SelectItem>
-            <SelectItem value="static_text">Static text assessment</SelectItem>
+            <SelectItem value="voice">Voice</SelectItem>
+            <SelectItem value="text_chat">Text Chat</SelectItem>
+            <SelectItem value="static_text">Static Text</SelectItem>
           </SelectContent>
         </Select>
       </div>
