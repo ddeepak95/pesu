@@ -255,7 +255,7 @@ export default function AssignmentResponseCore({
         </div>
       )}
 
-      {/* Shared Context is not displayed to students -- it is only passed to AI prompts */}
+      {/* Additional context is not shown as a separate student block; it is passed to AI prompts */}
 
       {/* Assessment Component */}
       <AssessmentShell

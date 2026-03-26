@@ -203,8 +203,8 @@ export async function createAssignment(
     use_star_display?: boolean; // Whether to show stars instead of points to students
     star_scale?: number; // Number of stars in the rating scale
     require_all_attempts?: boolean; // Whether students must attempt all questions before completing
-    shared_context_enabled?: boolean; // Whether shared context is enabled
-    shared_context?: string; // Shared context text
+    shared_context_enabled?: boolean; // Additional context toggle (DB column name)
+    shared_context?: string; // Additional context text (DB column name)
     evaluation_prompt?: string; // Custom evaluation prompt template
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
@@ -297,8 +297,8 @@ export async function updateAssignment(
     use_star_display?: boolean; // Whether to show stars instead of points to students
     star_scale?: number; // Number of stars in the rating scale
     require_all_attempts?: boolean; // Whether students must attempt all questions before completing
-    shared_context_enabled?: boolean; // Whether shared context is enabled
-    shared_context?: string; // Shared context text
+    shared_context_enabled?: boolean; // Additional context toggle (DB column name)
+    shared_context?: string; // Additional context text (DB column name)
     evaluation_prompt?: string; // Custom evaluation prompt template
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required

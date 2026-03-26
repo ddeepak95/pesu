@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       );
       const languageName = languageNames[language] || "English";
       const sharedContextSection = sharedContext
-        ? `Shared Context:\n${sharedContext}\n\n`
+        ? `Additional context:\n${sharedContext}\n\n`
         : "";
       const rubricText = rubric
         .map((item) => `- ${item.item} (${item.points} points)`)

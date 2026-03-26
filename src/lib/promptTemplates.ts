@@ -45,9 +45,10 @@ export const PROMPT_VARIABLES = {
     description: "Current question index (0-based)",
     category: "runtime" as const,
   },
-  shared_context: {
-    placeholder: "{{shared_context}}",
-    description: "Shared context text (e.g. case study, passage)",
+  additional_context: {
+    placeholder: "{{additional_context}}",
+    description:
+      "Additional context (e.g. case study, passage); stored as shared_context in the DB",
     category: "static" as const,
   },
   answer_text: {
@@ -111,9 +112,10 @@ export const DEFAULT_CONVERSATION_START_SUBSEQUENT = `Speaking in {{language}}, 
  * Sent as the user message to the AI evaluator.
  * Teachers can customize this to change how answers are scored.
  */
-export const DEFAULT_EVALUATION_PROMPT = `{{shared_context}}
+export const DEFAULT_EVALUATION_PROMPT = `{{#if additional_context}}Additional context:
+{{additional_context}}
 
-Question: {{question_prompt}}
+{{/if}}Question: {{question_prompt}}
 
 Evaluation Rubric:
 {{rubric}}
@@ -166,7 +168,14 @@ export function hasVariable(
   variableKey: PromptVariableKey
 ): boolean {
   const placeholder = PROMPT_VARIABLES[variableKey].placeholder;
-  return template.includes(placeholder);
+  if (template.includes(placeholder)) {
+    return true;
+  }
+  // Legacy token for additional_context (same runtime value)
+  if (variableKey === "additional_context") {
+    return template.includes("{{shared_context}}");
+  }
+  return false;
 }
 
 /**

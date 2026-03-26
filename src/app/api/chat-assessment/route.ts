@@ -26,7 +26,7 @@ interface ChatAssessmentRequestBody {
   // Optional custom prompts (already interpolated by frontend)
   system_prompt?: string;
   greeting?: string;
-  // Optional shared context (e.g. case study, passage)
+  // Optional additional context (e.g. case study, passage); field name is shared_context
   shared_context?: string;
   // Optional expected answer for tool-call adequacy guidance
   expected_answer?: string;
@@ -130,9 +130,9 @@ export async function POST(request: NextRequest) {
       .map((item) => `- ${item.item} (${item.points} points)`)
       .join("\n");
 
-    // Build shared context section for default prompts
+    // Build additional-context section for default prompts
     const sharedContextSection = sharedContext
-      ? `\nShared Context the student is analyzing:\n${sharedContext}\n`
+      ? `\nAdditional context the student is analyzing:\n${sharedContext}\n`
       : "";
 
     // Build expected answer guidance (appended to all prompts, custom or default)

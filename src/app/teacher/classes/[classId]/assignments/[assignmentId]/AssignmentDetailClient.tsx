@@ -306,12 +306,11 @@ export default function AssignmentDetailClient({
             </TabsList>
 
             <TabsContent value="questions" className="space-y-4 py-6">
-              {/* Shared Context */}
               {assignmentData.shared_context && (
                 <div className="rounded-md border bg-card text-card-foreground">
                   <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium">
                     <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    <span>Shared Context</span>
+                    <span>Additional context</span>
                     {!assignmentData.shared_context_enabled && (
                       <span className="text-xs text-muted-foreground">
                         (disabled)

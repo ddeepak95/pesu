@@ -85,7 +85,7 @@ export async function runBackgroundEvaluation(
     );
     const languageName = languageNames[language] || "English";
     const sharedContextSection = sharedContext
-      ? `Shared Context:\n${sharedContext}\n\n`
+      ? `Additional context:\n${sharedContext}\n\n`
       : "";
 
     userMessageContent = `${sharedContextSection}Question: ${questionPrompt}

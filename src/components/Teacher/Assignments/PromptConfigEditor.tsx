@@ -217,6 +217,14 @@ export function PromptConfigEditor({
               ))}
             </div>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium">Conditional blocks:</span>{" "}
+              Use{" "}
+              <code className="bg-muted px-1 rounded">{"{{#if variable}}...{{/if}}"}</code>{" "}
+              to include content only when a variable has a value.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -242,7 +250,11 @@ export function PromptConfigEditor({
                   <code className="text-xs bg-muted px-1 rounded">
                     {"{{question_prompt}}"}
                   </code>{" "}
-                  to insert dynamic content.
+                  to insert dynamic content, or{" "}
+                  <code className="text-xs bg-muted px-1 rounded">
+                    {"{{#if variable}}...{{/if}}"}
+                  </code>{" "}
+                  for conditional sections.
                 </p>
                 <Textarea
                   id="system-prompt"

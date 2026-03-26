@@ -14,6 +14,9 @@ export interface InterpolationContext {
   total_questions: number;
   attempt_number: number;
   question_order: number;
+  /** Same value as assignment `shared_context` (DB column). Prefer `{{additional_context}}` in templates. */
+  additional_context: string;
+  /** Legacy alias for `additional_context`; still substituted for older templates. */
   shared_context: string;
   answer_text: string;
 }
@@ -28,19 +31,52 @@ export const PREVIEW_SAMPLE_VALUES = {
 };
 
 /**
- * Interpolate all {{variable}} placeholders in a template.
- * Used for both preview (sample values) and runtime (actual values).
+ * Interpolate a prompt template with Handlebars-style syntax.
  *
- * @param template - The template string with {{variable}} placeholders
+ * Supported constructs (processed in order):
+ *   1. {{#if variable}}...{{/if}}  -- conditional blocks; content is kept
+ *      when the variable is truthy (non-empty string, non-zero number).
+ *   2. {{variable}}                -- simple placeholder substitution.
+ *
+ * @param template - The template string
  * @param context - The context containing variable values
- * @returns The interpolated string with all placeholders replaced
+ * @returns The fully interpolated string
  */
 export function interpolatePrompt(
   template: string,
   context: Partial<InterpolationContext>
 ): string {
-  let result = template;
-  for (const [key, value] of Object.entries(context)) {
+  const merged: Partial<InterpolationContext> = { ...context };
+  const ac = merged.additional_context;
+  const sc = merged.shared_context;
+  if (
+    ac !== undefined &&
+    ac !== null &&
+    (sc === undefined || sc === null)
+  ) {
+    merged.shared_context = ac;
+  } else if (
+    sc !== undefined &&
+    sc !== null &&
+    (ac === undefined || ac === null)
+  ) {
+    merged.additional_context = sc;
+  }
+
+  // Step 1: Resolve {{#if variable}}...{{/if}} conditional blocks
+  let result = template.replace(
+    /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
+    (_match, variable: string, content: string) => {
+      const value = merged[variable as keyof InterpolationContext];
+      if (value !== undefined && value !== null && value !== "" && value !== 0) {
+        return content;
+      }
+      return "";
+    }
+  );
+
+  // Step 2: Replace {{variable}} placeholders
+  for (const [key, value] of Object.entries(merged)) {
     if (value !== undefined && value !== null) {
       result = result.replace(
         new RegExp(`\\{\\{${key}\\}\\}`, "g"),
@@ -48,6 +84,7 @@ export function interpolatePrompt(
       );
     }
   }
+
   return result;
 }
 
@@ -90,6 +127,8 @@ export function buildPreviewContext(
   languageCode?: string
 ): InterpolationContext {
   const lang = languageCode || assignment.preferred_language || "en";
+  const additionalContextText =
+    assignment.shared_context || "[Additional context will appear here]";
 
   return {
     language: getLanguageName(lang),
@@ -98,7 +137,8 @@ export function buildPreviewContext(
     expected_answer: question?.expected_answer || "",
     max_attempts: assignment.max_attempts || 1,
     total_questions: assignment.questions?.length || 1,
-    shared_context: assignment.shared_context || "[Shared context will appear here]",
+    additional_context: additionalContextText,
+    shared_context: additionalContextText,
     answer_text: "[Student answer will appear here]",
     ...PREVIEW_SAMPLE_VALUES, // Use sample values for runtime variables
   };
@@ -123,6 +163,7 @@ export function buildRuntimeContext(
   questionOrder: number,
   answerText?: string
 ): InterpolationContext {
+  const additionalContextText = assignment.shared_context || "";
   return {
     language: getLanguageName(languageCode),
     question_prompt: question.prompt,
@@ -132,7 +173,8 @@ export function buildRuntimeContext(
     total_questions: assignment.questions.length,
     attempt_number: attemptNumber,
     question_order: questionOrder,
-    shared_context: assignment.shared_context || "",
+    additional_context: additionalContextText,
+    shared_context: additionalContextText,
     answer_text: answerText || "",
   };
 }

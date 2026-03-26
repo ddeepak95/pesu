@@ -30,7 +30,10 @@ import {
   type AssignmentIntegritySettingsValues,
 } from "@/components/Shared/Integrity/AssignmentIntegritySettings";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import { getDefaultBotPromptConfig, getDefaultEvaluationPrompt } from "@/lib/promptTemplates";
+import {
+  getDefaultBotPromptConfig,
+  getDefaultEvaluationPrompt,
+} from "@/lib/promptTemplates";
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, ChevronDown, Bot, Eye } from "lucide-react";
 import { showSuccessToast } from "@/lib/toast";
@@ -158,38 +161,38 @@ export default function AssignmentForm({
         required: true,
         placeholder: "Enter your name",
       },
-    ]
+    ],
   );
   const [botPromptConfig, setBotPromptConfig] = useState<BotPromptConfig>(
-    initialBotPromptConfig || getDefaultBotPromptConfig()
+    initialBotPromptConfig || getDefaultBotPromptConfig(),
   );
   const [studentInstructions, setStudentInstructions] = useState(
-    initialStudentInstructions
+    initialStudentInstructions,
   );
   const [showRubric, setShowRubric] = useState(initialShowRubric);
   const [showRubricPoints, setShowRubricPoints] = useState(
-    initialShowRubricPoints
+    initialShowRubricPoints,
   );
   const [useStarDisplay, setUseStarDisplay] = useState(initialUseStarDisplay);
   const [starScale, setStarScale] = useState(initialStarScale);
   const [requireAllAttempts, setRequireAllAttempts] = useState(
-    initialRequireAllAttempts
+    initialRequireAllAttempts,
   );
   const [sharedContextEnabled, setSharedContextEnabled] = useState(
-    initialSharedContextEnabled
+    initialSharedContextEnabled,
   );
   const [sharedContext, setSharedContext] = useState(initialSharedContext);
   const [evaluationPrompt, setEvaluationPrompt] = useState(
-    initialEvaluationPrompt || getDefaultEvaluationPrompt()
+    initialEvaluationPrompt || getDefaultEvaluationPrompt(),
   );
   const [experienceRatingEnabled, setExperienceRatingEnabled] = useState(
-    initialExperienceRatingEnabled
+    initialExperienceRatingEnabled,
   );
   const [experienceRatingRequired, setExperienceRatingRequired] = useState(
-    initialExperienceRatingRequired
+    initialExperienceRatingRequired,
   );
   const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState(
-    initialFeedbackRequiresApproval
+    initialFeedbackRequiresApproval,
   );
   const [integritySettings, setIntegritySettings] =
     useState<AssignmentIntegritySettingsValues>({
@@ -207,7 +210,7 @@ export default function AssignmentForm({
   const handleQuestionChange = (
     questionIndex: number,
     field: keyof Question,
-    value: Question[keyof Question]
+    value: Question[keyof Question],
   ) => {
     setQuestions((prevQuestions) => {
       const newQuestions = [...prevQuestions];
@@ -231,7 +234,7 @@ export default function AssignmentForm({
     questionIndex: number,
     rubricIndex: number,
     field: keyof RubricItem,
-    value: string | number
+    value: string | number,
   ) => {
     const newQuestions = [...questions];
     const newRubric = [...newQuestions[questionIndex].rubric];
@@ -255,7 +258,7 @@ export default function AssignmentForm({
 
   const handleRemoveRubricItem = (
     questionIndex: number,
-    rubricIndex: number
+    rubricIndex: number,
   ) => {
     const newQuestions = [...questions];
     if (newQuestions[questionIndex].rubric.length > 1) {
@@ -346,7 +349,7 @@ export default function AssignmentForm({
   // Handle question prompt override changes
   const handleQuestionOverrideChange = (
     questionOrder: number,
-    override: import("@/types/assignment").QuestionPromptOverride | undefined
+    override: import("@/types/assignment").QuestionPromptOverride | undefined,
   ) => {
     const currentOverrides = botPromptConfig.question_overrides || {};
 
@@ -386,9 +389,10 @@ export default function AssignmentForm({
       return;
     }
 
-    // Validate shared context
     if (sharedContextEnabled && !sharedContext.trim()) {
-      setError("Shared context text is required when Shared Context is enabled");
+      setError(
+        "Additional context text is required when additional context is enabled",
+      );
       return;
     }
 
@@ -407,12 +411,12 @@ export default function AssignmentForm({
       }
 
       const validRubricItems = question.rubric.filter(
-        (item) => item.item.trim() && item.points > 0
+        (item) => item.item.trim() && item.points > 0,
       );
 
       if (validRubricItems.length === 0) {
         setError(
-          `Question ${i + 1}: At least one valid rubric item is required`
+          `Question ${i + 1}: At least one valid rubric item is required`,
         );
         return;
       }
@@ -420,7 +424,7 @@ export default function AssignmentForm({
       // Validate that rubric points sum equals total points
       const rubricSum = validRubricItems.reduce(
         (sum, item) => sum + (item.points || 0),
-        0
+        0,
       );
       if (rubricSum !== question.total_points) {
         setError(
@@ -428,7 +432,7 @@ export default function AssignmentForm({
             i + 1
           }: Rubric points (${rubricSum}) must equal total points (${
             question.total_points
-          })`
+          })`,
         );
         return;
       }
@@ -446,7 +450,7 @@ export default function AssignmentForm({
       // Calculate total points for assignment
       const totalPoints = cleanedQuestions.reduce(
         (sum, q) => sum + q.total_points,
-        0
+        0,
       );
 
       await onSubmit({
@@ -472,7 +476,9 @@ export default function AssignmentForm({
         sharedContext: sharedContextEnabled ? sharedContext.trim() : undefined,
         evaluationPrompt: evaluationPrompt.trim() || undefined,
         experienceRatingEnabled,
-        experienceRatingRequired: experienceRatingEnabled ? experienceRatingRequired : false,
+        experienceRatingRequired: experienceRatingEnabled
+          ? experienceRatingRequired
+          : false,
         feedbackRequiresApproval,
         allowCopyPaste: integritySettings.allowCopyPaste,
         tabSwitchPolicy: integritySettings.tabSwitchPolicy,
@@ -488,12 +494,12 @@ export default function AssignmentForm({
     } catch (err) {
       console.error(
         `Error ${mode === "edit" ? "updating" : "creating"} assignment:`,
-        err
+        err,
       );
       setError(
         `Failed to ${
           mode === "edit" ? "update" : "create"
-        } assignment. Please try again.`
+        } assignment. Please try again.`,
       );
     } finally {
       setLoading(false);
@@ -533,8 +539,8 @@ export default function AssignmentForm({
           rows={4}
         />
         <p className="text-sm text-muted-foreground">
-          These instructions will be displayed to students below the title.
-          Not passed to the AI.
+          These instructions will be displayed to students below the title. Not
+          passed to the AI.
         </p>
       </div>
 
@@ -799,8 +805,8 @@ export default function AssignmentForm({
                     Enable Experience Rating
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Ask students to rate their experience on a 5-point scale when
-                    completing the assessment
+                    Ask students to rate their experience on a 5-point scale
+                    when completing the assessment
                   </p>
                 </div>
               </div>
@@ -823,8 +829,8 @@ export default function AssignmentForm({
                       Require rating
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      Students must provide a rating before completing (otherwise
-                      they can skip)
+                      Students must provide a rating before completing
+                      (otherwise they can skip)
                     </p>
                   </div>
                 </div>
@@ -906,7 +912,7 @@ export default function AssignmentForm({
                           size="sm"
                           onClick={() => {
                             const newFields = responderFieldsConfig.filter(
-                              (_, i) => i !== index
+                              (_, i) => i !== index,
                             );
                             setResponderFieldsConfig(newFields);
                           }}
@@ -1100,12 +1106,6 @@ export default function AssignmentForm({
             <p className="text-sm text-muted-foreground">
               Customize how the AI bot interacts with students and evaluates
               answers. Use variable placeholders to insert dynamic content.
-              {assessmentMode === "voice" && (
-                <span className="block mt-1 text-xs">
-                  Note: For voice mode, TTS formatting instructions are
-                  automatically added.
-                </span>
-              )}
             </p>
 
             {/* Editor and Preview Toggle (only for voice and text_chat modes) */}
@@ -1131,16 +1131,15 @@ export default function AssignmentForm({
               </div>
             )}
 
-            {showBotPreview && (assessmentMode === "voice" || assessmentMode === "text_chat") ? (
+            {showBotPreview &&
+            (assessmentMode === "voice" || assessmentMode === "text_chat") ? (
               <div className="space-y-3">
                 {/* Preview Question Order Toggle */}
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-muted-foreground">Preview for:</span>
                   <Button
                     type="button"
-                    variant={
-                      previewQuestionOrder === 0 ? "default" : "outline"
-                    }
+                    variant={previewQuestionOrder === 0 ? "default" : "outline"}
                     size="sm"
                     onClick={() => setPreviewQuestionOrder(0)}
                   >
@@ -1148,9 +1147,7 @@ export default function AssignmentForm({
                   </Button>
                   <Button
                     type="button"
-                    variant={
-                      previewQuestionOrder === 1 ? "default" : "outline"
-                    }
+                    variant={previewQuestionOrder === 1 ? "default" : "outline"}
                     size="sm"
                     onClick={() => setPreviewQuestionOrder(1)}
                   >
@@ -1164,7 +1161,9 @@ export default function AssignmentForm({
                     questions,
                     preferred_language: preferredLanguage,
                     max_attempts: maxAttempts,
-                    shared_context: sharedContextEnabled ? sharedContext : undefined,
+                    shared_context: sharedContextEnabled
+                      ? sharedContext
+                      : undefined,
                   }}
                   question={questions[0]}
                   languageCode={preferredLanguage}
@@ -1177,7 +1176,9 @@ export default function AssignmentForm({
                 config={botPromptConfig}
                 onChange={setBotPromptConfig}
                 disabled={loading}
-                showBotPrompts={assessmentMode === "voice" || assessmentMode === "text_chat"}
+                showBotPrompts={
+                  assessmentMode === "voice" || assessmentMode === "text_chat"
+                }
                 evaluationPrompt={evaluationPrompt}
                 onEvaluationPromptChange={setEvaluationPrompt}
               />
@@ -1186,13 +1187,15 @@ export default function AssignmentForm({
         )}
       </div>
 
-      {/* Shared Context */}
+      {/* Additional context (stored as shared_context / shared_context_enabled in Supabase) */}
       <div className="space-y-3 p-4 border rounded-md">
         <div className="flex items-center space-x-2">
           <Checkbox
             id="sharedContextEnabled"
             checked={sharedContextEnabled}
-            onCheckedChange={(checked) => setSharedContextEnabled(checked === true)}
+            onCheckedChange={(checked) =>
+              setSharedContextEnabled(checked === true)
+            }
             disabled={loading}
           />
           <div className="space-y-1">
@@ -1200,12 +1203,12 @@ export default function AssignmentForm({
               htmlFor="sharedContextEnabled"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
             >
-              Shared Context
+              Additional context
             </Label>
             <p className="text-sm text-muted-foreground">
-              Provide a shared context (e.g. case study, passage, scenario) that
-              will be included in all AI prompts for this assessment. This is not
-              shown to students.
+              Optional extra material (e.g. case study, passage, scenario)
+              included in AI prompts for this assessment. Not shown to students
+              as a separate block.
             </p>
           </div>
         </div>
@@ -1213,24 +1216,22 @@ export default function AssignmentForm({
         {sharedContextEnabled && (
           <div className="space-y-2 mt-3">
             <Label htmlFor="sharedContext">
-              Context Text <span className="text-destructive">*</span>
+              Context text <span className="text-destructive">*</span>
             </Label>
             <Textarea
               id="sharedContext"
               value={sharedContext}
               onChange={(e) => setSharedContext(e.target.value)}
               disabled={loading}
-              placeholder="Enter the shared context, case study, passage, or scenario that students will analyze..."
+              placeholder="Enter additional context, case study, passage, or scenario..."
               rows={6}
               className="resize-y"
             />
             <p className="text-xs text-muted-foreground">
-              This context will be included in all AI prompts but is not shown
-              to students. Available as{" "}
+              In prompt templates use{" "}
               <code className="text-xs bg-muted px-1 rounded">
-                {"{{shared_context}}"}
-              </code>{" "}
-              in prompt templates.
+                {"{{additional_context}}"}
+              </code>
             </p>
           </div>
         )}
@@ -1263,7 +1264,7 @@ export default function AssignmentForm({
             onQuestionOverrideChange={handleQuestionOverrideChange}
             defaultSystemPrompt={botPromptConfig.system_prompt}
             defaultConversationStart={getDefaultConversationStart(
-              question.order
+              question.order,
             )}
           />
         ))}
@@ -1302,10 +1303,10 @@ export default function AssignmentForm({
                 : "Updating..."
               : "Creating..."
             : mode === "edit"
-            ? initialIsDraft
-              ? "Publish"
-              : "Update Assignment"
-            : "Create Assignment"}
+              ? initialIsDraft
+                ? "Publish"
+                : "Update Assignment"
+              : "Create Assignment"}
         </Button>
       </div>
     </form>

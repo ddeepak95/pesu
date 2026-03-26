@@ -133,18 +133,18 @@ export interface Assignment {
    */
   require_all_attempts?: boolean;
   /**
-   * When true, a shared context is shown to students and included in all prompts.
+   * When true, additional context is included in AI prompts (stored as shared_context_enabled).
    * Defaults to false.
    */
   shared_context_enabled?: boolean;
   /**
-   * The shared context text (e.g. a case study, passage, scenario).
-   * Only used when shared_context_enabled is true.
+   * Additional context text (e.g. case study, passage). Stored as shared_context in the DB.
+   * Only passed to prompts when shared_context_enabled is true.
    */
   shared_context?: string;
   /**
    * Custom evaluation prompt template. If set, replaces the hardcoded evaluation prompt.
-   * Supports placeholders: {{language}}, {{question_prompt}}, {{rubric}}, {{answer_text}}, {{shared_context}}
+   * Supports placeholders including {{additional_context}} (legacy: {{shared_context}}).
    */
   evaluation_prompt?: string;
   /**
