@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
-import { Assignment, ResponderFieldConfig, BotPromptConfig } from "@/types/assignment";
+import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig } from "@/types/assignment";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
 
@@ -213,6 +213,7 @@ export async function createAssignment(
     allow_copy_paste?: boolean;
     tab_switch_policy?: TabSwitchPolicy;
     tab_switch_max_leaves?: number | null;
+    file_submission_config?: FileSubmissionConfig | null;
   },
   userId: string
 ): Promise<Assignment> {
@@ -256,6 +257,7 @@ export async function createAssignment(
         assignment.tab_switch_policy === "block_after_threshold"
           ? assignment.tab_switch_max_leaves ?? null
           : null,
+      file_submission_config: assignment.file_submission_config ?? null,
     })
     .select()
     .single();
@@ -309,6 +311,7 @@ export async function updateAssignment(
     allow_copy_paste?: boolean;
     tab_switch_policy?: TabSwitchPolicy;
     tab_switch_max_leaves?: number | null;
+    file_submission_config?: FileSubmissionConfig | null;
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -343,6 +346,7 @@ export async function updateAssignment(
       assignment.tab_switch_policy === "block_after_threshold"
         ? assignment.tab_switch_max_leaves ?? null
         : null,
+    file_submission_config: assignment.file_submission_config ?? null,
     updated_at: new Date().toISOString(),
   };
 

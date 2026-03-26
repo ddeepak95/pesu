@@ -1,5 +1,12 @@
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 
+export interface FileSubmissionConfig {
+  required: boolean;
+  allow_multiple: boolean;
+  instructions?: string;
+  allowed_file_types?: string[];
+}
+
 export interface RubricItem {
   item: string;
   points: number;
@@ -183,5 +190,10 @@ export interface Assignment {
    * Max tab hidden events before integrity lock; required when tab_switch_policy is block_after_threshold.
    */
   tab_switch_max_leaves?: number | null;
+  /**
+   * Configuration for file submission requirements.
+   * When set with required: true, students must upload files before answering questions.
+   */
+  file_submission_config?: FileSubmissionConfig | null;
 }
 

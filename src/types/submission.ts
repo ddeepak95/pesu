@@ -143,3 +143,23 @@ export interface Submission {
   integrity_access_revoked_reason?: string | null;
 }
 
+export interface SubmissionFile {
+  id: string;
+  submission_id: string;
+  assignment_id: string;
+  filename: string;
+  file_url: string;
+  file_size: number;
+  mime_type?: string;
+  storage_path: string;
+  parsed_content_url?: string | null;
+  processing_status:
+    | "uploading"
+    | "uploaded"
+    | "processing"
+    | "processed"
+    | "failed";
+  created_at: string;
+  updated_at?: string;
+}
+

@@ -14,6 +14,7 @@ import { getClassGroups } from "@/lib/queries/groups";
 import {
   ResponderFieldConfig,
   BotPromptConfig,
+  FileSubmissionConfig,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
@@ -111,6 +112,7 @@ export default function CreateAssignmentPage() {
     allowCopyPaste?: boolean;
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
+    fileSubmissionConfig?: FileSubmissionConfig | null;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -150,6 +152,7 @@ export default function CreateAssignmentPage() {
           data.tabSwitchPolicy === "block_after_threshold"
             ? data.tabSwitchMaxLeaves ?? null
             : null,
+        file_submission_config: data.fileSubmissionConfig ?? null,
       },
       user.id
     );

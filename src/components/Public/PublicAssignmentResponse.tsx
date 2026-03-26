@@ -23,9 +23,12 @@ import {
   getTranscriptsForSubmission,
 } from "@/lib/queries/submissions";
 import { Assignment } from "@/types/assignment";
+import { SubmissionFile } from "@/types/submission";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
+import FileUploadZone from "@/components/Shared/FileUploadZone";
 import ResponderDetailsForm from "./ResponderDetailsForm";
+import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import {
   saveSession,
   loadSession,
@@ -39,7 +42,7 @@ import { showErrorToast } from "@/lib/toast";
 import { Submission } from "@/types/submission";
 import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
 
-type Phase = "info" | "answering" | "completed";
+type Phase = "info" | "file_upload" | "answering" | "completed";
 
 interface PublicAssignmentResponseProps {
   assignmentData: Assignment;
@@ -87,7 +90,10 @@ const PublicAssignmentResponse = forwardRef<
     at: string;
     reason: string | null;
   } | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<SubmissionFile[]>([]);
   const isRestoringRef = useRef(false);
+
+  const fileUploadRequired = !!assignmentData.file_submission_config?.required;
 
   const applyIntegrityFromSubmission = useCallback(
     (s: Pick<Submission, "integrity_access_revoked_at" | "integrity_access_revoked_reason">) => {
@@ -206,7 +212,19 @@ const PublicAssignmentResponse = forwardRef<
       }
 
       setCurrentQuestionIndex(questionIndex);
-      setPhase("answering");
+
+      // Check if file upload is required and files are missing
+      let nextPhase: Phase = "answering";
+      if (fileUploadRequired) {
+        const files = await getSubmissionFiles(submission.submission_id);
+        const completed = files.filter((f) => f.processing_status !== "uploading");
+        if (completed.length > 0) {
+          setUploadedFiles(completed);
+        } else {
+          nextPhase = "file_upload";
+        }
+      }
+      setPhase(nextPhase);
 
       // Ensure URL has the submission ID
       if (!urlSubmissionId) {
@@ -219,7 +237,7 @@ const PublicAssignmentResponse = forwardRef<
         studentName: name,
         preferredLanguage: submission.preferred_language,
         currentQuestionIndex: questionIndex,
-        phase: "answering",
+        phase: nextPhase === "file_upload" ? "answering" : "answering",
       });
     } catch (err) {
       console.error("Error restoring session:", err);
@@ -257,7 +275,7 @@ const PublicAssignmentResponse = forwardRef<
       applyIntegrityFromSubmission(submission);
       const name = getDisplayName(submission);
       setDisplayName(name);
-      setPhase("answering");
+      setPhase(fileUploadRequired ? "file_upload" : "answering");
 
       if (onDisplayNameChange) {
         onDisplayNameChange(name);
@@ -379,6 +397,39 @@ const PublicAssignmentResponse = forwardRef<
               onSubmit={handleBeginAssignment}
               submitLabel="Begin Assignment"
             />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Phase 1.5: File Upload (when required)
+  if (phase === "file_upload" && submissionId) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle className="text-center text-2xl">
+              {assignmentData.title}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <h2 className="text-lg font-semibold">Upload Required Files</h2>
+            <FileUploadZone
+              submissionId={submissionId}
+              assignmentId={assignmentData.assignment_id}
+              config={assignmentData.file_submission_config!}
+              existingFiles={uploadedFiles}
+              onFilesChanged={setUploadedFiles}
+            />
+            {uploadedFiles.length > 0 && (
+              <button
+                onClick={() => setPhase("answering")}
+                className="w-full inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                Continue to Questions
+              </button>
+            )}
           </CardContent>
         </Card>
       </div>

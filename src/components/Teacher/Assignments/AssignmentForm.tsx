@@ -22,6 +22,7 @@ import {
   RubricItem,
   ResponderFieldConfig,
   BotPromptConfig,
+  FileSubmissionConfig,
 } from "@/types/assignment";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
@@ -70,6 +71,7 @@ interface AssignmentFormProps {
   initialAllowCopyPaste?: boolean;
   initialTabSwitchPolicy?: TabSwitchPolicy;
   initialTabSwitchMaxLeaves?: number;
+  initialFileSubmissionConfig?: FileSubmissionConfig | null;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -99,6 +101,7 @@ interface AssignmentFormProps {
     allowCopyPaste?: boolean;
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
+    fileSubmissionConfig?: FileSubmissionConfig | null;
   }) => Promise<void>;
 }
 
@@ -143,6 +146,7 @@ export default function AssignmentForm({
   initialAllowCopyPaste = false,
   initialTabSwitchPolicy = DEFAULT_TAB_SWITCH_POLICY,
   initialTabSwitchMaxLeaves = 3,
+  initialFileSubmissionConfig = null,
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -207,6 +211,18 @@ export default function AssignmentForm({
       tabSwitchPolicy: initialTabSwitchPolicy,
       tabSwitchMaxLeaves: initialTabSwitchMaxLeaves,
     });
+  const [fileSubmissionEnabled, setFileSubmissionEnabled] = useState(
+    !!initialFileSubmissionConfig?.required,
+  );
+  const [fileAllowMultiple, setFileAllowMultiple] = useState(
+    initialFileSubmissionConfig?.allow_multiple ?? false,
+  );
+  const [fileInstructions, setFileInstructions] = useState(
+    initialFileSubmissionConfig?.instructions ?? "",
+  );
+  const [fileAllowedTypes, setFileAllowedTypes] = useState<string[]>(
+    initialFileSubmissionConfig?.allowed_file_types ?? [],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
@@ -491,6 +507,15 @@ export default function AssignmentForm({
         allowCopyPaste: integritySettings.allowCopyPaste,
         tabSwitchPolicy: integritySettings.tabSwitchPolicy,
         tabSwitchMaxLeaves: integritySettings.tabSwitchMaxLeaves,
+        fileSubmissionConfig: fileSubmissionEnabled
+          ? {
+              required: true,
+              allow_multiple: fileAllowMultiple,
+              instructions: fileInstructions.trim() || undefined,
+              allowed_file_types:
+                fileAllowedTypes.length > 0 ? fileAllowedTypes : undefined,
+            }
+          : null,
       });
 
       // Navigate based on mode
@@ -901,6 +926,116 @@ export default function AssignmentForm({
               onChange={setIntegritySettings}
               disabled={loading}
             />
+
+            {/* File Submission */}
+            <div className="space-y-3 p-4 border rounded-md">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="fileSubmissionEnabled"
+                  checked={fileSubmissionEnabled}
+                  onCheckedChange={(checked) => {
+                    setFileSubmissionEnabled(checked === true);
+                  }}
+                  disabled={loading}
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="fileSubmissionEnabled"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Require File Submission
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Students must upload files before answering questions
+                  </p>
+                </div>
+              </div>
+
+              {fileSubmissionEnabled && (
+                <div className="space-y-4 ml-6">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="fileAllowMultiple"
+                      checked={fileAllowMultiple}
+                      onCheckedChange={(checked) =>
+                        setFileAllowMultiple(checked === true)
+                      }
+                      disabled={loading}
+                    />
+                    <Label
+                      htmlFor="fileAllowMultiple"
+                      className="text-sm font-medium leading-none cursor-pointer"
+                    >
+                      Allow multiple files
+                    </Label>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="fileInstructions"
+                      className="text-sm font-medium"
+                    >
+                      Instructions for file submission (optional)
+                    </Label>
+                    <Textarea
+                      id="fileInstructions"
+                      value={fileInstructions}
+                      onChange={(e) => setFileInstructions(e.target.value)}
+                      disabled={loading}
+                      placeholder="e.g., Upload your report as a PDF file..."
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">
+                      Allowed file types (optional)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to allow all file types. Click to
+                      toggle.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        ".pdf",
+                        ".docx",
+                        ".doc",
+                        ".txt",
+                        ".png",
+                        ".jpg",
+                        ".jpeg",
+                        ".xlsx",
+                        ".csv",
+                        ".pptx",
+                      ].map((ext) => {
+                        const isSelected = fileAllowedTypes.includes(ext);
+                        return (
+                          <button
+                            key={ext}
+                            type="button"
+                            onClick={() => {
+                              setFileAllowedTypes((prev) =>
+                                isSelected
+                                  ? prev.filter((t) => t !== ext)
+                                  : [...prev, ext],
+                              );
+                            }}
+                            disabled={loading}
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background text-muted-foreground border-input hover:bg-muted"
+                            }`}
+                          >
+                            {ext}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Public Access Toggle */}
             <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
