@@ -2,6 +2,88 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getStorageBucket } from "@/lib/firebase-admin";
 
+const SIGNED_URL_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Generate a short-lived signed download URL for a submission file.
+ * Use ?type=parsed to get the parsed markdown version instead of the original.
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ fileId: string }> },
+) {
+  try {
+    const { fileId } = await params;
+
+    if (!fileId) {
+      return NextResponse.json(
+        { error: "Missing fileId" },
+        { status: 400 },
+      );
+    }
+
+    const wantParsed =
+      request.nextUrl.searchParams.get("type") === "parsed";
+
+    const supabase = await createServerSupabaseClient();
+
+    const { data: fileRecord, error: fetchError } = await supabase
+      .from("submission_files")
+      .select(
+        "id, storage_path, filename, mime_type, parsed_content_url, processing_status",
+      )
+      .eq("id", fileId)
+      .single();
+
+    if (fetchError || !fileRecord) {
+      return NextResponse.json(
+        { error: "File record not found" },
+        { status: 404 },
+      );
+    }
+
+    const bucket = getStorageBucket();
+    let storagePath: string;
+    let disposition: string;
+
+    if (wantParsed) {
+      if (
+        fileRecord.processing_status !== "processed" ||
+        !fileRecord.parsed_content_url
+      ) {
+        return NextResponse.json(
+          { error: "Parsed content not available" },
+          { status: 404 },
+        );
+      }
+      const url = new URL(fileRecord.parsed_content_url);
+      storagePath = url.pathname.replace(`/${bucket.name}/`, "");
+      const baseName = fileRecord.filename.replace(/\.[^.]+$/, "");
+      disposition = `inline; filename="${baseName}.md"`;
+    } else {
+      storagePath = fileRecord.storage_path;
+      disposition = `inline; filename="${fileRecord.filename}"`;
+    }
+
+    const file = bucket.file(storagePath);
+
+    const [signedUrl] = await file.getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: Date.now() + SIGNED_URL_EXPIRY_MS,
+      responseDisposition: disposition,
+    });
+
+    return NextResponse.json({ url: signedUrl });
+  } catch (err) {
+    console.error("Error generating download URL:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ fileId: string }> },
@@ -18,10 +100,9 @@ export async function DELETE(
 
     const supabase = await createServerSupabaseClient();
 
-    // Fetch the file record to get storage_path and submission_id
     const { data: fileRecord, error: fetchError } = await supabase
       .from("submission_files")
-      .select("id, storage_path, submission_id")
+      .select("id, storage_path, submission_id, parsed_content_url")
       .eq("id", fileId)
       .single();
 
@@ -32,13 +113,24 @@ export async function DELETE(
       );
     }
 
-    // Delete from GCS
+    const bucket = getStorageBucket();
+
+    // Delete original file from GCS
     try {
-      const bucket = getStorageBucket();
       await bucket.file(fileRecord.storage_path).delete();
     } catch (gcsErr) {
-      // Log but don't fail -- the file may already be gone
-      console.warn("GCS delete warning (file may not exist):", gcsErr);
+      console.warn("GCS delete warning (original may not exist):", gcsErr);
+    }
+
+    // Delete parsed markdown from GCS if it exists
+    if (fileRecord.parsed_content_url) {
+      try {
+        const parsedUrl = new URL(fileRecord.parsed_content_url);
+        const parsedPath = parsedUrl.pathname.replace(`/${bucket.name}/`, "");
+        await bucket.file(parsedPath).delete();
+      } catch (gcsErr) {
+        console.warn("GCS delete warning (parsed may not exist):", gcsErr);
+      }
     }
 
     // Delete the DB record

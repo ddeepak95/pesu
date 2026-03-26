@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileSubmissionConfig } from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
 import {
   uploadSubmissionFile,
   deleteSubmissionFile,
+  getSubmissionFiles,
+  getFileDownloadUrl,
 } from "@/lib/queries/submissionFiles";
 import { Button } from "@/components/ui/button";
-import { Upload, X, FileText, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { Upload, X, FileText, CheckCircle, Loader2, AlertCircle, Download, FileCode } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 
 interface FileUploadZoneProps {
@@ -52,6 +54,24 @@ export default function FileUploadZone({
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const TERMINAL_STATUSES = new Set(["processed", "failed"]);
+  const hasNonTerminal = existingFiles.some(
+    (f) => !TERMINAL_STATUSES.has(f.processing_status),
+  );
+
+  useEffect(() => {
+    if (!hasNonTerminal || !submissionId) return;
+
+    const interval = setInterval(async () => {
+      const fresh = await getSubmissionFiles(submissionId);
+      if (fresh.length > 0) {
+        onFilesChanged(fresh.filter((f) => f.processing_status !== "uploading"));
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [hasNonTerminal, submissionId, onFilesChanged]);
 
   const validateFile = useCallback(
     (file: File): string | null => {
@@ -134,6 +154,23 @@ export default function FileUploadZone({
       validateFile,
     ],
   );
+
+  const handleDownload = async (
+    file: SubmissionFile,
+    type: "original" | "parsed" = "original",
+  ) => {
+    try {
+      const url = await getFileDownloadUrl(file.id, type);
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error("Download error:", err);
+      showErrorToast(
+        type === "parsed"
+          ? "Parsed content not available"
+          : "Failed to get download link",
+      );
+    }
+  };
 
   const handleDelete = async (fileId: string) => {
     try {
@@ -292,6 +329,26 @@ export default function FileUploadZone({
               </span>
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+            onClick={() => handleDownload(file)}
+            title="Download original"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+          {process.env.NODE_ENV === "development" && file.processing_status === "processed" && file.parsed_content_url && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+              onClick={() => handleDownload(file, "parsed")}
+              title="View parsed content"
+            >
+              <FileCode className="h-4 w-4" />
+            </Button>
+          )}
           {!disabled && (
             <Button
               variant="ghost"

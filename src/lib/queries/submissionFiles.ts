@@ -114,6 +114,26 @@ function uploadToGCS(
 }
 
 /**
+ * Get a short-lived signed download URL for a submission file.
+ * Pass type="parsed" to get the parsed markdown version.
+ */
+export async function getFileDownloadUrl(
+  fileId: string,
+  type: "original" | "parsed" = "original",
+): Promise<string> {
+  const query = type === "parsed" ? "?type=parsed" : "";
+  const res = await fetch(`/api/files/${fileId}${query}`);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to get download URL");
+  }
+
+  const { url } = await res.json();
+  return url as string;
+}
+
+/**
  * Delete a submission file (removes from GCS and DB).
  */
 export async function deleteSubmissionFile(fileId: string): Promise<void> {
