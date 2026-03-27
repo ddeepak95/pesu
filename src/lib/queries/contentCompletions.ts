@@ -250,21 +250,33 @@ export async function getClassContentCompletions(
     contentNameMap.set(s.id, s.title);
   }
 
-  // Fetch all completions for these content items
+  // Fetch all completions for these content items (paginated to avoid
+  // Supabase's default 1000-row limit silently truncating results).
   const contentItemIds = contentItems.map((ci) => ci.id);
-  const { data: completionsData, error: completionsError } = await supabase
-    .from("student_content_completions")
-    .select("student_id, content_item_id, completed_at")
-    .in("content_item_id", contentItemIds);
+  const PAGE_SIZE = 1000;
+  const allCompletions: { student_id: string; content_item_id: string; completed_at: string }[] = [];
+  let offset = 0;
 
-  if (completionsError) {
-    console.error("Error fetching completions:", completionsError);
-    throw completionsError;
+  while (true) {
+    const { data, error: pageError } = await supabase
+      .from("student_content_completions")
+      .select("student_id, content_item_id, completed_at")
+      .in("content_item_id", contentItemIds)
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (pageError) {
+      console.error("Error fetching completions:", pageError);
+      throw pageError;
+    }
+
+    allCompletions.push(...(data || []));
+    if (!data || data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
   }
 
   // Create a set of completion keys for quick lookup
   const completionMap = new Map<string, string>();
-  for (const c of completionsData || []) {
+  for (const c of allCompletions) {
     const key = `${c.student_id}:${c.content_item_id}`;
     completionMap.set(key, c.completed_at);
   }
