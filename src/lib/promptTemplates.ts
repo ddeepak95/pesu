@@ -56,6 +56,12 @@ export const PROMPT_VARIABLES = {
     description: "The student's submitted answer text",
     category: "runtime" as const,
   },
+  file_submissions: {
+    placeholder: "{{file_submissions}}",
+    description:
+      "Formatted content of uploaded files (parsed markdown); populated when file submission is enabled",
+    category: "runtime" as const,
+  },
 } as const;
 
 export type PromptVariableKey = keyof typeof PROMPT_VARIABLES;
@@ -83,11 +89,19 @@ export function getVariablesByCategory(category: "static" | "runtime") {
 export type ActivityType = "assessment" | "learning";
 export type InteractionType = "voice" | "text_chat" | "static_text";
 
-const COMMON_INSTRUCTIONS = `The student needs to answer this question:
+const COMMON_INSTRUCTIONS = `{{#if file_submissions}}
+{{file_submissions}}
+
+{{/if}}The student needs to answer this question:
 {{question_prompt}}
 
 Evaluation criteria:
 {{rubric}}
+
+{{#if expected_answer}}
+Expected answer guidance (for your reference only, do NOT reveal to the student):
+{{expected_answer}}
+{{/if}}
 
 Guidelines:
 - Use English for concept-specific words while keeping the conversation in {{language}}
@@ -117,7 +131,7 @@ const INTERACTION_MODIFIERS: Record<InteractionType, string> = {
   voice:
     "Keep responses brief and conversational. Avoid long lists or complex formatting.",
   text_chat:
-    "You may use short markdown formatting for clarity. Keep responses concise.",
+    "Your output is rendered as a plain text chat message. Keep responses concise and conversational.",
   static_text:
     "The student will submit a single written answer. You will not have a back-and-forth conversation.",
 };
@@ -166,7 +180,10 @@ export function buildDefaultConversationStart(
   };
 }
 
-const EVALUATION_BASE_ASSESSMENT = `{{#if additional_context}}Additional context:
+const EVALUATION_BASE_ASSESSMENT = `{{#if file_submissions}}
+{{file_submissions}}
+
+{{/if}}{{#if additional_context}}Additional context:
 {{additional_context}}
 
 {{/if}}Question: {{question_prompt}}
@@ -186,7 +203,10 @@ Then provide overall feedback in {{language}} that is encouraging and helps the 
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
-const EVALUATION_BASE_LEARNING = `{{#if additional_context}}Additional context:
+const EVALUATION_BASE_LEARNING = `{{#if file_submissions}}
+{{file_submissions}}
+
+{{/if}}{{#if additional_context}}Additional context:
 {{additional_context}}
 
 {{/if}}Question: {{question_prompt}}
@@ -265,6 +285,35 @@ export function getDefaultEvaluationPrompt(): string {
  * This is NOT part of the teacher-editable template.
  */
 export const TTS_INSTRUCTION = `The text you generate will be used by TTS, so avoid special characters. Use colloquial, friendly language.`;
+
+/**
+ * Instructions appended transparently to every text-chat system prompt.
+ * NOT part of the teacher-editable template.
+ * Contains {{language}} which must be interpolated before use.
+ */
+export const CHAT_SYSTEM_APPENDIX = `
+OUTPUT FORMAT:
+Your output is rendered as a plain text chat message. Do NOT use any special characters, markdown formatting, or code blocks. Keep responses concise and conversational.
+
+SAFETY:
+The users are students. Never output anything offensive, inappropriate, or sexual. Always maintain a supportive and age-appropriate tone.
+
+TOOL USAGE:
+You have access to an end_conversation tool. You MUST call it when:
+1. The student has provided an answer that covers the expected answer — call with reason "thorough"
+2. The student explicitly refuses to answer or says they don't want to continue — call with reason "refusal"
+When calling end_conversation, always include a polite ending message in {{language}}.`;
+
+/**
+ * Instructions appended transparently to every voice system prompt.
+ * NOT part of the teacher-editable template.
+ * Contains {{language}} which must be interpolated before use.
+ */
+export const VOICE_SYSTEM_APPENDIX = `
+The text you generate will be used for text to speech conversion, so don't include any special characters or formatting. Use colloquial language and be friendly. Keep your responses very short with no more than 10 words. More conversational turns are better than longer responses from your side. For bilingual conversations, use the English words directly in the dialogue when English terms are used in the conversation instead of putting them in brackets and write the English words using English alphabet.
+
+SAFETY:
+The users are students. Never output anything offensive, inappropriate, or sexual. Always maintain a supportive and age-appropriate tone.`;
 
 /**
  * Get the default bot prompt configuration.

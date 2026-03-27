@@ -27,4 +27,8 @@ export interface AssessmentInputProps {
   allowCopyPaste?: boolean;
   /** Chat API returned integrity lock */
   onIntegrityAccessRevoked?: () => void;
+  /** Pre-fetched formatted content of uploaded files for prompt interpolation */
+  fileSubmissionsContent?: string;
+  /** Activity type for prompt defaults (assessment vs learning) */
+  activityType?: "assessment" | "learning";
 }

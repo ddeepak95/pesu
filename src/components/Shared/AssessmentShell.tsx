@@ -4,10 +4,7 @@ import React, { useCallback, useRef } from "react";
 import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
 import { getQuestionAttempts } from "@/lib/queries/submissions";
-import {
-  interpolatePrompt,
-  buildRuntimeContext,
-} from "@/lib/promptInterpolation";
+import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
 import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCard";
 import {
@@ -71,6 +68,10 @@ export interface AssessmentShellProps {
   headerQuestionNumber?: number;
   /** Override the total shown in the header (defaults to totalQuestions) */
   headerTotalQuestions?: number;
+  /** Pre-fetched formatted content of uploaded files for prompt interpolation */
+  fileSubmissionsContent?: string;
+  /** Activity type for prompt defaults */
+  activityType?: "assessment" | "learning";
 }
 
 export function AssessmentShell({
@@ -115,6 +116,8 @@ export function AssessmentShell({
   headerLabel,
   headerQuestionNumber,
   headerTotalQuestions,
+  fileSubmissionsContent,
+  activityType = "learning",
 }: AssessmentShellProps) {
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(true);
@@ -128,6 +131,19 @@ export function AssessmentShell({
   const navigationRef = useRef<AssessmentNavigationHandle>(null);
 
   const maxAttemptsReached = maxAttempts != null && attempts.length >= maxAttempts;
+
+  const { buildEvaluationPrompt } = useInterpolatedPrompts({
+    question,
+    language,
+    attemptCount: attempts.length,
+    botPromptConfig,
+    maxAttempts,
+    sharedContext,
+    evaluationPromptTemplate: evaluationPrompt,
+    fileSubmissionsContent,
+    assessmentMode,
+    activityType,
+  });
 
   const { logEvent } = useActivityTracking({
     componentType: "question",
@@ -176,25 +192,7 @@ export function AssessmentShell({
       setIsEvaluating(true);
 
       try {
-        // Build interpolated prompt up-front (needed by both paths)
-        let interpolatedEvalPrompt: string | undefined;
-        if (evaluationPrompt) {
-          const assignmentForInterpolation = {
-            questions: [question],
-            max_attempts: maxAttempts || 1,
-            bot_prompt_config: botPromptConfig,
-            shared_context: sharedContext,
-          };
-          const evalContext = buildRuntimeContext(
-            assignmentForInterpolation as Parameters<typeof buildRuntimeContext>[0],
-            question,
-            language,
-            attempts.length + 1,
-            question.order,
-            answerText,
-          );
-          interpolatedEvalPrompt = interpolatePrompt(evaluationPrompt, evalContext);
-        }
+        const interpolatedEvalPrompt = buildEvaluationPrompt(answerText);
 
         // Single call for both modes. When feedback_requires_approval is true
         // the route saves a stub, schedules the LLM via after(), and returns
@@ -249,10 +247,9 @@ export function AssessmentShell({
       }
     },
     [
-      maxAttemptsReached, evaluationPrompt, question, maxAttempts,
-      botPromptConfig, sharedContext, language, attempts.length,
-      submissionId, onAnswerSave, logEvent, onAttemptCreated,
-      feedbackRequiresApproval,
+      maxAttemptsReached, buildEvaluationPrompt, question,
+      sharedContext, language, submissionId, onAnswerSave,
+      logEvent, onAttemptCreated, feedbackRequiresApproval,
     ],
   );
 
@@ -302,6 +299,8 @@ export function AssessmentShell({
     evaluationPrompt,
     allowCopyPaste,
     onIntegrityAccessRevoked,
+    fileSubmissionsContent,
+    activityType,
   };
 
   return (

@@ -219,6 +219,33 @@ export default function AssignmentResponseCore({
   const assessmentMode = assignmentData.assessment_mode ?? "voice";
   const allowCopyPaste = getEffectiveAllowCopyPaste(assignmentData);
 
+  const [fileSubmissionsContent, setFileSubmissionsContent] = useState<
+    string | undefined
+  >(undefined);
+
+  useEffect(() => {
+    if (!fileUploadRequired || !submissionId) return;
+    let cancelled = false;
+
+    async function fetchContent() {
+      try {
+        const res = await fetch(
+          `/api/files/submission-content?submissionId=${encodeURIComponent(submissionId)}`,
+        );
+        if (!res.ok) return;
+        const { content } = (await res.json()) as { content: string };
+        if (!cancelled) setFileSubmissionsContent(content || undefined);
+      } catch {
+        /* non-critical -- prompts just won't include file content */
+      }
+    }
+
+    fetchContent();
+    return () => {
+      cancelled = true;
+    };
+  }, [fileUploadRequired, submissionId]);
+
   const [tabTrackingActive, setTabTrackingActive] = useState(false);
 
   const { showTabWarning, dismissTabWarning, tabWarningQuota } =
@@ -350,6 +377,8 @@ export default function AssignmentResponseCore({
           allowCopyPaste={allowCopyPaste}
           onIntegrityAccessRevoked={onIntegrityAccessRevoked}
           onTabTrackingActiveChange={setTabTrackingActive}
+          fileSubmissionsContent={fileSubmissionsContent}
+          activityType={assignmentData.activity_type ?? "learning"}
         />
       ) : null}
     </div>

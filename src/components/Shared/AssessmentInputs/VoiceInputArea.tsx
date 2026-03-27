@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { VoiceClient } from "@/components/VoiceClient";
 import { VoiceConnectButton } from "@/components/VoiceConnectButton";
 import { AgentStatus } from "@/components/AgentStatus";
@@ -8,9 +8,7 @@ import {
   VoiceAssessmentProvider,
   useVoiceTranscript,
 } from "@/contexts/VoiceAssessmentContext";
-import {
-  interpolatePromptsForRuntime,
-} from "@/lib/promptInterpolation";
+import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import {
   usePipecatClient,
   usePipecatClientTransportState,
@@ -38,6 +36,8 @@ function VoiceInputContent({
   botPromptConfig,
   maxAttempts,
   sharedContext,
+  fileSubmissionsContent,
+  activityType,
 }: AssessmentInputProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -179,21 +179,17 @@ function VoiceInputContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transportState, transcript, isEvaluating]);
 
-  const interpolatedPrompts = useMemo(() => {
-    if (!botPromptConfig) return null;
-    const assignmentForInterpolation = {
-      questions: [question],
-      max_attempts: maxAttempts || 1,
-      bot_prompt_config: botPromptConfig,
-      shared_context: sharedContext,
-    };
-    return interpolatePromptsForRuntime(
-      assignmentForInterpolation as Parameters<typeof interpolatePromptsForRuntime>[0],
-      question,
-      language,
-      attempts.length + 1,
-    );
-  }, [botPromptConfig, question, language, maxAttempts, attempts.length, sharedContext]);
+  const { systemPrompt, greeting } = useInterpolatedPrompts({
+    question,
+    language,
+    attemptCount: attempts.length,
+    botPromptConfig,
+    maxAttempts,
+    sharedContext,
+    fileSubmissionsContent,
+    assessmentMode: "voice",
+    activityType,
+  });
 
   const connectionData = {
     language,
@@ -206,10 +202,8 @@ function VoiceInputContent({
     ...(process.env.NEXT_PUBLIC_SUPABASE_ENV && {
       supabase_env: process.env.NEXT_PUBLIC_SUPABASE_ENV,
     }),
-    ...(interpolatedPrompts && {
-      system_prompt: interpolatedPrompts.system_prompt,
-      greeting: interpolatedPrompts.greeting,
-    }),
+    ...(systemPrompt && { system_prompt: systemPrompt }),
+    ...(greeting && { greeting }),
     ...(sharedContext && { shared_context: sharedContext }),
   };
 

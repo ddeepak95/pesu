@@ -4,8 +4,8 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Bot } from "lucide-react";
-import { interpolatePromptsForRuntime } from "@/lib/promptInterpolation";
 import { parseSSEStream } from "@/lib/sseParser";
+import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
@@ -34,36 +34,25 @@ export function ChatInputArea({
   sharedContext,
   allowCopyPaste = false,
   onIntegrityAccessRevoked,
+  fileSubmissionsContent,
+  activityType,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
   const [isStarting, setIsStarting] = React.useState(false);
   const [_isSending, setIsSending] = React.useState(false);
 
-  const getInterpolatedPrompts = React.useCallback(() => {
-    if (!botPromptConfig) return null;
-    const assignmentForInterpolation = {
-      questions: [question],
-      max_attempts: maxAttempts || 1,
-      bot_prompt_config: botPromptConfig,
-      shared_context: sharedContext,
-    };
-    return interpolatePromptsForRuntime(
-      assignmentForInterpolation as Parameters<
-        typeof interpolatePromptsForRuntime
-      >[0],
-      question,
-      language,
-      attempts.length + 1,
-    );
-  }, [
-    botPromptConfig,
+  const { systemPrompt, greeting } = useInterpolatedPrompts({
     question,
     language,
+    attemptCount: attempts.length,
+    botPromptConfig,
     maxAttempts,
-    attempts.length,
     sharedContext,
-  ]);
+    fileSubmissionsContent,
+    assessmentMode: "text_chat",
+    activityType,
+  });
 
   const { logEvent } = useActivityTracking({
     componentType: "question",
@@ -252,7 +241,6 @@ export function ChatInputArea({
 
       const controller = new AbortController();
       activeRequestAbortRef.current = controller;
-      const interpolatedPrompts = getInterpolatedPrompts();
 
       const response = await fetch("/api/chat-assessment", {
         method: "POST",
@@ -261,19 +249,10 @@ export function ChatInputArea({
           assignmentId,
           submissionId,
           questionOrder: question.order,
-          questionPrompt: question.prompt,
-          rubric: question.rubric,
-          language,
           attemptNumber,
           messages: [],
-          ...(interpolatedPrompts && {
-            system_prompt: interpolatedPrompts.system_prompt,
-            greeting: interpolatedPrompts.greeting,
-          }),
-          ...(sharedContext && { shared_context: sharedContext }),
-          ...(question.expected_answer && {
-            expected_answer: question.expected_answer,
-          }),
+          system_prompt: systemPrompt,
+          greeting,
         }),
         signal: controller.signal,
       });
@@ -366,7 +345,6 @@ export function ChatInputArea({
     const controller = new AbortController();
     activeRequestAbortRef.current = controller;
     try {
-      const interpolatedPrompts = getInterpolatedPrompts();
       const response = await fetch("/api/chat-assessment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -374,22 +352,13 @@ export function ChatInputArea({
           assignmentId,
           submissionId,
           questionOrder: question.order,
-          questionPrompt: question.prompt,
-          rubric: question.rubric,
-          language,
           attemptNumber,
           messages: nextMessages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
-          ...(interpolatedPrompts && {
-            system_prompt: interpolatedPrompts.system_prompt,
-            greeting: interpolatedPrompts.greeting,
-          }),
-          ...(sharedContext && { shared_context: sharedContext }),
-          ...(question.expected_answer && {
-            expected_answer: question.expected_answer,
-          }),
+          system_prompt: systemPrompt,
+          greeting,
         }),
         signal: controller.signal,
       });

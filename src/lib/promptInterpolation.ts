@@ -19,6 +19,8 @@ export interface InterpolationContext {
   /** Legacy alias for `additional_context`; still substituted for older templates. */
   shared_context: string;
   answer_text: string;
+  /** Formatted parsed markdown content from uploaded files. */
+  file_submissions: string;
 }
 
 /**
@@ -130,6 +132,9 @@ export function buildPreviewContext(
   const additionalContextText =
     assignment.shared_context || "[Additional context will appear here]";
 
+  const hasFileSubmissions =
+    assignment.file_submission_config?.required ?? false;
+
   return {
     language: getLanguageName(lang),
     question_prompt: question?.prompt || "[Question prompt will appear here]",
@@ -140,6 +145,9 @@ export function buildPreviewContext(
     additional_context: additionalContextText,
     shared_context: additionalContextText,
     answer_text: "[Student answer will appear here]",
+    file_submissions: hasFileSubmissions
+      ? "[Uploaded file contents will appear here]"
+      : "",
     ...PREVIEW_SAMPLE_VALUES, // Use sample values for runtime variables
   };
 }
@@ -161,7 +169,8 @@ export function buildRuntimeContext(
   languageCode: string,
   attemptNumber: number,
   questionOrder: number,
-  answerText?: string
+  answerText?: string,
+  fileSubmissions?: string,
 ): InterpolationContext {
   const additionalContextText = assignment.shared_context || "";
   return {
@@ -176,6 +185,7 @@ export function buildRuntimeContext(
     additional_context: additionalContextText,
     shared_context: additionalContextText,
     answer_text: answerText || "",
+    file_submissions: fileSubmissions || "",
   };
 }
 
@@ -209,7 +219,8 @@ export function interpolatePromptsForRuntime(
   assignment: Assignment,
   question: Question,
   languageCode: string,
-  attemptNumber: number
+  attemptNumber: number,
+  fileSubmissions?: string,
 ): { system_prompt: string; greeting: string } | null {
   const config = assignment.bot_prompt_config;
 
@@ -222,7 +233,9 @@ export function interpolatePromptsForRuntime(
     question,
     languageCode,
     attemptNumber,
-    question.order
+    question.order,
+    undefined,
+    fileSubmissions,
   );
 
   // Check for question-specific overrides
