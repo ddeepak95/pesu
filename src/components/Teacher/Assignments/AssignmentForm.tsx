@@ -542,14 +542,14 @@ export default function AssignmentForm({
       {/* Assignment Title */}
       <div className="space-y-2">
         <Label htmlFor="title">
-          Assignment Title <span className="text-destructive">*</span>
+          Title <span className="text-destructive">*</span>
         </Label>
         <Input
           id="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={loading}
-          placeholder="Enter assignment title"
+          placeholder="Enter title"
         />
       </div>
 
@@ -558,7 +558,7 @@ export default function AssignmentForm({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Label htmlFor="studentInstructions">Instructions</Label>
-            <InfoTooltip text="These instructions will be displayed to students below the title. Not passed to the AI." />
+            <InfoTooltip text="Enter the instructions for the activity." />
           </div>
           <span className="text-xs text-muted-foreground">
             Markdown supported
@@ -569,7 +569,7 @@ export default function AssignmentForm({
           value={studentInstructions}
           onChange={setStudentInstructions}
           disabled={loading}
-          placeholder="Enter instructions to display to students below the title..."
+          placeholder="Enter instructions for the activity..."
           rows={4}
         />
       </div>

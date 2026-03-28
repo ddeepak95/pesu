@@ -59,7 +59,7 @@ export function FileSubmissionSection({
           >
             Require File Submission
           </Label>
-          <InfoTooltip text="Students must upload files before answering questions" />
+          <InfoTooltip text="Students must upload files before answering questions. The file content will be included in the prompt for the AI to use." />
         </div>
       </div>
 

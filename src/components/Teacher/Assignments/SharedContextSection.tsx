@@ -36,7 +36,7 @@ export function SharedContextSection({
             htmlFor="sharedContextEnabled"
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
           >
-            Contextual Information for AI
+            Additional Contextual Information for AI
           </Label>
           <InfoTooltip text="AI performs best with more contextual information about the activity. This won't be shown to the students and will be included only in the prompt." />
         </div>

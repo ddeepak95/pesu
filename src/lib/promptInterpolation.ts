@@ -7,6 +7,8 @@ import { supportedLanguages } from "@/utils/supportedLanguages";
  */
 export interface InterpolationContext {
   language: string;
+  title: string;
+  instructions: string;
   question_prompt: string;
   rubric: string;
   expected_answer: string;
@@ -137,6 +139,8 @@ export function buildPreviewContext(
 
   return {
     language: getLanguageName(lang),
+    title: assignment.title || "[Assignment title]",
+    instructions: assignment.student_instructions || "",
     question_prompt: question?.prompt || "[Question prompt will appear here]",
     rubric: formatRubricForPrompt(question?.rubric || []),
     expected_answer: question?.expected_answer || "",
@@ -175,6 +179,8 @@ export function buildRuntimeContext(
   const additionalContextText = assignment.shared_context || "";
   return {
     language: getLanguageName(languageCode),
+    title: assignment.title,
+    instructions: assignment.student_instructions || "",
     question_prompt: question.prompt,
     rubric: formatRubricForPrompt(question.rubric),
     expected_answer: question.expected_answer || "",

@@ -5,9 +5,14 @@ import { BotPromptConfig } from "@/types/assignment";
  * These can be inserted into system prompts and conversation start messages.
  */
 export const PROMPT_VARIABLES = {
-  language: {
-    placeholder: "{{language}}",
-    description: "The selected language name (e.g., English, Tamil)",
+  title: {
+    placeholder: "{{title}}",
+    description: "The assignment title",
+    category: "static" as const,
+  },
+  instructions: {
+    placeholder: "{{instructions}}",
+    description: "Student instructions for the assignment",
     category: "static" as const,
   },
   question_prompt: {
@@ -25,26 +30,6 @@ export const PROMPT_VARIABLES = {
     description: "Expected answer key points",
     category: "static" as const,
   },
-  max_attempts: {
-    placeholder: "{{max_attempts}}",
-    description: "Maximum allowed attempts",
-    category: "static" as const,
-  },
-  total_questions: {
-    placeholder: "{{total_questions}}",
-    description: "Total number of questions in the assignment",
-    category: "static" as const,
-  },
-  attempt_number: {
-    placeholder: "{{attempt_number}}",
-    description: "Current attempt number (1, 2, 3...)",
-    category: "runtime" as const,
-  },
-  question_order: {
-    placeholder: "{{question_order}}",
-    description: "Current question index (0-based)",
-    category: "runtime" as const,
-  },
   context_for_ai: {
     placeholder: "{{context_for_ai}}",
     description:
@@ -60,6 +45,31 @@ export const PROMPT_VARIABLES = {
     placeholder: "{{file_submissions}}",
     description:
       "Formatted content of uploaded files (parsed markdown); populated when file submission is enabled",
+    category: "runtime" as const,
+  },
+  max_attempts: {
+    placeholder: "{{max_attempts}}",
+    description: "Maximum allowed attempts",
+    category: "static" as const,
+  },
+  language: {
+    placeholder: "{{language}}",
+    description: "The selected language name (e.g., English, Tamil)",
+    category: "static" as const,
+  },
+  total_questions: {
+    placeholder: "{{total_questions}}",
+    description: "Total number of questions in the assignment",
+    category: "static" as const,
+  },
+  attempt_number: {
+    placeholder: "{{attempt_number}}",
+    description: "Current attempt number (1, 2, 3...)",
+    category: "runtime" as const,
+  },
+  question_order: {
+    placeholder: "{{question_order}}",
+    description: "Current question index (0-based)",
     category: "runtime" as const,
   },
 } as const;
@@ -92,24 +102,38 @@ export type InteractionType = "voice" | "text_chat" | "static_text";
 const PERSONA: Record<ActivityType, string> = {
 assessment:
 `You are a teacher assistant named Konvo, conducting assessment with a student in {{language}}.
+
+The title of the assessment is: {{title}}
+
+{{#if instructions}}
+The instructions for the assessment shared to the student are:
+{{instructions}}
+{{/if}}
+
 {{#if context_for_ai}}
-Here is the assessment context provided by the teacher:
+Here is the additional assessment context:
 {{context_for_ai}}
 {{/if}}
 `,
 learning:
 `You are a friendly tutor named Konvo, helping a student learn and explore a topic in {{language}}.
 
+The title of the activity is: {{title}}
+
+{{#if instructions}}
+The instructions for the activity shared to the student are:
+{{instructions}}
+{{/if}}
+
 {{#if context_for_ai}}
-Here is the activity context provided by the teacher:
+Here is the activity context:
 {{context_for_ai}}
 {{/if}}
 `,
 };
 
 const TASK_INSTRUCTIONS: Record<ActivityType, string> = {  
-assessment: `
-{{#if file_submissions}}
+assessment: `{{#if file_submissions}}
 The student has uploaded the following files as submission:
 {{file_submissions}}
 
@@ -127,8 +151,7 @@ Your role:
 2. Ask follow-up questions to gauge depth of understanding
 3. Never give away the answer`,
   
-learning: `
-{{#if file_submissions}}
+learning: `{{#if file_submissions}}
 The student has uploaded the following files. Use this as part of the activity.
 {{file_submissions}}
 
