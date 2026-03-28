@@ -8,14 +8,26 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
 import RubricItemRow from "@/components/Teacher/Assignments/RubricItemRow";
 import { QuestionPromptOverrideEditor } from "@/components/Teacher/Assignments/QuestionPromptOverrideEditor";
-import { Question, RubricItem, QuestionPromptOverride } from "@/types/assignment";
-import { ArrowUp, ArrowDown, Trash2, Sparkles, Loader2, Bot } from "lucide-react";
+import {
+  Question,
+  RubricItem,
+  QuestionPromptOverride,
+} from "@/types/assignment";
+import {
+  ArrowUp,
+  ArrowDown,
+  Trash2,
+  Sparkles,
+  Loader2,
+  Bot,
+} from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -27,17 +39,16 @@ interface QuestionCardProps {
   question: Question;
   index: number;
   totalQuestions: number;
-  preferredLanguage: string;
   onChange: (
     index: number,
     field: keyof Question,
-    value: Question[keyof Question]
+    value: Question[keyof Question],
   ) => void;
   onRubricChange: (
     questionIndex: number,
     rubricIndex: number,
     field: keyof RubricItem,
-    value: string | number
+    value: string | number,
   ) => void;
   onAddRubricItem: (questionIndex: number) => void;
   onRemoveRubricItem: (questionIndex: number, rubricIndex: number) => void;
@@ -45,12 +56,16 @@ interface QuestionCardProps {
   onMoveDown: (index: number) => void;
   onDelete: (index: number) => void;
   disabled?: boolean;
+  // Assignment-level context passed to AI generation
+  title?: string;
+  studentInstructions?: string;
+  contextForAI?: string;
   // Bot prompt override props (optional - only shown when bot config is enabled)
   showBotOverride?: boolean;
   questionOverride?: QuestionPromptOverride;
   onQuestionOverrideChange?: (
     questionOrder: number,
-    override: QuestionPromptOverride | undefined
+    override: QuestionPromptOverride | undefined,
   ) => void;
   defaultSystemPrompt?: string;
   defaultConversationStart?: string;
@@ -60,7 +75,6 @@ export default function QuestionCard({
   question,
   index,
   totalQuestions,
-  preferredLanguage,
   onChange,
   onRubricChange,
   onAddRubricItem,
@@ -69,6 +83,9 @@ export default function QuestionCard({
   onMoveDown,
   onDelete,
   disabled = false,
+  title,
+  studentInstructions,
+  contextForAI,
   showBotOverride = false,
   questionOverride,
   onQuestionOverrideChange,
@@ -78,17 +95,19 @@ export default function QuestionCard({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isBotOverrideOpen, setIsBotOverrideOpen] = useState(false);
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [focusGuidance, setFocusGuidance] = useState("");
 
   // Validate rubric points match total points
   const validateRubricPoints = () => {
     const validRubricItems = question.rubric.filter(
-      (item) => item.item.trim() && item.points > 0
+      (item) => item.item.trim() && item.points > 0,
     );
     if (validRubricItems.length === 0) return null;
 
     const rubricSum = validRubricItems.reduce(
       (sum, item) => sum + (item.points || 0),
-      0
+      0,
     );
     if (rubricSum !== question.total_points) {
       return `Rubric points (${rubricSum}) must equal total points (${question.total_points})`;
@@ -122,14 +141,17 @@ export default function QuestionCard({
         body: JSON.stringify({
           questionPrompt: question.prompt,
           supportingContent: question.supporting_content || undefined,
-          language: preferredLanguage, // Optional fallback
+          title: title || undefined,
+          instructions: studentInstructions || undefined,
+          contextForAI: contextForAI || undefined,
+          focusGuidance: focusGuidance.trim() || undefined,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error || "Failed to generate rubric and answer"
+          errorData.error || "Failed to generate rubric and answer",
         );
       }
 
@@ -152,7 +174,7 @@ export default function QuestionCard({
         // Use AI-generated points as weights for proportional distribution
         const totalAIPoints = newRubric.reduce(
           (sum: number, item: RubricItem) => sum + item.points,
-          0
+          0,
         );
 
         if (totalAIPoints > 0) {
@@ -167,12 +189,12 @@ export default function QuestionCard({
                 return { ...item, points };
               } else {
                 const points = Math.round(
-                  (item.points / totalAIPoints) * totalPoints
+                  (item.points / totalAIPoints) * totalPoints,
                 );
                 distributedSum += points;
                 return { ...item, points };
               }
-            }
+            },
           );
 
           // Ensure we create a completely new array reference
@@ -188,7 +210,7 @@ export default function QuestionCard({
             (item: RubricItem, idx: number) => ({
               ...item,
               points: pointsPerItem + (idx < remainder ? 1 : 0),
-            })
+            }),
           );
           // Ensure we create a completely new array reference
           finalRubric = distributedRubric.map((item: RubricItem) => ({
@@ -200,7 +222,7 @@ export default function QuestionCard({
         // Calculate total points from AI-generated rubric
         finalTotalPoints = newRubric.reduce(
           (sum: number, item: RubricItem) => sum + item.points,
-          0
+          0,
         );
         // Ensure we create a completely new array reference
         finalRubric = newRubric.map((item: RubricItem) => ({ ...item }));
@@ -218,7 +240,7 @@ export default function QuestionCard({
         "Updating rubric with:",
         rubricCopy,
         "for question index:",
-        index
+        index,
       );
       console.log("Current question rubric before update:", question.rubric);
 
@@ -235,10 +257,11 @@ export default function QuestionCard({
     } catch (error) {
       console.error("Error generating rubric and answer:", error);
       setGenerationError(
-        error instanceof Error ? error.message : "Failed to generate content"
+        error instanceof Error ? error.message : "Failed to generate content",
       );
     } finally {
       setIsGenerating(false);
+      setFocusGuidance("");
     }
   };
 
@@ -257,7 +280,9 @@ export default function QuestionCard({
               onClick={() => setIsBotOverrideOpen(true)}
               disabled={disabled}
               title="Configure bot behavior for this question"
-              className={questionOverride ? "bg-primary/90 hover:bg-primary" : ""}
+              className={
+                questionOverride ? "bg-primary/90 hover:bg-primary" : ""
+              }
             >
               <Bot className="h-4 w-4" />
             </Button>
@@ -309,7 +334,7 @@ export default function QuestionCard({
             onChange(
               index,
               "total_points",
-              isNaN(value) ? 0 : Math.max(0, value)
+              isNaN(value) ? 0 : Math.max(0, value),
             );
           }}
           disabled={disabled}
@@ -341,7 +366,7 @@ export default function QuestionCard({
         <Button
           type="button"
           variant="outline"
-          onClick={handleGenerateWithAI}
+          onClick={() => setShowGenerateDialog(true)}
           disabled={
             disabled ||
             isGenerating ||
@@ -371,6 +396,50 @@ export default function QuestionCard({
           <p className="text-sm text-destructive">{generationError}</p>
         )}
       </div>
+
+      {/* AI Generate Dialog */}
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Generate Rubric &amp; Expected Answer
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              id={`focusGuidance-${index}`}
+              value={focusGuidance}
+              onChange={(e) => setFocusGuidance(e.target.value)}
+              placeholder="Please enter any additional instruction that the AI should consider for the generation. For example, level of the students, topic focus, etc."
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowGenerateDialog(false);
+                setFocusGuidance("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setShowGenerateDialog(false);
+                handleGenerateWithAI();
+              }}
+              disabled={isGenerating}
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Rubric */}
       <div className="space-y-2">

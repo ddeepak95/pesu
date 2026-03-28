@@ -173,8 +173,7 @@ Your role:
 4. Adapt your explanations based on the student's responses`,
 };
 
-const COMMON_INSTRUCTIONS = `
-Guidelines:
+const COMMON_INSTRUCTIONS = `Guidelines:
 - Use English for concept-specific words while keeping the conversation in {{language}}
 - Be encouraging and supportive
 - Keep your questions and responses short and concise`;
@@ -233,6 +232,11 @@ export function buildDefaultConversationStart(
 }
 
 const EVALUATION_BASE_ASSESSMENT = `
+The title of the assessment is: {{title}}
+{{#if instructions}}
+The instructions for the assessment shared to the student are:
+{{instructions}}
+{{/if}}
 {{#if context_for_ai}}
 Here is the assessment context provided by the teacher:
 {{context_for_ai}}
@@ -260,6 +264,11 @@ Then provide overall feedback in {{language}} that is encouraging and helps the 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
 const EVALUATION_BASE_LEARNING = `
+The title of the activity is: {{title}}
+{{#if instructions}}
+The instructions for the activity shared to the student are:
+{{instructions}}
+{{/if}}
 {{#if context_for_ai}}
 Here is the activity context provided by the teacher:
 {{context_for_ai}}
@@ -339,12 +348,6 @@ export const DEFAULT_EVALUATION_PROMPT =
 export function getDefaultEvaluationPrompt(): string {
   return DEFAULT_EVALUATION_PROMPT;
 }
-
-/**
- * TTS instruction that is appended server-side for voice mode only.
- * This is NOT part of the teacher-editable template.
- */
-export const TTS_INSTRUCTION = `The text you generate will be used by TTS, so avoid special characters. Use colloquial, friendly language.`;
 
 /**
  * Instructions appended transparently to every text-chat system prompt.

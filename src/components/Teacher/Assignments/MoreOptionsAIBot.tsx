@@ -19,6 +19,8 @@ interface MoreOptionsAIBotProps {
   setEvaluationPrompt: (prompt: string) => void;
   activityType: ActivityType;
   questions: Question[];
+  title: string;
+  studentInstructions: string;
   preferredLanguage: string;
   maxAttempts: number;
   sharedContextEnabled: boolean;
@@ -38,6 +40,8 @@ export function MoreOptionsAIBot({
   setEvaluationPrompt,
   activityType,
   questions,
+  title,
+  studentInstructions,
   preferredLanguage,
   maxAttempts,
   sharedContextEnabled,
@@ -100,6 +104,8 @@ export function MoreOptionsAIBot({
           <PromptPreview
             config={botPromptConfig}
             assignment={{
+              title,
+              student_instructions: studentInstructions,
               questions,
               preferred_language: preferredLanguage,
               max_attempts: maxAttempts,

@@ -219,9 +219,6 @@ export default function AssignmentForm({
   const [fileInstructions, setFileInstructions] = useState(
     initialFileSubmissionConfig?.instructions ?? "",
   );
-  const [fileAllowedTypes, setFileAllowedTypes] = useState<string[]>(
-    initialFileSubmissionConfig?.allowed_file_types ?? [],
-  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
@@ -510,8 +507,7 @@ export default function AssignmentForm({
               required: true,
               allow_multiple: fileAllowMultiple,
               instructions: fileInstructions.trim() || undefined,
-              allowed_file_types:
-                fileAllowedTypes.length > 0 ? fileAllowedTypes : undefined,
+              allowed_file_types: [".pdf"],
             }
           : null,
       });
@@ -646,8 +642,6 @@ export default function AssignmentForm({
         setFileAllowMultiple={setFileAllowMultiple}
         fileInstructions={fileInstructions}
         setFileInstructions={setFileInstructions}
-        fileAllowedTypes={fileAllowedTypes}
-        setFileAllowedTypes={setFileAllowedTypes}
         loading={loading}
       />
 
@@ -722,6 +716,8 @@ export default function AssignmentForm({
                   setEvaluationPrompt={setEvaluationPrompt}
                   activityType={activityType}
                   questions={questions}
+                  title={title}
+                  studentInstructions={studentInstructions}
                   preferredLanguage={preferredLanguage}
                   maxAttempts={maxAttempts}
                   sharedContextEnabled={sharedContextEnabled}
@@ -742,7 +738,6 @@ export default function AssignmentForm({
             question={question}
             index={index}
             totalQuestions={questions.length}
-            preferredLanguage={preferredLanguage}
             onChange={handleQuestionChange}
             onRubricChange={handleRubricChange}
             onAddRubricItem={handleAddRubricItem}
@@ -751,6 +746,9 @@ export default function AssignmentForm({
             onMoveDown={handleMoveQuestionDown}
             onDelete={handleDeleteQuestion}
             disabled={loading}
+            title={title}
+            studentInstructions={studentInstructions}
+            contextForAI={sharedContext}
             showBotOverride={
               assessmentMode === "voice" || assessmentMode === "text_chat"
             }

@@ -10,7 +10,11 @@ const openai = new OpenAI({
 interface GenerateRubricAndAnswerRequestBody {
   questionPrompt: string;
   supportingContent?: string;
-  language?: string; // Optional - used as fallback
+  language?: string;
+  title?: string;
+  instructions?: string;
+  contextForAI?: string;
+  focusGuidance?: string;
 }
 
 interface GenerateRubricAndAnswerResponse {
@@ -49,7 +53,15 @@ export async function POST(request: NextRequest) {
   try {
     const body: GenerateRubricAndAnswerRequestBody = await request.json();
 
-    const { questionPrompt, supportingContent, language } = body;
+    const {
+      questionPrompt,
+      supportingContent,
+      language,
+      title,
+      instructions,
+      contextForAI,
+      focusGuidance,
+    } = body;
 
     // Validate required fields
     if (!questionPrompt) {
@@ -69,9 +81,22 @@ export async function POST(request: NextRequest) {
       : "English";
 
     // Build context for the prompt
-    let contextText = `Question: ${questionPrompt}`;
-    if (supportingContent && supportingContent.trim()) {
+    let contextText = "";
+    if (title?.trim()) {
+      contextText += `Assignment Title: ${title.trim()}\n\n`;
+    }
+    if (instructions?.trim()) {
+      contextText += `Assignment Instructions: ${instructions.trim()}\n\n`;
+    }
+    if (contextForAI?.trim()) {
+      contextText += `Additional Context: ${contextForAI.trim()}\n\n`;
+    }
+    contextText += `Question: ${questionPrompt}`;
+    if (supportingContent?.trim()) {
       contextText += `\n\nSupporting Content:\n${supportingContent}`;
+    }
+    if (focusGuidance?.trim()) {
+      contextText += `\n\nTeacher's Additional Instructions for Generation:\n${focusGuidance.trim()}`;
     }
 
     // Single OpenAI call that detects language and generates content
@@ -89,6 +114,7 @@ IMPORTANT:
 - Generate ALL content (rubric items and expected answer) in the detected language
 - If you cannot confidently detect the language, use the preferred language provided as fallback
 - Write naturally in the detected language
+- You may receive additional context such as the assignment title, instructions, contextual information, and teacher's additional instructions. Use all available context to produce more relevant and aligned rubric items and expected answers.
 
 For the rubric:
 - Generate 3-5 rubric items that comprehensively cover what a good answer should include

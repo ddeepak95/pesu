@@ -9,8 +9,11 @@ import {
   buildPreviewContext,
   InterpolationContext,
 } from "@/lib/promptInterpolation";
-import { TTS_INSTRUCTION } from "@/lib/promptTemplates";
-import { Info, Eye, Volume2 } from "lucide-react";
+import {
+  CHAT_SYSTEM_APPENDIX,
+  VOICE_SYSTEM_APPENDIX,
+} from "@/lib/promptTemplates";
+import { Info, Eye, MessageSquare, Volume2 } from "lucide-react";
 
 interface PromptPreviewProps {
   config: BotPromptConfig;
@@ -58,7 +61,24 @@ export function PromptPreview({
     return interpolatePrompt(template, previewContext);
   }, [config.conversation_start, previewContext, previewQuestionOrder]);
 
-  const isVoiceMode = assessmentMode === "voice";
+  /** Matches useInterpolatedPrompts: voice and text_chat append these; static_text does not. */
+  const modalityAppendix = useMemo(() => {
+    if (assessmentMode === "text_chat") {
+      return CHAT_SYSTEM_APPENDIX.replace(
+        /\{\{language\}\}/g,
+        previewContext.language,
+      );
+    }
+    if (assessmentMode === "voice") {
+      return VOICE_SYSTEM_APPENDIX;
+    }
+    return null;
+  }, [assessmentMode, previewContext.language]);
+
+  const appendixLabel =
+    assessmentMode === "voice"
+      ? "Auto-appended for voice mode:"
+      : "Auto-appended for text chat mode:";
 
   return (
     <Card>
@@ -87,17 +107,20 @@ export function PromptPreview({
             <pre className="text-sm whitespace-pre-wrap font-sans">
               {interpolatedSystemPrompt}
             </pre>
-            {/* TTS Instruction (for voice mode) */}
-            {isVoiceMode && (
+            {modalityAppendix && (
               <div className="mt-3 pt-3 border-t border-dashed">
                 <div className="flex items-center gap-2 mb-1">
-                  <Volume2 className="h-3 w-3 text-muted-foreground" />
+                  {assessmentMode === "voice" ? (
+                    <Volume2 className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <MessageSquare className="h-3 w-3 text-muted-foreground" />
+                  )}
                   <span className="text-xs text-muted-foreground font-medium">
-                    Auto-appended for voice mode:
+                    {appendixLabel}
                   </span>
                 </div>
                 <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground italic">
-                  {TTS_INSTRUCTION}
+                  {modalityAppendix}
                 </pre>
               </div>
             )}
