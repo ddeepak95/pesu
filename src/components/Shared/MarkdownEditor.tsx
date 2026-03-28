@@ -1,10 +1,21 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Bold,
+  Italic,
+  Link,
+  List,
+  ListOrdered,
+  TextQuote,
+  Code,
+  PenLine,
+  Eye,
+} from "lucide-react";
 
 interface MarkdownEditorProps {
   id: string;
@@ -24,6 +35,7 @@ export default function MarkdownEditor({
   rows = 6,
 }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [tab, setTab] = useState("write");
 
   const insertMarkdown = (prefix: string, suffix = "", placeholder = "") => {
     const textarea = textareaRef.current;
@@ -65,99 +77,126 @@ export default function MarkdownEditor({
     });
   };
 
+  const isPreview = tab === "preview";
+
   return (
-    <Tabs defaultValue="write">
-      <TabsList>
-        <TabsTrigger value="write">Write</TabsTrigger>
-        <TabsTrigger value="preview" disabled={!value.trim()}>
-          Preview
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="write">
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => insertMarkdown("**", "**", "bold text")}
-              disabled={disabled}
-            >
-              Bold
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => insertMarkdown("*", "*", "italic text")}
-              disabled={disabled}
-            >
-              Italic
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                insertMarkdown("[", "](https://)", "link text")
-              }
-              disabled={disabled}
-            >
-              Link
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => applyLinePrefix("- ", "List item")}
-              disabled={disabled}
-            >
-              Bullet list
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => applyLinePrefix("1. ", "List item")}
-              disabled={disabled}
-            >
-              Numbered list
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => applyLinePrefix("> ", "Quote")}
-              disabled={disabled}
-            >
-              Quote
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => insertMarkdown("```\n", "\n```", "code block")}
-              disabled={disabled}
-            >
-              Code block
-            </Button>
-          </div>
-          <Textarea
-            id={id}
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={disabled}
-            placeholder={placeholder}
-            rows={rows}
-          />
-          <p className="text-xs text-muted-foreground">
-            Use Markdown for formatting. Preview shows how students will see
-            it.
-          </p>
+    <Tabs value={tab} onValueChange={setTab}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => insertMarkdown("**", "**", "bold text")}
+            disabled={disabled || isPreview}
+            title="Bold"
+            aria-label="Bold"
+          >
+            <Bold className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => insertMarkdown("*", "*", "italic text")}
+            disabled={disabled || isPreview}
+            title="Italic"
+            aria-label="Italic"
+          >
+            <Italic className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => insertMarkdown("[", "](https://)", "link text")}
+            disabled={disabled || isPreview}
+            title="Link"
+            aria-label="Link"
+          >
+            <Link className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => applyLinePrefix("- ", "List item")}
+            disabled={disabled || isPreview}
+            title="Bullet list"
+            aria-label="Bullet list"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => applyLinePrefix("1. ", "List item")}
+            disabled={disabled || isPreview}
+            title="Numbered list"
+            aria-label="Numbered list"
+          >
+            <ListOrdered className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => applyLinePrefix("> ", "Quote")}
+            disabled={disabled || isPreview}
+            title="Quote"
+            aria-label="Quote"
+          >
+            <TextQuote className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => insertMarkdown("```\n", "\n```", "code block")}
+            disabled={disabled || isPreview}
+            title="Code block"
+            aria-label="Code block"
+          >
+            <Code className="h-4 w-4" />
+          </Button>
         </div>
+
+        <TabsList className="h-8">
+          <TabsTrigger value="write" className="h-7 px-2" title="Write" aria-label="Write">
+            <PenLine className="h-4 w-4" />
+          </TabsTrigger>
+          <TabsTrigger
+            value="preview"
+            className="h-7 px-2"
+            disabled={!value.trim()}
+            title="Preview"
+            aria-label="Preview"
+          >
+            <Eye className="h-4 w-4" />
+          </TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="write" className="mt-0">
+        <Textarea
+          id={id}
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          placeholder={placeholder}
+          rows={rows}
+        />
       </TabsContent>
-      <TabsContent value="preview">
+      <TabsContent value="preview" className="mt-0">
         <div className="rounded-md border border-input bg-muted/30 p-4">
           {value.trim() ? (
             <MarkdownContent content={value} />

@@ -156,7 +156,7 @@ export interface Assignment {
   shared_context?: string;
   /**
    * Custom evaluation prompt template. If set, replaces the hardcoded evaluation prompt.
-   * Supports placeholders including {{additional_context}} (legacy: {{shared_context}}).
+   * Supports placeholders including {{context_for_ai}} (legacy: {{shared_context}}).
    */
   evaluation_prompt?: string;
   /**

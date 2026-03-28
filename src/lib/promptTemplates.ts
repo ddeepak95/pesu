@@ -45,10 +45,10 @@ export const PROMPT_VARIABLES = {
     description: "Current question index (0-based)",
     category: "runtime" as const,
   },
-  additional_context: {
-    placeholder: "{{additional_context}}",
+  context_for_ai: {
+    placeholder: "{{context_for_ai}}",
     description:
-      "Additional context (e.g. case study, passage); stored as shared_context in the DB",
+      "Contextual information for AI; stored as shared_context in the DB",
     category: "static" as const,
   },
   answer_text: {
@@ -89,49 +89,78 @@ export function getVariablesByCategory(category: "static" | "runtime") {
 export type ActivityType = "assessment" | "learning";
 export type InteractionType = "voice" | "text_chat" | "static_text";
 
-const COMMON_INSTRUCTIONS = `{{#if file_submissions}}
+const PERSONA: Record<ActivityType, string> = {
+assessment:
+`You are a teacher assistant named Konvo, conducting assessment with a student in {{language}}.
+{{#if context_for_ai}}
+Here is the assessment context provided by the teacher:
+{{context_for_ai}}
+{{/if}}
+`,
+learning:
+`You are a friendly tutor named Konvo, helping a student learn and explore a topic in {{language}}.
+
+{{#if context_for_ai}}
+Here is the activity context provided by the teacher:
+{{context_for_ai}}
+{{/if}}
+`,
+};
+
+const TASK_INSTRUCTIONS: Record<ActivityType, string> = {  
+assessment: `
+{{#if file_submissions}}
+The student has uploaded the following files as submission:
 {{file_submissions}}
 
-{{/if}}The student needs to answer this question:
+The questions need to be asked based on the submission and the context provided.
+{{/if}}
+
+The student needs to answer this question:
 {{question_prompt}}
 
-Evaluation criteria:
+They will be evaluated based on the following criteria. Make sure to cover all the criteria in your interaction.
+{{rubric}}
+
+Your role:
+1. Have a natural conversation to understand their thinking
+2. Ask follow-up questions to gauge depth of understanding
+3. Never give away the answer`,
+  
+learning: `
+{{#if file_submissions}}
+The student has uploaded the following files. Use this as part of the activity.
+{{file_submissions}}
+
+The student needs to answer this question:
+{{question_prompt}}
+
+Use the following rubric to guide the student's learning.
 {{rubric}}
 
 {{#if expected_answer}}
 Expected answer guidance (for your reference only, do NOT reveal to the student):
 {{expected_answer}}
-{{/if}}
-
-Guidelines:
-- Use English for concept-specific words while keeping the conversation in {{language}}
-- Be encouraging and supportive
-- Keep your questions and responses short and concise`;
-
-const PERSONA: Record<ActivityType, string> = {
-  assessment:
-    "You are a friendly teacher named Konvo, helping a student with a formative assessment in {{language}}.",
-  learning:
-    "You are a friendly tutor named Konvo, helping a student learn and explore a topic in {{language}}.",
-};
-
-const TASK_INSTRUCTIONS: Record<ActivityType, string> = {
-  assessment: `Your role:
-1. Have a natural conversation to understand their thinking
-2. Ask follow-up questions to gauge depth of understanding
-3. Help them elaborate if they're stuck, but don't give away the answer`,
-  learning: `Your role:
+{{/if}}  
+  
+Your role:
 1. Explain concepts clearly and provide helpful examples
 2. Encourage the student to ask questions and think critically
 3. Guide them toward understanding rather than just giving answers
 4. Adapt your explanations based on the student's responses`,
 };
 
+const COMMON_INSTRUCTIONS = `
+Guidelines:
+- Use English for concept-specific words while keeping the conversation in {{language}}
+- Be encouraging and supportive
+- Keep your questions and responses short and concise`;
+
 const INTERACTION_MODIFIERS: Record<InteractionType, string> = {
   voice:
-    "Keep responses brief and conversational. Avoid long lists or complex formatting.",
+    "Keep responses brief and conversational.",
   text_chat:
-    "Your output is rendered as a plain text chat message. Keep responses concise and conversational.",
+    "Keep responses concise and conversational.",
   static_text:
     "The student will submit a single written answer. You will not have a back-and-forth conversation.",
 };
@@ -146,9 +175,9 @@ export function buildDefaultSystemPrompt(
   return [
     PERSONA[activityType],
     "",
-    COMMON_INSTRUCTIONS,
-    "",
     TASK_INSTRUCTIONS[activityType],
+    "",
+    COMMON_INSTRUCTIONS,
     "",
     INTERACTION_MODIFIERS[interactionType],
   ].join("\n");
@@ -156,16 +185,16 @@ export function buildDefaultSystemPrompt(
 
 const CONVERSATION_START_FIRST: Record<ActivityType, string> = {
   assessment:
-    "Speaking in {{language}}, introduce yourself as Konvo. Say we are going to do an activity today. Ask if the student is ready to start.",
+    "Speaking in {{language}}, introduce yourself as Konvo. Say you are going to conduct an assessment with them. Ask if the student is ready to start. If they are ready, start the assessment.",
   learning:
-    "Speaking in {{language}}, introduce yourself as Konvo. Say we are going to explore a topic together today. Ask the student what they already know about it.",
+    "Speaking in {{language}}, introduce yourself as Konvo. Say we are going to explore a topic together today. Ask if the student is ready to start. If they are ready, start the activity.",
 };
 
 const CONVERSATION_START_SUBSEQUENT: Record<ActivityType, string> = {
   assessment:
     "Speaking in {{language}}, acknowledge we're moving to the next question, then ask the student to answer it.",
   learning:
-    "Speaking in {{language}}, acknowledge we're moving to the next topic, then encourage the student to share their thoughts.",
+    "Speaking in {{language}}, acknowledge we're moving to the next topic, then start the next topic.",
 };
 
 /**
@@ -180,13 +209,17 @@ export function buildDefaultConversationStart(
   };
 }
 
-const EVALUATION_BASE_ASSESSMENT = `{{#if file_submissions}}
+const EVALUATION_BASE_ASSESSMENT = `
+{{#if context_for_ai}}
+Here is the assessment context provided by the teacher:
+{{context_for_ai}}
+{{/if}}
+{{#if file_submissions}}
+The student has uploaded the following files as submission:
 {{file_submissions}}
+{{/if}}
 
-{{/if}}{{#if additional_context}}Additional context:
-{{additional_context}}
-
-{{/if}}Question: {{question_prompt}}
+Question: {{question_prompt}}
 
 Evaluation Rubric:
 {{rubric}}
@@ -203,13 +236,17 @@ Then provide overall feedback in {{language}} that is encouraging and helps the 
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
-const EVALUATION_BASE_LEARNING = `{{#if file_submissions}}
+const EVALUATION_BASE_LEARNING = `
+{{#if context_for_ai}}
+Here is the activity context provided by the teacher:
+{{context_for_ai}}
+{{/if}}
+{{#if file_submissions}}
+The student has uploaded the following files as submission:
 {{file_submissions}}
+{{/if}}
 
-{{/if}}{{#if additional_context}}Additional context:
-{{additional_context}}
-
-{{/if}}Question: {{question_prompt}}
+Question: {{question_prompt}}
 
 Evaluation Rubric:
 {{rubric}}
@@ -334,7 +371,7 @@ export function hasVariable(
   if (template.includes(placeholder)) {
     return true;
   }
-  if (variableKey === "additional_context") {
+  if (variableKey === "context_for_ai") {
     return template.includes("{{shared_context}}");
   }
   return false;

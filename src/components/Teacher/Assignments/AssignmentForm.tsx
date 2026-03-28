@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -14,9 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
-import { PromptConfigEditor } from "@/components/Teacher/Assignments/PromptConfigEditor";
-import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
+import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
+import { FileSubmissionSection } from "@/components/Teacher/Assignments/FileSubmissionSection";
+import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
+import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
 import {
   Question,
   RubricItem,
@@ -26,11 +29,7 @@ import {
 } from "@/types/assignment";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
-import {
-  AssignmentIntegritySettings,
-  type AssignmentIntegritySettingsValues,
-} from "@/components/Shared/Integrity/AssignmentIntegritySettings";
-import { supportedLanguages } from "@/utils/supportedLanguages";
+import { type AssignmentIntegritySettingsValues } from "@/components/Shared/Integrity/AssignmentIntegritySettings";
 import {
   getDefaultBotPromptConfig,
   getDefaultEvaluationPrompt,
@@ -38,8 +37,7 @@ import {
   buildDefaultEvaluationPrompt,
   type ActivityType,
 } from "@/lib/promptTemplates";
-import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus, ChevronDown, Bot, Eye } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { showSuccessToast } from "@/lib/toast";
 
 interface AssignmentFormProps {
@@ -156,7 +154,8 @@ export default function AssignmentForm({
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
   const [lockLanguage, setLockLanguage] = useState(initialLockLanguage);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
-  const [activityType, setActivityType] = useState<ActivityType>(initialActivityType);
+  const [activityType, setActivityType] =
+    useState<ActivityType>(initialActivityType);
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >(initialAssessmentMode);
@@ -226,7 +225,6 @@ export default function AssignmentForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
-  const [isBotConfigOpen, setIsBotConfigOpen] = useState(false);
   const [showBotPreview, setShowBotPreview] = useState(false);
   const [previewQuestionOrder, setPreviewQuestionOrder] = useState<0 | 1>(0);
 
@@ -558,7 +556,10 @@ export default function AssignmentForm({
       {/* Instructions (markdown) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="studentInstructions">Instructions (optional)</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="studentInstructions">Instructions</Label>
+            <InfoTooltip text="These instructions will be displayed to students below the title. Not passed to the AI." />
+          </div>
           <span className="text-xs text-muted-foreground">
             Markdown supported
           </span>
@@ -571,63 +572,86 @@ export default function AssignmentForm({
           placeholder="Enter instructions to display to students below the title..."
           rows={4}
         />
-        <p className="text-sm text-muted-foreground">
-          These instructions will be displayed to students below the title. Not
-          passed to the AI.
-        </p>
       </div>
 
-      {/* Activity Type */}
-      <div className="space-y-2">
-        <Label htmlFor="activityType">
-          Activity Type <span className="text-destructive">*</span>
-        </Label>
-        <Select
-          value={activityType}
-          onValueChange={(value) => {
-            const newType = value as ActivityType;
-            setActivityType(newType);
-            setBotPromptConfig(buildDefaultBotPromptConfig(newType, assessmentMode));
-            setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
-          }}
-          disabled={loading}
-        >
-          <SelectTrigger id="activityType">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="learning">Learning</SelectItem>
-            <SelectItem value="assessment">Assessment</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Activity Type & Interaction Type (side by side) */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="activityType">
+            Activity Type <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={activityType}
+            onValueChange={(value) => {
+              const newType = value as ActivityType;
+              setActivityType(newType);
+              setBotPromptConfig(
+                buildDefaultBotPromptConfig(newType, assessmentMode),
+              );
+              setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
+            }}
+            disabled={loading}
+          >
+            <SelectTrigger id="activityType">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="learning">Learning</SelectItem>
+              <SelectItem value="assessment">Assessment</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="assessmentMode">
+            Interaction Type <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={assessmentMode}
+            onValueChange={(value) => {
+              const newMode = value as "voice" | "text_chat" | "static_text";
+              setAssessmentMode(newMode);
+              setBotPromptConfig(
+                buildDefaultBotPromptConfig(activityType, newMode),
+              );
+            }}
+            disabled={loading}
+          >
+            <SelectTrigger id="assessmentMode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="voice">Voice</SelectItem>
+              <SelectItem value="text_chat">Text Chat</SelectItem>
+              <SelectItem value="static_text">Static Text</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Interaction Type */}
-      <div className="space-y-2">
-        <Label htmlFor="assessmentMode">
-          Interaction Type <span className="text-destructive">*</span>
-        </Label>
-        <Select
-          value={assessmentMode}
-          onValueChange={(value) => {
-            const newMode = value as "voice" | "text_chat" | "static_text";
-            setAssessmentMode(newMode);
-            setBotPromptConfig(buildDefaultBotPromptConfig(activityType, newMode));
-          }}
-          disabled={loading}
-        >
-          <SelectTrigger id="assessmentMode">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="voice">Voice</SelectItem>
-            <SelectItem value="text_chat">Text Chat</SelectItem>
-            <SelectItem value="static_text">Static Text</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Contextual Information for AI (moved above More Options) */}
+      <SharedContextSection
+        sharedContextEnabled={sharedContextEnabled}
+        setSharedContextEnabled={setSharedContextEnabled}
+        sharedContext={sharedContext}
+        setSharedContext={setSharedContext}
+        loading={loading}
+      />
 
-      {/* More Options */}
+      {/* Require File Upload (moved outside More Options) */}
+      <FileSubmissionSection
+        fileSubmissionEnabled={fileSubmissionEnabled}
+        setFileSubmissionEnabled={setFileSubmissionEnabled}
+        fileAllowMultiple={fileAllowMultiple}
+        setFileAllowMultiple={setFileAllowMultiple}
+        fileInstructions={fileInstructions}
+        setFileInstructions={setFileInstructions}
+        fileAllowedTypes={fileAllowedTypes}
+        setFileAllowedTypes={setFileAllowedTypes}
+        loading={loading}
+      />
+
+      {/* More Options (with General & AI Bot subtabs) */}
       <div className="border rounded-md">
         <button
           type="button"
@@ -644,767 +668,68 @@ export default function AssignmentForm({
         </button>
 
         {isMoreOptionsOpen && (
-          <div className="space-y-4 p-4 pt-0 border-t">
-            {/* Preferred Language */}
-            <div className="space-y-2">
-              <Label htmlFor="preferredLanguage">Preferred Language</Label>
-              <Select
-                value={preferredLanguage}
-                onValueChange={setPreferredLanguage}
-                disabled={loading}
-              >
-                <SelectTrigger id="preferredLanguage">
-                  <SelectValue placeholder="Select a language" />
-                </SelectTrigger>
-                <SelectContent>
-                  {supportedLanguages.map((lang) => (
-                    <SelectItem key={lang.code} value={lang.code}>
-                      {lang.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="p-4 pt-0 border-t">
+            <Tabs defaultValue="general">
+              <TabsList className="grid w-full grid-cols-2 mt-4">
+                <TabsTrigger value="general">General</TabsTrigger>
+                <TabsTrigger value="aibot">AI Bot</TabsTrigger>
+              </TabsList>
 
-            {/* Lock Language */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="lockLanguage"
-                checked={lockLanguage}
-                onCheckedChange={(checked) => setLockLanguage(checked === true)}
-                disabled={loading}
-              />
-              <div className="space-y-1">
-                <Label
-                  htmlFor="lockLanguage"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  Lock language for students
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, students cannot change the interaction language
-                  during the assessment
-                </p>
-              </div>
-            </div>
-
-            {/* Max Attempts */}
-            <div className="space-y-2">
-              <Label htmlFor="maxAttempts">Maximum Attempts</Label>
-              <Input
-                id="maxAttempts"
-                type="number"
-                min="1"
-                value={maxAttempts}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value, 10);
-                  if (!isNaN(value) && value >= 1) {
-                    setMaxAttempts(value);
-                  }
-                }}
-                disabled={loading}
-                placeholder="3"
-              />
-              <p className="text-sm text-muted-foreground">
-                Number of attempts students can make for this assignment.
-                Default is 3.
-              </p>
-            </div>
-
-            {/* Rubric Visibility Settings */}
-            <div className="space-y-3 p-4 border rounded-md">
-              <Label className="text-sm font-medium">Rubric Visibility</Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="showRubric"
-                  checked={showRubric}
-                  onCheckedChange={(checked) => {
-                    setShowRubric(checked === true);
-                    // If hiding rubric, also hide points
-                    if (!checked) {
-                      setShowRubricPoints(false);
-                    }
-                  }}
-                  disabled={loading}
+              <TabsContent value="general">
+                <MoreOptionsGeneral
+                  preferredLanguage={preferredLanguage}
+                  setPreferredLanguage={setPreferredLanguage}
+                  lockLanguage={lockLanguage}
+                  setLockLanguage={setLockLanguage}
+                  maxAttempts={maxAttempts}
+                  setMaxAttempts={setMaxAttempts}
+                  requireAllAttempts={requireAllAttempts}
+                  setRequireAllAttempts={setRequireAllAttempts}
+                  showRubric={showRubric}
+                  setShowRubric={setShowRubric}
+                  showRubricPoints={showRubricPoints}
+                  setShowRubricPoints={setShowRubricPoints}
+                  useStarDisplay={useStarDisplay}
+                  setUseStarDisplay={setUseStarDisplay}
+                  starScale={starScale}
+                  setStarScale={setStarScale}
+                  experienceRatingEnabled={experienceRatingEnabled}
+                  setExperienceRatingEnabled={setExperienceRatingEnabled}
+                  experienceRatingRequired={experienceRatingRequired}
+                  setExperienceRatingRequired={setExperienceRatingRequired}
+                  feedbackRequiresApproval={feedbackRequiresApproval}
+                  setFeedbackRequiresApproval={setFeedbackRequiresApproval}
+                  integritySettings={integritySettings}
+                  setIntegritySettings={setIntegritySettings}
+                  isPublic={isPublic}
+                  setIsPublic={setIsPublic}
+                  responderFieldsConfig={responderFieldsConfig}
+                  setResponderFieldsConfig={setResponderFieldsConfig}
+                  loading={loading}
                 />
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="showRubric"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Show rubric to students
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    When enabled, students can view the rubric criteria during
-                    the assessment
-                  </p>
-                </div>
-              </div>
+              </TabsContent>
 
-              {showRubric && (
-                <div className="flex items-center space-x-2 ml-6">
-                  <Checkbox
-                    id="showRubricPoints"
-                    checked={showRubricPoints}
-                    onCheckedChange={(checked) =>
-                      setShowRubricPoints(checked === true)
-                    }
-                    disabled={loading}
-                  />
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="showRubricPoints"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Show point values
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      When enabled, students can see how many points each rubric
-                      item is worth
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Star Display Settings */}
-            <div className="space-y-3 p-4 border rounded-md">
-              <Label className="text-sm font-medium">
-                Student Score Display
-              </Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="useStarDisplay"
-                  checked={useStarDisplay}
-                  onCheckedChange={(checked) =>
-                    setUseStarDisplay(checked === true)
-                  }
-                  disabled={loading}
-                />
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="useStarDisplay"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Show scores as stars to students
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    When enabled, students see star ratings instead of point
-                    scores
-                  </p>
-                </div>
-              </div>
-
-              {useStarDisplay && (
-                <div className="ml-6 space-y-2">
-                  <Label htmlFor="starScale" className="text-sm">
-                    Star Scale
-                  </Label>
-                  <Input
-                    id="starScale"
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={starScale}
-                    onChange={(e) =>
-                      setStarScale(parseInt(e.target.value) || 5)
-                    }
-                    disabled={loading}
-                    className="w-32"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Number of stars in the rating scale (e.g., 5 for a 5-star
-                    scale). Students will see scores converted to this star
-                    scale, while rubrics remain in points.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Completion Requirements */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="requireAllAttempts"
-                checked={requireAllAttempts}
-                onCheckedChange={(checked) =>
-                  setRequireAllAttempts(checked === true)
-                }
-                disabled={loading}
-              />
-              <div className="space-y-1">
-                <Label
-                  htmlFor="requireAllAttempts"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  Require all questions attempted to complete
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, students must attempt all questions before they
-                  can mark the assessment as complete
-                </p>
-              </div>
-            </div>
-
-            {/* Experience Rating */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="experienceRatingEnabled"
-                  checked={experienceRatingEnabled}
-                  onCheckedChange={(checked) => {
-                    setExperienceRatingEnabled(checked === true);
-                    if (!checked) setExperienceRatingRequired(false);
-                  }}
-                  disabled={loading}
-                />
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="experienceRatingEnabled"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Enable Experience Rating
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Ask students to rate their experience on a 5-point scale
-                    when completing the assessment
-                  </p>
-                </div>
-              </div>
-
-              {experienceRatingEnabled && (
-                <div className="flex items-center space-x-2 ml-6">
-                  <Checkbox
-                    id="experienceRatingRequired"
-                    checked={experienceRatingRequired}
-                    onCheckedChange={(checked) =>
-                      setExperienceRatingRequired(checked === true)
-                    }
-                    disabled={loading}
-                  />
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="experienceRatingRequired"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Require rating
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Students must provide a rating before completing
-                      (otherwise they can skip)
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Feedback Approval */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="feedbackRequiresApproval"
-                checked={feedbackRequiresApproval}
-                onCheckedChange={(checked) =>
-                  setFeedbackRequiresApproval(checked === true)
-                }
-                disabled={loading}
-              />
-              <div className="space-y-1">
-                <Label
-                  htmlFor="feedbackRequiresApproval"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  Require teacher approval before showing feedback
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, AI-generated feedback is held for your review.
-                  You can edit and approve it before students can see it
-                </p>
-              </div>
-            </div>
-
-            <AssignmentIntegritySettings
-              values={integritySettings}
-              onChange={setIntegritySettings}
-              disabled={loading}
-            />
-
-            {/* File Submission */}
-            <div className="space-y-3 p-4 border rounded-md">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="fileSubmissionEnabled"
-                  checked={fileSubmissionEnabled}
-                  onCheckedChange={(checked) => {
-                    setFileSubmissionEnabled(checked === true);
-                  }}
-                  disabled={loading}
-                />
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="fileSubmissionEnabled"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Require File Submission
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Students must upload files before answering questions
-                  </p>
-                </div>
-              </div>
-
-              {fileSubmissionEnabled && (
-                <div className="space-y-4 ml-6">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="fileAllowMultiple"
-                      checked={fileAllowMultiple}
-                      onCheckedChange={(checked) =>
-                        setFileAllowMultiple(checked === true)
-                      }
-                      disabled={loading}
-                    />
-                    <Label
-                      htmlFor="fileAllowMultiple"
-                      className="text-sm font-medium leading-none cursor-pointer"
-                    >
-                      Allow multiple files
-                    </Label>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="fileInstructions"
-                      className="text-sm font-medium"
-                    >
-                      Instructions for file submission (optional)
-                    </Label>
-                    <Textarea
-                      id="fileInstructions"
-                      value={fileInstructions}
-                      onChange={(e) => setFileInstructions(e.target.value)}
-                      disabled={loading}
-                      placeholder="e.g., Upload your report as a PDF file..."
-                      rows={2}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">
-                      Allowed file types (optional)
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty to allow all file types. Click to
-                      toggle.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        ".pdf",
-                        ".docx",
-                        ".doc",
-                        ".txt",
-                        ".png",
-                        ".jpg",
-                        ".jpeg",
-                        ".xlsx",
-                        ".csv",
-                        ".pptx",
-                      ].map((ext) => {
-                        const isSelected = fileAllowedTypes.includes(ext);
-                        return (
-                          <button
-                            key={ext}
-                            type="button"
-                            onClick={() => {
-                              setFileAllowedTypes((prev) =>
-                                isSelected
-                                  ? prev.filter((t) => t !== ext)
-                                  : [...prev, ext],
-                              );
-                            }}
-                            disabled={loading}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                              isSelected
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-background text-muted-foreground border-input hover:bg-muted"
-                            }`}
-                          >
-                            {ext}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Public Access Toggle */}
-            <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
-              <Checkbox
-                id="isPublic"
-                checked={isPublic}
-                onCheckedChange={(checked) => setIsPublic(checked === true)}
-                disabled={loading}
-              />
-              <div className="space-y-1">
-                <Label
-                  htmlFor="isPublic"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  Make this assignment publicly accessible
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Anyone with the link can view and complete this assignment
-                  without logging in
-                </p>
-              </div>
-            </div>
-
-            {/* Responder Fields Configuration (only for public assignments) */}
-            {isPublic && (
-              <div className="space-y-4 p-4 border rounded-md">
-                <div className="space-y-2">
-                  <Label>Responder Information Fields</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Configure what information to collect from public responders
-                  </p>
-                </div>
-
-                {responderFieldsConfig.map((field, index) => (
-                  <div key={index} className="p-4 border rounded-md space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">
-                        Field {index + 1}
-                      </Label>
-                      {responderFieldsConfig.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            const newFields = responderFieldsConfig.filter(
-                              (_, i) => i !== index,
-                            );
-                            setResponderFieldsConfig(newFields);
-                          }}
-                          disabled={loading}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`field-${index}-label`}>Label</Label>
-                        <Input
-                          id={`field-${index}-label`}
-                          value={field.label}
-                          onChange={(e) => {
-                            const newFields = [...responderFieldsConfig];
-                            newFields[index].label = e.target.value;
-                            setResponderFieldsConfig(newFields);
-                          }}
-                          placeholder="e.g., Full Name"
-                          disabled={loading}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`field-${index}-type`}>Type</Label>
-                        <Select
-                          value={field.type}
-                          onValueChange={(value) => {
-                            const newFields = [...responderFieldsConfig];
-                            newFields[index].type =
-                              value as ResponderFieldConfig["type"];
-                            // Clear options if not select type
-                            if (value !== "select") {
-                              delete newFields[index].options;
-                            }
-                            setResponderFieldsConfig(newFields);
-                          }}
-                          disabled={loading}
-                        >
-                          <SelectTrigger id={`field-${index}-type`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="text">Text</SelectItem>
-                            <SelectItem value="email">Email</SelectItem>
-                            <SelectItem value="tel">Phone</SelectItem>
-                            <SelectItem value="select">
-                              Select (Dropdown)
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`field-${index}-field`}>
-                        Field Identifier
-                      </Label>
-                      <Input
-                        id={`field-${index}-field`}
-                        value={field.field}
-                        onChange={(e) => {
-                          const newFields = [...responderFieldsConfig];
-                          newFields[index].field = e.target.value;
-                          setResponderFieldsConfig(newFields);
-                        }}
-                        placeholder="e.g., name, email, organization"
-                        disabled={loading}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Unique identifier for this field (used in data storage)
-                      </p>
-                    </div>
-
-                    {field.type === "select" && (
-                      <div className="space-y-2">
-                        <Label htmlFor={`field-${index}-options`}>
-                          Options (one per line)
-                        </Label>
-                        <textarea
-                          id={`field-${index}-options`}
-                          className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md"
-                          value={field.options?.join("\n") || ""}
-                          onChange={(e) => {
-                            const newFields = [...responderFieldsConfig];
-                            newFields[index].options = e.target.value
-                              .split("\n")
-                              .map((line) => line.trim())
-                              .filter((line) => line.length > 0);
-                            setResponderFieldsConfig(newFields);
-                          }}
-                          placeholder="Option 1&#10;Option 2&#10;Option 3"
-                          disabled={loading}
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`field-${index}-required`}
-                          checked={field.required}
-                          onCheckedChange={(checked) => {
-                            const newFields = [...responderFieldsConfig];
-                            newFields[index].required = checked === true;
-                            setResponderFieldsConfig(newFields);
-                          }}
-                          disabled={loading}
-                        />
-                        <Label
-                          htmlFor={`field-${index}-required`}
-                          className="text-sm font-normal cursor-pointer"
-                        >
-                          Required field
-                        </Label>
-                      </div>
-
-                      {field.type !== "select" && (
-                        <div className="flex-1 space-y-2">
-                          <Label htmlFor={`field-${index}-placeholder`}>
-                            Placeholder
-                          </Label>
-                          <Input
-                            id={`field-${index}-placeholder`}
-                            value={field.placeholder || ""}
-                            onChange={(e) => {
-                              const newFields = [...responderFieldsConfig];
-                              newFields[index].placeholder = e.target.value;
-                              setResponderFieldsConfig(newFields);
-                            }}
-                            placeholder="Optional placeholder text"
-                            disabled={loading}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const newField: ResponderFieldConfig = {
-                      field: `field_${responderFieldsConfig.length + 1}`,
-                      type: "text",
-                      label: "",
-                      required: false,
-                    };
-                    setResponderFieldsConfig([
-                      ...responderFieldsConfig,
-                      newField,
-                    ]);
-                  }}
-                  disabled={loading}
-                  className="w-full"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Field
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* AI Bot Configuration */}
-      <div className="border rounded-md">
-        <button
-          type="button"
-          onClick={() => setIsBotConfigOpen(!isBotConfigOpen)}
-          className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
-          disabled={loading}
-        >
-          <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">AI Bot Configuration</h3>
-          </div>
-          <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform ${
-              isBotConfigOpen ? "rotate-180" : ""
-            }`}
-          />
-        </button>
-
-        {isBotConfigOpen && (
-          <div className="space-y-4 p-4 pt-0 border-t">
-            <p className="text-sm text-muted-foreground">
-              Customize how the AI bot interacts with students and evaluates
-              answers. Use variable placeholders to insert dynamic content.
-            </p>
-
-            {/* Editor and Preview Toggle (only for voice and text_chat modes) */}
-            {(assessmentMode === "voice" || assessmentMode === "text_chat") && (
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant={showBotPreview ? "outline" : "default"}
-                  size="sm"
-                  onClick={() => setShowBotPreview(false)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  type="button"
-                  variant={showBotPreview ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setShowBotPreview(true)}
-                >
-                  <Eye className="h-4 w-4 mr-1" />
-                  Preview
-                </Button>
-              </div>
-            )}
-
-            {showBotPreview &&
-            (assessmentMode === "voice" || assessmentMode === "text_chat") ? (
-              <div className="space-y-3">
-                {/* Preview Question Order Toggle */}
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Preview for:</span>
-                  <Button
-                    type="button"
-                    variant={previewQuestionOrder === 0 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewQuestionOrder(0)}
-                  >
-                    First Question
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={previewQuestionOrder === 1 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewQuestionOrder(1)}
-                  >
-                    Subsequent Questions
-                  </Button>
-                </div>
-
-                <PromptPreview
-                  config={botPromptConfig}
-                  assignment={{
-                    questions,
-                    preferred_language: preferredLanguage,
-                    max_attempts: maxAttempts,
-                    shared_context: sharedContextEnabled
-                      ? sharedContext
-                      : undefined,
-                  }}
-                  question={questions[0]}
-                  languageCode={preferredLanguage}
+              <TabsContent value="aibot">
+                <MoreOptionsAIBot
                   assessmentMode={assessmentMode}
+                  showBotPreview={showBotPreview}
+                  setShowBotPreview={setShowBotPreview}
                   previewQuestionOrder={previewQuestionOrder}
+                  setPreviewQuestionOrder={setPreviewQuestionOrder}
+                  botPromptConfig={botPromptConfig}
+                  setBotPromptConfig={setBotPromptConfig}
+                  evaluationPrompt={evaluationPrompt}
+                  setEvaluationPrompt={setEvaluationPrompt}
+                  activityType={activityType}
+                  questions={questions}
+                  preferredLanguage={preferredLanguage}
+                  maxAttempts={maxAttempts}
+                  sharedContextEnabled={sharedContextEnabled}
+                  sharedContext={sharedContext}
+                  loading={loading}
                 />
-              </div>
-            ) : (
-              <PromptConfigEditor
-                config={botPromptConfig}
-                onChange={setBotPromptConfig}
-                disabled={loading}
-                showBotPrompts={
-                  assessmentMode === "voice" || assessmentMode === "text_chat"
-                }
-                evaluationPrompt={evaluationPrompt}
-                onEvaluationPromptChange={setEvaluationPrompt}
-                activityType={activityType}
-                interactionType={assessmentMode}
-              />
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Additional context (stored as shared_context / shared_context_enabled in Supabase) */}
-      <div className="space-y-3 p-4 border rounded-md">
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="sharedContextEnabled"
-            checked={sharedContextEnabled}
-            onCheckedChange={(checked) =>
-              setSharedContextEnabled(checked === true)
-            }
-            disabled={loading}
-          />
-          <div className="space-y-1">
-            <Label
-              htmlFor="sharedContextEnabled"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              Additional context
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              Optional extra material (e.g. case study, passage, scenario)
-              included in AI prompts for this assessment. Not shown to students
-              as a separate block.
-            </p>
-          </div>
-        </div>
-
-        {sharedContextEnabled && (
-          <div className="space-y-2 mt-3">
-            <Label htmlFor="sharedContext">
-              Context text <span className="text-destructive">*</span>
-            </Label>
-            <Textarea
-              id="sharedContext"
-              value={sharedContext}
-              onChange={(e) => setSharedContext(e.target.value)}
-              disabled={loading}
-              placeholder="Enter additional context, case study, passage, or scenario..."
-              rows={6}
-              className="resize-y"
-            />
-            <p className="text-xs text-muted-foreground">
-              In prompt templates use{" "}
-              <code className="text-xs bg-muted px-1 rounded">
-                {"{{additional_context}}"}
-              </code>
-            </p>
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </div>
@@ -1426,7 +751,6 @@ export default function AssignmentForm({
             onMoveDown={handleMoveQuestionDown}
             onDelete={handleDeleteQuestion}
             disabled={loading}
-            // Bot override props - shown when assessment mode uses AI bot
             showBotOverride={
               assessmentMode === "voice" || assessmentMode === "text_chat"
             }

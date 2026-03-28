@@ -14,9 +14,9 @@ export interface InterpolationContext {
   total_questions: number;
   attempt_number: number;
   question_order: number;
-  /** Same value as assignment `shared_context` (DB column). Prefer `{{additional_context}}` in templates. */
-  additional_context: string;
-  /** Legacy alias for `additional_context`; still substituted for older templates. */
+  /** Same value as assignment `shared_context` (DB column). Use `{{context_for_ai}}` in templates. */
+  context_for_ai: string;
+  /** Legacy alias for `context_for_ai`; still substituted for older templates. */
   shared_context: string;
   answer_text: string;
   /** Formatted parsed markdown content from uploaded files. */
@@ -49,7 +49,7 @@ export function interpolatePrompt(
   context: Partial<InterpolationContext>
 ): string {
   const merged: Partial<InterpolationContext> = { ...context };
-  const ac = merged.additional_context;
+  const ac = merged.context_for_ai;
   const sc = merged.shared_context;
   if (
     ac !== undefined &&
@@ -62,7 +62,7 @@ export function interpolatePrompt(
     sc !== null &&
     (ac === undefined || ac === null)
   ) {
-    merged.additional_context = sc;
+    merged.context_for_ai = sc;
   }
 
   // Step 1: Resolve {{#if variable}}...{{/if}} conditional blocks
@@ -142,7 +142,7 @@ export function buildPreviewContext(
     expected_answer: question?.expected_answer || "",
     max_attempts: assignment.max_attempts || 1,
     total_questions: assignment.questions?.length || 1,
-    additional_context: additionalContextText,
+    context_for_ai: additionalContextText,
     shared_context: additionalContextText,
     answer_text: "[Student answer will appear here]",
     file_submissions: hasFileSubmissions
@@ -182,7 +182,7 @@ export function buildRuntimeContext(
     total_questions: assignment.questions.length,
     attempt_number: attemptNumber,
     question_order: questionOrder,
-    additional_context: additionalContextText,
+    context_for_ai: additionalContextText,
     shared_context: additionalContextText,
     answer_text: answerText || "",
     file_submissions: fileSubmissions || "",
