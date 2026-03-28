@@ -25,6 +25,9 @@ interface UseInterpolatedPromptsArgs {
   fileSubmissionsContent?: string;
   assessmentMode?: InteractionType;
   activityType?: ActivityType;
+  title?: string;
+  studentInstructions?: string;
+  totalQuestions?: number;
 }
 
 interface InterpolatedPrompts {
@@ -54,6 +57,9 @@ export function useInterpolatedPrompts({
   fileSubmissionsContent,
   assessmentMode = "voice",
   activityType = "learning",
+  title,
+  studentInstructions,
+  totalQuestions,
 }: UseInterpolatedPromptsArgs): InterpolatedPrompts {
   const effectiveConfig = useMemo(
     () => botPromptConfig ?? buildDefaultBotPromptConfig(activityType, assessmentMode),
@@ -62,12 +68,14 @@ export function useInterpolatedPrompts({
 
   const assignmentShim = useMemo(
     () => ({
-      questions: [question],
+      title: title || "",
+      student_instructions: studentInstructions || "",
+      questions: Array.from({ length: totalQuestions ?? 1 }) as Question[],
       max_attempts: maxAttempts || 1,
       bot_prompt_config: effectiveConfig,
       shared_context: sharedContext,
     }),
-    [question, maxAttempts, effectiveConfig, sharedContext],
+    [title, studentInstructions, totalQuestions, maxAttempts, effectiveConfig, sharedContext],
   );
 
   const attemptNumber = attemptCount + 1;

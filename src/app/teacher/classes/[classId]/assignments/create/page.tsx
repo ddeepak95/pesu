@@ -107,8 +107,12 @@ export default function CreateAssignmentPage() {
     useStarDisplay?: boolean;
     starScale?: number;
     requireAllAttempts?: boolean;
+    sharedContextEnabled?: boolean;
+    sharedContext?: string;
+    evaluationPrompt?: string;
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
+    feedbackRequiresApproval?: boolean;
     allowCopyPaste?: boolean;
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
@@ -144,8 +148,12 @@ export default function CreateAssignmentPage() {
         use_star_display: data.useStarDisplay ?? false,
         star_scale: data.starScale ?? 5,
         require_all_attempts: data.requireAllAttempts ?? false,
+        shared_context_enabled: data.sharedContextEnabled ?? false,
+        shared_context: data.sharedContext,
+        evaluation_prompt: data.evaluationPrompt,
         experience_rating_enabled: data.experienceRatingEnabled ?? false,
         experience_rating_required: data.experienceRatingRequired ?? false,
+        feedback_requires_approval: data.feedbackRequiresApproval ?? false,
         allow_copy_paste: data.allowCopyPaste ?? false,
         tab_switch_policy: data.tabSwitchPolicy ?? "warn",
         tab_switch_max_leaves:

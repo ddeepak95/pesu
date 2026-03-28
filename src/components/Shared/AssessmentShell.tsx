@@ -72,6 +72,10 @@ export interface AssessmentShellProps {
   fileSubmissionsContent?: string;
   /** Activity type for prompt defaults */
   activityType?: "assessment" | "learning";
+  /** Assignment title for prompt interpolation */
+  title?: string;
+  /** Student instructions for prompt interpolation */
+  studentInstructions?: string;
 }
 
 export function AssessmentShell({
@@ -118,6 +122,8 @@ export function AssessmentShell({
   headerTotalQuestions,
   fileSubmissionsContent,
   activityType = "learning",
+  title,
+  studentInstructions,
 }: AssessmentShellProps) {
   const [isEvaluating, setIsEvaluating] = React.useState(false);
   const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(true);
@@ -143,6 +149,9 @@ export function AssessmentShell({
     fileSubmissionsContent,
     assessmentMode,
     activityType,
+    title,
+    studentInstructions,
+    totalQuestions,
   });
 
   const { logEvent } = useActivityTracking({
@@ -301,6 +310,8 @@ export function AssessmentShell({
     onIntegrityAccessRevoked,
     fileSubmissionsContent,
     activityType,
+    title,
+    studentInstructions,
   };
 
   return (

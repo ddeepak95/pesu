@@ -225,6 +225,7 @@ export default function AssignmentResponseCore({
 
   useEffect(() => {
     if (!fileUploadRequired || !submissionId) return;
+    if (fileUploadRequired && currentStepIndex === 0) return;
     let cancelled = false;
 
     async function fetchContent() {
@@ -244,7 +245,7 @@ export default function AssignmentResponseCore({
     return () => {
       cancelled = true;
     };
-  }, [fileUploadRequired, submissionId]);
+  }, [fileUploadRequired, submissionId, currentStepIndex]);
 
   const [tabTrackingActive, setTabTrackingActive] = useState(false);
 
@@ -379,6 +380,8 @@ export default function AssignmentResponseCore({
           onTabTrackingActiveChange={setTabTrackingActive}
           fileSubmissionsContent={fileSubmissionsContent}
           activityType={assignmentData.activity_type ?? "learning"}
+          title={assignmentData.title}
+          studentInstructions={assignmentData.student_instructions}
         />
       ) : null}
     </div>

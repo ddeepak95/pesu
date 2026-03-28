@@ -317,6 +317,7 @@ const PublicAssignmentResponse = forwardRef<
     setPhase("info");
     setPreferredLanguage(assignmentData.preferred_language || "en");
     setIntegrityRevoked(null);
+    setUploadedFiles([]);
 
     // Clear display name in parent
     if (onDisplayNameChange) {

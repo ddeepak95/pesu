@@ -123,6 +123,8 @@ export async function POST(request: NextRequest) {
       })),
     );
 
+    console.log("[chat-assessment] Chat messages:", chatMessages);
+
     // Log the latest student message
     const supabase = await createServerSupabaseClient();
     try {

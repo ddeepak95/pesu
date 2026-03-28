@@ -31,4 +31,8 @@ export interface AssessmentInputProps {
   fileSubmissionsContent?: string;
   /** Activity type for prompt defaults (assessment vs learning) */
   activityType?: "assessment" | "learning";
+  /** Assignment title for prompt interpolation */
+  title?: string;
+  /** Student instructions for prompt interpolation */
+  studentInstructions?: string;
 }

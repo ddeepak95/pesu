@@ -36,6 +36,8 @@ export function ChatInputArea({
   onIntegrityAccessRevoked,
   fileSubmissionsContent,
   activityType,
+  title,
+  studentInstructions,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -52,6 +54,8 @@ export function ChatInputArea({
     fileSubmissionsContent,
     assessmentMode: "text_chat",
     activityType,
+    title,
+    studentInstructions,
   });
 
   const { logEvent } = useActivityTracking({

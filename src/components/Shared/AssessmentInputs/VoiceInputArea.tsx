@@ -38,6 +38,8 @@ function VoiceInputContent({
   sharedContext,
   fileSubmissionsContent,
   activityType,
+  title,
+  studentInstructions,
 }: AssessmentInputProps) {
   const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
@@ -189,6 +191,8 @@ function VoiceInputContent({
     fileSubmissionsContent,
     assessmentMode: "voice",
     activityType,
+    title,
+    studentInstructions,
   });
 
   const connectionData = {
