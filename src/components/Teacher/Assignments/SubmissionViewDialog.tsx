@@ -16,14 +16,37 @@ import {
   Submission,
   QuestionEvaluations,
   SubmissionAttempt,
+  SubmissionFile,
 } from "@/types/submission";
 import { Assignment } from "@/types/assignment";
 import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
+import {
+  getSubmissionFiles,
+  getFileDownloadUrl,
+} from "@/lib/queries/submissionFiles";
+import { showErrorToast } from "@/lib/toast";
 import { useState, useEffect } from "react";
+import { FileText, Loader2 } from "lucide-react";
 import { SubmissionQuestionCard } from "./SubmissionQuestionCard";
 import { TranscriptDialog } from "./TranscriptDialog";
 import { SubmissionDisplayName } from "./SubmissionDisplayName";
 import { SubmissionIntegrityLockBanner } from "@/components/Shared/Integrity/SubmissionIntegrityLockBanner";
+
+const FILE_STATUS_LABEL: Record<string, string> = {
+  uploading: "Uploading…",
+  uploaded: "Uploaded",
+  processing: "Processing…",
+  processed: "Ready",
+  failed: "Failed",
+};
+
+function truncateFilename(name: string, max = 48): string {
+  if (name.length <= max) return name;
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+  const base = ext ? name.slice(0, name.length - ext.length) : name;
+  const keep = max - ext.length - 3;
+  return `${base.slice(0, Math.max(4, keep))}…${ext}`;
+}
 
 interface SubmissionViewDialogProps {
   open: boolean;
@@ -49,6 +72,10 @@ export default function SubmissionViewDialog({
   const [selectedQuestionOrder, setSelectedQuestionOrder] = useState<
     number | null
   >(null);
+  const [submissionFiles, setSubmissionFiles] = useState<SubmissionFile[]>(
+    [],
+  );
+  const [openingFileId, setOpeningFileId] = useState<string | null>(null);
 
   // Get submission from either type (list view -- may not include evaluations JSONB)
   const submission =
@@ -57,21 +84,30 @@ export default function SubmissionViewDialog({
       : studentSubmission.submission;
 
   useEffect(() => {
+    if (!open) {
+      setSubmissionFiles([]);
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (open && submission) {
       const fetchData = async () => {
         setLoading(true);
         setError(null);
         try {
-          // Fetch assignment and full submission (with evaluations JSONB) in parallel
-          const [assignmentData, submissionData] = await Promise.all([
-            getAssignmentByIdForTeacher(submission.assignment_id),
-            getSubmissionById(submission.submission_id),
-          ]);
+          const [assignmentData, submissionData, filesData] =
+            await Promise.all([
+              getAssignmentByIdForTeacher(submission.assignment_id),
+              getSubmissionById(submission.submission_id),
+              getSubmissionFiles(submission.submission_id),
+            ]);
           setAssignment(assignmentData);
           setFullSubmission(submissionData);
+          setSubmissionFiles(filesData);
         } catch (err) {
           console.error("Error fetching submission details:", err);
           setError("Failed to load submission details");
+          setSubmissionFiles([]);
         } finally {
           setLoading(false);
         }
@@ -80,6 +116,20 @@ export default function SubmissionViewDialog({
       fetchData();
     }
   }, [open, submission]);
+
+  const handleOpenSubmissionFile = async (file: SubmissionFile) => {
+    if (openingFileId === file.id) return;
+    setOpeningFileId(file.id);
+    try {
+      const url = await getFileDownloadUrl(file.id, "original");
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error("Open file error:", err);
+      showErrorToast("Failed to get download link");
+    } finally {
+      setOpeningFileId(null);
+    }
+  };
 
   const handleViewTranscript = (
     attempt: SubmissionAttempt,
@@ -149,6 +199,53 @@ export default function SubmissionViewDialog({
                   await onIntegrityRestored?.();
                 }}
               />
+            ) : null}
+            {submissionFiles.length > 0 ? (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Submitted files
+                </h3>
+                <ul className="space-y-2">
+                  {submissionFiles.map((file) => {
+                    const statusLabel =
+                      FILE_STATUS_LABEL[file.processing_status] ??
+                      file.processing_status;
+                    const isOpening = openingFileId === file.id;
+                    return (
+                      <li key={file.id}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSubmissionFile(file)}
+                          disabled={isOpening}
+                          className="flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-muted/50 cursor-pointer disabled:cursor-wait disabled:opacity-80"
+                        >
+                          <FileText className="h-5 w-5 shrink-0 text-muted-foreground/60" />
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="text-sm font-medium truncate"
+                              title={file.filename}
+                            >
+                              {truncateFilename(file.filename)}
+                            </p>
+                            <p
+                              className={`text-xs mt-0.5 ${
+                                file.processing_status === "failed"
+                                  ? "text-destructive"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {statusLabel}
+                            </p>
+                          </div>
+                          {isOpening ? (
+                            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                          ) : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             ) : null}
             {/* Attempts by Question */}
             {assignment && (
