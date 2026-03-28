@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { getSupabaseUrl, getSupabaseAnonKey } from './supabase-config'
 
@@ -27,5 +28,14 @@ export async function createServerSupabaseClient() {
         },
       },
     }
+  )
+}
+
+// Service role client for trusted server-side operations that bypass RLS
+export function createServiceRoleClient() {
+  return createClient(
+    getSupabaseUrl(),
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   )
 }

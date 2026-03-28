@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase-server";
 import { ActivityLogInput } from "@/types/activity";
 
 const UUID_REGEX =
@@ -72,8 +72,9 @@ export async function POST(request: NextRequest) {
     const resolvedClassId = await resolveClassId(body.classId, supabase);
     const resolvedUserId = user?.id ?? null;
 
-    // Upsert the activity log (insert or update based on session_id)
-    const { data, error } = await supabase
+    const adminClient = createServiceRoleClient();
+
+    const { error } = await adminClient
       .from("activity_logs")
       .upsert(
         {
@@ -89,9 +90,7 @@ export async function POST(request: NextRequest) {
         {
           onConflict: "session_id",
         }
-      )
-      .select()
-      .single();
+      );
 
     if (error) {
       console.error("Error upserting activity log:", error);
@@ -101,7 +100,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error in activity-logs API:", error);
     return NextResponse.json(
