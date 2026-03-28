@@ -80,16 +80,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[chat-assessment] Request received:", {
-      assignmentId,
-      submissionId,
-      questionOrder,
-      attemptNumber,
-      messageCount: messages.length,
-      systemPromptLength: systemPrompt.length,
-      hasGreeting: !!greeting,
-    });
-
     if (submissionId) {
       const supabase = await createServerSupabaseClient();
       const integrityBlock = await assertSubmissionNotIntegrityLocked(
@@ -123,8 +113,6 @@ export async function POST(request: NextRequest) {
       })),
     );
 
-    console.log("[chat-assessment] Chat messages:", chatMessages);
-
     // Log the latest student message
     const supabase = await createServerSupabaseClient();
     try {
@@ -147,10 +135,6 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log chat message(s):", error);
     }
 
-    console.log(
-      "[chat-assessment] Total chat messages being sent to OpenAI:",
-      chatMessages.length,
-    );
 
     const stream = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -236,12 +220,6 @@ export async function POST(request: NextRequest) {
           }
 
           controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
-
-          console.log("[chat-assessment] Stream complete:", {
-            fullReplyLength: fullReply.length,
-            hadToolCall: !!toolCallName,
-            toolCallName: toolCallName || "(none)",
-          });
 
           if (fullReply.trim()) {
             try {
