@@ -126,7 +126,6 @@ export default function AssignmentResponseCore({
 
   // Check attempts when component mounts and when navigating between questions
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAttempts();
   }, [checkAttempts, currentStepIndex]);
 
@@ -213,17 +212,15 @@ export default function AssignmentResponseCore({
     }
   };
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentStepIndex < totalSteps - 1) {
       const newIndex = currentStepIndex + 1;
       setCurrentStepIndex(newIndex);
       updateQuestionIndex(assignmentId, newIndex);
     } else {
-      if (onComplete) {
-        onComplete();
-      }
+      onComplete?.();
     }
-  };
+  }, [assignmentId, currentStepIndex, onComplete, totalSteps]);
 
   // No explicit submission needed - attempts are automatically saved
   // When student finishes last question, they can navigate back or close
@@ -328,7 +325,7 @@ export default function AssignmentResponseCore({
     dynamicQuestionsEnabled,
     generatedQuestions,
     generatedFromFileIds,
-    handleNext, // eslint-disable-line react-hooks/exhaustive-deps
+    handleNext,
     triggerDynamicGeneration,
   ]);
 
