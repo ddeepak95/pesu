@@ -18,7 +18,7 @@ import {
   deleteAssignment,
 } from "@/lib/queries/assignments";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
-import { Assignment } from "@/types/assignment";
+import { Assignment, parseDynamicGenerationSpec } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
@@ -344,9 +344,9 @@ export default function AssignmentDetailClient({
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Prompts, rubrics, and expected answers are created per
-                        student after they upload files. The list below is the
-                        focus areas and point values you configured; exact
-                        wording appears on each student&apos;s submission.
+                        student after they upload files. The settings below are
+                        what you configured; exact question wording appears on
+                        each student&apos;s submission.
                       </p>
                     </div>
                   </div>
@@ -354,38 +354,65 @@ export default function AssignmentDetailClient({
               )}
 
               {assignmentData.dynamic_questions_enabled ? (
-                assignmentData.dynamic_question_focuses &&
-                assignmentData.dynamic_question_focuses.length > 0 ? (
-                  <div className="rounded-md border bg-card text-card-foreground">
-                    <div className="px-4 py-3 text-sm font-medium border-b">
-                      Focus areas (one generated question each)
+                (() => {
+                  const spec = parseDynamicGenerationSpec(
+                    assignmentData.dynamic_question_focuses,
+                  );
+                  if (!spec) {
+                    return (
+                      <p className="text-sm text-muted-foreground">
+                        No valid dynamic generation settings. Edit the assignment
+                        to set number of questions, points per question, and
+                        coverage description.
+                      </p>
+                    );
+                  }
+                  const total =
+                    spec.question_count * spec.points_per_question;
+                  return (
+                    <div className="rounded-md border bg-card text-card-foreground">
+                      <div className="px-4 py-3 text-sm font-medium border-b">
+                        Dynamic generation settings
+                      </div>
+                      <div className="px-4 py-3 space-y-3 text-sm">
+                        <div className="flex flex-wrap gap-x-6 gap-y-2">
+                          <div>
+                            <span className="text-muted-foreground">
+                              Questions:{" "}
+                            </span>
+                            <span className="font-medium tabular-nums">
+                              {spec.question_count}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">
+                              Points each:{" "}
+                            </span>
+                            <span className="font-medium tabular-nums">
+                              {spec.points_per_question}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">
+                              Total points:{" "}
+                            </span>
+                            <span className="font-medium tabular-nums">
+                              {total}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            What questions should cover
+                          </p>
+                          <p className="text-sm whitespace-pre-wrap">
+                            {spec.coverage_description}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <ul className="divide-y">
-                      {assignmentData.dynamic_question_focuses.map(
-                        (row, index) => (
-                          <li
-                            key={index}
-                            className="px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 text-sm"
-                          >
-                            <span className="text-muted-foreground shrink-0 w-8">
-                              {index + 1}.
-                            </span>
-                            <span className="flex-1 min-w-0">{row.focus}</span>
-                            <span className="font-medium tabular-nums shrink-0">
-                              {row.points}{" "}
-                              {row.points === 1 ? "pt" : "pts"}
-                            </span>
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No focus areas configured. Edit the assignment to add
-                    question focus and points.
-                  </p>
-                )
+                  );
+                })()
               ) : (
                 assignmentData.questions
                   .sort((a, b) => a.order - b.order)

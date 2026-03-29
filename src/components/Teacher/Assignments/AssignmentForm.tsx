@@ -26,7 +26,9 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
   FileSubmissionConfig,
-  DynamicQuestionFocus,
+  DynamicGenerationSpec,
+  DEFAULT_DYNAMIC_GENERATION_SPEC,
+  isCompleteDynamicGenerationSpec,
 } from "@/types/assignment";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
@@ -73,7 +75,7 @@ interface AssignmentFormProps {
   initialTabSwitchMaxLeaves?: number;
   initialFileSubmissionConfig?: FileSubmissionConfig | null;
   initialDynamicQuestionsEnabled?: boolean;
-  initialDynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+  initialDynamicGenerationSpec?: DynamicGenerationSpec | null;
   initialDynamicGenerationPrompt?: string;
   initialIsDraft?: boolean;
   onSubmit: (data: {
@@ -106,7 +108,7 @@ interface AssignmentFormProps {
     tabSwitchMaxLeaves?: number;
     fileSubmissionConfig?: FileSubmissionConfig | null;
     dynamicQuestionsEnabled?: boolean;
-    dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+    dynamicGenerationSpec?: DynamicGenerationSpec | null;
     dynamicGenerationPrompt?: string | null;
   }) => Promise<void>;
 }
@@ -154,7 +156,7 @@ export default function AssignmentForm({
   initialTabSwitchMaxLeaves = 3,
   initialFileSubmissionConfig = null,
   initialDynamicQuestionsEnabled = false,
-  initialDynamicQuestionFocuses = null,
+  initialDynamicGenerationSpec = null,
   initialDynamicGenerationPrompt,
   initialIsDraft = false,
   onSubmit,
@@ -233,13 +235,10 @@ export default function AssignmentForm({
   const [dynamicQuestionsEnabled, setDynamicQuestionsEnabled] = useState(
     initialDynamicQuestionsEnabled,
   );
-  const [dynamicQuestionFocuses, setDynamicQuestionFocuses] = useState<
-    DynamicQuestionFocus[]
-  >(
-    initialDynamicQuestionFocuses?.length
-      ? initialDynamicQuestionFocuses
-      : [{ focus: "", points: 0 }],
-  );
+  const [dynamicGenerationSpec, setDynamicGenerationSpec] =
+    useState<DynamicGenerationSpec>(
+      initialDynamicGenerationSpec ?? DEFAULT_DYNAMIC_GENERATION_SPEC,
+    );
   const [dynamicGenerationPrompt, setDynamicGenerationPrompt] = useState(
     initialDynamicGenerationPrompt || buildDefaultDynamicGenerationPrompt(),
   );
@@ -439,26 +438,11 @@ export default function AssignmentForm({
     }
 
     if (dynamicQuestionsEnabled) {
-      // Validate dynamic question focuses
-      const validFocuses = dynamicQuestionFocuses.filter(
-        (f) => f.focus.trim() && f.points > 0,
-      );
-      if (validFocuses.length === 0) {
+      if (!isCompleteDynamicGenerationSpec(dynamicGenerationSpec)) {
         setError(
-          "At least one focus area with a non-empty focus and points > 0 is required",
+          "Dynamic generation requires at least 1 question, at least 1 point per question, and a non-empty description of what the questions should cover.",
         );
         return;
-      }
-      for (let i = 0; i < dynamicQuestionFocuses.length; i++) {
-        const f = dynamicQuestionFocuses[i];
-        if (!f.focus.trim()) {
-          setError(`Focus area ${i + 1}: Focus text is required`);
-          return;
-        }
-        if (f.points <= 0) {
-          setError(`Focus area ${i + 1}: Points must be greater than 0`);
-          return;
-        }
       }
     } else {
       // Validate each question
@@ -507,7 +491,7 @@ export default function AssignmentForm({
     setLoading(true);
 
     try {
-      // When dynamic generation is enabled, questions are empty and points come from focuses
+      // When dynamic generation is enabled, questions are empty; points come from generation spec
       const cleanedQuestions = dynamicQuestionsEnabled
         ? []
         : questions.map((q) => ({
@@ -518,7 +502,8 @@ export default function AssignmentForm({
           }));
 
       const totalPoints = dynamicQuestionsEnabled
-        ? dynamicQuestionFocuses.reduce((sum, f) => sum + (f.points || 0), 0)
+        ? dynamicGenerationSpec.question_count *
+          dynamicGenerationSpec.points_per_question
         : cleanedQuestions.reduce((sum, q) => sum + q.total_points, 0);
 
       await onSubmit({
@@ -562,9 +547,13 @@ export default function AssignmentForm({
           : null,
         dynamicQuestionsEnabled:
           fileSubmissionEnabled && dynamicQuestionsEnabled,
-        dynamicQuestionFocuses:
+        dynamicGenerationSpec:
           fileSubmissionEnabled && dynamicQuestionsEnabled
-            ? dynamicQuestionFocuses
+            ? {
+                ...dynamicGenerationSpec,
+                coverage_description:
+                  dynamicGenerationSpec.coverage_description.trim(),
+              }
             : null,
         dynamicGenerationPrompt:
           fileSubmissionEnabled && dynamicQuestionsEnabled
@@ -708,8 +697,8 @@ export default function AssignmentForm({
         loading={loading}
         dynamicQuestionsEnabled={dynamicQuestionsEnabled}
         setDynamicQuestionsEnabled={setDynamicQuestionsEnabled}
-        dynamicQuestionFocuses={dynamicQuestionFocuses}
-        setDynamicQuestionFocuses={setDynamicQuestionFocuses}
+        dynamicGenerationSpec={dynamicGenerationSpec}
+        setDynamicGenerationSpec={setDynamicGenerationSpec}
       />
 
       {/* More Options (with General & AI Bot subtabs) */}

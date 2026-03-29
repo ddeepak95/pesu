@@ -15,7 +15,7 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
   FileSubmissionConfig,
-  DynamicQuestionFocus,
+  DynamicGenerationSpec,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
@@ -119,7 +119,7 @@ export default function CreateAssignmentPage() {
     tabSwitchMaxLeaves?: number;
     fileSubmissionConfig?: FileSubmissionConfig | null;
     dynamicQuestionsEnabled?: boolean;
-    dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+    dynamicGenerationSpec?: DynamicGenerationSpec | null;
     dynamicGenerationPrompt?: string | null;
   }) => {
     if (!user) {
@@ -166,7 +166,7 @@ export default function CreateAssignmentPage() {
             : null,
         file_submission_config: data.fileSubmissionConfig ?? null,
         dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
-        dynamic_question_focuses: data.dynamicQuestionFocuses ?? null,
+        dynamic_question_focuses: data.dynamicGenerationSpec ?? null,
         dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
       },
       user.id

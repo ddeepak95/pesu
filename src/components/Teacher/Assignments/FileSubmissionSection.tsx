@@ -5,7 +5,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DynamicQuestionSection } from "@/components/Teacher/Assignments/DynamicQuestionSection";
-import type { DynamicQuestionFocus } from "@/types/assignment";
+import type { DynamicGenerationSpec } from "@/types/assignment";
 
 interface FileSubmissionSectionProps {
   fileSubmissionEnabled: boolean;
@@ -17,8 +17,8 @@ interface FileSubmissionSectionProps {
   loading: boolean;
   dynamicQuestionsEnabled: boolean;
   setDynamicQuestionsEnabled: (enabled: boolean) => void;
-  dynamicQuestionFocuses: DynamicQuestionFocus[];
-  setDynamicQuestionFocuses: (focuses: DynamicQuestionFocus[]) => void;
+  dynamicGenerationSpec: DynamicGenerationSpec;
+  setDynamicGenerationSpec: (spec: DynamicGenerationSpec) => void;
 }
 
 export function FileSubmissionSection({
@@ -31,8 +31,8 @@ export function FileSubmissionSection({
   loading,
   dynamicQuestionsEnabled,
   setDynamicQuestionsEnabled,
-  dynamicQuestionFocuses,
-  setDynamicQuestionFocuses,
+  dynamicGenerationSpec,
+  setDynamicGenerationSpec,
 }: FileSubmissionSectionProps) {
   return (
     <div className="space-y-3 p-4 border rounded-md">
@@ -97,8 +97,8 @@ export function FileSubmissionSection({
             <DynamicQuestionSection
               enabled={dynamicQuestionsEnabled}
               setEnabled={setDynamicQuestionsEnabled}
-              focuses={dynamicQuestionFocuses}
-              setFocuses={setDynamicQuestionFocuses}
+              spec={dynamicGenerationSpec}
+              setSpec={setDynamicGenerationSpec}
               loading={loading}
             />
           </div>

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
-import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig, DynamicQuestionFocus } from "@/types/assignment";
+import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig, DynamicGenerationSpec } from "@/types/assignment";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
 
@@ -215,7 +215,7 @@ export async function createAssignment(
     tab_switch_max_leaves?: number | null;
     file_submission_config?: FileSubmissionConfig | null;
     dynamic_questions_enabled?: boolean;
-    dynamic_question_focuses?: DynamicQuestionFocus[] | null;
+    dynamic_question_focuses?: DynamicGenerationSpec | null;
     dynamic_generation_prompt?: string | null;
   },
   userId: string
@@ -319,7 +319,7 @@ export async function updateAssignment(
     tab_switch_max_leaves?: number | null;
     file_submission_config?: FileSubmissionConfig | null;
     dynamic_questions_enabled?: boolean;
-    dynamic_question_focuses?: DynamicQuestionFocus[] | null;
+    dynamic_question_focuses?: DynamicGenerationSpec | null;
     dynamic_generation_prompt?: string | null;
   }
 ): Promise<Assignment> {

@@ -1,4 +1,4 @@
-import { BotPromptConfig } from "@/types/assignment";
+import { BotPromptConfig, DynamicGenerationSpec } from "@/types/assignment";
 
 /**
  * Supported variable placeholders for prompt templates.
@@ -72,9 +72,10 @@ export const PROMPT_VARIABLES = {
     description: "Current question index (0-based)",
     category: "runtime" as const,
   },
-  focus_areas: {
-    placeholder: "{{focus_areas}}",
-    description: "Formatted list of focus areas with point allocations",
+  generation_spec: {
+    placeholder: "{{generation_spec}}",
+    description:
+      "Question count, points per question, and coverage description for dynamic generation",
     category: "runtime" as const,
   },
 } as const;
@@ -395,6 +396,16 @@ export function getDefaultBotPromptConfig(): BotPromptConfig {
 // Dynamic question generation prompt
 // ---------------------------------------------------------------------------
 
+/** Human-readable block for {{generation_spec}} interpolation. */
+export function formatGenerationSpecForPrompt(spec: DynamicGenerationSpec): string {
+  return [
+    `Generate exactly ${spec.question_count} question(s).`,
+    `Each question is worth ${spec.points_per_question} points; each question's rubric must sum to exactly ${spec.points_per_question} points.`,
+    `What the questions should cover:`,
+    spec.coverage_description.trim(),
+  ].join("\n");
+}
+
 /**
  * Default system prompt template for dynamic question generation.
  * Uses template variables that are interpolated server-side.
@@ -418,22 +429,20 @@ Additional Context: {{context_for_ai}}
 ==========
 {{/if}}
 ==========
-You must generate one question per focus area listed below:
-{{focus_areas}}
-==========
+Generation requirements:
+{{generation_spec}}
 ==========
 Student's File Submission:
 {{file_submissions}}
 ==========
 Rules:
 - Each question should be directly based on the student's submitted file content
-- For each question, fetch specific content from the student's file submission and refer to it in the question using the exact text from the file submission.
-- The goal is understanding the student's understanding of the content in the file submission.
-- For each question, create 3-4 rubric items that sum to exactly the specified points
+- For each question, draw on specific content from the file submission where appropriate
+- For each question, create 3-4 rubric items that sum to exactly the points specified in the generation requirements
 - Each rubric item should assess a distinct aspect of the answer
 - The expected answer should list key points the student's answer should cover
 - Questions should be distinct from each other — avoid overlap
-- Set focus_index to match the index of the focus area each question addresses`;
+- Set question_index to the 0-based index of each question (0 through N-1)`;
 }
 
 const GENERATION_PROMPT_VARIABLE_KEYS: PromptVariableKey[] = [
@@ -441,7 +450,7 @@ const GENERATION_PROMPT_VARIABLE_KEYS: PromptVariableKey[] = [
   "instructions",
   "context_for_ai",
   "file_submissions",
-  "focus_areas",
+  "generation_spec",
 ];
 
 /**

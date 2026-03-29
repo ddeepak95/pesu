@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getStorageBucket } from "@/lib/firebase-admin";
-import { DynamicQuestionFocus, Question, RubricItem } from "@/types/assignment";
+import {
+  Question,
+  RubricItem,
+  DynamicGenerationSpec,
+  parseDynamicGenerationSpec,
+  isCompleteDynamicGenerationSpec,
+} from "@/types/assignment";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { QuestionEvaluations } from "@/types/submission";
-import { buildDefaultDynamicGenerationPrompt } from "@/lib/promptTemplates";
+import {
+  buildDefaultDynamicGenerationPrompt,
+  formatGenerationSpecForPrompt,
+} from "@/lib/promptTemplates";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -42,53 +51,59 @@ interface GenerateDynamicQuestionsRequestBody {
   force?: boolean;
 }
 
-const allQuestionsSchema = {
-  type: "object" as const,
-  properties: {
-    questions: {
-      type: "array" as const,
-      items: {
-        type: "object" as const,
-        properties: {
-          focus_index: {
-            type: "number" as const,
-            description: "The 0-based index of the focus area this question addresses",
+function buildGeneratedQuestionsJsonSchema(questionCount: number) {
+  const questionItemSchema = {
+    type: "object" as const,
+    properties: {
+      question_index: {
+        type: "number" as const,
+        description: `The 0-based index of this question (0 through ${questionCount - 1})`,
+      },
+      prompt: {
+        type: "string" as const,
+        description: "The question text to ask the student",
+      },
+      rubric: {
+        type: "array" as const,
+        items: {
+          type: "object" as const,
+          properties: {
+            item: { type: "string" as const },
+            points: { type: "number" as const },
           },
-          prompt: {
-            type: "string" as const,
-            description: "The question text to ask the student",
-          },
-          rubric: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                item: { type: "string" as const },
-                points: { type: "number" as const },
-              },
-              required: ["item", "points"] as const,
-              additionalProperties: false,
-            },
-          },
-          expected_answer: {
-            type: "string" as const,
-            description:
-              "Key points the answer should cover (for AI evaluation reference)",
-          },
+          required: ["item", "points"] as const,
+          additionalProperties: false,
         },
-        required: [
-          "focus_index",
-          "prompt",
-          "rubric",
-          "expected_answer",
-        ] as const,
-        additionalProperties: false,
+      },
+      expected_answer: {
+        type: "string" as const,
+        description:
+          "Key points the answer should cover (for AI evaluation reference)",
       },
     },
-  },
-  required: ["questions"] as const,
-  additionalProperties: false,
-};
+    required: [
+      "question_index",
+      "prompt",
+      "rubric",
+      "expected_answer",
+    ] as const,
+    additionalProperties: false,
+  };
+
+  return {
+    type: "object" as const,
+    properties: {
+      questions: {
+        type: "array" as const,
+        minItems: questionCount,
+        maxItems: questionCount,
+        items: questionItemSchema,
+      },
+    },
+    required: ["questions"] as const,
+    additionalProperties: false,
+  };
+}
 
 async function fetchSubmissionFileContent(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
@@ -158,7 +173,7 @@ function normalizeRubricPoints(
 }
 
 async function generateAllQuestions(
-  focuses: DynamicQuestionFocus[],
+  spec: DynamicGenerationSpec,
   fileContent: string,
   context: {
     title: string;
@@ -170,13 +185,8 @@ async function generateAllQuestions(
   { prompt: string; rubric: RubricItem[]; expected_answer: string }[]
 > {
   const truncatedContent = fileContent.slice(0, 50000);
-
-  const focusDescriptions = focuses
-    .map(
-      (f, i) =>
-        `  ${i}. Focus: "${f.focus}" — ${f.points} points (create 3-5 rubric items summing to exactly ${f.points})`,
-    )
-    .join("\n");
+  const n = spec.question_count;
+  const points = spec.points_per_question;
 
   const template = customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt();
 
@@ -185,7 +195,7 @@ async function generateAllQuestions(
     instructions: context.instructions || "",
     context_for_ai: context.sharedContext || "",
     file_submissions: truncatedContent,
-    focus_areas: focusDescriptions,
+    generation_spec: formatGenerationSpecForPrompt(spec),
   };
 
   const systemMessage = interpolateTemplate(template, templateVariables);
@@ -201,7 +211,7 @@ async function generateAllQuestions(
       },
       {
         role: "user",
-        content: `Generate ${focuses.length} question(s) based on the focus areas and file submission described in the system instructions.`,
+        content: `Generate exactly ${n} question(s) as specified in the system instructions. Each rubric must sum to ${points} points.`,
       },
     ],
     response_format: {
@@ -209,7 +219,7 @@ async function generateAllQuestions(
       json_schema: {
         name: "generated_questions",
         strict: true,
-        schema: allQuestionsSchema,
+        schema: buildGeneratedQuestionsJsonSchema(n),
       },
     },
   });
@@ -218,42 +228,48 @@ async function generateAllQuestions(
     completion.choices[0].message.content || '{"questions":[]}',
   ) as {
     questions: {
-      focus_index: number;
+      question_index: number;
       prompt: string;
       rubric: RubricItem[];
       expected_answer: string;
     }[];
   };
 
-  // Build output ordered by focus index, falling back to array position
+  const fallbackPrompt = (i: number) =>
+    `Answer the following based on your submission, addressing: ${spec.coverage_description.slice(0, 200)}${spec.coverage_description.length > 200 ? "…" : ""} (Question ${i + 1} of ${n})`;
+
   const output: {
     prompt: string;
     rubric: RubricItem[];
     expected_answer: string;
   }[] = [];
 
-  for (let i = 0; i < focuses.length; i++) {
+  for (let i = 0; i < n; i++) {
     const match =
-      result.questions.find((q) => q.focus_index === i) ??
+      result.questions.find((q) => q.question_index === i) ??
       result.questions[i];
 
     if (!match) {
-      // LLM returned fewer questions than expected — use focus text as fallback
       output.push({
-        prompt: focuses[i].focus,
-        rubric: [{ item: focuses[i].focus, points: focuses[i].points }],
+        prompt: fallbackPrompt(i),
+        rubric: [{ item: spec.coverage_description.slice(0, 120), points }],
         expected_answer: "",
       });
       continue;
     }
 
+    const rawRubric = match.rubric.filter(
+      (r) => r.item?.trim() && r.points > 0,
+    );
     const normalizedRubric = normalizeRubricPoints(
-      match.rubric.filter((r) => r.item?.trim() && r.points > 0),
-      focuses[i].points,
+      rawRubric.length > 0
+        ? rawRubric
+        : [{ item: spec.coverage_description.slice(0, 120), points }],
+      points,
     );
 
     output.push({
-      prompt: match.prompt?.trim() || focuses[i].focus,
+      prompt: match.prompt?.trim() || fallbackPrompt(i),
       rubric: normalizedRubric,
       expected_answer: match.expected_answer?.trim() || "",
     });
@@ -292,12 +308,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const focuses = assignment.dynamic_question_focuses as
-      | DynamicQuestionFocus[]
-      | null;
-    if (!focuses || focuses.length === 0) {
+    const spec = parseDynamicGenerationSpec(
+      assignment.dynamic_question_focuses,
+    );
+    if (!spec || !isCompleteDynamicGenerationSpec(spec)) {
       return NextResponse.json(
-        { error: "No dynamic question focuses configured" },
+        { error: "Invalid or incomplete dynamic generation settings on assignment" },
         { status: 400 },
       );
     }
@@ -379,21 +395,22 @@ export async function POST(request: NextRequest) {
 
     // Generate all questions in a single LLM call
     const results = await generateAllQuestions(
-      focuses,
+      spec,
       fileContent,
       context,
       assignment.dynamic_generation_prompt as string | null,
     );
 
-    // Assemble Question[] with order
     const generatedQuestions: Question[] = results.map((result, index) => ({
       order: index,
       prompt: result.prompt,
-      total_points: focuses[index].points,
+      total_points: spec.points_per_question,
       rubric: result.rubric,
       supporting_content: "",
       expected_answer: result.expected_answer,
     }));
+
+    console.log("generatedQuestions", generatedQuestions);
 
     // Save to submission
     const { error: updateError } = await supabase

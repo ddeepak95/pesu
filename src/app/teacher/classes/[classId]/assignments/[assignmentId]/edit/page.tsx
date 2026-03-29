@@ -17,7 +17,8 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
   FileSubmissionConfig,
-  DynamicQuestionFocus,
+  DynamicGenerationSpec,
+  parseDynamicGenerationSpec,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
@@ -64,8 +65,8 @@ export default function EditAssignmentPage() {
   const [fileSubmissionConfig, setFileSubmissionConfig] =
     useState<FileSubmissionConfig | null>(null);
   const [dynamicQuestionsEnabled, setDynamicQuestionsEnabled] = useState(false);
-  const [dynamicQuestionFocuses, setDynamicQuestionFocuses] =
-    useState<DynamicQuestionFocus[] | null>(null);
+  const [dynamicGenerationSpec, setDynamicGenerationSpec] =
+    useState<DynamicGenerationSpec | null>(null);
   const [dynamicGenerationPrompt, setDynamicGenerationPrompt] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
@@ -107,7 +108,11 @@ export default function EditAssignmentPage() {
           setTabSwitchMaxLeaves(assignmentData.tab_switch_max_leaves ?? 3);
           setFileSubmissionConfig(assignmentData.file_submission_config ?? null);
           setDynamicQuestionsEnabled(assignmentData.dynamic_questions_enabled ?? false);
-          setDynamicQuestionFocuses(assignmentData.dynamic_question_focuses ?? null);
+          setDynamicGenerationSpec(
+            parseDynamicGenerationSpec(
+              assignmentData.dynamic_question_focuses,
+            ),
+          );
           setDynamicGenerationPrompt(assignmentData.dynamic_generation_prompt ?? "");
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
@@ -165,7 +170,7 @@ export default function EditAssignmentPage() {
     tabSwitchMaxLeaves?: number;
     fileSubmissionConfig?: FileSubmissionConfig | null;
     dynamicQuestionsEnabled?: boolean;
-    dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+    dynamicGenerationSpec?: DynamicGenerationSpec | null;
     dynamicGenerationPrompt?: string | null;
   }) => {
     if (!user) {
@@ -211,7 +216,7 @@ export default function EditAssignmentPage() {
           : null,
       file_submission_config: data.fileSubmissionConfig ?? null,
       dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
-      dynamic_question_focuses: data.dynamicQuestionFocuses ?? null,
+      dynamic_question_focuses: data.dynamicGenerationSpec ?? null,
       dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
     });
 
@@ -284,7 +289,7 @@ export default function EditAssignmentPage() {
           initialTabSwitchMaxLeaves={tabSwitchMaxLeaves}
           initialFileSubmissionConfig={fileSubmissionConfig}
           initialDynamicQuestionsEnabled={dynamicQuestionsEnabled}
-          initialDynamicQuestionFocuses={dynamicQuestionFocuses}
+          initialDynamicGenerationSpec={dynamicGenerationSpec}
           initialDynamicGenerationPrompt={dynamicGenerationPrompt}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}

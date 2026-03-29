@@ -7,9 +7,60 @@ export interface FileSubmissionConfig {
   allowed_file_types?: string[];
 }
 
-export interface DynamicQuestionFocus {
-  focus: string;
-  points: number;
+/**
+ * Stored in DB column `dynamic_question_focuses` (jsonb).
+ * Defines how many questions to generate, points each, and what they should cover.
+ */
+export interface DynamicGenerationSpec {
+  question_count: number;
+  points_per_question: number;
+  coverage_description: string;
+}
+
+export const DEFAULT_DYNAMIC_GENERATION_SPEC: DynamicGenerationSpec = {
+  question_count: 1,
+  points_per_question: 10,
+  coverage_description:
+    "The questions should thoroughly evaluate the understanding of the topic based on the student's submission.",
+};
+
+/** Parse jsonb value; returns null if missing or legacy/invalid shape. */
+export function parseDynamicGenerationSpec(
+  value: unknown,
+): DynamicGenerationSpec | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  const o = value as Record<string, unknown>;
+  const qc = o.question_count;
+  const pp = o.points_per_question;
+  const cd = o.coverage_description;
+  if (
+    typeof qc !== "number" ||
+    typeof pp !== "number" ||
+    typeof cd !== "string" ||
+    !Number.isInteger(qc) ||
+    !Number.isInteger(pp) ||
+    qc < 1 ||
+    pp < 1
+  ) {
+    return null;
+  }
+  return {
+    question_count: qc,
+    points_per_question: pp,
+    coverage_description: cd,
+  };
+}
+
+/** True when spec is valid for persisting and for generation API. */
+export function isCompleteDynamicGenerationSpec(
+  spec: DynamicGenerationSpec,
+): boolean {
+  return (
+    spec.question_count >= 1 &&
+    spec.points_per_question >= 1 &&
+    spec.coverage_description.trim().length > 0
+  );
 }
 
 export interface RubricItem {
@@ -202,18 +253,17 @@ export interface Assignment {
   file_submission_config?: FileSubmissionConfig | null;
   /**
    * When true, questions are generated dynamically per-submission based on uploaded files
-   * and teacher-defined focus/points pairs. The `questions` array on the assignment will be empty.
+   * and `dynamic_question_focuses` (DynamicGenerationSpec). The `questions` array is typically empty.
    */
   dynamic_questions_enabled?: boolean;
   /**
-   * Focus/points pairs used for dynamic question generation.
-   * Each pair produces one question with the specified total points.
+   * Dynamic generation spec (jsonb). Column name is historical; value is {@link DynamicGenerationSpec}.
    */
-  dynamic_question_focuses?: DynamicQuestionFocus[] | null;
+  dynamic_question_focuses?: DynamicGenerationSpec | null;
   /**
    * Custom system prompt template for dynamic question generation.
    * When null/undefined, the API uses a built-in default.
-   * Supports template variables like {{title}}, {{focus_areas}}, {{language}}, etc.
+   * Supports template variables like {{title}}, {{generation_spec}}, etc.
    */
   dynamic_generation_prompt?: string | null;
 }
