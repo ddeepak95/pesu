@@ -487,9 +487,10 @@ export default function AssignmentResponseCore({
               )}
             </CardContent>
           </Card>
+          {/* Upload step is never the final step; dynamic mode has no assignment.questions yet */}
           <AssessmentNavigation
             isFirstQuestion={true}
-            isLastQuestion={sortedQuestions.length === 0}
+            isLastQuestion={false}
             onNext={handleFileUploadNext}
           />
         </div>

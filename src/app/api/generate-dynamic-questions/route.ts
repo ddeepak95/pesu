@@ -193,7 +193,7 @@ async function generateAllQuestions(
   console.log("systemMessage", systemMessage);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-2024-08-06",
+    model: "gpt-5.4-mini",
     messages: [
       {
         role: "system",

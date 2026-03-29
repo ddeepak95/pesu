@@ -403,26 +403,32 @@ export function buildDefaultDynamicGenerationPrompt(): string {
   return `You are an expert educational content creator. Generate questions with rubrics and expected answers based on a student's file submission.
 
 {{#if title}}
+==========
 Assignment Title: {{title}}
+==========
 {{/if}}
-
 {{#if instructions}}
+==========
 Instructions: {{instructions}}
+==========
 {{/if}}
-
 {{#if context_for_ai}}
+==========
 Additional Context: {{context_for_ai}}
+==========
 {{/if}}
-
+==========
 You must generate one question per focus area listed below:
 {{focus_areas}}
-
+==========
+==========
 Student's File Submission:
 {{file_submissions}}
-
+==========
 Rules:
 - Each question should be directly based on the student's submitted file content
-- For each question, fetch content from the student's file submission and refer to it in the question.
+- For each question, fetch specific content from the student's file submission and refer to it in the question using the exact text from the file submission.
+- The goal is understanding the student's understanding of the content in the file submission.
 - For each question, create 3-4 rubric items that sum to exactly the specified points
 - Each rubric item should assess a distinct aspect of the answer
 - The expected answer should list key points the student's answer should cover
