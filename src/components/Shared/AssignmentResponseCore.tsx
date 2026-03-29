@@ -260,7 +260,10 @@ export default function AssignmentResponseCore({
           questions: Question[];
         };
         setGeneratedQuestions(questions);
-        handleNext();
+        // Advance to first question step explicitly — handleNext() is a no-op here
+        // because totalSteps is still 1 until generatedQuestions is applied (empty assignment.questions).
+        setCurrentStepIndex(questionOffset);
+        updateQuestionIndex(assignmentId, questionOffset);
       } catch (err) {
         console.error("Dynamic question generation failed:", err);
         setGenerateError(
@@ -270,7 +273,12 @@ export default function AssignmentResponseCore({
         setIsGeneratingQuestions(false);
       }
     },
-    [submissionId, assignmentData.assignment_id], // eslint-disable-line react-hooks/exhaustive-deps
+    [
+      submissionId,
+      assignmentData.assignment_id,
+      assignmentId,
+      questionOffset,
+    ],
   );
 
   const handleFileUploadNext = useCallback(() => {

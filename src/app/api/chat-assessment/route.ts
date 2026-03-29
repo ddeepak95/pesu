@@ -113,6 +113,8 @@ export async function POST(request: NextRequest) {
       })),
     );
 
+    console.log("chatMessages", chatMessages);
+
     // Log the latest student message
     const supabase = await createServerSupabaseClient();
     try {

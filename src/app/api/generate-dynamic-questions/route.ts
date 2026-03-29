@@ -190,6 +190,8 @@ async function generateAllQuestions(
 
   const systemMessage = interpolateTemplate(template, templateVariables);
 
+  console.log("systemMessage", systemMessage);
+
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-2024-08-06",
     messages: [
@@ -392,6 +394,8 @@ export async function POST(request: NextRequest) {
       supporting_content: "",
       expected_answer: result.expected_answer,
     }));
+
+    console.log("generatedQuestions", generatedQuestions);
 
     // Save to submission
     const { error: updateError } = await supabase
