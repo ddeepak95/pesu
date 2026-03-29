@@ -18,7 +18,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
 import { FileSubmissionSection } from "@/components/Teacher/Assignments/FileSubmissionSection";
-import { DynamicQuestionSection } from "@/components/Teacher/Assignments/DynamicQuestionSection";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
 import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
 import {
@@ -707,18 +706,11 @@ export default function AssignmentForm({
         fileInstructions={fileInstructions}
         setFileInstructions={setFileInstructions}
         loading={loading}
+        dynamicQuestionsEnabled={dynamicQuestionsEnabled}
+        setDynamicQuestionsEnabled={setDynamicQuestionsEnabled}
+        dynamicQuestionFocuses={dynamicQuestionFocuses}
+        setDynamicQuestionFocuses={setDynamicQuestionFocuses}
       />
-
-      {/* Dynamic Question Generation (only when file submission is enabled) */}
-      {fileSubmissionEnabled && (
-        <DynamicQuestionSection
-          enabled={dynamicQuestionsEnabled}
-          setEnabled={setDynamicQuestionsEnabled}
-          focuses={dynamicQuestionFocuses}
-          setFocuses={setDynamicQuestionFocuses}
-          loading={loading}
-        />
-      )}
 
       {/* More Options (with General & AI Bot subtabs) */}
       <div className="border rounded-md">

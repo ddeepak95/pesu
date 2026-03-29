@@ -37,6 +37,7 @@ import {
   ClipboardCheck,
   ChevronDown,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 
@@ -333,11 +334,69 @@ export default function AssignmentDetailClient({
                 </div>
               )}
 
-              {assignmentData.questions
-                .sort((a, b) => a.order - b.order)
-                .map((question, index) => (
-                  <QuestionView key={index} question={question} index={index} />
-                ))}
+              {assignmentData.dynamic_questions_enabled && (
+                <div className="rounded-md border border-primary/25 bg-primary/5 dark:bg-primary/10 text-card-foreground">
+                  <div className="flex items-start gap-3 px-4 py-3">
+                    <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    <div className="space-y-1 min-w-0">
+                      <p className="text-sm font-medium">
+                        Questions generated dynamically
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Prompts, rubrics, and expected answers are created per
+                        student after they upload files. The list below is the
+                        focus areas and point values you configured; exact
+                        wording appears on each student&apos;s submission.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {assignmentData.dynamic_questions_enabled ? (
+                assignmentData.dynamic_question_focuses &&
+                assignmentData.dynamic_question_focuses.length > 0 ? (
+                  <div className="rounded-md border bg-card text-card-foreground">
+                    <div className="px-4 py-3 text-sm font-medium border-b">
+                      Focus areas (one generated question each)
+                    </div>
+                    <ul className="divide-y">
+                      {assignmentData.dynamic_question_focuses.map(
+                        (row, index) => (
+                          <li
+                            key={index}
+                            className="px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 text-sm"
+                          >
+                            <span className="text-muted-foreground shrink-0 w-8">
+                              {index + 1}.
+                            </span>
+                            <span className="flex-1 min-w-0">{row.focus}</span>
+                            <span className="font-medium tabular-nums shrink-0">
+                              {row.points}{" "}
+                              {row.points === 1 ? "pt" : "pts"}
+                            </span>
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No focus areas configured. Edit the assignment to add
+                    question focus and points.
+                  </p>
+                )
+              ) : (
+                assignmentData.questions
+                  .sort((a, b) => a.order - b.order)
+                  .map((question, index) => (
+                    <QuestionView
+                      key={index}
+                      question={question}
+                      index={index}
+                    />
+                  ))
+              )}
             </TabsContent>
 
             <TabsContent value="config" className="py-6 space-y-6">

@@ -45,7 +45,7 @@ export function DynamicQuestionSection({
   };
 
   return (
-    <div className="space-y-3 ml-6">
+    <div className="space-y-3">
       <div className="flex items-center space-x-2">
         <Checkbox
           id="dynamicQuestionsEnabled"
@@ -65,7 +65,7 @@ export function DynamicQuestionSection({
       </div>
 
       {enabled && (
-        <div className="space-y-4 ml-6">
+        <div className="space-y-4 pl-6">
           <p className="text-xs text-muted-foreground">
             Define focus areas and point allocations. One question will be
             generated per focus area based on the student&apos;s uploaded files.

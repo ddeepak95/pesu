@@ -422,6 +422,7 @@ Student's File Submission:
 
 Rules:
 - Each question should be directly based on the student's submitted file content
+- For each question, fetch content from the student's file submission and refer to it in the question.
 - For each question, create 3-4 rubric items that sum to exactly the specified points
 - Each rubric item should assess a distinct aspect of the answer
 - The expected answer should list key points the student's answer should cover

@@ -4,6 +4,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DynamicQuestionSection } from "@/components/Teacher/Assignments/DynamicQuestionSection";
+import type { DynamicQuestionFocus } from "@/types/assignment";
 
 interface FileSubmissionSectionProps {
   fileSubmissionEnabled: boolean;
@@ -13,6 +15,10 @@ interface FileSubmissionSectionProps {
   fileInstructions: string;
   setFileInstructions: (instructions: string) => void;
   loading: boolean;
+  dynamicQuestionsEnabled: boolean;
+  setDynamicQuestionsEnabled: (enabled: boolean) => void;
+  dynamicQuestionFocuses: DynamicQuestionFocus[];
+  setDynamicQuestionFocuses: (focuses: DynamicQuestionFocus[]) => void;
 }
 
 export function FileSubmissionSection({
@@ -23,6 +29,10 @@ export function FileSubmissionSection({
   fileInstructions,
   setFileInstructions,
   loading,
+  dynamicQuestionsEnabled,
+  setDynamicQuestionsEnabled,
+  dynamicQuestionFocuses,
+  setDynamicQuestionFocuses,
 }: FileSubmissionSectionProps) {
   return (
     <div className="space-y-3 p-4 border rounded-md">
@@ -82,6 +92,16 @@ export function FileSubmissionSection({
           <p className="text-xs text-muted-foreground">
             Only PDF files are accepted.
           </p>
+
+          <div className="pt-4 mt-4 border-t border-border/80">
+            <DynamicQuestionSection
+              enabled={dynamicQuestionsEnabled}
+              setEnabled={setDynamicQuestionsEnabled}
+              focuses={dynamicQuestionFocuses}
+              setFocuses={setDynamicQuestionFocuses}
+              loading={loading}
+            />
+          </div>
         </div>
       )}
     </div>
