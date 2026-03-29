@@ -37,6 +37,7 @@ import {
   getDefaultEvaluationPrompt,
   buildDefaultBotPromptConfig,
   buildDefaultEvaluationPrompt,
+  buildDefaultDynamicGenerationPrompt,
   type ActivityType,
 } from "@/lib/promptTemplates";
 import { ChevronDown } from "lucide-react";
@@ -74,6 +75,7 @@ interface AssignmentFormProps {
   initialFileSubmissionConfig?: FileSubmissionConfig | null;
   initialDynamicQuestionsEnabled?: boolean;
   initialDynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+  initialDynamicGenerationPrompt?: string;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -106,6 +108,7 @@ interface AssignmentFormProps {
     fileSubmissionConfig?: FileSubmissionConfig | null;
     dynamicQuestionsEnabled?: boolean;
     dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+    dynamicGenerationPrompt?: string | null;
   }) => Promise<void>;
 }
 
@@ -153,6 +156,7 @@ export default function AssignmentForm({
   initialFileSubmissionConfig = null,
   initialDynamicQuestionsEnabled = false,
   initialDynamicQuestionFocuses = null,
+  initialDynamicGenerationPrompt,
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -236,6 +240,9 @@ export default function AssignmentForm({
     initialDynamicQuestionFocuses?.length
       ? initialDynamicQuestionFocuses
       : [{ focus: "", points: 0 }],
+  );
+  const [dynamicGenerationPrompt, setDynamicGenerationPrompt] = useState(
+    initialDynamicGenerationPrompt || buildDefaultDynamicGenerationPrompt(),
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -560,6 +567,10 @@ export default function AssignmentForm({
           fileSubmissionEnabled && dynamicQuestionsEnabled
             ? dynamicQuestionFocuses
             : null,
+        dynamicGenerationPrompt:
+          fileSubmissionEnabled && dynamicQuestionsEnabled
+            ? dynamicGenerationPrompt.trim() || null
+            : null,
       });
 
       // Navigate based on mode
@@ -730,7 +741,7 @@ export default function AssignmentForm({
             <Tabs defaultValue="general">
               <TabsList className="grid w-full grid-cols-2 mt-4">
                 <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="aibot">AI Bot</TabsTrigger>
+                <TabsTrigger value="aibot">AI Prompt Config</TabsTrigger>
               </TabsList>
 
               <TabsContent value="general">
@@ -787,6 +798,11 @@ export default function AssignmentForm({
                   sharedContextEnabled={sharedContextEnabled}
                   sharedContext={sharedContext}
                   loading={loading}
+                  dynamicQuestionsEnabled={
+                    fileSubmissionEnabled && dynamicQuestionsEnabled
+                  }
+                  dynamicGenerationPrompt={dynamicGenerationPrompt}
+                  setDynamicGenerationPrompt={setDynamicGenerationPrompt}
                 />
               </TabsContent>
             </Tabs>

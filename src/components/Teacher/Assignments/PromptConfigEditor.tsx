@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import {
   PROMPT_VARIABLES,
   getVariablesByCategory,
+  getVariablesForGenerationPrompt,
   getMissingRequiredVariables,
   buildDefaultBotPromptConfig,
   buildDefaultEvaluationPrompt,
+  buildDefaultDynamicGenerationPrompt,
   type ActivityType,
   type InteractionType,
 } from "@/lib/promptTemplates";
@@ -37,6 +39,12 @@ interface PromptConfigEditorProps {
   activityType?: ActivityType;
   /** Used by "Reset to Default" to pick the right prompt combo */
   interactionType?: InteractionType;
+  /** Whether to show the dynamic question generation prompt tab */
+  showDynamicGenerationPrompt?: boolean;
+  /** Custom dynamic generation prompt value */
+  dynamicGenerationPrompt?: string;
+  /** Callback when dynamic generation prompt changes */
+  onDynamicGenerationPromptChange?: (value: string) => void;
 }
 
 /**
@@ -52,16 +60,20 @@ export function PromptConfigEditor({
   onEvaluationPromptChange,
   activityType = "learning",
   interactionType = "voice",
+  showDynamicGenerationPrompt = false,
+  dynamicGenerationPrompt = "",
+  onDynamicGenerationPromptChange,
 }: PromptConfigEditorProps) {
   const systemPromptRef = useRef<HTMLTextAreaElement>(null);
   const firstQuestionRef = useRef<HTMLTextAreaElement>(null);
   const subsequentRef = useRef<HTMLTextAreaElement>(null);
   const evaluationRef = useRef<HTMLTextAreaElement>(null);
-  const defaultTab = showBotPrompts ? "system" : "evaluation";
+  const generationRef = useRef<HTMLTextAreaElement>(null);
+  const defaultTab = showBotPrompts ? "system" : showDynamicGenerationPrompt ? "generation" : "evaluation";
   const [activeTab, setActiveTab] = React.useState(defaultTab);
   const [activeTextarea, setActiveTextarea] = React.useState<
-    "system" | "first" | "subsequent" | "evaluation"
-  >(showBotPrompts ? "system" : "evaluation");
+    "system" | "first" | "subsequent" | "evaluation" | "generation"
+  >(showBotPrompts ? "system" : showDynamicGenerationPrompt ? "generation" : "evaluation");
 
   // Get missing required variables for validation
   const missingVariables = getMissingRequiredVariables(config.system_prompt);
@@ -69,21 +81,20 @@ export function PromptConfigEditor({
   // Insert variable at cursor position in active textarea
   const insertVariable = useCallback(
     (placeholder: string) => {
-      let textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-
-      if (activeTextarea === "evaluation") {
-        textareaRef = evaluationRef;
-        const textarea = textareaRef.current;
-        if (!textarea || !onEvaluationPromptChange) return;
+      // Handle standalone prompt textareas (evaluation, generation)
+      if (activeTextarea === "evaluation" || activeTextarea === "generation") {
+        const ref = activeTextarea === "evaluation" ? evaluationRef : generationRef;
+        const value = activeTextarea === "evaluation" ? evaluationPrompt : dynamicGenerationPrompt;
+        const changeFn = activeTextarea === "evaluation" ? onEvaluationPromptChange : onDynamicGenerationPromptChange;
+        const textarea = ref.current;
+        if (!textarea || !changeFn) return;
 
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
         const newValue =
-          evaluationPrompt.substring(0, start) +
-          placeholder +
-          evaluationPrompt.substring(end);
+          value.substring(0, start) + placeholder + value.substring(end);
 
-        onEvaluationPromptChange(newValue);
+        changeFn(newValue);
 
         setTimeout(() => {
           textarea.focus();
@@ -93,6 +104,7 @@ export function PromptConfigEditor({
         return;
       }
 
+      let textareaRef: React.RefObject<HTMLTextAreaElement | null>;
       let field: "system_prompt" | "first_question" | "subsequent_questions";
 
       switch (activeTextarea) {
@@ -139,14 +151,13 @@ export function PromptConfigEditor({
         });
       }
 
-      // Restore focus and cursor position after React re-render
       setTimeout(() => {
         textarea.focus();
         const newPosition = start + placeholder.length;
         textarea.setSelectionRange(newPosition, newPosition);
       }, 0);
     },
-    [activeTextarea, config, onChange, evaluationPrompt, onEvaluationPromptChange]
+    [activeTextarea, config, onChange, evaluationPrompt, onEvaluationPromptChange, dynamicGenerationPrompt, onDynamicGenerationPromptChange]
   );
 
   const handleResetBotPrompts = useCallback(() => {
@@ -157,6 +168,12 @@ export function PromptConfigEditor({
     onEvaluationPromptChange?.(buildDefaultEvaluationPrompt(activityType));
   }, [onEvaluationPromptChange, activityType]);
 
+  const handleResetGeneration = useCallback(() => {
+    onDynamicGenerationPromptChange?.(buildDefaultDynamicGenerationPrompt());
+  }, [onDynamicGenerationPromptChange]);
+
+  const isGenerationTab = activeTab === "generation";
+  const generationVariables = getVariablesForGenerationPrompt();
   const staticVariables = getVariablesByCategory("static");
   const runtimeVariables = getVariablesByCategory("runtime");
 
@@ -170,58 +187,89 @@ export function PromptConfigEditor({
           <span className="text-sm font-medium">Insert Variable</span>
         </div>
         <div className="space-y-2">
-          <div>
-            <span className="text-xs text-muted-foreground">
-              Static (known at config time):
-            </span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {staticVariables.map(({ key, placeholder, description }) => (
-                <Tooltip key={key}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs font-mono"
-                      onClick={() => insertVariable(placeholder)}
-                      disabled={disabled}
-                      type="button"
-                    >
-                      {placeholder}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{description}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
+          {isGenerationTab ? (
+            <div>
+              <span className="text-xs text-muted-foreground">
+                Available variables for question generation:
+              </span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {generationVariables.map(({ key, placeholder, description }) => (
+                  <Tooltip key={key}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs font-mono"
+                        onClick={() => insertVariable(placeholder)}
+                        disabled={disabled}
+                        type="button"
+                      >
+                        {placeholder}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{description}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground">
-              Runtime (actual values at assessment time):
-            </span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {runtimeVariables.map(({ key, placeholder, description }) => (
-                <Tooltip key={key}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs font-mono"
-                      onClick={() => insertVariable(placeholder)}
-                      disabled={disabled}
-                      type="button"
-                    >
-                      {placeholder}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{description}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          </div>
+          ) : (
+            <>
+              <div>
+                <span className="text-xs text-muted-foreground">
+                  Static (known at config time):
+                </span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {staticVariables.map(({ key, placeholder, description }) => (
+                    <Tooltip key={key}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs font-mono"
+                          onClick={() => insertVariable(placeholder)}
+                          disabled={disabled}
+                          type="button"
+                        >
+                          {placeholder}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{description}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">
+                  Runtime (actual values at assessment time):
+                </span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {runtimeVariables.map(({ key, placeholder, description }) => (
+                    <Tooltip key={key}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs font-mono"
+                          onClick={() => insertVariable(placeholder)}
+                          disabled={disabled}
+                          type="button"
+                        >
+                          {placeholder}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{description}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
           <div>
             <p className="text-xs text-muted-foreground">
               <span className="font-medium">Conditional blocks:</span>{" "}
@@ -233,9 +281,12 @@ export function PromptConfigEditor({
         </div>
       </div>
 
-      {/* Tabs for System Prompt, Conversation Start, and Evaluation Prompt */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={`grid w-full ${showBotPrompts ? "grid-cols-3" : "grid-cols-1"}`}>
+      {/* Tabs for System Prompt, Conversation Start, Evaluation Prompt, and Question Generation */}
+      <Tabs value={activeTab} onValueChange={(val) => {
+        setActiveTab(val);
+        if (val === "generation") setActiveTextarea("generation");
+      }}>
+        <TabsList className="flex w-full">
           {showBotPrompts && (
             <>
               <TabsTrigger value="system">System Prompt</TabsTrigger>
@@ -243,6 +294,9 @@ export function PromptConfigEditor({
             </>
           )}
           <TabsTrigger value="evaluation">Evaluation Prompt</TabsTrigger>
+          {showDynamicGenerationPrompt && (
+            <TabsTrigger value="generation">Question Generation</TabsTrigger>
+          )}
         </TabsList>
 
         {showBotPrompts && (
@@ -388,10 +442,46 @@ export function PromptConfigEditor({
             </Button>
           </div>
         </TabsContent>
+
+        {showDynamicGenerationPrompt && (
+          <TabsContent value="generation" className="space-y-3">
+            <div>
+              <Label htmlFor="generation-prompt">Question Generation Prompt</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                This prompt is used as the system message when dynamically generating
+                questions from student file uploads. Customize it to control how
+                questions, rubrics, and expected answers are generated.
+              </p>
+              <Textarea
+                id="generation-prompt"
+                ref={generationRef}
+                value={dynamicGenerationPrompt}
+                onChange={(e) => onDynamicGenerationPromptChange?.(e.target.value)}
+                onFocus={() => setActiveTextarea("generation")}
+                disabled={disabled}
+                rows={16}
+                className="font-mono text-sm"
+                placeholder="Enter question generation prompt template..."
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetGeneration}
+                disabled={disabled}
+                type="button"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset to Default
+              </Button>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Reset Bot Prompts Button (only shown on bot prompt tabs) */}
-      {showBotPrompts && activeTab !== "evaluation" && (
+      {showBotPrompts && activeTab !== "evaluation" && activeTab !== "generation" && (
         <div className="flex justify-end">
           <Button
             variant="outline"

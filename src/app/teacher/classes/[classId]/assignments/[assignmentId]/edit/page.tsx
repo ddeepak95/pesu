@@ -66,6 +66,7 @@ export default function EditAssignmentPage() {
   const [dynamicQuestionsEnabled, setDynamicQuestionsEnabled] = useState(false);
   const [dynamicQuestionFocuses, setDynamicQuestionFocuses] =
     useState<DynamicQuestionFocus[] | null>(null);
+  const [dynamicGenerationPrompt, setDynamicGenerationPrompt] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export default function EditAssignmentPage() {
           setFileSubmissionConfig(assignmentData.file_submission_config ?? null);
           setDynamicQuestionsEnabled(assignmentData.dynamic_questions_enabled ?? false);
           setDynamicQuestionFocuses(assignmentData.dynamic_question_focuses ?? null);
+          setDynamicGenerationPrompt(assignmentData.dynamic_generation_prompt ?? "");
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
           setInitialIsDraft(assignmentData.status === "draft");
@@ -164,6 +166,7 @@ export default function EditAssignmentPage() {
     fileSubmissionConfig?: FileSubmissionConfig | null;
     dynamicQuestionsEnabled?: boolean;
     dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+    dynamicGenerationPrompt?: string | null;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -209,6 +212,7 @@ export default function EditAssignmentPage() {
       file_submission_config: data.fileSubmissionConfig ?? null,
       dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
       dynamic_question_focuses: data.dynamicQuestionFocuses ?? null,
+      dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
     });
 
     // Sync content_item status
@@ -281,6 +285,7 @@ export default function EditAssignmentPage() {
           initialFileSubmissionConfig={fileSubmissionConfig}
           initialDynamicQuestionsEnabled={dynamicQuestionsEnabled}
           initialDynamicQuestionFocuses={dynamicQuestionFocuses}
+          initialDynamicGenerationPrompt={dynamicGenerationPrompt}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />

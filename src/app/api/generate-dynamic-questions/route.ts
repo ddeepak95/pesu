@@ -5,8 +5,36 @@ import { getStorageBucket } from "@/lib/firebase-admin";
 import { DynamicQuestionFocus, Question, RubricItem } from "@/types/assignment";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { QuestionEvaluations } from "@/types/submission";
+import { buildDefaultDynamicGenerationPrompt } from "@/lib/promptTemplates";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/**
+ * Interpolate template variables and conditional blocks into a prompt string.
+ * Supports {{variable}} and {{#if variable}}...{{/if}} syntax.
+ */
+function interpolateTemplate(
+  template: string,
+  variables: Record<string, string>,
+): string {
+  let result = template;
+
+  // Process {{#if var}}...{{/if}} conditional blocks
+  result = result.replace(
+    /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
+    (_match, varName: string, content: string) => {
+      const value = variables[varName];
+      return value && value.trim() ? content : "";
+    },
+  );
+
+  // Replace {{variable}} placeholders
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+  }
+
+  return result;
+}
 
 interface GenerateDynamicQuestionsRequestBody {
   submissionId: string;
@@ -136,19 +164,11 @@ async function generateAllQuestions(
     title: string;
     instructions?: string;
     sharedContext?: string;
-    language: string;
-    languageName: string;
   },
+  customPromptTemplate?: string | null,
 ): Promise<
   { prompt: string; rubric: RubricItem[]; expected_answer: string }[]
 > {
-  const contextParts: string[] = [];
-  if (context.title) contextParts.push(`Assignment Title: ${context.title}`);
-  if (context.instructions)
-    contextParts.push(`Instructions: ${context.instructions}`);
-  if (context.sharedContext)
-    contextParts.push(`Additional Context: ${context.sharedContext}`);
-
   const truncatedContent = fileContent.slice(0, 50000);
 
   const focusDescriptions = focuses
@@ -158,34 +178,28 @@ async function generateAllQuestions(
     )
     .join("\n");
 
+  const template = customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt();
+
+  const templateVariables: Record<string, string> = {
+    title: context.title || "",
+    instructions: context.instructions || "",
+    context_for_ai: context.sharedContext || "",
+    file_submissions: truncatedContent,
+    focus_areas: focusDescriptions,
+  };
+
+  const systemMessage = interpolateTemplate(template, templateVariables);
+
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-2024-08-06",
     messages: [
       {
         role: "system",
-        content: `You are an expert educational content creator. Generate questions with rubrics and expected answers based on a student's file submission.
-
-You must generate exactly ${focuses.length} question(s), one per focus area listed below:
-${focusDescriptions}
-
-Rules:
-- Generate all questions, rubric items, and expected answers in ${context.languageName}
-- Each question should be directly based on the student's submitted file content
-- For each question, create 3-5 rubric items that sum to exactly the specified points
-- Each rubric item should assess a distinct aspect of the answer
-- The expected answer should list key points the student's answer should cover
-- Questions should be distinct from each other — avoid overlap
-- Set focus_index to match the index of the focus area each question addresses
-- Write naturally in ${context.languageName}`,
+        content: systemMessage,
       },
       {
         role: "user",
-        content: `${contextParts.join("\n\n")}
-
-Student's File Submission:
-${truncatedContent}
-
-Generate ${focuses.length} question(s) based on the focus areas described above.`,
+        content: `Generate ${focuses.length} question(s) based on the focus areas and file submission described in the system instructions.`,
       },
     ],
     response_format: {
@@ -264,7 +278,7 @@ export async function POST(request: NextRequest) {
     const { data: assignment, error: assignmentError } = await supabase
       .from("assignments")
       .select(
-        "title, student_instructions, shared_context, shared_context_enabled, dynamic_question_focuses, preferred_language",
+        "title, student_instructions, shared_context, shared_context_enabled, dynamic_question_focuses, dynamic_generation_prompt",
       )
       .eq("assignment_id", assignmentId)
       .single();
@@ -353,29 +367,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build language name
-    const { supportedLanguages } = await import("@/utils/supportedLanguages");
-    const languageNames = Object.fromEntries(
-      supportedLanguages.map((lang: { code: string; name: string }) => [
-        lang.code,
-        lang.name,
-      ]),
-    );
-    const languageName =
-      languageNames[assignment.preferred_language] || "English";
-
     const context = {
       title: assignment.title,
       instructions: assignment.student_instructions || undefined,
       sharedContext: assignment.shared_context_enabled
         ? assignment.shared_context || undefined
         : undefined,
-      language: assignment.preferred_language,
-      languageName,
     };
 
     // Generate all questions in a single LLM call
-    const results = await generateAllQuestions(focuses, fileContent, context);
+    const results = await generateAllQuestions(
+      focuses,
+      fileContent,
+      context,
+      assignment.dynamic_generation_prompt as string | null,
+    );
 
     // Assemble Question[] with order
     const generatedQuestions: Question[] = results.map((result, index) => ({

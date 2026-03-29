@@ -216,6 +216,7 @@ export async function createAssignment(
     file_submission_config?: FileSubmissionConfig | null;
     dynamic_questions_enabled?: boolean;
     dynamic_question_focuses?: DynamicQuestionFocus[] | null;
+    dynamic_generation_prompt?: string | null;
   },
   userId: string
 ): Promise<Assignment> {
@@ -262,6 +263,7 @@ export async function createAssignment(
       file_submission_config: assignment.file_submission_config ?? null,
       dynamic_questions_enabled: assignment.dynamic_questions_enabled ?? false,
       dynamic_question_focuses: assignment.dynamic_question_focuses ?? null,
+      dynamic_generation_prompt: assignment.dynamic_generation_prompt ?? null,
     })
     .select()
     .single();
@@ -318,6 +320,7 @@ export async function updateAssignment(
     file_submission_config?: FileSubmissionConfig | null;
     dynamic_questions_enabled?: boolean;
     dynamic_question_focuses?: DynamicQuestionFocus[] | null;
+    dynamic_generation_prompt?: string | null;
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -355,6 +358,7 @@ export async function updateAssignment(
     file_submission_config: assignment.file_submission_config ?? null,
     dynamic_questions_enabled: assignment.dynamic_questions_enabled ?? false,
     dynamic_question_focuses: assignment.dynamic_question_focuses ?? null,
+    dynamic_generation_prompt: assignment.dynamic_generation_prompt ?? null,
     updated_at: new Date().toISOString(),
   };
 

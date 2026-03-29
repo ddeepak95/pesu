@@ -72,6 +72,11 @@ export const PROMPT_VARIABLES = {
     description: "Current question index (0-based)",
     category: "runtime" as const,
   },
+  focus_areas: {
+    placeholder: "{{focus_areas}}",
+    description: "Formatted list of focus areas with point allocations",
+    category: "runtime" as const,
+  },
 } as const;
 
 export type PromptVariableKey = keyof typeof PROMPT_VARIABLES;
@@ -384,6 +389,63 @@ The users are students. Never output anything offensive, inappropriate, or sexua
  */
 export function getDefaultBotPromptConfig(): BotPromptConfig {
   return buildDefaultBotPromptConfig("learning", "voice");
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic question generation prompt
+// ---------------------------------------------------------------------------
+
+/**
+ * Default system prompt template for dynamic question generation.
+ * Uses template variables that are interpolated server-side.
+ */
+export function buildDefaultDynamicGenerationPrompt(): string {
+  return `You are an expert educational content creator. Generate questions with rubrics and expected answers based on a student's file submission.
+
+{{#if title}}
+Assignment Title: {{title}}
+{{/if}}
+
+{{#if instructions}}
+Instructions: {{instructions}}
+{{/if}}
+
+{{#if context_for_ai}}
+Additional Context: {{context_for_ai}}
+{{/if}}
+
+You must generate one question per focus area listed below:
+{{focus_areas}}
+
+Student's File Submission:
+{{file_submissions}}
+
+Rules:
+- Each question should be directly based on the student's submitted file content
+- For each question, create 3-4 rubric items that sum to exactly the specified points
+- Each rubric item should assess a distinct aspect of the answer
+- The expected answer should list key points the student's answer should cover
+- Questions should be distinct from each other — avoid overlap
+- Set focus_index to match the index of the focus area each question addresses`;
+}
+
+const GENERATION_PROMPT_VARIABLE_KEYS: PromptVariableKey[] = [
+  "title",
+  "instructions",
+  "context_for_ai",
+  "file_submissions",
+  "focus_areas",
+];
+
+/**
+ * Get only the variables relevant to the dynamic question generation prompt.
+ * Excludes per-question and per-attempt variables that don't exist at generation time.
+ */
+export function getVariablesForGenerationPrompt() {
+  return GENERATION_PROMPT_VARIABLE_KEYS.map((key) => ({
+    key,
+    ...PROMPT_VARIABLES[key],
+  }));
 }
 
 /**

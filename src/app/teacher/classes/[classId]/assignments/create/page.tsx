@@ -120,6 +120,7 @@ export default function CreateAssignmentPage() {
     fileSubmissionConfig?: FileSubmissionConfig | null;
     dynamicQuestionsEnabled?: boolean;
     dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
+    dynamicGenerationPrompt?: string | null;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
@@ -166,6 +167,7 @@ export default function CreateAssignmentPage() {
         file_submission_config: data.fileSubmissionConfig ?? null,
         dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
         dynamic_question_focuses: data.dynamicQuestionFocuses ?? null,
+        dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
       },
       user.id
     );

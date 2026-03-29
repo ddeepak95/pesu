@@ -26,6 +26,9 @@ interface MoreOptionsAIBotProps {
   sharedContextEnabled: boolean;
   sharedContext: string;
   loading: boolean;
+  dynamicQuestionsEnabled?: boolean;
+  dynamicGenerationPrompt?: string;
+  setDynamicGenerationPrompt?: (prompt: string) => void;
 }
 
 export function MoreOptionsAIBot({
@@ -47,6 +50,9 @@ export function MoreOptionsAIBot({
   sharedContextEnabled,
   sharedContext,
   loading,
+  dynamicQuestionsEnabled = false,
+  dynamicGenerationPrompt = "",
+  setDynamicGenerationPrompt,
 }: MoreOptionsAIBotProps) {
   return (
     <div className="space-y-4">
@@ -129,6 +135,9 @@ export function MoreOptionsAIBot({
           onEvaluationPromptChange={setEvaluationPrompt}
           activityType={activityType}
           interactionType={assessmentMode}
+          showDynamicGenerationPrompt={dynamicQuestionsEnabled}
+          dynamicGenerationPrompt={dynamicGenerationPrompt}
+          onDynamicGenerationPromptChange={setDynamicGenerationPrompt}
         />
       )}
     </div>

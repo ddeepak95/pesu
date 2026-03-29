@@ -210,5 +210,11 @@ export interface Assignment {
    * Each pair produces one question with the specified total points.
    */
   dynamic_question_focuses?: DynamicQuestionFocus[] | null;
+  /**
+   * Custom system prompt template for dynamic question generation.
+   * When null/undefined, the API uses a built-in default.
+   * Supports template variables like {{title}}, {{focus_areas}}, {{language}}, etc.
+   */
+  dynamic_generation_prompt?: string | null;
 }
 
