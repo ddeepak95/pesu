@@ -7,6 +7,11 @@ export interface FileSubmissionConfig {
   allowed_file_types?: string[];
 }
 
+export interface DynamicQuestionFocus {
+  focus: string;
+  points: number;
+}
+
 export interface RubricItem {
   item: string;
   points: number;
@@ -195,5 +200,15 @@ export interface Assignment {
    * When set with required: true, students must upload files before answering questions.
    */
   file_submission_config?: FileSubmissionConfig | null;
+  /**
+   * When true, questions are generated dynamically per-submission based on uploaded files
+   * and teacher-defined focus/points pairs. The `questions` array on the assignment will be empty.
+   */
+  dynamic_questions_enabled?: boolean;
+  /**
+   * Focus/points pairs used for dynamic question generation.
+   * Each pair produces one question with the specified total points.
+   */
+  dynamic_question_focuses?: DynamicQuestionFocus[] | null;
 }
 

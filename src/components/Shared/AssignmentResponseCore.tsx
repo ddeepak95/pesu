@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Assignment } from "@/types/assignment";
+import { Assignment, Question } from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
 import { AssessmentShell } from "@/components/Shared/AssessmentShell";
 import { AssessmentNavigation } from "@/components/Shared/AssessmentNavigation";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import FileUploadZone from "@/components/Shared/FileUploadZone";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
@@ -17,6 +18,7 @@ import PageTitle from "@/components/Shared/PageTitle";
 import { TabSwitchWarningDialog } from "@/components/Shared/Integrity/TabSwitchWarningDialog";
 import { useTabLeaveTracking } from "@/hooks/useTabLeaveTracking";
 import { showWarningToast } from "@/lib/toast";
+import { Loader2 } from "lucide-react";
 
 interface AssignmentResponseCoreProps {
   assignmentData: Assignment;
@@ -39,6 +41,12 @@ interface AssignmentResponseCoreProps {
   fileUploadRequired?: boolean;
   uploadedFiles?: SubmissionFile[];
   onUploadedFilesChanged?: (files: SubmissionFile[]) => void;
+  /** Dynamic question generation */
+  dynamicQuestionsEnabled?: boolean;
+  /** Pre-loaded generated questions from the submission (for session restore) */
+  initialGeneratedQuestions?: Question[] | null;
+  /** File IDs snapshot from when questions were generated (for change detection) */
+  generatedFromFileIds?: string[] | null;
 }
 
 /**
@@ -62,6 +70,9 @@ export default function AssignmentResponseCore({
   fileUploadRequired = false,
   uploadedFiles = [],
   onUploadedFilesChanged,
+  dynamicQuestionsEnabled = false,
+  initialGeneratedQuestions = null,
+  generatedFromFileIds = null,
 }: AssignmentResponseCoreProps) {
   const [currentStepIndex, setCurrentStepIndex] =
     useState(initialQuestionIndex);
@@ -79,11 +90,22 @@ export default function AssignmentResponseCore({
     Set<number>
   >(new Set());
 
-  // Sorted questions — memoized so the reference is stable across renders
-  const sortedQuestions = useMemo(
-    () => [...assignmentData.questions].sort((a, b) => a.order - b.order),
-    [assignmentData.questions],
-  );
+  // Dynamic question generation state
+  const [generatedQuestions, setGeneratedQuestions] = useState<
+    Question[] | null
+  >(initialGeneratedQuestions);
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+
+  // Sorted questions — use generated questions when dynamic mode is active
+  const sortedQuestions = useMemo(() => {
+    const questions =
+      dynamicQuestionsEnabled && generatedQuestions
+        ? generatedQuestions
+        : assignmentData.questions;
+    return [...questions].sort((a, b) => a.order - b.order);
+  }, [assignmentData.questions, generatedQuestions, dynamicQuestionsEnabled]);
 
   const questionOffset = fileUploadRequired ? 1 : 0;
   const totalSteps = sortedQuestions.length + questionOffset;
@@ -213,6 +235,95 @@ export default function AssignmentResponseCore({
     }
   };
 
+  // Generate dynamic questions after file upload
+  const triggerDynamicGeneration = useCallback(
+    async (force: boolean) => {
+      setIsGeneratingQuestions(true);
+      setGenerateError(null);
+      try {
+        const res = await fetch("/api/generate-dynamic-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            submissionId,
+            assignmentId: assignmentData.assignment_id,
+            force,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(
+            err.error || `Generation failed (${res.status})`,
+          );
+        }
+        const { questions } = (await res.json()) as {
+          questions: Question[];
+        };
+        setGeneratedQuestions(questions);
+        handleNext();
+      } catch (err) {
+        console.error("Dynamic question generation failed:", err);
+        setGenerateError(
+          err instanceof Error ? err.message : "Failed to generate questions",
+        );
+      } finally {
+        setIsGeneratingQuestions(false);
+      }
+    },
+    [submissionId, assignmentData.assignment_id], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const handleFileUploadNext = useCallback(() => {
+    if (uploadedFiles.length === 0) {
+      showWarningToast("Please upload the required files to continue.");
+      return;
+    }
+
+    // Check if all files are processed
+    const allProcessed = uploadedFiles.every(
+      (f) => f.processing_status === "processed",
+    );
+    if (!allProcessed) {
+      showWarningToast(
+        "Please wait for all files to finish processing before continuing.",
+      );
+      return;
+    }
+
+    if (!dynamicQuestionsEnabled) {
+      handleNext();
+      return;
+    }
+
+    // If questions already generated, check if files changed
+    if (generatedQuestions && generatedFromFileIds) {
+      const currentFileIds = uploadedFiles
+        .map((f) => f.id)
+        .sort()
+        .join(",");
+      const previousFileIds = [...generatedFromFileIds].sort().join(",");
+
+      if (currentFileIds !== previousFileIds) {
+        setShowRegenConfirm(true);
+        return;
+      }
+
+      // Files unchanged, proceed with existing questions
+      handleNext();
+      return;
+    }
+
+    // First time generation
+    triggerDynamicGeneration(false);
+  }, [
+    uploadedFiles,
+    dynamicQuestionsEnabled,
+    generatedQuestions,
+    generatedFromFileIds,
+    handleNext, // eslint-disable-line react-hooks/exhaustive-deps
+    triggerDynamicGeneration,
+  ]);
+
   const currentQuestion = isOnFileUploadStep ? null : sortedQuestions[questionIndex];
   const isLastQuestion = !isOnFileUploadStep && questionIndex === sortedQuestions.length - 1;
 
@@ -294,8 +405,60 @@ export default function AssignmentResponseCore({
 
       {/* Additional context is not shown as a separate student block; it is passed to AI prompts */}
 
-      {/* File Upload Step (step 0) or Question Assessment */}
-      {isOnFileUploadStep ? (
+      {/* Regeneration confirmation dialog */}
+      {showRegenConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="text-lg">Files Changed</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                You have changed your uploaded files. Regenerating questions
+                will reset all your previous answers and scores.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRegenConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowRegenConfirm(false);
+                    triggerDynamicGeneration(true);
+                  }}
+                >
+                  Regenerate Questions
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Generating questions screen */}
+      {isGeneratingQuestions ? (
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">
+              Generating questions based on your submission...
+            </p>
+          </CardContent>
+        </Card>
+      ) : generateError ? (
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
+            <p className="text-sm text-destructive">{generateError}</p>
+            <Button onClick={() => triggerDynamicGeneration(false)}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : /* File Upload Step (step 0) or Question Assessment */
+      isOnFileUploadStep ? (
         <div className="space-y-2 w-full">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Upload Files</p>
@@ -319,13 +482,7 @@ export default function AssignmentResponseCore({
           <AssessmentNavigation
             isFirstQuestion={true}
             isLastQuestion={sortedQuestions.length === 0}
-            onNext={() => {
-              if (uploadedFiles.length === 0) {
-                showWarningToast("Please upload the required files to continue.");
-                return;
-              }
-              handleNext();
-            }}
+            onNext={handleFileUploadNext}
           />
         </div>
       ) : currentQuestion ? (

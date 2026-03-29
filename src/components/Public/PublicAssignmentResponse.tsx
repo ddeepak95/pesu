@@ -90,9 +90,17 @@ const PublicAssignmentResponse = forwardRef<
     reason: string | null;
   } | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<SubmissionFile[]>([]);
+  const [generatedQuestions, setGeneratedQuestions] = useState<
+    import("@/types/assignment").Question[] | null
+  >(null);
+  const [generatedFromFileIds, setGeneratedFromFileIds] = useState<
+    string[] | null
+  >(null);
   const isRestoringRef = useRef(false);
 
   const fileUploadRequired = !!assignmentData.file_submission_config?.required;
+  const dynamicQuestionsEnabled =
+    !!assignmentData.dynamic_questions_enabled && fileUploadRequired;
 
   const applyIntegrityFromSubmission = useCallback(
     (s: Pick<Submission, "integrity_access_revoked_at" | "integrity_access_revoked_reason">) => {
@@ -187,6 +195,12 @@ const PublicAssignmentResponse = forwardRef<
         onDisplayNameChange(name);
       }
 
+      // Restore generated questions if available
+      if (submission.generated_questions) {
+        setGeneratedQuestions(submission.generated_questions);
+        setGeneratedFromFileIds(submission.generated_from_file_ids ?? null);
+      }
+
       // Reconstruct answers from transcripts table
       const reconstructedAnswers: { [key: number]: string } = {};
       const transcripts = await getTranscriptsForSubmission(submission.submission_id);
@@ -201,8 +215,11 @@ const PublicAssignmentResponse = forwardRef<
 
       let questionIndex = localSession?.currentQuestionIndex ?? 0;
 
+      const effectiveQuestionCount = dynamicQuestionsEnabled && submission.generated_questions
+        ? submission.generated_questions.length
+        : assignmentData.questions.length;
       const maxValidIndex =
-        assignmentData.questions.length + (fileUploadRequired ? 1 : 0) - 1;
+        effectiveQuestionCount + (fileUploadRequired ? 1 : 0) - 1;
       if (
         !assignmentData?.questions ||
         questionIndex > maxValidIndex
@@ -318,6 +335,8 @@ const PublicAssignmentResponse = forwardRef<
     setPreferredLanguage(assignmentData.preferred_language || "en");
     setIntegrityRevoked(null);
     setUploadedFiles([]);
+    setGeneratedQuestions(null);
+    setGeneratedFromFileIds(null);
 
     // Clear display name in parent
     if (onDisplayNameChange) {
@@ -437,6 +456,9 @@ const PublicAssignmentResponse = forwardRef<
             fileUploadRequired={fileUploadRequired}
             uploadedFiles={uploadedFiles}
             onUploadedFilesChanged={setUploadedFiles}
+            dynamicQuestionsEnabled={dynamicQuestionsEnabled}
+            initialGeneratedQuestions={generatedQuestions}
+            generatedFromFileIds={generatedFromFileIds}
           />
         </ActivityTrackingProvider>
       </>

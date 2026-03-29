@@ -11,11 +11,11 @@ import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
 /** All columns for the submissions table (includes evaluations JSONB and activity metrics — use SUBMISSION_LIST_COLUMNS for list views) */
 const SUBMISSION_ALL_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids, questions_generated_at";
 
 /** Slim columns for session restore — excludes evaluations JSONB */
 const SUBMISSION_SESSION_RESTORE_COLUMNS =
-  "submission_id, assignment_id, student_id, responder_details, preferred_language, status, integrity_access_revoked_at, integrity_access_revoked_reason";
+  "submission_id, assignment_id, student_id, responder_details, preferred_language, status, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids";
 
 /** All columns for the submission_transcripts table */
 const TRANSCRIPT_ALL_COLUMNS =
@@ -330,6 +330,8 @@ export async function getSubmissionForSessionRestore(
   status: "in_progress" | "completed";
   integrity_access_revoked_at?: string | null;
   integrity_access_revoked_reason?: string | null;
+  generated_questions?: import("@/types/assignment").Question[] | null;
+  generated_from_file_ids?: string[] | null;
 } | null> {
   const supabase = createClient();
 

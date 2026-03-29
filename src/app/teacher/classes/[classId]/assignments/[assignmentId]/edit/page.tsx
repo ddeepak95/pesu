@@ -17,6 +17,7 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
   FileSubmissionConfig,
+  DynamicQuestionFocus,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
@@ -62,6 +63,9 @@ export default function EditAssignmentPage() {
   const [tabSwitchMaxLeaves, setTabSwitchMaxLeaves] = useState(3);
   const [fileSubmissionConfig, setFileSubmissionConfig] =
     useState<FileSubmissionConfig | null>(null);
+  const [dynamicQuestionsEnabled, setDynamicQuestionsEnabled] = useState(false);
+  const [dynamicQuestionFocuses, setDynamicQuestionFocuses] =
+    useState<DynamicQuestionFocus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
@@ -101,6 +105,8 @@ export default function EditAssignmentPage() {
           setTabSwitchPolicy(assignmentData.tab_switch_policy ?? "warn");
           setTabSwitchMaxLeaves(assignmentData.tab_switch_max_leaves ?? 3);
           setFileSubmissionConfig(assignmentData.file_submission_config ?? null);
+          setDynamicQuestionsEnabled(assignmentData.dynamic_questions_enabled ?? false);
+          setDynamicQuestionFocuses(assignmentData.dynamic_question_focuses ?? null);
           setAssignmentDbId(assignmentData.id);
           setAssignmentClassId(assignmentData.class_id);
           setInitialIsDraft(assignmentData.status === "draft");
@@ -156,6 +162,8 @@ export default function EditAssignmentPage() {
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
     fileSubmissionConfig?: FileSubmissionConfig | null;
+    dynamicQuestionsEnabled?: boolean;
+    dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
   }) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
@@ -199,6 +207,8 @@ export default function EditAssignmentPage() {
           ? data.tabSwitchMaxLeaves ?? null
           : null,
       file_submission_config: data.fileSubmissionConfig ?? null,
+      dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
+      dynamic_question_focuses: data.dynamicQuestionFocuses ?? null,
     });
 
     // Sync content_item status
@@ -269,6 +279,8 @@ export default function EditAssignmentPage() {
           initialTabSwitchPolicy={tabSwitchPolicy}
           initialTabSwitchMaxLeaves={tabSwitchMaxLeaves}
           initialFileSubmissionConfig={fileSubmissionConfig}
+          initialDynamicQuestionsEnabled={dynamicQuestionsEnabled}
+          initialDynamicQuestionFocuses={dynamicQuestionFocuses}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
         />

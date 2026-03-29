@@ -18,15 +18,15 @@ import {
   SubmissionAttempt,
   SubmissionFile,
 } from "@/types/submission";
-import { Assignment } from "@/types/assignment";
+import { Assignment, Question } from "@/types/assignment";
 import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
 import {
   getSubmissionFiles,
   getFileDownloadUrl,
 } from "@/lib/queries/submissionFiles";
 import { showErrorToast } from "@/lib/toast";
-import { useState, useEffect } from "react";
-import { FileText, Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { FileText, Info, Loader2 } from "lucide-react";
 import { SubmissionQuestionCard } from "./SubmissionQuestionCard";
 import { TranscriptDialog } from "./TranscriptDialog";
 import { SubmissionDisplayName } from "./SubmissionDisplayName";
@@ -46,6 +46,58 @@ function truncateFilename(name: string, max = 48): string {
   const base = ext ? name.slice(0, name.length - ext.length) : name;
   const keep = max - ext.length - 3;
   return `${base.slice(0, Math.max(4, keep))}…${ext}`;
+}
+
+function SubmissionQuestions({
+  assignment,
+  fullSubmission,
+  evaluations,
+  submissionId,
+  onViewTranscript,
+}: {
+  assignment: Assignment | null;
+  fullSubmission: Submission | null;
+  evaluations: { [key: number | string]: QuestionEvaluations };
+  submissionId: string;
+  onViewTranscript: (attempt: SubmissionAttempt, questionOrder: number) => void;
+}) {
+  const questions: Question[] = useMemo(() => {
+    if (!assignment) return [];
+    if (
+      assignment.dynamic_questions_enabled &&
+      fullSubmission?.generated_questions
+    ) {
+      return fullSubmission.generated_questions;
+    }
+    return assignment.questions;
+  }, [assignment, fullSubmission]);
+
+  if (questions.length === 0) return null;
+
+  return (
+    <div className="space-y-6">
+      {[...questions]
+        .sort((a, b) => a.order - b.order)
+        .map((question) => {
+          const questionEvals =
+            (evaluations[question.order] as QuestionEvaluations | undefined) ||
+            (evaluations[String(question.order)] as
+              | QuestionEvaluations
+              | undefined);
+
+          return (
+            <SubmissionQuestionCard
+              key={question.order}
+              questionOrder={question.order}
+              questionPrompt={question.prompt}
+              questionAnswers={questionEvals}
+              submissionId={submissionId}
+              onViewTranscript={onViewTranscript}
+            />
+          );
+        })}
+    </div>
+  );
 }
 
 interface SubmissionViewDialogProps {
@@ -247,34 +299,26 @@ export default function SubmissionViewDialog({
                 </ul>
               </div>
             ) : null}
-            {/* Attempts by Question */}
-            {assignment && (
-              <div className="space-y-6">
-                {assignment.questions
-                  .sort((a, b) => a.order - b.order)
-                  .map((question) => {
-                    // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
-                    const questionEvals =
-                      (evaluations[question.order] as
-                        | QuestionEvaluations
-                        | undefined) ||
-                      (evaluations[String(question.order)] as
-                        | QuestionEvaluations
-                        | undefined);
+            {/* Dynamic questions notice */}
+            {assignment?.dynamic_questions_enabled &&
+              fullSubmission?.generated_questions && (
+                <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-3">
+                  <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Questions were generated dynamically based on this
+                    student&apos;s file submission.
+                  </p>
+                </div>
+              )}
 
-                    return (
-                      <SubmissionQuestionCard
-                        key={question.order}
-                        questionOrder={question.order}
-                        questionPrompt={question.prompt}
-                        questionAnswers={questionEvals}
-                        submissionId={submission.submission_id}
-                        onViewTranscript={handleViewTranscript}
-                      />
-                    );
-                  })}
-              </div>
-            )}
+            {/* Attempts by Question */}
+            <SubmissionQuestions
+              assignment={assignment}
+              fullSubmission={fullSubmission}
+              evaluations={evaluations}
+              submissionId={submission.submission_id}
+              onViewTranscript={handleViewTranscript}
+            />
           </div>
         )}
       </DialogContent>

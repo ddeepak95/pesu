@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
 import { FileSubmissionSection } from "@/components/Teacher/Assignments/FileSubmissionSection";
+import { DynamicQuestionSection } from "@/components/Teacher/Assignments/DynamicQuestionSection";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
 import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
 import {
@@ -26,6 +27,7 @@ import {
   ResponderFieldConfig,
   BotPromptConfig,
   FileSubmissionConfig,
+  DynamicQuestionFocus,
 } from "@/types/assignment";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
@@ -70,6 +72,8 @@ interface AssignmentFormProps {
   initialTabSwitchPolicy?: TabSwitchPolicy;
   initialTabSwitchMaxLeaves?: number;
   initialFileSubmissionConfig?: FileSubmissionConfig | null;
+  initialDynamicQuestionsEnabled?: boolean;
+  initialDynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
   initialIsDraft?: boolean;
   onSubmit: (data: {
     title: string;
@@ -100,6 +104,8 @@ interface AssignmentFormProps {
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
     fileSubmissionConfig?: FileSubmissionConfig | null;
+    dynamicQuestionsEnabled?: boolean;
+    dynamicQuestionFocuses?: DynamicQuestionFocus[] | null;
   }) => Promise<void>;
 }
 
@@ -145,6 +151,8 @@ export default function AssignmentForm({
   initialTabSwitchPolicy = DEFAULT_TAB_SWITCH_POLICY,
   initialTabSwitchMaxLeaves = 3,
   initialFileSubmissionConfig = null,
+  initialDynamicQuestionsEnabled = false,
+  initialDynamicQuestionFocuses = null,
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
@@ -218,6 +226,16 @@ export default function AssignmentForm({
   );
   const [fileInstructions, setFileInstructions] = useState(
     initialFileSubmissionConfig?.instructions ?? "",
+  );
+  const [dynamicQuestionsEnabled, setDynamicQuestionsEnabled] = useState(
+    initialDynamicQuestionsEnabled,
+  );
+  const [dynamicQuestionFocuses, setDynamicQuestionFocuses] = useState<
+    DynamicQuestionFocus[]
+  >(
+    initialDynamicQuestionFocuses?.length
+      ? initialDynamicQuestionFocuses
+      : [{ focus: "", points: 0 }],
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -414,62 +432,88 @@ export default function AssignmentForm({
       return;
     }
 
-    // Validate each question
-    for (let i = 0; i < questions.length; i++) {
-      const question = questions[i];
-
-      if (!question.prompt.trim()) {
-        setError(`Question ${i + 1}: Prompt is required`);
-        return;
-      }
-
-      if (question.total_points <= 0) {
-        setError(`Question ${i + 1}: Total points must be greater than 0`);
-        return;
-      }
-
-      const validRubricItems = question.rubric.filter(
-        (item) => item.item.trim() && item.points > 0,
+    if (dynamicQuestionsEnabled) {
+      // Validate dynamic question focuses
+      const validFocuses = dynamicQuestionFocuses.filter(
+        (f) => f.focus.trim() && f.points > 0,
       );
-
-      if (validRubricItems.length === 0) {
+      if (validFocuses.length === 0) {
         setError(
-          `Question ${i + 1}: At least one valid rubric item is required`,
+          "At least one focus area with a non-empty focus and points > 0 is required",
         );
         return;
       }
+      for (let i = 0; i < dynamicQuestionFocuses.length; i++) {
+        const f = dynamicQuestionFocuses[i];
+        if (!f.focus.trim()) {
+          setError(`Focus area ${i + 1}: Focus text is required`);
+          return;
+        }
+        if (f.points <= 0) {
+          setError(`Focus area ${i + 1}: Points must be greater than 0`);
+          return;
+        }
+      }
+    } else {
+      // Validate each question
+      for (let i = 0; i < questions.length; i++) {
+        const question = questions[i];
 
-      // Validate that rubric points sum equals total points
-      const rubricSum = validRubricItems.reduce(
-        (sum, item) => sum + (item.points || 0),
-        0,
-      );
-      if (rubricSum !== question.total_points) {
-        setError(
-          `Question ${
-            i + 1
-          }: Rubric points (${rubricSum}) must equal total points (${
-            question.total_points
-          })`,
+        if (!question.prompt.trim()) {
+          setError(`Question ${i + 1}: Prompt is required`);
+          return;
+        }
+
+        if (question.total_points <= 0) {
+          setError(`Question ${i + 1}: Total points must be greater than 0`);
+          return;
+        }
+
+        const validRubricItems = question.rubric.filter(
+          (item) => item.item.trim() && item.points > 0,
         );
-        return;
+
+        if (validRubricItems.length === 0) {
+          setError(
+            `Question ${i + 1}: At least one valid rubric item is required`,
+          );
+          return;
+        }
+
+        // Validate that rubric points sum equals total points
+        const rubricSum = validRubricItems.reduce(
+          (sum, item) => sum + (item.points || 0),
+          0,
+        );
+        if (rubricSum !== question.total_points) {
+          setError(
+            `Question ${
+              i + 1
+            }: Rubric points (${rubricSum}) must equal total points (${
+              question.total_points
+            })`,
+          );
+          return;
+        }
       }
     }
 
     setLoading(true);
 
     try {
-      // Clean up questions (remove empty rubric items)
-      const cleanedQuestions = questions.map((q) => ({
-        ...q,
-        rubric: q.rubric.filter((item) => item.item.trim() && item.points > 0),
-      }));
+      // When dynamic generation is enabled, questions are empty and points come from focuses
+      const cleanedQuestions = dynamicQuestionsEnabled
+        ? []
+        : questions.map((q) => ({
+            ...q,
+            rubric: q.rubric.filter(
+              (item) => item.item.trim() && item.points > 0,
+            ),
+          }));
 
-      // Calculate total points for assignment
-      const totalPoints = cleanedQuestions.reduce(
-        (sum, q) => sum + q.total_points,
-        0,
-      );
+      const totalPoints = dynamicQuestionsEnabled
+        ? dynamicQuestionFocuses.reduce((sum, f) => sum + (f.points || 0), 0)
+        : cleanedQuestions.reduce((sum, q) => sum + q.total_points, 0);
 
       await onSubmit({
         title: title.trim(),
@@ -510,6 +554,12 @@ export default function AssignmentForm({
               allowed_file_types: [".pdf"],
             }
           : null,
+        dynamicQuestionsEnabled:
+          fileSubmissionEnabled && dynamicQuestionsEnabled,
+        dynamicQuestionFocuses:
+          fileSubmissionEnabled && dynamicQuestionsEnabled
+            ? dynamicQuestionFocuses
+            : null,
       });
 
       // Navigate based on mode
@@ -637,13 +687,27 @@ export default function AssignmentForm({
       {/* Require File Upload (moved outside More Options) */}
       <FileSubmissionSection
         fileSubmissionEnabled={fileSubmissionEnabled}
-        setFileSubmissionEnabled={setFileSubmissionEnabled}
+        setFileSubmissionEnabled={(enabled) => {
+          setFileSubmissionEnabled(enabled);
+          if (!enabled) setDynamicQuestionsEnabled(false);
+        }}
         fileAllowMultiple={fileAllowMultiple}
         setFileAllowMultiple={setFileAllowMultiple}
         fileInstructions={fileInstructions}
         setFileInstructions={setFileInstructions}
         loading={loading}
       />
+
+      {/* Dynamic Question Generation (only when file submission is enabled) */}
+      {fileSubmissionEnabled && (
+        <DynamicQuestionSection
+          enabled={dynamicQuestionsEnabled}
+          setEnabled={setDynamicQuestionsEnabled}
+          focuses={dynamicQuestionFocuses}
+          setFocuses={setDynamicQuestionFocuses}
+          loading={loading}
+        />
+      )}
 
       {/* More Options (with General & AI Bot subtabs) */}
       <div className="border rounded-md">
@@ -730,51 +794,55 @@ export default function AssignmentForm({
         )}
       </div>
 
-      {/* Questions */}
-      <div className="space-y-4">
-        {questions.map((question, index) => (
-          <QuestionCard
-            key={index}
-            question={question}
-            index={index}
-            totalQuestions={questions.length}
-            onChange={handleQuestionChange}
-            onRubricChange={handleRubricChange}
-            onAddRubricItem={handleAddRubricItem}
-            onRemoveRubricItem={handleRemoveRubricItem}
-            onMoveUp={handleMoveQuestionUp}
-            onMoveDown={handleMoveQuestionDown}
-            onDelete={handleDeleteQuestion}
-            disabled={loading}
-            title={title}
-            studentInstructions={studentInstructions}
-            contextForAI={sharedContext}
-            showBotOverride={
-              assessmentMode === "voice" || assessmentMode === "text_chat"
-            }
-            questionOverride={
-              botPromptConfig.question_overrides?.[question.order]
-            }
-            onQuestionOverrideChange={handleQuestionOverrideChange}
-            defaultSystemPrompt={botPromptConfig.system_prompt}
-            defaultConversationStart={getDefaultConversationStart(
-              question.order,
-            )}
-          />
-        ))}
-      </div>
+      {/* Questions (hidden when dynamic generation is enabled) */}
+      {!dynamicQuestionsEnabled && (
+        <>
+          <div className="space-y-4">
+            {questions.map((question, index) => (
+              <QuestionCard
+                key={index}
+                question={question}
+                index={index}
+                totalQuestions={questions.length}
+                onChange={handleQuestionChange}
+                onRubricChange={handleRubricChange}
+                onAddRubricItem={handleAddRubricItem}
+                onRemoveRubricItem={handleRemoveRubricItem}
+                onMoveUp={handleMoveQuestionUp}
+                onMoveDown={handleMoveQuestionDown}
+                onDelete={handleDeleteQuestion}
+                disabled={loading}
+                title={title}
+                studentInstructions={studentInstructions}
+                contextForAI={sharedContext}
+                showBotOverride={
+                  assessmentMode === "voice" || assessmentMode === "text_chat"
+                }
+                questionOverride={
+                  botPromptConfig.question_overrides?.[question.order]
+                }
+                onQuestionOverrideChange={handleQuestionOverrideChange}
+                defaultSystemPrompt={botPromptConfig.system_prompt}
+                defaultConversationStart={getDefaultConversationStart(
+                  question.order,
+                )}
+              />
+            ))}
+          </div>
 
-      {/* Add Question Button */}
-      <div className="flex justify-center">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleAddQuestion}
-          disabled={loading}
-        >
-          + Add Question
-        </Button>
-      </div>
+          {/* Add Question Button */}
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddQuestion}
+              disabled={loading}
+            >
+              + Add Question
+            </Button>
+          </div>
+        </>
+      )}
 
       {/* Error Message */}
       {error && <p className="text-sm text-destructive">{error}</p>}

@@ -64,9 +64,17 @@ export default function StudentAssignmentResponse({
     reason: string | null;
   } | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<SubmissionFile[]>([]);
+  const [generatedQuestions, setGeneratedQuestions] = useState<
+    import("@/types/assignment").Question[] | null
+  >(null);
+  const [generatedFromFileIds, setGeneratedFromFileIds] = useState<
+    string[] | null
+  >(null);
   const isInitializingRef = useRef(false);
 
   const fileUploadRequired = !!assignmentData.file_submission_config?.required;
+  const dynamicQuestionsEnabled =
+    !!assignmentData.dynamic_questions_enabled && fileUploadRequired;
 
   const applyIntegrityFromSubmission = useCallback(
     (s: Pick<Submission, "integrity_access_revoked_at" | "integrity_access_revoked_reason">) => {
@@ -148,6 +156,12 @@ export default function StudentAssignmentResponse({
           onDisplayNameChange(name);
         }
 
+        // Restore generated questions if available
+        if (submission.generated_questions) {
+          setGeneratedQuestions(submission.generated_questions);
+          setGeneratedFromFileIds(submission.generated_from_file_ids ?? null);
+        }
+
         // Reconstruct answers from transcripts table
         const reconstructedAnswers: { [key: number]: string } = {};
         const transcripts = await getTranscriptsForSubmission(submission.submission_id);
@@ -161,8 +175,12 @@ export default function StudentAssignmentResponse({
 
         let questionIndex = localSession?.currentQuestionIndex ?? 0;
 
+        // For dynamic questions, use generated questions length or fallback to assignment questions
+        const effectiveQuestionCount = dynamicQuestionsEnabled && submission.generated_questions
+          ? submission.generated_questions.length
+          : assignmentData.questions.length;
         const maxValidIndex =
-          assignmentData.questions.length + (fileUploadRequired ? 1 : 0) - 1;
+          effectiveQuestionCount + (fileUploadRequired ? 1 : 0) - 1;
         if (
           !assignmentData?.questions ||
           questionIndex > maxValidIndex
@@ -391,6 +409,9 @@ export default function StudentAssignmentResponse({
           fileUploadRequired={fileUploadRequired}
           uploadedFiles={uploadedFiles}
           onUploadedFilesChanged={setUploadedFiles}
+          dynamicQuestionsEnabled={dynamicQuestionsEnabled}
+          initialGeneratedQuestions={generatedQuestions}
+          generatedFromFileIds={generatedFromFileIds}
         />
       </ActivityTrackingProvider>
     </>

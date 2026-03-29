@@ -145,6 +145,20 @@ export interface Submission {
    * UUIDs of associated submission_files rows.
    */
   file_ids?: string[] | null;
+  /**
+   * Dynamically generated questions for this submission (when assignment has dynamic_questions_enabled).
+   * Uses the same Question interface as assignment-level questions.
+   */
+  generated_questions?: import("@/types/assignment").Question[] | null;
+  /**
+   * Snapshot of file_ids at the time questions were generated.
+   * Used to detect file changes that should trigger regeneration.
+   */
+  generated_from_file_ids?: string[] | null;
+  /**
+   * Timestamp when dynamic questions were generated for this submission.
+   */
+  questions_generated_at?: string | null;
 }
 
 export interface SubmissionFile {

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
-import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig } from "@/types/assignment";
+import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig, DynamicQuestionFocus } from "@/types/assignment";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
 
@@ -214,6 +214,8 @@ export async function createAssignment(
     tab_switch_policy?: TabSwitchPolicy;
     tab_switch_max_leaves?: number | null;
     file_submission_config?: FileSubmissionConfig | null;
+    dynamic_questions_enabled?: boolean;
+    dynamic_question_focuses?: DynamicQuestionFocus[] | null;
   },
   userId: string
 ): Promise<Assignment> {
@@ -258,6 +260,8 @@ export async function createAssignment(
           ? assignment.tab_switch_max_leaves ?? null
           : null,
       file_submission_config: assignment.file_submission_config ?? null,
+      dynamic_questions_enabled: assignment.dynamic_questions_enabled ?? false,
+      dynamic_question_focuses: assignment.dynamic_question_focuses ?? null,
     })
     .select()
     .single();
@@ -312,6 +316,8 @@ export async function updateAssignment(
     tab_switch_policy?: TabSwitchPolicy;
     tab_switch_max_leaves?: number | null;
     file_submission_config?: FileSubmissionConfig | null;
+    dynamic_questions_enabled?: boolean;
+    dynamic_question_focuses?: DynamicQuestionFocus[] | null;
   }
 ): Promise<Assignment> {
   const supabase = createClient();
@@ -347,6 +353,8 @@ export async function updateAssignment(
         ? assignment.tab_switch_max_leaves ?? null
         : null,
     file_submission_config: assignment.file_submission_config ?? null,
+    dynamic_questions_enabled: assignment.dynamic_questions_enabled ?? false,
+    dynamic_question_focuses: assignment.dynamic_question_focuses ?? null,
     updated_at: new Date().toISOString(),
   };
 
