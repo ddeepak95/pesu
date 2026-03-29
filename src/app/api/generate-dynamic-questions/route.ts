@@ -395,8 +395,6 @@ export async function POST(request: NextRequest) {
       expected_answer: result.expected_answer,
     }));
 
-    console.log("generatedQuestions", generatedQuestions);
-
     // Save to submission
     const { error: updateError } = await supabase
       .from("submissions")
