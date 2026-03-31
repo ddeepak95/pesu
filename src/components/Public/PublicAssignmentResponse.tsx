@@ -231,8 +231,7 @@ const PublicAssignmentResponse = forwardRef<
 
       if (fileUploadRequired) {
         const files = await getSubmissionFiles(submission.submission_id);
-        const completed = files.filter((f) => f.processing_status !== "uploading");
-        setUploadedFiles(completed);
+        setUploadedFiles(files);
       }
       setPhase("answering");
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,10 @@ import {
   RubricItem,
   ResponderFieldConfig,
   BotPromptConfig,
+  allowedFileTypesFromConfig,
+  DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES,
   FileSubmissionConfig,
+  orderFileSubmissionExtensions,
   DynamicGenerationSpec,
   DEFAULT_DYNAMIC_GENERATION_SPEC,
   isCompleteDynamicGenerationSpec,
@@ -232,6 +235,24 @@ export default function AssignmentForm({
   const [fileInstructions, setFileInstructions] = useState(
     initialFileSubmissionConfig?.instructions ?? "",
   );
+  const [fileAllowedTypes, setFileAllowedTypes] = useState<string[]>(() =>
+    allowedFileTypesFromConfig(initialFileSubmissionConfig),
+  );
+
+  const handleToggleAllowedFileType = useCallback(
+    (ext: string, selected: boolean) => {
+      setFileAllowedTypes((prev) => {
+        if (selected) {
+          return orderFileSubmissionExtensions([...prev, ext]);
+        }
+        if (prev.length <= 1 && prev.includes(ext)) {
+          return prev;
+        }
+        return orderFileSubmissionExtensions(prev.filter((e) => e !== ext));
+      });
+    },
+    [],
+  );
   const [dynamicQuestionsEnabled, setDynamicQuestionsEnabled] = useState(
     initialDynamicQuestionsEnabled,
   );
@@ -437,6 +458,11 @@ export default function AssignmentForm({
       return;
     }
 
+    if (fileSubmissionEnabled && fileAllowedTypes.length === 0) {
+      setError("Select at least one acceptable file type.");
+      return;
+    }
+
     if (dynamicQuestionsEnabled) {
       if (!isCompleteDynamicGenerationSpec(dynamicGenerationSpec)) {
         setError(
@@ -542,7 +568,7 @@ export default function AssignmentForm({
               required: true,
               allow_multiple: fileAllowMultiple,
               instructions: fileInstructions.trim() || undefined,
-              allowed_file_types: [".pdf"],
+              allowed_file_types: orderFileSubmissionExtensions(fileAllowedTypes),
             }
           : null,
         dynamicQuestionsEnabled:
@@ -688,10 +714,15 @@ export default function AssignmentForm({
         fileSubmissionEnabled={fileSubmissionEnabled}
         setFileSubmissionEnabled={(enabled) => {
           setFileSubmissionEnabled(enabled);
+          if (enabled && fileAllowedTypes.length === 0) {
+            setFileAllowedTypes([...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES]);
+          }
           if (!enabled) setDynamicQuestionsEnabled(false);
         }}
         fileAllowMultiple={fileAllowMultiple}
         setFileAllowMultiple={setFileAllowMultiple}
+        fileAllowedTypes={fileAllowedTypes}
+        onToggleAllowedFileType={handleToggleAllowedFileType}
         fileInstructions={fileInstructions}
         setFileInstructions={setFileInstructions}
         loading={loading}

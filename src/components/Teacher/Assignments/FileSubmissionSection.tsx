@@ -1,17 +1,23 @@
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DynamicQuestionSection } from "@/components/Teacher/Assignments/DynamicQuestionSection";
-import type { DynamicGenerationSpec } from "@/types/assignment";
+import {
+  FILE_SUBMISSION_TYPE_OPTIONS,
+  type DynamicGenerationSpec,
+} from "@/types/assignment";
 
 interface FileSubmissionSectionProps {
   fileSubmissionEnabled: boolean;
   setFileSubmissionEnabled: (enabled: boolean) => void;
   fileAllowMultiple: boolean;
   setFileAllowMultiple: (allow: boolean) => void;
+  fileAllowedTypes: string[];
+  onToggleAllowedFileType: (ext: string, selected: boolean) => void;
   fileInstructions: string;
   setFileInstructions: (instructions: string) => void;
   loading: boolean;
@@ -26,6 +32,8 @@ export function FileSubmissionSection({
   setFileSubmissionEnabled,
   fileAllowMultiple,
   setFileAllowMultiple,
+  fileAllowedTypes,
+  onToggleAllowedFileType,
   fileInstructions,
   setFileInstructions,
   loading,
@@ -34,6 +42,9 @@ export function FileSubmissionSection({
   dynamicGenerationSpec,
   setDynamicGenerationSpec,
 }: FileSubmissionSectionProps) {
+  const isOnlySelectedPdf =
+    fileAllowedTypes.length === 1 && fileAllowedTypes[0] === ".pdf";
+
   return (
     <div className="space-y-3 p-4 border rounded-md">
       <div className="flex items-center space-x-2">
@@ -76,6 +87,37 @@ export function FileSubmissionSection({
           </div>
 
           <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Acceptable file types
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {FILE_SUBMISSION_TYPE_OPTIONS.map(({ ext }) => {
+                const selected = fileAllowedTypes.includes(ext);
+                const disableUncheckPdf =
+                  ext === ".pdf" && selected && isOnlySelectedPdf;
+
+                return (
+                  <Button
+                    key={ext}
+                    type="button"
+                    variant={selected ? "default" : "outline"}
+                    size="sm"
+                    disabled={loading || disableUncheckPdf}
+                    aria-pressed={selected}
+                    aria-label={ext}
+                    className="rounded-full h-8 min-w-[2.75rem] px-3 font-mono text-xs font-medium tabular-nums shadow-none"
+                    onClick={() =>
+                      onToggleAllowedFileType(ext, !selected)
+                    }
+                  >
+                    {ext}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="fileInstructions" className="text-sm font-medium">
               Instructions for file submission (optional)
             </Label>
@@ -84,14 +126,10 @@ export function FileSubmissionSection({
               value={fileInstructions}
               onChange={(e) => setFileInstructions(e.target.value)}
               disabled={loading}
-              placeholder="e.g., Upload your report as a PDF file..."
+              placeholder="e.g., Upload your report as PDF, or your solution as a .py file..."
               rows={2}
             />
           </div>
-
-          <p className="text-xs text-muted-foreground">
-            Only PDF files are accepted.
-          </p>
 
           <div className="pt-4 mt-4 border-t border-border/80">
             <DynamicQuestionSection

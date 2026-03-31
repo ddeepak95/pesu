@@ -104,8 +104,7 @@ export default function StudentAssignmentResponse({
   useEffect(() => {
     if (!submissionId || !fileUploadRequired) return;
     getSubmissionFiles(submissionId).then((files) => {
-      const completed = files.filter((f) => f.processing_status !== "uploading");
-      setUploadedFiles(completed);
+      setUploadedFiles(files);
     });
   }, [submissionId, fileUploadRequired]);
 

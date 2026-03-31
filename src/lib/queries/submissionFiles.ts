@@ -16,7 +16,8 @@ export async function getSubmissionFiles(
     .from("submission_files")
     .select(SUBMISSION_FILE_COLUMNS)
     .eq("submission_id", submissionId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) {
     console.error("Error fetching submission files:", error);

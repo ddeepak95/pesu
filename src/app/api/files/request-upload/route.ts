@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getStorageBucket } from "@/lib/firebase-admin";
+import {
+  type FileSubmissionConfig,
+  allowedFileTypesFromConfig,
+} from "@/types/assignment";
 
 interface RequestUploadBody {
   submissionId: string;
@@ -52,10 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const config = assignment.file_submission_config as {
-      required?: boolean;
-      allowed_file_types?: string[];
-    } | null;
+    const config = assignment.file_submission_config as FileSubmissionConfig | null;
 
     if (!config?.required) {
       return NextResponse.json(
@@ -64,17 +65,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type if restrictions are set
-    if (config.allowed_file_types && config.allowed_file_types.length > 0) {
-      const ext = "." + filename.split(".").pop()?.toLowerCase();
-      if (!config.allowed_file_types.includes(ext)) {
-        return NextResponse.json(
-          {
-            error: `File type ${ext} is not allowed. Allowed types: ${config.allowed_file_types.join(", ")}`,
-          },
-          { status: 400 },
-        );
-      }
+    const allowedFileTypes = allowedFileTypesFromConfig(config);
+    const ext = "." + filename.split(".").pop()?.toLowerCase();
+    if (!allowedFileTypes.includes(ext)) {
+      return NextResponse.json(
+        {
+          error: `File type ${ext} is not allowed. Allowed types: ${allowedFileTypes.join(", ")}`,
+        },
+        { status: 400 },
+      );
     }
 
     // Validate submission exists

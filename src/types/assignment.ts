@@ -7,6 +7,47 @@ export interface FileSubmissionConfig {
   allowed_file_types?: string[];
 }
 
+/** Selectable extensions in the assignment builder (teacher UI). */
+export const FILE_SUBMISSION_TYPE_OPTIONS: readonly {
+  ext: string;
+  label: string;
+}[] = [
+  { ext: ".pdf", label: "PDF" },
+  { ext: ".txt", label: "Plain text (.txt)" },
+  { ext: ".py", label: "Python (.py)" },
+];
+
+const _FILE_SUBMISSION_EXT_ORDER = FILE_SUBMISSION_TYPE_OPTIONS.map((o) => o.ext);
+
+/** Default selection when file submission is enabled (PDF only). */
+export const DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES: readonly string[] = [
+  ".pdf",
+];
+
+/** Normalize selected extensions to option order, unique, known types only. */
+export function orderFileSubmissionExtensions(exts: Iterable<string>): string[] {
+  const known = new Set(_FILE_SUBMISSION_EXT_ORDER);
+  const selected = new Set(
+    [...exts].map((e) => e.toLowerCase()).filter((e) => known.has(e)),
+  );
+  return _FILE_SUBMISSION_EXT_ORDER.filter((e) => selected.has(e));
+}
+
+/**
+ * Allowed upload extensions for an assignment. Unknown or empty storage
+ * falls back to PDF-only.
+ */
+export function allowedFileTypesFromConfig(
+  config: FileSubmissionConfig | null | undefined,
+): string[] {
+  const ordered = orderFileSubmissionExtensions(
+    config?.allowed_file_types ?? [],
+  );
+  return ordered.length > 0
+    ? ordered
+    : [...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES];
+}
+
 /**
  * Stored in DB column `dynamic_question_focuses` (jsonb).
  * Defines how many questions to generate, points each, and what they should cover.

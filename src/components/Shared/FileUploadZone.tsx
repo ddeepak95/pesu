@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { FileSubmissionConfig } from "@/types/assignment";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FileSubmissionConfig,
+  allowedFileTypesFromConfig,
+} from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
 import {
   uploadSubmissionFile,
@@ -27,6 +30,19 @@ interface UploadingFile {
   name: string;
   progress: number;
   error?: string;
+  /** False until this file’s upload request has started (earlier files may still be uploading). */
+  started?: boolean;
+}
+
+/** In-flight slot prefix; completed rows use the real submission_files.id */
+const UPLOAD_ROW_PREFIX = "u:";
+
+function uploadRowKey(tempId: string): string {
+  return `${UPLOAD_ROW_PREFIX}${tempId}`;
+}
+
+function isUploadRowKey(key: string): boolean {
+  return key.startsWith(UPLOAD_ROW_PREFIX);
 }
 
 type StepState = "completed" | "active" | "failed" | "pending";
@@ -141,6 +157,26 @@ function truncateFilename(name: string, max = 20): string {
   return `${base}…${ext}`;
 }
 
+function mergeRowsWithServerFiles(
+  rows: string[],
+  existingFiles: SubmissionFile[],
+): string[] {
+  const fileIds = new Set(existingFiles.map((f) => f.id));
+  const kept = rows.filter((k) => isUploadRowKey(k) || fileIds.has(k));
+  const seen = new Set(kept.filter((k) => !isUploadRowKey(k)));
+  const next = [...kept];
+  for (const f of existingFiles) {
+    if (!seen.has(f.id)) {
+      next.push(f.id);
+      seen.add(f.id);
+    }
+  }
+  if (next.length === rows.length && next.every((k, i) => k === rows[i])) {
+    return rows;
+  }
+  return next;
+}
+
 export default function FileUploadZone({
   submissionId,
   assignmentId,
@@ -152,7 +188,40 @@ export default function FileUploadZone({
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [isDragOver, setIsDragOver] = useState(false);
+  const [displayRowKeys, setDisplayRowKeys] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Latest server-backed files; avoids stale closures when completing multiple uploads. */
+  const existingFilesRef = useRef<SubmissionFile[]>(existingFiles);
+  const uploadingRef = useRef<UploadingFile[]>([]);
+
+  const allowedFileTypes = useMemo(
+    () => allowedFileTypesFromConfig(config),
+    [config],
+  );
+
+  useEffect(() => {
+    existingFilesRef.current = existingFiles;
+  }, [existingFiles]);
+
+  useEffect(() => {
+    uploadingRef.current = uploading;
+  }, [uploading]);
+
+  useEffect(() => {
+    setDisplayRowKeys([]);
+  }, [submissionId]);
+
+  useEffect(() => {
+    setDisplayRowKeys((rows) => {
+      if (existingFiles.length === 0 && uploading.length === 0) {
+        return rows.length > 0 ? [] : rows;
+      }
+      if (rows.length === 0 && existingFiles.length > 0) {
+        return existingFiles.map((f) => f.id);
+      }
+      return mergeRowsWithServerFiles(rows, existingFiles);
+    });
+  }, [existingFiles, uploading.length]);
 
   const TERMINAL_STATUSES = new Set(["processed", "failed"]);
   const hasNonTerminal = existingFiles.some(
@@ -163,9 +232,12 @@ export default function FileUploadZone({
     if (!hasNonTerminal || !submissionId) return;
 
     const interval = setInterval(async () => {
+      if (uploadingRef.current.length > 0) return;
+
       const fresh = await getSubmissionFiles(submissionId);
       if (fresh.length > 0) {
-        onFilesChanged(fresh.filter((f) => f.processing_status !== "uploading"));
+        setDisplayRowKeys((rows) => mergeRowsWithServerFiles(rows, fresh));
+        onFilesChanged(fresh);
       }
     }, 3000);
 
@@ -174,21 +246,16 @@ export default function FileUploadZone({
 
   const validateFile = useCallback(
     (file: File): string | null => {
-      if (
-        config.allowed_file_types &&
-        config.allowed_file_types.length > 0
-      ) {
-        const ext = "." + file.name.split(".").pop()?.toLowerCase();
-        if (!config.allowed_file_types.includes(ext)) {
-          return `File type ${ext} is not allowed. Allowed: ${config.allowed_file_types.join(", ")}`;
-        }
+      const ext = "." + file.name.split(".").pop()?.toLowerCase();
+      if (!allowedFileTypes.includes(ext)) {
+        return `File type ${ext} is not allowed. Allowed: ${allowedFileTypes.join(", ")}`;
       }
       if (file.size > 10 * 1024 * 1024) {
         return "File size exceeds 10MB limit";
       }
       return null;
     },
-    [config.allowed_file_types],
+    [allowedFileTypes],
   );
 
   const handleFiles = useCallback(
@@ -203,20 +270,40 @@ export default function FileUploadZone({
         return;
       }
 
+      const queue: { file: File; tempId: string }[] = [];
       for (const file of files) {
         const validationError = validateFile(file);
         if (validationError) {
           showErrorToast(validationError);
           continue;
         }
+        queue.push({ file, tempId: crypto.randomUUID() });
+      }
 
-        const tempId = crypto.randomUUID();
-        setUploading((prev) => [
-          ...prev,
-          { id: tempId, name: file.name, progress: 0 },
-        ]);
+      if (queue.length === 0) return;
 
+      // Show every file in the list immediately; uploads still run one after another.
+      setDisplayRowKeys((r) => [
+        ...r,
+        ...queue.map((q) => uploadRowKey(q.tempId)),
+      ]);
+      setUploading((prev) => [
+        ...prev,
+        ...queue.map((q) => ({
+          id: q.tempId,
+          name: q.file.name,
+          progress: 0,
+          started: false,
+        })),
+      ]);
+
+      for (const { file, tempId } of queue) {
         try {
+          setUploading((prev) =>
+            prev.map((u) =>
+              u.id === tempId ? { ...u, started: true } : u,
+            ),
+          );
           const uploaded = await uploadSubmissionFile(
             submissionId,
             assignmentId,
@@ -231,7 +318,10 @@ export default function FileUploadZone({
           );
 
           setUploading((prev) => prev.filter((u) => u.id !== tempId));
-          onFilesChanged([...existingFiles, uploaded]);
+          setDisplayRowKeys((r) =>
+            r.map((k) => (k === uploadRowKey(tempId) ? uploaded.id : k)),
+          );
+          onFilesChanged([...existingFilesRef.current, uploaded]);
         } catch (err) {
           console.error("Upload error:", err);
           setUploading((prev) =>
@@ -248,7 +338,7 @@ export default function FileUploadZone({
       submissionId,
       assignmentId,
       config.allow_multiple,
-      existingFiles,
+      existingFiles.length,
       onFilesChanged,
       validateFile,
     ],
@@ -275,7 +365,10 @@ export default function FileUploadZone({
     setDeleting((prev) => new Set(prev).add(fileId));
     try {
       await deleteSubmissionFile(fileId);
-      onFilesChanged(existingFiles.filter((f) => f.id !== fileId));
+      setDisplayRowKeys((r) => r.filter((k) => k !== fileId));
+      onFilesChanged(
+        existingFilesRef.current.filter((f) => f.id !== fileId),
+      );
     } catch (err) {
       console.error("Delete error:", err);
       showErrorToast("Failed to delete file");
@@ -314,6 +407,11 @@ export default function FileUploadZone({
     uploading.length > 0 ||
     (!config.allow_multiple && existingFiles.length >= 1);
 
+  const filesById = useMemo(
+    () => new Map(existingFiles.map((f) => [f.id, f] as const)),
+    [existingFiles],
+  );
+
   return (
     <div className="space-y-4">
       {config.instructions && (
@@ -340,9 +438,9 @@ export default function FileUploadZone({
             ? "Upload complete"
             : "Drop files here or click to browse"}
         </p>
-        {config.allowed_file_types && config.allowed_file_types.length > 0 && (
+        {allowedFileTypes.length > 0 && (
           <p className="text-xs text-muted-foreground mt-1">
-            Accepted: {config.allowed_file_types.join(", ")}
+            Accepted: {allowedFileTypes.join(", ")}
           </p>
         )}
         <p className="text-xs text-muted-foreground mt-1">Max 10MB per file</p>
@@ -351,9 +449,7 @@ export default function FileUploadZone({
           type="file"
           className="hidden"
           multiple={config.allow_multiple}
-          accept={
-            config.allowed_file_types?.join(",") || undefined
-          }
+          accept={allowedFileTypes.length > 0 ? allowedFileTypes.join(",") : undefined}
           onChange={(e) => {
             if (e.target.files) handleFiles(e.target.files);
             e.target.value = "";
@@ -362,96 +458,109 @@ export default function FileUploadZone({
         />
       </div>
 
-      {/* Uploading files (in progress) */}
-      {uploading.map((u) => (
-        <div
-          key={u.id}
-          className="flex items-center gap-3 px-3 py-2.5 border rounded-lg"
-        >
-          <FileText className="h-5 w-5 text-muted-foreground/60 shrink-0" />
-          <p
-            className="text-sm font-medium shrink-0"
-            title={u.name}
-          >
-            {truncateFilename(u.name)}
-          </p>
-          <div className="flex-1 min-w-0">
-            {u.error ? (
-              <p className="text-xs text-destructive">{u.error}</p>
-            ) : (
-              <FileStatusStepper status="uploading" />
-            )}
-          </div>
-          {u.error && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 shrink-0"
-              onClick={() =>
-                setUploading((prev) => prev.filter((x) => x.id !== u.id))
-              }
+      {displayRowKeys.map((rowKey) => {
+        if (isUploadRowKey(rowKey)) {
+          const tempId = rowKey.slice(UPLOAD_ROW_PREFIX.length);
+          const u = uploading.find((x) => x.id === tempId);
+          if (!u) return null;
+          return (
+            <div
+              key={rowKey}
+              className="flex items-center gap-3 px-3 py-2.5 border rounded-lg"
             >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      ))}
+              <FileText className="h-5 w-5 text-muted-foreground/60 shrink-0" />
+              <p
+                className="text-sm font-medium shrink-0"
+                title={u.name}
+              >
+                {truncateFilename(u.name)}
+              </p>
+              <div className="flex-1 min-w-0">
+                {u.error ? (
+                  <p className="text-xs text-destructive">{u.error}</p>
+                ) : u.started === false ? (
+                  <p className="text-xs text-muted-foreground">
+                    Waiting to upload…
+                  </p>
+                ) : (
+                  <FileStatusStepper status="uploading" />
+                )}
+              </div>
+              {u.error && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 shrink-0"
+                  onClick={() => {
+                    setUploading((prev) => prev.filter((x) => x.id !== u.id));
+                    setDisplayRowKeys((r) => r.filter((k) => k !== rowKey));
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          );
+        }
 
-      {/* Uploaded files */}
-      {existingFiles.map((file) => (
-        <div
-          key={file.id}
-          className="flex items-center gap-3 px-3 py-2.5 border rounded-lg"
-        >
-          <FileText className="h-5 w-5 text-muted-foreground/60 shrink-0" />
-          <p
-            className="text-sm font-medium shrink-0"
-            title={file.filename}
+        const file = filesById.get(rowKey);
+        if (!file) return null;
+
+        return (
+          <div
+            key={rowKey}
+            className="flex items-center gap-3 px-3 py-2.5 border rounded-lg"
           >
-            {truncateFilename(file.filename)}
-          </p>
-          <div className="flex-1 min-w-0">
-            <FileStatusStepper status={file.processing_status} />
-          </div>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-              onClick={() => handleDownload(file)}
-              title="Download original"
+            <FileText className="h-5 w-5 text-muted-foreground/60 shrink-0" />
+            <p
+              className="text-sm font-medium shrink-0"
+              title={file.filename}
             >
-              <Download className="h-4 w-4" />
-            </Button>
-            {process.env.NODE_ENV === "development" && file.processing_status === "processed" && file.parsed_content_url && (
+              {truncateFilename(file.filename)}
+            </p>
+            <div className="flex-1 min-w-0">
+              <FileStatusStepper status={file.processing_status} />
+            </div>
+            <div className="flex items-center gap-0.5 shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-                onClick={() => handleDownload(file, "parsed")}
-                title="View parsed content"
+                onClick={() => handleDownload(file)}
+                title="Download original"
               >
-                <FileCode className="h-4 w-4" />
+                <Download className="h-4 w-4" />
               </Button>
-            )}
-            {!disabled && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                onClick={() => handleDelete(file.id)}
-                disabled={deleting.has(file.id)}
-              >
-                {deleting.has(file.id) ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <X className="h-4 w-4" />
-                )}
-              </Button>
-            )}
+              {process.env.NODE_ENV === "development" && file.processing_status === "processed" && file.parsed_content_url && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                  onClick={() => handleDownload(file, "parsed")}
+                  title="View parsed content"
+                >
+                  <FileCode className="h-4 w-4" />
+                </Button>
+              )}
+              {!disabled && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleDelete(file.id)}
+                  disabled={deleting.has(file.id)}
+                >
+                  {deleting.has(file.id) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
