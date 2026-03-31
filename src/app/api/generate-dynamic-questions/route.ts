@@ -51,6 +51,20 @@ interface GenerateDynamicQuestionsRequestBody {
   force?: boolean;
 }
 
+function normalizeFileIds(ids: string[] | null | undefined): string[] {
+  return Array.from(new Set((ids ?? []).filter(Boolean))).sort();
+}
+
+function fileSetsMatch(
+  current: string[] | null | undefined,
+  snapshot: string[] | null | undefined,
+): boolean {
+  const a = normalizeFileIds(current);
+  const b = normalizeFileIds(snapshot);
+  if (a.length !== b.length) return false;
+  return a.every((id, i) => id === b[i]);
+}
+
 function buildGeneratedQuestionsJsonSchema(questionCount: number) {
   const questionItemSchema = {
     type: "object" as const,
@@ -334,16 +348,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Idempotency: return existing generated questions unless force is set
-    if (submission.generated_questions && !force) {
+    const hasGeneratedQuestions = !!submission.generated_questions;
+    const submissionFileIds = submission.file_ids as string[] | null | undefined;
+    const snapshotIds = submission.generated_from_file_ids as
+      | string[]
+      | null
+      | undefined;
+    const filesMatch = fileSetsMatch(submissionFileIds, snapshotIds);
+
+    // Idempotency: cache only when files still match the generation snapshot
+    if (hasGeneratedQuestions && !force && filesMatch) {
       return NextResponse.json({
         questions: submission.generated_questions,
         cached: true,
+        generated_from_file_ids: normalizeFileIds(
+          snapshotIds ?? submissionFileIds ?? [],
+        ),
       });
     }
 
-    // If force is set, clear existing evaluations and related data
-    if (force && submission.generated_questions) {
+    // Regenerate (or first run after mismatch): clear stale questions / attempts
+    if (hasGeneratedQuestions && (force || !filesMatch)) {
       const emptyEvals: Record<number, QuestionEvaluations> = {};
       const denormalized = computeDenormalizedFields(emptyEvals);
 
@@ -412,12 +437,14 @@ export async function POST(request: NextRequest) {
 
     console.log("generatedQuestions", generatedQuestions);
 
+    const persistedFileIds = normalizeFileIds(submissionFileIds);
+
     // Save to submission
     const { error: updateError } = await supabase
       .from("submissions")
       .update({
         generated_questions: generatedQuestions,
-        generated_from_file_ids: submission.file_ids || [],
+        generated_from_file_ids: persistedFileIds,
         questions_generated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -434,6 +461,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       questions: generatedQuestions,
       cached: false,
+      generated_from_file_ids: persistedFileIds,
     });
   } catch (error) {
     console.error("Generate dynamic questions API error:", error);

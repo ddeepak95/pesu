@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Assignment, Question } from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
 import { AssessmentShell } from "@/components/Shared/AssessmentShell";
@@ -47,6 +47,11 @@ interface AssignmentResponseCoreProps {
   initialGeneratedQuestions?: Question[] | null;
   /** File IDs snapshot from when questions were generated (for change detection) */
   generatedFromFileIds?: string[] | null;
+  /** After dynamic questions are saved or returned from cache, sync wrapper state */
+  onDynamicQuestionsSaved?: (payload: {
+    questions: Question[];
+    generatedFromFileIds: string[];
+  }) => void;
 }
 
 /**
@@ -73,6 +78,7 @@ export default function AssignmentResponseCore({
   dynamicQuestionsEnabled = false,
   initialGeneratedQuestions = null,
   generatedFromFileIds = null,
+  onDynamicQuestionsSaved,
 }: AssignmentResponseCoreProps) {
   const [currentStepIndex, setCurrentStepIndex] =
     useState(initialQuestionIndex);
@@ -96,7 +102,21 @@ export default function AssignmentResponseCore({
   >(initialGeneratedQuestions);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  /** Legacy: no file snapshot on submission — still warn once on Next */
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+  const fileMutationResolverRef = useRef<((ok: boolean) => void) | null>(
+    null,
+  );
+  const [fileMutationDialog, setFileMutationDialog] = useState<
+    "add" | "remove" | null
+  >(null);
+  /** After one confirm, skip further add/remove prompts until questions are regenerated */
+  const [fileMutationWarnedThisCycle, setFileMutationWarnedThisCycle] =
+    useState(false);
+
+  useEffect(() => {
+    setFileMutationWarnedThisCycle(false);
+  }, [submissionId]);
 
   // Sorted questions — use generated questions when dynamic mode is active
   const sortedQuestions = useMemo(() => {
@@ -232,6 +252,31 @@ export default function AssignmentResponseCore({
     }
   };
 
+  const resolveFileMutation = useCallback((ok: boolean) => {
+    if (ok) {
+      setFileMutationWarnedThisCycle(true);
+    }
+    fileMutationResolverRef.current?.(ok);
+    fileMutationResolverRef.current = null;
+    setFileMutationDialog(null);
+  }, []);
+
+  const guardFileMutation = useCallback(
+    async (kind: "add" | "remove"): Promise<boolean> => {
+      if (!dynamicQuestionsEnabled || !generatedQuestions?.length) {
+        return true;
+      }
+      if (fileMutationWarnedThisCycle) {
+        return true;
+      }
+      return new Promise<boolean>((resolve) => {
+        fileMutationResolverRef.current = resolve;
+        setFileMutationDialog(kind);
+      });
+    },
+    [dynamicQuestionsEnabled, generatedQuestions, fileMutationWarnedThisCycle],
+  );
+
   // Generate dynamic questions after file upload
   const triggerDynamicGeneration = useCallback(
     async (force: boolean) => {
@@ -253,10 +298,18 @@ export default function AssignmentResponseCore({
             err.error || `Generation failed (${res.status})`,
           );
         }
-        const { questions } = (await res.json()) as {
+        const data = (await res.json()) as {
           questions: Question[];
+          generated_from_file_ids?: string[];
         };
-        setGeneratedQuestions(questions);
+        setGeneratedQuestions(data.questions);
+        if (Array.isArray(data.generated_from_file_ids)) {
+          onDynamicQuestionsSaved?.({
+            questions: data.questions,
+            generatedFromFileIds: data.generated_from_file_ids,
+          });
+        }
+        setFileMutationWarnedThisCycle(false);
         // Advance to first question step explicitly — handleNext() is a no-op here
         // because totalSteps is still 1 until generatedQuestions is applied (empty assignment.questions).
         setCurrentStepIndex(questionOffset);
@@ -275,6 +328,7 @@ export default function AssignmentResponseCore({
       assignmentData.assignment_id,
       assignmentId,
       questionOffset,
+      onDynamicQuestionsSaved,
     ],
   );
 
@@ -300,8 +354,14 @@ export default function AssignmentResponseCore({
       return;
     }
 
-    // If questions already generated, check if files changed
-    if (generatedQuestions && generatedFromFileIds) {
+    // If questions already generated, check snapshot / file set
+    if (generatedQuestions?.length) {
+      const snapshotMissing = !generatedFromFileIds?.length;
+      if (snapshotMissing) {
+        setShowRegenConfirm(true);
+        return;
+      }
+
       const currentFileIds = uploadedFiles
         .map((f) => f.id)
         .sort()
@@ -309,11 +369,11 @@ export default function AssignmentResponseCore({
       const previousFileIds = [...generatedFromFileIds].sort().join(",");
 
       if (currentFileIds !== previousFileIds) {
-        setShowRegenConfirm(true);
+        // Add/remove already confirmed in FileUploadZone; regen without second prompt
+        triggerDynamicGeneration(false);
         return;
       }
 
-      // Files unchanged, proceed with existing questions
       handleNext();
       return;
     }
@@ -410,17 +470,18 @@ export default function AssignmentResponseCore({
 
       {/* Additional context is not shown as a separate student block; it is passed to AI prompts */}
 
-      {/* Regeneration confirmation dialog */}
+      {/* Only when we cannot compare file snapshots (legacy rows); file changes use add/remove confirm */}
       {showRegenConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <Card className="max-w-md mx-4">
             <CardHeader>
-              <CardTitle className="text-lg">Files Changed</CardTitle>
+              <CardTitle className="text-lg">Regenerate questions?</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                You have changed your uploaded files. Regenerating questions
-                will reset all your previous answers and scores.
+                Questions were already generated for this submission. Continuing
+                will regenerate them from your current files and reset all your
+                previous answers and scores.
               </p>
               <div className="flex justify-end gap-2">
                 <Button
@@ -436,6 +497,39 @@ export default function AssignmentResponseCore({
                   }}
                 >
                   Regenerate Questions
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {fileMutationDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="text-lg">
+                {fileMutationDialog === "add"
+                  ? "Add a file?"
+                  : "Remove this file?"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                You already have generated questions for this submission.
+                {fileMutationDialog === "add"
+                  ? " Adding a file means questions will need to be regenerated from your new set of files, which resets your previous answers and scores when you continue."
+                  : " Removing a file means questions will need to be regenerated from your remaining files, which resets your previous answers and scores when you continue."}
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => resolveFileMutation(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={() => resolveFileMutation(true)}>
+                  Continue
                 </Button>
               </div>
             </CardContent>
@@ -480,6 +574,7 @@ export default function AssignmentResponseCore({
                   config={assignmentData.file_submission_config}
                   existingFiles={uploadedFiles}
                   onFilesChanged={(files) => onUploadedFilesChanged?.(files)}
+                  guardFileMutation={guardFileMutation}
                 />
               )}
             </CardContent>

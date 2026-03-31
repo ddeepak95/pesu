@@ -23,6 +23,8 @@ interface FileUploadZoneProps {
   existingFiles: SubmissionFile[];
   onFilesChanged: (files: SubmissionFile[]) => void;
   disabled?: boolean;
+  /** When set, called before add/remove mutations; return false to cancel */
+  guardFileMutation?: (kind: "add" | "remove") => Promise<boolean>;
 }
 
 interface UploadingFile {
@@ -184,6 +186,7 @@ export default function FileUploadZone({
   existingFiles,
   onFilesChanged,
   disabled = false,
+  guardFileMutation,
 }: FileUploadZoneProps) {
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
@@ -282,6 +285,11 @@ export default function FileUploadZone({
 
       if (queue.length === 0) return;
 
+      if (guardFileMutation) {
+        const allowed = await guardFileMutation("add");
+        if (!allowed) return;
+      }
+
       // Show every file in the list immediately; uploads still run one after another.
       setDisplayRowKeys((r) => [
         ...r,
@@ -362,6 +370,10 @@ export default function FileUploadZone({
   };
 
   const handleDelete = async (fileId: string) => {
+    if (guardFileMutation) {
+      const allowed = await guardFileMutation("remove");
+      if (!allowed) return;
+    }
     setDeleting((prev) => new Set(prev).add(fileId));
     try {
       await deleteSubmissionFile(fileId);

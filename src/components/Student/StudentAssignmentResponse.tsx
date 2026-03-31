@@ -411,6 +411,10 @@ export default function StudentAssignmentResponse({
           dynamicQuestionsEnabled={dynamicQuestionsEnabled}
           initialGeneratedQuestions={generatedQuestions}
           generatedFromFileIds={generatedFromFileIds}
+          onDynamicQuestionsSaved={({ questions, generatedFromFileIds: ids }) => {
+            setGeneratedQuestions(questions);
+            setGeneratedFromFileIds(ids);
+          }}
         />
       </ActivityTrackingProvider>
     </>
