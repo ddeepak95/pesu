@@ -19,6 +19,15 @@ interface ChatMessage {
   content: string;
 }
 
+function formatFullConversation(msgs: ChatMessage[]) {
+  return msgs
+    .map((m) => {
+      const label = m.role === "student" ? "Student" : "Bot";
+      return `${label}: ${m.content ?? ""}`;
+    })
+    .join("\n\n");
+}
+
 export function ChatInputArea({
   question,
   language,
@@ -69,6 +78,11 @@ export function ChatInputArea({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const activeRequestAbortRef = React.useRef<AbortController | null>(null);
   const restoredFromStorageRef = React.useRef(false);
+  /** Browser timer id; avoid NodeJS.Timeout vs number mismatch in client components. */
+  const autoFinishTimeoutIdRef = React.useRef<number | null>(null);
+  const finishInFlightRef = React.useRef(false);
+  const finishHandlerRef = React.useRef<(() => Promise<void>) | null>(null);
+  const messagesRef = React.useRef<ChatMessage[]>([]);
   const endConversationRef = React.useRef<{
     reason: "thorough" | "refusal";
   } | null>(null);
@@ -78,6 +92,17 @@ export function ChatInputArea({
   );
 
   const hasStarted = messages.length > 0;
+
+  React.useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const clearAutoFinishTimeout = React.useCallback(() => {
+    if (autoFinishTimeoutIdRef.current != null) {
+      window.clearTimeout(autoFinishTimeoutIdRef.current);
+      autoFinishTimeoutIdRef.current = null;
+    }
+  }, []);
 
   // Report language-disabled state to the shell
   React.useEffect(() => {
@@ -115,8 +140,10 @@ export function ChatInputArea({
     [submissionId],
   );
 
-  // Restore in-progress chat from localStorage
+  // Load draft for this question, reset ref state, clear stale auto-finish timers
   React.useEffect(() => {
+    clearAutoFinishTimeout();
+    restoredFromStorageRef.current = false;
     try {
       const stored = window.localStorage.getItem(storageKey);
       if (stored) {
@@ -124,19 +151,17 @@ export function ChatInputArea({
         if (Array.isArray(parsed) && parsed.length > 0) {
           restoredFromStorageRef.current = true;
           setMessages(parsed);
+          return;
         }
       }
     } catch {
       /* ignore */
     }
-  }, [storageKey]);
-
-  // Reset messages when attempts change (question navigated)
-  React.useEffect(() => {
-    if (!restoredFromStorageRef.current) {
-      setMessages([]);
-    }
-  }, [question.order, submissionId]);
+    setMessages([]);
+    return () => {
+      clearAutoFinishTimeout();
+    };
+  }, [storageKey, clearAutoFinishTimeout]);
 
   // Persist chat draft to localStorage
   React.useEffect(() => {
@@ -182,25 +207,29 @@ export function ChatInputArea({
       .join("\n\n");
   };
 
-  /** Full conversation (student + bot) for submission_transcripts.answer_text */
-  const formatFullConversation = (msgs: ChatMessage[]) => {
-    return msgs
-      .map((m) => {
-        const label = m.role === "student" ? "Student" : "Bot";
-        return `${label}: ${m.content ?? ""}`;
-      })
-      .join("\n\n");
-  };
+  const scheduleEndConversationAutoFinish = React.useCallback(() => {
+    clearAutoFinishTimeout();
+    autoFinishTimeoutIdRef.current = window.setTimeout(() => {
+      autoFinishTimeoutIdRef.current = null;
+      void finishHandlerRef.current?.();
+    }, 1000);
+  }, [clearAutoFinishTimeout]);
 
-  const handleFinishAndEvaluate = async () => {
-    const hasStudentMessage = messages.some(
+  const handleFinishAndEvaluate = React.useCallback(async () => {
+    if (finishInFlightRef.current || isEvaluating) {
+      return;
+    }
+
+    const msgs = messagesRef.current;
+    const hasStudentMessage = msgs.some(
       (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
     );
     if (!hasStudentMessage) {
-      showWarningToast("Please provide at least one response before finishing.");
+      if (!isEvaluating && !finishInFlightRef.current) {
+        showWarningToast("Please provide at least one response before finishing.");
+      }
       return;
     }
-    const answerText = formatFullConversation(messages).trim();
     if (maxAttemptsReached) {
       showWarningToast(
         "You have reached the maximum number of attempts for this question.",
@@ -208,18 +237,35 @@ export function ChatInputArea({
       return;
     }
 
-    // Clear chat state before evaluation
-    setMessages([]);
-    setInput("");
-    sync("");
-    try {
-      window.localStorage.removeItem(storageKey);
-    } catch {
-      /* ignore */
-    }
+    clearAutoFinishTimeout();
 
-    await onSubmitForEvaluation(answerText);
-  };
+    const answerText = formatFullConversation(msgs).trim();
+    finishInFlightRef.current = true;
+    try {
+      await onSubmitForEvaluation(answerText);
+      setMessages([]);
+      setInput("");
+      sync("");
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        /* ignore */
+      }
+    } catch {
+      /* Error toast already shown by AssessmentShell */
+    } finally {
+      finishInFlightRef.current = false;
+    }
+  }, [
+    clearAutoFinishTimeout,
+    isEvaluating,
+    maxAttemptsReached,
+    onSubmitForEvaluation,
+    storageKey,
+    sync,
+  ]);
+
+  finishHandlerRef.current = handleFinishAndEvaluate;
 
   const handleStartChat = async () => {
     if (maxAttemptsReached) {
@@ -290,9 +336,7 @@ export function ChatInputArea({
       }, 0);
 
       if (endConversationRef.current) {
-        setTimeout(() => {
-          handleFinishAndEvaluate();
-        }, 1000);
+        scheduleEndConversationAutoFinish();
       }
     } catch (error) {
       if (
@@ -392,9 +436,7 @@ export function ChatInputArea({
       await streamSSEResponse(reader, assistantId);
 
       if (endConversationRef.current) {
-        setTimeout(() => {
-          handleFinishAndEvaluate();
-        }, 1000);
+        scheduleEndConversationAutoFinish();
       }
     } catch (error) {
       if (

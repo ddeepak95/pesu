@@ -251,6 +251,7 @@ export function AssessmentShell({
             error instanceof Error ? error.message : "Unknown error"
           }`,
         );
+        throw error;
       } finally {
         setIsEvaluating(false); // Safety net for all paths
       }

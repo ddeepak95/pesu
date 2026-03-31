@@ -218,6 +218,14 @@ The users are students. All feedback must be age-appropriate, supportive, and re
     .eq("submission_id", submissionId);
 
   if (updateError) {
+    console.error("Background evaluation: failed to update submissions", {
+      submissionId,
+      questionOrder,
+      message: updateError.message,
+      code: updateError.code,
+      details: updateError.details,
+      hint: updateError.hint,
+    });
     throw new Error(`Failed to save evaluation: ${updateError.message}`);
   }
 

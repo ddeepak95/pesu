@@ -137,7 +137,11 @@ export function StaticTextInputArea({
       /* ignore */
     }
 
-    await onSubmitForEvaluation(trimmedAnswer);
+    try {
+      await onSubmitForEvaluation(trimmedAnswer);
+    } catch {
+      /* Error toast already shown by AssessmentShell */
+    }
   };
 
   const hasContent = answer.trim().length > 0;

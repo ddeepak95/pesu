@@ -201,7 +201,12 @@ export async function POST(request: NextRequest) {
         .eq("submission_id", submissionId);
 
       if (updateError) {
-        console.error("Error saving stub attempt:", updateError);
+        console.error("Error saving stub attempt:", {
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+          hint: updateError.hint,
+        });
         return NextResponse.json(
           { error: "Failed to save attempt" },
           { status: 500 }
@@ -352,7 +357,12 @@ The users are students. All feedback must be age-appropriate, supportive, and re
       .eq("submission_id", submissionId);
 
     if (updateError) {
-      console.error("Error updating submission:", updateError);
+      console.error("Error updating submission (evaluations save):", {
+        message: updateError.message,
+        code: updateError.code,
+        details: updateError.details,
+        hint: updateError.hint,
+      });
       return NextResponse.json(
         { error: "Failed to save evaluation" },
         { status: 500 }

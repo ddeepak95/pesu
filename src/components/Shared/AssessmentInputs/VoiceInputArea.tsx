@@ -139,7 +139,11 @@ function VoiceInputContent({
       );
       return;
     }
-    await onSubmitForEvaluation(transcript.trim());
+    try {
+      await onSubmitForEvaluation(transcript.trim());
+    } catch {
+      /* Error toast already shown by AssessmentShell */
+    }
   };
 
   // Bot disconnect -> evaluate
