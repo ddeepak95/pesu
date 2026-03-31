@@ -64,10 +64,10 @@ export default function LandingPage() {
 
     // Initial check after a brief delay to ensure DOM is ready
     const timeoutId = setTimeout(checkScrollNeeded, 100);
-    
+
     // Check when window resizes
     window.addEventListener("resize", checkScrollNeeded);
-    
+
     // Check after images load
     const images = contentRef.current?.querySelectorAll("img");
     if (images && images.length > 0) {
@@ -501,20 +501,6 @@ export default function LandingPage() {
                     className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                   />
                   <Image
-                    src="/home/supported_by/msr.png"
-                    alt="Microsoft Research"
-                    width={120}
-                    height={32}
-                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
-                  />
-                  <Image
-                    src="/home/supported_by/sikshana.png"
-                    alt="Sikshana"
-                    width={120}
-                    height={32}
-                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
-                  />
-                  <Image
                     src="/home/supported_by/cartesia_logo 1.png"
                     alt="Cartesia"
                     width={120}
@@ -527,20 +513,6 @@ export default function LandingPage() {
                       <Image
                         src="/home/supported_by/cornell_logo 1.png"
                         alt="Cornell University"
-                        width={120}
-                        height={32}
-                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
-                      />
-                      <Image
-                        src="/home/supported_by/msr.png"
-                        alt="Microsoft Research"
-                        width={120}
-                        height={32}
-                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
-                      />
-                      <Image
-                        src="/home/supported_by/sikshana.png"
-                        alt="Sikshana"
                         width={120}
                         height={32}
                         className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
@@ -569,8 +541,8 @@ export default function LandingPage() {
               Ready to Transform Learning?
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Get started with ConvoEd and help shape the future of
-              multilingual education.
+              Get started with ConvoEd and help shape the future of multilingual
+              education.
             </p>
             <Button
               asChild
