@@ -349,6 +349,7 @@ export default function FileUploadZone({
       existingFiles.length,
       onFilesChanged,
       validateFile,
+      guardFileMutation,
     ],
   );
 
