@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getStorageBucket } from "@/lib/firebase-admin";
 import {
@@ -15,8 +14,10 @@ import {
   buildDefaultDynamicGenerationPrompt,
   formatGenerationSpecForPrompt,
 } from "@/lib/promptTemplates";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import { getLanguageModel } from "@/lib/ai/provider";
+import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-questions";
+import { generateStructured } from "@/lib/ai/structured";
 
 /**
  * Interpolate template variables and conditional blocks into a prompt string.
@@ -28,7 +29,6 @@ function interpolateTemplate(
 ): string {
   let result = template;
 
-  // Process {{#if var}}...{{/if}} conditional blocks
   result = result.replace(
     /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
     (_match, varName: string, content: string) => {
@@ -37,7 +37,6 @@ function interpolateTemplate(
     },
   );
 
-  // Replace {{variable}} placeholders
   for (const [key, value] of Object.entries(variables)) {
     result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
   }
@@ -63,60 +62,6 @@ function fileSetsMatch(
   const b = normalizeFileIds(snapshot);
   if (a.length !== b.length) return false;
   return a.every((id, i) => id === b[i]);
-}
-
-function buildGeneratedQuestionsJsonSchema(questionCount: number) {
-  const questionItemSchema = {
-    type: "object" as const,
-    properties: {
-      question_index: {
-        type: "number" as const,
-        description: `The 0-based index of this question (0 through ${questionCount - 1})`,
-      },
-      prompt: {
-        type: "string" as const,
-        description: "The question text to ask the student",
-      },
-      rubric: {
-        type: "array" as const,
-        items: {
-          type: "object" as const,
-          properties: {
-            item: { type: "string" as const },
-            points: { type: "number" as const },
-          },
-          required: ["item", "points"] as const,
-          additionalProperties: false,
-        },
-      },
-      expected_answer: {
-        type: "string" as const,
-        description:
-          "Key points the answer should cover (for AI evaluation reference)",
-      },
-    },
-    required: [
-      "question_index",
-      "prompt",
-      "rubric",
-      "expected_answer",
-    ] as const,
-    additionalProperties: false,
-  };
-
-  return {
-    type: "object" as const,
-    properties: {
-      questions: {
-        type: "array" as const,
-        minItems: questionCount,
-        maxItems: questionCount,
-        items: questionItemSchema,
-      },
-    },
-    required: ["questions"] as const,
-    additionalProperties: false,
-  };
 }
 
 async function fetchSubmissionFileContent(
@@ -202,7 +147,8 @@ async function generateAllQuestions(
   const n = spec.question_count;
   const points = spec.points_per_question;
 
-  const template = customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt();
+  const template =
+    customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt();
 
   const templateVariables: Record<string, string> = {
     title: context.title || "",
@@ -216,38 +162,20 @@ async function generateAllQuestions(
 
   console.log("systemMessage", systemMessage);
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.4-mini",
+  const model = getLanguageModel(getDefaultModelConfigFromEnv());
+  const schema = buildGeneratedQuestionsSchema(n);
+
+  const result = await generateStructured({
+    model,
+    schema,
     messages: [
-      {
-        role: "system",
-        content: systemMessage,
-      },
+      { role: "system", content: systemMessage },
       {
         role: "user",
         content: `Generate exactly ${n} question(s) as specified in the system instructions. Each rubric must sum to ${points} points.`,
       },
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "generated_questions",
-        strict: true,
-        schema: buildGeneratedQuestionsJsonSchema(n),
-      },
-    },
   });
-
-  const result = JSON.parse(
-    completion.choices[0].message.content || '{"questions":[]}',
-  ) as {
-    questions: {
-      question_index: number;
-      prompt: string;
-      rubric: RubricItem[];
-      expected_answer: string;
-    }[];
-  };
 
   const fallbackPrompt = (i: number) =>
     `Answer the following based on your submission, addressing: ${spec.coverage_description.slice(0, 200)}${spec.coverage_description.length > 200 ? "…" : ""} (Question ${i + 1} of ${n})`;
@@ -306,7 +234,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
 
-    // Fetch the assignment
     const { data: assignment, error: assignmentError } = await supabase
       .from("assignments")
       .select(
@@ -322,17 +249,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const spec = parseDynamicGenerationSpec(
-      assignment.dynamic_question_focuses,
-    );
+    const spec = parseDynamicGenerationSpec(assignment.dynamic_question_focuses);
     if (!spec || !isCompleteDynamicGenerationSpec(spec)) {
       return NextResponse.json(
-        { error: "Invalid or incomplete dynamic generation settings on assignment" },
+        {
+          error:
+            "Invalid or incomplete dynamic generation settings on assignment",
+        },
         { status: 400 },
       );
     }
 
-    // Fetch submission to check for existing generated questions
     const { data: submission, error: submissionError } = await supabase
       .from("submissions")
       .select(
@@ -356,7 +283,6 @@ export async function POST(request: NextRequest) {
       | undefined;
     const filesMatch = fileSetsMatch(submissionFileIds, snapshotIds);
 
-    // Idempotency: cache only when files still match the generation snapshot
     if (hasGeneratedQuestions && !force && filesMatch) {
       return NextResponse.json({
         questions: submission.generated_questions,
@@ -367,7 +293,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Regenerate (or first run after mismatch): clear stale questions / attempts
     if (hasGeneratedQuestions && (force || !filesMatch)) {
       const emptyEvals: Record<number, QuestionEvaluations> = {};
       const denormalized = computeDenormalizedFields(emptyEvals);
@@ -384,7 +309,6 @@ export async function POST(request: NextRequest) {
         })
         .eq("submission_id", submissionId);
 
-      // Clean up related tables
       await Promise.all([
         supabase
           .from("submission_transcripts")
@@ -401,11 +325,13 @@ export async function POST(request: NextRequest) {
       ]);
     }
 
-    // Fetch file content
     const fileContent = await fetchSubmissionFileContent(supabase, submissionId);
     if (!fileContent) {
       return NextResponse.json(
-        { error: "No processed file content available. Please wait for file processing to complete." },
+        {
+          error:
+            "No processed file content available. Please wait for file processing to complete.",
+        },
         { status: 422 },
       );
     }
@@ -418,7 +344,6 @@ export async function POST(request: NextRequest) {
         : undefined,
     };
 
-    // Generate all questions in a single LLM call
     const results = await generateAllQuestions(
       spec,
       fileContent,
@@ -439,7 +364,6 @@ export async function POST(request: NextRequest) {
 
     const persistedFileIds = normalizeFileIds(submissionFileIds);
 
-    // Save to submission
     const { error: updateError } = await supabase
       .from("submissions")
       .update({

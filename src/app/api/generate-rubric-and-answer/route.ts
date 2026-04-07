@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import { RubricItem } from "@/types/assignment";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import type { RubricItem } from "@/types/assignment";
+import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import { getLanguageModel } from "@/lib/ai/provider";
+import { rubricGenerationSchema } from "@/lib/ai/schemas/rubric-generation";
+import { generateStructured } from "@/lib/ai/structured";
 
 interface GenerateRubricAndAnswerRequestBody {
   questionPrompt: string;
@@ -22,33 +21,6 @@ interface GenerateRubricAndAnswerResponse {
   expectedAnswer: string;
 }
 
-// Define the structured output schema with detected_language
-const generationSchema = {
-  type: "object",
-  properties: {
-    detected_language: {
-      type: "string",
-      description:
-        "ISO 639-1 language code detected from the prompt (e.g., 'en', 'hi', 'kn', 'ta', 'ml', 'de')",
-    },
-    rubric: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          item: { type: "string" },
-          points: { type: "number" },
-        },
-        required: ["item", "points"],
-        additionalProperties: false,
-      },
-    },
-    expected_answer: { type: "string" },
-  },
-  required: ["detected_language", "rubric", "expected_answer"],
-  additionalProperties: false,
-};
-
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateRubricAndAnswerRequestBody = await request.json();
@@ -63,24 +35,21 @@ export async function POST(request: NextRequest) {
       focusGuidance,
     } = body;
 
-    // Validate required fields
     if (!questionPrompt) {
       return NextResponse.json(
         { error: "Missing required field: questionPrompt is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Build language mapping from supportedLanguages
     const languageNames = Object.fromEntries(
-      supportedLanguages.map((lang) => [lang.code, lang.name])
+      supportedLanguages.map((lang) => [lang.code, lang.name]),
     );
     const supportedLanguageCodes = supportedLanguages.map((lang) => lang.code);
     const preferredLanguageName = language
       ? languageNames[language] || "English"
       : "English";
 
-    // Build context for the prompt
     let contextText = "";
     if (title?.trim()) {
       contextText += `Assignment Title: ${title.trim()}\n\n`;
@@ -99,9 +68,11 @@ export async function POST(request: NextRequest) {
       contextText += `\n\nTeacher's Additional Instructions for Generation:\n${focusGuidance.trim()}`;
     }
 
-    // Single OpenAI call that detects language and generates content
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-2024-08-06", // Model that supports structured outputs
+    const model = getLanguageModel(getDefaultModelConfigFromEnv());
+
+    const result = await generateStructured({
+      model,
+      schema: rubricGenerationSchema,
       messages: [
         {
           role: "system",
@@ -142,54 +113,28 @@ Please:
 3. Generate expected answer as key pointers in the detected language`,
         },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "rubric_and_answer",
-          strict: true,
-          schema: generationSchema,
-        },
-      },
     });
-
-    const result = JSON.parse(
-      completion.choices[0].message.content || "{}"
-    ) as {
-      detected_language: string;
-      rubric: RubricItem[];
-      expected_answer: string;
-    };
 
     // Validate detected language code
     let detectedLang = result.detected_language?.toLowerCase().trim();
     if (!detectedLang || !supportedLanguageCodes.includes(detectedLang)) {
-      // Fallback to preferred language or English
       detectedLang = language || "en";
       if (!supportedLanguageCodes.includes(detectedLang)) {
         detectedLang = "en";
       }
     }
 
-    // Validate and ensure rubric items have valid points
     const validatedRubric = result.rubric
       .filter((item) => item.item && item.item.trim() && item.points > 0)
       .map((item) => ({
         item: item.item.trim(),
-        points: Math.max(1, Math.round(item.points)), // Ensure at least 1 point and round to integer
+        points: Math.max(1, Math.round(item.points)),
       }));
 
-    // Ensure we have at least 2 rubric items
     if (validatedRubric.length < 2) {
-      // Fallback: create a simple rubric if AI didn't generate enough items
       validatedRubric.push(
-        {
-          item: "Completeness and accuracy of response",
-          points: 30,
-        },
-        {
-          item: "Clarity and organization of explanation",
-          points: 20,
-        }
+        { item: "Completeness and accuracy of response", points: 30 },
+        { item: "Clarity and organization of explanation", points: 20 },
       );
     }
 
@@ -199,7 +144,7 @@ Please:
     };
 
     console.log(
-      `Generated rubric and answer in detected language: ${detectedLang} (${languageNames[detectedLang] || "Unknown"})`
+      `Generated rubric and answer in detected language: ${detectedLang} (${languageNames[detectedLang] || "Unknown"})`,
     );
 
     return NextResponse.json(response);
@@ -210,7 +155,7 @@ Please:
         error: "Failed to generate rubric and expected answer",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
