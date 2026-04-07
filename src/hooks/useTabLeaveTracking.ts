@@ -14,6 +14,14 @@ export type TabWarningQuota = { used: number; max: number };
 /** Collapse blur+visibilityhidden bursts into one logged leave (ms). */
 const LEAVE_DEDUPE_MS = 450;
 
+/**
+ * Grace period before a blur-only event (no visibility change) is recorded.
+ * Allows transient focus losses -- permission dialogs, spell-check context
+ * menus, address-bar clicks -- to resolve without counting as a tab leave.
+ * Split windows and Alt+Tab keep focus away past this window and are recorded.
+ */
+const BLUR_GRACE_MS = 5000;
+
 export function useTabLeaveTracking(params: {
   submissionId: string | null;
   assignment: Pick<Assignment, "tab_switch_policy" | "tab_switch_max_leaves">;
@@ -51,8 +59,17 @@ export function useTabLeaveTracking(params: {
   /** Leave count after the most recent recorded leave. */
   const lastLeaveCountRef = useRef<number | null>(null);
   const lastLeaveRecordedAtRef = useRef(0);
-  /** True after a window blur leave while tab stayed visible (tiled windows); cleared on return or tab hide. */
+  /** True after a recorded blur-only leave while tab stayed visible; cleared on focus return or tab hide. */
   const pendingBlurReturnRef = useRef(false);
+  /** Active grace timer for a blur-only event (no visibility change yet). */
+  const blurGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelBlurGrace = useCallback(() => {
+    if (blurGraceTimerRef.current != null) {
+      clearTimeout(blurGraceTimerRef.current);
+      blurGraceTimerRef.current = null;
+    }
+  }, []);
 
   const policy = getEffectiveTabSwitchPolicy(assignment);
   const maxLeaves = assignment.tab_switch_max_leaves ?? null;
@@ -71,10 +88,12 @@ export function useTabLeaveTracking(params: {
     lastLeaveRecordedAtRef.current = 0;
     pendingBlurReturnRef.current = false;
     lastLeaveCountRef.current = null;
-  }, [submissionId]);
+    cancelBlurGrace();
+  }, [submissionId, cancelBlurGrace]);
 
   useEffect(() => {
     if (!active) {
+      cancelBlurGrace();
       queueMicrotask(() => dismissTabWarning());
       return;
     }
@@ -144,6 +163,7 @@ export function useTabLeaveTracking(params: {
 
       void (async () => {
         if (current === "hidden") {
+          cancelBlurGrace();
           pendingBlurReturnRef.current = false;
           if (!beginTabLeaveAttempt()) return;
           await finishTabLeaveRecord();
@@ -155,13 +175,22 @@ export function useTabLeaveTracking(params: {
 
     const handleWindowBlur = () => {
       if (document.visibilityState !== "visible") return;
-      if (!beginTabLeaveAttempt()) return;
-      pendingBlurReturnRef.current = true;
-      void finishTabLeaveRecord();
+      cancelBlurGrace();
+      blurGraceTimerRef.current = setTimeout(() => {
+        blurGraceTimerRef.current = null;
+        if (document.hasFocus()) return;
+        if (!beginTabLeaveAttempt()) return;
+        pendingBlurReturnRef.current = true;
+        void finishTabLeaveRecord();
+      }, BLUR_GRACE_MS);
     };
 
     const handleWindowFocus = () => {
       if (document.visibilityState !== "visible") return;
+      if (blurGraceTimerRef.current != null) {
+        cancelBlurGrace();
+        return;
+      }
       if (!pendingBlurReturnRef.current) return;
       pendingBlurReturnRef.current = false;
       showReturnWarning();
@@ -175,8 +204,9 @@ export function useTabLeaveTracking(params: {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleWindowBlur);
       window.removeEventListener("focus", handleWindowFocus);
+      cancelBlurGrace();
     };
-  }, [submissionId, policy, maxLeaves, active, dismissTabWarning]);
+  }, [submissionId, policy, maxLeaves, active, dismissTabWarning, cancelBlurGrace]);
 
   return { showTabWarning, dismissTabWarning, tabWarningQuota };
 }
