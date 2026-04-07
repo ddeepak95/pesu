@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isActivityLogsPersistenceEnabled } from "@/lib/activity-logs-enabled";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase-server";
 import { ActivityLogInput } from "@/types/activity";
 
@@ -38,6 +39,13 @@ export async function POST(request: NextRequest) {
 
   if (process.env.NODE_ENV === "development") {
     return NextResponse.json({ success: true, skipped: "dev mode" });
+  }
+
+  if (!isActivityLogsPersistenceEnabled()) {
+    return NextResponse.json({
+      success: true,
+      skipped: "activity_logs_disabled",
+    });
   }
 
   try {

@@ -9,6 +9,7 @@ import {
   EventType,
 } from "@/types/activity";
 import { useActivityTrackingContext } from "@/contexts/ActivityTrackingContext";
+import { isActivityLogsPersistenceEnabled } from "@/lib/activity-logs-enabled";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,6 +86,7 @@ export function useActivityTracking(
 
   // Save activity log to API (periodic time tracking)
   const saveActivityLog = useCallback(async () => {
+    if (!isActivityLogsPersistenceEnabled()) return;
     if (!startTimeRef.current || !sessionIdRef.current) return;
 
     const data: ActivityLogInput = {
@@ -187,9 +189,15 @@ export function useActivityTracking(
     setIsTracking(false);
   }, [isTracking, saveActivityLog]);
 
-  // Periodic save interval
+  // Periodic save interval (no timer when activity_logs persistence is off)
   useEffect(() => {
-    if (!isTracking || !enabled) return;
+    if (
+      !isTracking ||
+      !enabled ||
+      !isActivityLogsPersistenceEnabled()
+    ) {
+      return;
+    }
 
     // Initial save
     saveActivityLog();
