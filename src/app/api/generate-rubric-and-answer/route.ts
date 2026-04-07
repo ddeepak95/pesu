@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { RubricItem } from "@/types/assignment";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import {
+  getDefaultModelConfigFromEnv,
+  getDefaultProviderOptions,
+} from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { rubricGenerationSchema } from "@/lib/ai/schemas/rubric-generation";
 import { generateStructured } from "@/lib/ai/structured";
@@ -68,11 +71,13 @@ export async function POST(request: NextRequest) {
       contextText += `\n\nTeacher's Additional Instructions for Generation:\n${focusGuidance.trim()}`;
     }
 
-    const model = getLanguageModel(getDefaultModelConfigFromEnv());
+    const config = getDefaultModelConfigFromEnv();
+    const model = getLanguageModel(config);
 
     const result = await generateStructured({
       model,
       schema: rubricGenerationSchema,
+      providerOptions: getDefaultProviderOptions(config.provider),
       messages: [
         {
           role: "system",

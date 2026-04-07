@@ -10,20 +10,32 @@
  * when present. After exhausting all attempts it re-throws the last error.
  */
 
-const DEFAULT_MAX_ATTEMPTS = 4;
+export const DEFAULT_MAX_ATTEMPTS = 4;
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30_000;
 
 function isRetryable(error: unknown): boolean {
+  if (isRetryableProviderError(error)) return true;
   if (!error || typeof error !== "object") return false;
-  // AI SDK wraps provider errors with a statusCode property
   const statusCode = (error as Record<string, unknown>).statusCode as
     | number
     | undefined;
-  if (statusCode === 429 || statusCode === 503) return true;
-  // Network / timeout errors have no statusCode
+  // Network / timeout errors often have no statusCode on plain Error
   if (statusCode === undefined && error instanceof Error) return true;
   return false;
+}
+
+/**
+ * Errors safe to recover from by restarting a stream before any bytes were
+ * sent to the client (429/503 and typical fetch network failures).
+ */
+export function isRetryableProviderError(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  if (!error || typeof error !== "object") return false;
+  const statusCode = (error as Record<string, unknown>).statusCode as
+    | number
+    | undefined;
+  return statusCode === 429 || statusCode === 503;
 }
 
 function getRetryAfterMs(error: unknown): number | null {
@@ -42,6 +54,24 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Wait before retry attempt `attemptZeroBased` (0 = first backoff after failure).
+ * Uses Retry-After header when present, else exponential backoff + jitter.
+ */
+export async function waitBeforeRetry(
+  error: unknown,
+  attemptZeroBased: number,
+): Promise<void> {
+  const retryAfter = getRetryAfterMs(error);
+  if (retryAfter !== null) {
+    await delay(Math.min(retryAfter, MAX_DELAY_MS));
+    return;
+  }
+  const base = BASE_DELAY_MS * Math.pow(2, attemptZeroBased);
+  const jitter = base * 0.2 * (Math.random() * 2 - 1);
+  await delay(Math.min(base + jitter, MAX_DELAY_MS));
+}
+
 export async function withRetry<T>(
   fn: () => Promise<T>,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
@@ -58,15 +88,7 @@ export async function withRetry<T>(
         throw err;
       }
 
-      const retryAfter = getRetryAfterMs(err);
-      if (retryAfter !== null) {
-        await delay(Math.min(retryAfter, MAX_DELAY_MS));
-      } else {
-        // Exponential backoff with ±20% jitter
-        const base = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-        const jitter = base * 0.2 * (Math.random() * 2 - 1);
-        await delay(Math.min(base + jitter, MAX_DELAY_MS));
-      }
+      await waitBeforeRetry(err, attempt - 1);
     }
   }
 

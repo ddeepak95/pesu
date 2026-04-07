@@ -14,7 +14,10 @@ import {
   buildDefaultDynamicGenerationPrompt,
   formatGenerationSpecForPrompt,
 } from "@/lib/promptTemplates";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import {
+  getDefaultModelConfigFromEnv,
+  getDefaultProviderOptions,
+} from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-questions";
 import { generateStructured } from "@/lib/ai/structured";
@@ -162,12 +165,14 @@ async function generateAllQuestions(
 
   console.log("systemMessage", systemMessage);
 
-  const model = getLanguageModel(getDefaultModelConfigFromEnv());
+  const config = getDefaultModelConfigFromEnv();
+  const model = getLanguageModel(config);
   const schema = buildGeneratedQuestionsSchema(n);
 
   const result = await generateStructured({
     model,
     schema,
+    providerOptions: getDefaultProviderOptions(config.provider),
     messages: [
       { role: "system", content: systemMessage },
       {

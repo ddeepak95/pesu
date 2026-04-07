@@ -1,7 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { SubmissionAttempt, QuestionEvaluations } from "@/types/submission";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import {
+  getDefaultModelConfigFromEnv,
+  getDefaultProviderOptions,
+} from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 
@@ -40,11 +43,13 @@ export async function runBackgroundEvaluation(
     customEvaluationPrompt,
   } = params;
 
-  const model = getLanguageModel(getDefaultModelConfigFromEnv());
+  const config = getDefaultModelConfigFromEnv();
+  const model = getLanguageModel(config);
 
   const { validatedRubricScores, overallFeedback, totalScore, maxScore } =
     await evaluateSubmission({
       model,
+      providerOptions: getDefaultProviderOptions(config.provider),
       questionPrompt,
       answerText,
       rubric,

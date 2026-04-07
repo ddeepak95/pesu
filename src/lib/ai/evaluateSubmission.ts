@@ -7,13 +7,14 @@
  * provider and key are used (env defaults today; user config via BYOK later).
  */
 
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { evaluationSchema, type LLMRubricScore } from "./schemas/evaluation";
 import { generateStructured } from "./structured";
 
 export interface EvaluateSubmissionParams {
   model: LanguageModelV3;
+  providerOptions?: SharedV3ProviderOptions;
   questionPrompt: string;
   answerText: string;
   rubric: Array<{ item: string; points: number }>;
@@ -47,6 +48,7 @@ export async function evaluateSubmission(
     language,
     sharedContext,
     customEvaluationPrompt,
+    providerOptions,
   } = params;
 
   const maxScore = rubric.reduce((sum, item) => sum + item.points, 0);
@@ -99,6 +101,7 @@ The users are students. All feedback must be age-appropriate, supportive, and re
       { role: "system", content: systemMessage },
       { role: "user", content: userMessageContent },
     ],
+    providerOptions,
   });
 
   const validatedRubricScores = evaluationResult.rubric_scores.map(

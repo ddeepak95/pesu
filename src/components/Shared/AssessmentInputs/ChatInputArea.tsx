@@ -109,7 +109,7 @@ export function ChatInputArea({
     onLanguageDisabledChange?.(hasStarted);
   }, [hasStarted, onLanguageDisabledChange]);
 
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
@@ -163,14 +163,17 @@ export function ChatInputArea({
     };
   }, [storageKey, clearAutoFinishTimeout]);
 
-  // Persist chat draft to localStorage
+  // Persist chat draft to localStorage (debounced to avoid blocking during streaming)
   React.useEffect(() => {
     if (messages.length === 0) return;
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(messages));
-    } catch {
-      /* ignore */
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(messages));
+      } catch {
+        /* ignore */
+      }
+    }, 500);
+    return () => window.clearTimeout(timer);
   }, [messages, storageKey]);
 
   const streamSSEResponse = async (

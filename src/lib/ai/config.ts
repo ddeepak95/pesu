@@ -7,11 +7,15 @@
  *
  * Environment variables:
  *   AI_PROVIDER          - "google" (default) | "openai"
- *   GEMINI_MODEL         - optional model override (default: gemini-2.0-flash)
- *   OPENAI_MODEL         - optional model override (default: gpt-4o)
+ *   GEMINI_MODEL         - optional model override (default: gemini-3-flash-preview)
+ *   OPENAI_MODEL         - optional model override (default: gpt-5.1-mini)
  *   GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY  - Google provider key
  *   OPENAI_API_KEY       - OpenAI provider key (when AI_PROVIDER=openai)
  */
+
+import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
+import type { GoogleLanguageModelOptions } from "@ai-sdk/google";
+import type { OpenAILanguageModelResponsesOptions } from "@ai-sdk/openai";
 
 export type AIProvider = "google" | "openai";
 
@@ -21,8 +25,37 @@ export interface ResolvedModelConfig {
   modelId: string;
 }
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
-const DEFAULT_OPENAI_MODEL = "gpt-4o";
+/**
+ * Returns default providerOptions for the given provider.
+ *
+ * Google (Gemini 3): thinkingLevel "minimal" — near-zero latency, model may
+ *   still think for complex coding tasks.
+ * OpenAI: reasoningEffort "low" — minimal reasoning overhead for fast responses.
+ */
+export function getDefaultProviderOptions(
+  provider: AIProvider,
+): SharedV3ProviderOptions {
+  if (provider === "google") {
+    return {
+      google: {
+        thinkingConfig: {
+          thinkingLevel: "minimal",
+        },
+      } satisfies GoogleLanguageModelOptions,
+    };
+  }
+  if (provider === "openai") {
+    return {
+      openai: {
+        reasoningEffort: "low",
+      } satisfies OpenAILanguageModelResponsesOptions,
+    };
+  }
+  return {};
+}
+
+const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
+const DEFAULT_OPENAI_MODEL = "gpt-5.1-mini";
 
 export function getDefaultModelConfigFromEnv(): ResolvedModelConfig {
   const provider = (process.env.AI_PROVIDER ?? "google") as AIProvider;

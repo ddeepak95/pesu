@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import {
+  getDefaultModelConfigFromEnv,
+  getDefaultProviderOptions,
+} from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
-import { runChatStream } from "@/lib/ai/chat-stream";
+import { createChatStream } from "@/lib/ai/chat-stream";
+import {
+  DEFAULT_MAX_ATTEMPTS,
+  isRetryableProviderError,
+  waitBeforeRetry,
+} from "@/lib/ai/retry";
 
 interface ChatAssessmentMessage {
   role: "student" | "assistant";
@@ -16,9 +24,7 @@ interface ChatAssessmentRequestBody {
   questionOrder: number;
   messages: ChatAssessmentMessage[];
   attemptNumber?: number;
-  /** Fully-interpolated system prompt (constructed by the client). */
   system_prompt: string;
-  /** Optional first-turn greeting instruction. */
   greeting?: string;
 }
 
@@ -63,14 +69,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Log the latest student message
     const supabase = await createServerSupabaseClient();
+
+    // Log latest student message
     try {
       const studentMessages = messages.filter(
         (m) => m.role === "student" && m.content?.trim(),
       );
       const latestStudent = studentMessages[studentMessages.length - 1];
-
       if (latestStudent) {
         await supabase.from("chat_messages").insert({
           submission_id: submissionId ?? null,
@@ -85,84 +91,182 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log chat message(s):", error);
     }
 
-    const model = getLanguageModel(getDefaultModelConfigFromEnv());
+    const t0 = performance.now();
 
-    // Convert student/assistant roles to user/assistant for the AI SDK
+    const config = getDefaultModelConfigFromEnv();
+    const model = getLanguageModel(config);
+
     const sdkMessages = messages.map((msg) => ({
       role: msg.role === "student" ? ("user" as const) : ("assistant" as const),
       content: msg.content,
     }));
 
+    const t1 = performance.now();
+    console.log(`[chat-assessment] setup: ${(t1 - t0).toFixed(0)}ms`);
+
     const encoder = new TextEncoder();
-    let fullReply = "";
+    const providerOptions = getDefaultProviderOptions(config.provider);
 
-    const readableStream = new ReadableStream({
+    const readable = new ReadableStream({
       async start(controller) {
-        await runChatStream({
-          model,
-          systemPrompt,
-          greeting,
-          messages: sdkMessages,
-          callbacks: {
-            onTextDelta(chunk) {
-              fullReply += chunk;
-              controller.enqueue(
-                encoder.encode(
-                  sseEvent({ type: "text-delta", content: chunk }),
-                ),
-              );
-            },
-            onEndConversation(reason) {
-              controller.enqueue(
-                encoder.encode(
-                  sseEvent({ type: "end_conversation", reason }),
-                ),
-              );
-            },
-            onDone() {
-              controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
+        let fullReply = "";
+        let _endConversationCalled = false;
+        let loggedTTFB = false;
 
-              if (fullReply.trim()) {
-                supabase
-                  .from("chat_messages")
-                  .insert({
-                    submission_id: submissionId ?? null,
-                    assignment_id: assignmentId,
-                    question_order: questionOrder,
-                    role: "assistant",
-                    content: fullReply,
-                    attempt_number: attemptNumber ?? null,
-                  })
-                  .then(({ error }) => {
-                    if (error) {
-                      console.error(
-                        "Failed to log assistant chat message:",
-                        error,
+        attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
+          const streamT0 = performance.now();
+          if (attempt === 0) {
+            console.log(
+              `[chat-assessment] stream start: ${(streamT0 - t1).toFixed(0)}ms after setup`,
+            );
+          }
+
+          const result = createChatStream({
+            model,
+            systemPrompt,
+            greeting,
+            messages: sdkMessages,
+            providerOptions,
+          });
+
+          let deliveredToClient = false;
+
+          try {
+            for await (const part of result.fullStream) {
+              switch (part.type) {
+                case "text-delta": {
+                  if (!loggedTTFB) {
+                    console.log(
+                      `[chat-assessment] TTFB (first token): ${(performance.now() - streamT0).toFixed(0)}ms`,
+                    );
+                    loggedTTFB = true;
+                  }
+                  fullReply += part.text;
+                  deliveredToClient = true;
+                  controller.enqueue(
+                    encoder.encode(
+                      sseEvent({ type: "text-delta", content: part.text }),
+                    ),
+                  );
+                  break;
+                }
+                case "tool-call": {
+                  if (part.toolName === "end_conversation") {
+                    _endConversationCalled = true;
+                    const input = part.input as {
+                      reason?: string;
+                      message?: string;
+                    };
+                    const reason =
+                      input.reason === "refusal" ? "refusal" : "thorough";
+                    const message = input.message ?? "";
+
+                    if (message) {
+                      fullReply += message;
+                      deliveredToClient = true;
+                      controller.enqueue(
+                        encoder.encode(
+                          sseEvent({ type: "text-delta", content: message }),
+                        ),
                       );
                     }
-                  });
+                    deliveredToClient = true;
+                    controller.enqueue(
+                      encoder.encode(
+                        sseEvent({ type: "end_conversation", reason }),
+                      ),
+                    );
+                  }
+                  break;
+                }
+                case "error": {
+                  const streamErr = part.error;
+                  if (
+                    !deliveredToClient &&
+                    isRetryableProviderError(streamErr) &&
+                    attempt < DEFAULT_MAX_ATTEMPTS - 1
+                  ) {
+                    console.warn(
+                      `[chat-assessment] stream error, retrying (${attempt + 1}/${DEFAULT_MAX_ATTEMPTS}):`,
+                      streamErr,
+                    );
+                    await waitBeforeRetry(streamErr, attempt);
+                    continue attemptLoop;
+                  }
+                  const errMsg =
+                    streamErr instanceof Error
+                      ? streamErr.message
+                      : "Unknown streaming error";
+                  console.error("[chat-assessment] stream error:", streamErr);
+                  deliveredToClient = true;
+                  controller.enqueue(
+                    encoder.encode(sseEvent({ type: "error", error: errMsg })),
+                  );
+                  break;
+                }
+                // Ignore all other part types (start, finish, reasoning, etc.)
+                default:
+                  break;
               }
+            }
+            break attemptLoop;
+          } catch (err) {
+            if (
+              !deliveredToClient &&
+              isRetryableProviderError(err) &&
+              attempt < DEFAULT_MAX_ATTEMPTS - 1
+            ) {
+              console.warn(
+                `[chat-assessment] fullStream threw, retrying (${attempt + 1}/${DEFAULT_MAX_ATTEMPTS}):`,
+                err,
+              );
+              await waitBeforeRetry(err, attempt);
+              continue attemptLoop;
+            }
+            console.error("[chat-assessment] fullStream iteration error:", err);
+            const errMsg =
+              err instanceof Error ? err.message : "Unknown streaming error";
+            if (!deliveredToClient) {
+              controller.enqueue(
+                encoder.encode(sseEvent({ type: "error", error: errMsg })),
+              );
+            }
+            break attemptLoop;
+          }
+        }
 
-              controller.close();
-            },
-            onError(message) {
-              try {
-                controller.enqueue(
-                  encoder.encode(
-                    sseEvent({ type: "error", error: message }),
-                  ),
+        // Send done event
+        const total = performance.now() - t0;
+        console.log(`[chat-assessment] total stream: ${total.toFixed(0)}ms`);
+        controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
+
+        // Log assistant reply
+        if (fullReply.trim()) {
+          supabase
+            .from("chat_messages")
+            .insert({
+              submission_id: submissionId ?? null,
+              assignment_id: assignmentId,
+              question_order: questionOrder,
+              role: "assistant",
+              content: fullReply,
+              attempt_number: attemptNumber ?? null,
+            })
+            .then(({ error }) => {
+              if (error) {
+                console.error(
+                  "Failed to log assistant chat message:",
+                  error,
                 );
-              } catch {
-                // controller may already be errored
               }
-              controller.error(new Error(message));
-            },
-          },
-        });
+            });
+        }
+
+        controller.close();
       },
     });
 
-    return new Response(readableStream, {
+    return new Response(readable, {
       headers: {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache",
