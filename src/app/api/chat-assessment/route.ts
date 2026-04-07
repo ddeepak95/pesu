@@ -91,8 +91,6 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log chat message(s):", error);
     }
 
-    const t0 = performance.now();
-
     const config = getDefaultModelConfigFromEnv();
     const model = getLanguageModel(config);
 
@@ -101,26 +99,14 @@ export async function POST(request: NextRequest) {
       content: msg.content,
     }));
 
-    const t1 = performance.now();
-    console.log(`[chat-assessment] setup: ${(t1 - t0).toFixed(0)}ms`);
-
     const encoder = new TextEncoder();
     const providerOptions = getDefaultProviderOptions(config.provider);
 
     const readable = new ReadableStream({
       async start(controller) {
         let fullReply = "";
-        let _endConversationCalled = false;
-        let loggedTTFB = false;
 
         attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
-          const streamT0 = performance.now();
-          if (attempt === 0) {
-            console.log(
-              `[chat-assessment] stream start: ${(streamT0 - t1).toFixed(0)}ms after setup`,
-            );
-          }
-
           const result = createChatStream({
             model,
             systemPrompt,
@@ -135,12 +121,6 @@ export async function POST(request: NextRequest) {
             for await (const part of result.fullStream) {
               switch (part.type) {
                 case "text-delta": {
-                  if (!loggedTTFB) {
-                    console.log(
-                      `[chat-assessment] TTFB (first token): ${(performance.now() - streamT0).toFixed(0)}ms`,
-                    );
-                    loggedTTFB = true;
-                  }
                   fullReply += part.text;
                   deliveredToClient = true;
                   controller.enqueue(
@@ -152,7 +132,6 @@ export async function POST(request: NextRequest) {
                 }
                 case "tool-call": {
                   if (part.toolName === "end_conversation") {
-                    _endConversationCalled = true;
                     const input = part.input as {
                       reason?: string;
                       message?: string;
@@ -186,10 +165,6 @@ export async function POST(request: NextRequest) {
                     isRetryableProviderError(streamErr) &&
                     attempt < DEFAULT_MAX_ATTEMPTS - 1
                   ) {
-                    console.warn(
-                      `[chat-assessment] stream error, retrying (${attempt + 1}/${DEFAULT_MAX_ATTEMPTS}):`,
-                      streamErr,
-                    );
                     await waitBeforeRetry(streamErr, attempt);
                     continue attemptLoop;
                   }
@@ -197,7 +172,6 @@ export async function POST(request: NextRequest) {
                     streamErr instanceof Error
                       ? streamErr.message
                       : "Unknown streaming error";
-                  console.error("[chat-assessment] stream error:", streamErr);
                   deliveredToClient = true;
                   controller.enqueue(
                     encoder.encode(sseEvent({ type: "error", error: errMsg })),
@@ -216,14 +190,9 @@ export async function POST(request: NextRequest) {
               isRetryableProviderError(err) &&
               attempt < DEFAULT_MAX_ATTEMPTS - 1
             ) {
-              console.warn(
-                `[chat-assessment] fullStream threw, retrying (${attempt + 1}/${DEFAULT_MAX_ATTEMPTS}):`,
-                err,
-              );
               await waitBeforeRetry(err, attempt);
               continue attemptLoop;
             }
-            console.error("[chat-assessment] fullStream iteration error:", err);
             const errMsg =
               err instanceof Error ? err.message : "Unknown streaming error";
             if (!deliveredToClient) {
@@ -235,9 +204,6 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Send done event
-        const total = performance.now() - t0;
-        console.log(`[chat-assessment] total stream: ${total.toFixed(0)}ms`);
         controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
 
         // Log assistant reply
