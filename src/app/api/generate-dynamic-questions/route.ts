@@ -4,15 +4,14 @@ import { getStorageBucket } from "@/lib/firebase-admin";
 import {
   Question,
   RubricItem,
-  DynamicGenerationSpec,
-  parseDynamicGenerationSpec,
-  isCompleteDynamicGenerationSpec,
+  assignmentHasDynamicQuestionParts,
+  teacherPromptOrFocus,
 } from "@/types/assignment";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { QuestionEvaluations } from "@/types/submission";
 import {
   buildDefaultDynamicGenerationPrompt,
-  formatGenerationSpecForPrompt,
+  formatQuestionsForDynamicGenerationPrompt,
 } from "@/lib/promptTemplates";
 import {
   getDefaultModelConfigFromEnv,
@@ -103,19 +102,23 @@ function normalizeRubricPoints(
   rubric: RubricItem[],
   targetTotal: number,
 ): RubricItem[] {
-  const currentSum = rubric.reduce((sum, r) => sum + r.points, 0);
-  if (currentSum === targetTotal) return rubric;
+  const valid = rubric.filter((r) => r.item?.trim() && r.points > 0);
+  if (valid.length === 0) {
+    return [{ item: "Response quality", points: targetTotal }];
+  }
+  const currentSum = valid.reduce((sum, r) => sum + r.points, 0);
+  if (currentSum === targetTotal) return valid;
   if (currentSum === 0) {
-    const perItem = Math.floor(targetTotal / rubric.length);
-    const remainder = targetTotal - perItem * rubric.length;
-    return rubric.map((r, i) => ({
+    const perItem = Math.floor(targetTotal / valid.length);
+    const remainder = targetTotal - perItem * valid.length;
+    return valid.map((r, i) => ({
       ...r,
       points: perItem + (i < remainder ? 1 : 0),
     }));
   }
 
   const scale = targetTotal / currentSum;
-  const scaled = rubric.map((r) => ({
+  const scaled = valid.map((r) => ({
     ...r,
     points: Math.max(1, Math.round(r.points * scale)),
   }));
@@ -134,8 +137,12 @@ function normalizeRubricPoints(
   return scaled;
 }
 
-async function generateAllQuestions(
-  spec: DynamicGenerationSpec,
+function sortTemplates(templates: Question[]): Question[] {
+  return [...templates].sort((a, b) => a.order - b.order);
+}
+
+async function generateMergedQuestions(
+  templates: Question[],
   fileContent: string,
   context: {
     title: string;
@@ -143,14 +150,12 @@ async function generateAllQuestions(
     sharedContext?: string;
   },
   customPromptTemplate?: string | null,
-): Promise<
-  { prompt: string; rubric: RubricItem[]; expected_answer: string }[]
-> {
+): Promise<Question[]> {
+  const sorted = sortTemplates(templates);
+  const n = sorted.length;
   const truncatedContent = fileContent.slice(0, 50000);
-  const n = spec.question_count;
-  const points = spec.points_per_question;
 
-  const template =
+  const promptTemplateStr =
     customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt();
 
   const templateVariables: Record<string, string> = {
@@ -158,12 +163,10 @@ async function generateAllQuestions(
     instructions: context.instructions || "",
     context_for_ai: context.sharedContext || "",
     file_submissions: truncatedContent,
-    generation_spec: formatGenerationSpecForPrompt(spec),
+    generation_spec: formatQuestionsForDynamicGenerationPrompt(sorted),
   };
 
-  const systemMessage = interpolateTemplate(template, templateVariables);
-
-  console.log("systemMessage", systemMessage);
+  const systemMessage = interpolateTemplate(promptTemplateStr, templateVariables);
 
   const config = getDefaultModelConfigFromEnv();
   const model = getLanguageModel(config);
@@ -177,48 +180,53 @@ async function generateAllQuestions(
       { role: "system", content: systemMessage },
       {
         role: "user",
-        content: `Generate exactly ${n} question(s) as specified in the system instructions. Each rubric must sum to ${points} points.`,
+        content: `Generate exactly ${n} question object(s) as specified. For each index i, the rubric must sum to the total points given for question i in the generation requirements.`,
       },
     ],
   });
 
-  const fallbackPrompt = (i: number) =>
-    `Answer the following based on your submission, addressing: ${spec.coverage_description.slice(0, 200)}${spec.coverage_description.length > 200 ? "…" : ""} (Question ${i + 1} of ${n})`;
-
-  const output: {
-    prompt: string;
-    rubric: RubricItem[];
-    expected_answer: string;
-  }[] = [];
+  const output: Question[] = [];
 
   for (let i = 0; i < n; i++) {
+    const t = sorted[i];
+    const points = t.total_points;
     const match =
       result.questions.find((q) => q.question_index === i) ??
       result.questions[i];
 
-    if (!match) {
-      output.push({
-        prompt: fallbackPrompt(i),
-        rubric: [{ item: spec.coverage_description.slice(0, 120), points }],
-        expected_answer: "",
-      });
-      continue;
+    const focusOrPrompt = teacherPromptOrFocus(t);
+    const fallbackPrompt = () =>
+      `Answer based on your submission regarding: ${focusOrPrompt.trim().slice(0, 200)}${focusOrPrompt.length > 200 ? "…" : ""} (Question ${i + 1} of ${n})`;
+
+    const llmPrompt = match?.prompt?.trim() || "";
+    const prompt = t.dynamic_prompt ? llmPrompt || fallbackPrompt() : t.prompt;
+
+    let rubric: RubricItem[];
+    let expected_answer: string;
+
+    if (t.dynamic_rubric) {
+      const rawRubric = (match?.rubric ?? []).filter(
+        (r) => r.item?.trim() && r.points > 0,
+      );
+      rubric = normalizeRubricPoints(
+        rawRubric.length > 0
+          ? rawRubric
+          : [{ item: "Quality of response", points }],
+        points,
+      );
+      expected_answer = match?.expected_answer?.trim() || "";
+    } else {
+      rubric = normalizeRubricPoints(t.rubric, points);
+      expected_answer = (t.expected_answer ?? "").trim();
     }
 
-    const rawRubric = match.rubric.filter(
-      (r) => r.item?.trim() && r.points > 0,
-    );
-    const normalizedRubric = normalizeRubricPoints(
-      rawRubric.length > 0
-        ? rawRubric
-        : [{ item: spec.coverage_description.slice(0, 120), points }],
-      points,
-    );
-
     output.push({
-      prompt: match.prompt?.trim() || fallbackPrompt(i),
-      rubric: normalizedRubric,
-      expected_answer: match.expected_answer?.trim() || "",
+      order: i,
+      prompt,
+      total_points: points,
+      rubric,
+      supporting_content: t.supporting_content ?? "",
+      expected_answer,
     });
   }
 
@@ -242,7 +250,7 @@ export async function POST(request: NextRequest) {
     const { data: assignment, error: assignmentError } = await supabase
       .from("assignments")
       .select(
-        "title, student_instructions, shared_context, shared_context_enabled, dynamic_question_focuses, dynamic_generation_prompt",
+        "title, student_instructions, shared_context, shared_context_enabled, questions, dynamic_generation_prompt",
       )
       .eq("assignment_id", assignmentId)
       .single();
@@ -254,12 +262,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const spec = parseDynamicGenerationSpec(assignment.dynamic_question_focuses);
-    if (!spec || !isCompleteDynamicGenerationSpec(spec)) {
+    const templates = (assignment.questions ?? []) as Question[];
+    if (!Array.isArray(templates) || templates.length === 0) {
+      return NextResponse.json(
+        { error: "Assignment has no questions configured" },
+        { status: 400 },
+      );
+    }
+
+    if (!assignmentHasDynamicQuestionParts(templates)) {
       return NextResponse.json(
         {
           error:
-            "Invalid or incomplete dynamic generation settings on assignment",
+            "No dynamic question parts enabled on this assignment",
         },
         { status: 400 },
       );
@@ -349,23 +364,12 @@ export async function POST(request: NextRequest) {
         : undefined,
     };
 
-    const results = await generateAllQuestions(
-      spec,
+    const generatedQuestions = await generateMergedQuestions(
+      templates,
       fileContent,
       context,
       assignment.dynamic_generation_prompt as string | null,
     );
-
-    const generatedQuestions: Question[] = results.map((result, index) => ({
-      order: index,
-      prompt: result.prompt,
-      total_points: spec.points_per_question,
-      rubric: result.rubric,
-      supporting_content: "",
-      expected_answer: result.expected_answer,
-    }));
-
-    console.log("generatedQuestions", generatedQuestions);
 
     const persistedFileIds = normalizeFileIds(submissionFileIds);
 

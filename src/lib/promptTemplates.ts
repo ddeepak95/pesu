@@ -1,4 +1,9 @@
-import { BotPromptConfig, DynamicGenerationSpec } from "@/types/assignment";
+import {
+  BotPromptConfig,
+  DynamicGenerationSpec,
+  Question,
+  teacherPromptOrFocus,
+} from "@/types/assignment";
 
 /**
  * Supported variable placeholders for prompt templates.
@@ -75,7 +80,7 @@ export const PROMPT_VARIABLES = {
   generation_spec: {
     placeholder: "{{generation_spec}}",
     description:
-      "Question count, points per question, and coverage description for dynamic generation",
+      "Per-question points, dynamic flags, and question or guidelines text for file-based generation",
     category: "runtime" as const,
   },
 } as const;
@@ -396,7 +401,7 @@ export function getDefaultBotPromptConfig(): BotPromptConfig {
 // Dynamic question generation prompt
 // ---------------------------------------------------------------------------
 
-/** Human-readable block for {{generation_spec}} interpolation. */
+/** Human-readable block for {{generation_spec}} interpolation (legacy global spec). */
 export function formatGenerationSpecForPrompt(spec: DynamicGenerationSpec): string {
   return [
     `Generate exactly ${spec.question_count} question(s).`,
@@ -406,12 +411,43 @@ export function formatGenerationSpecForPrompt(spec: DynamicGenerationSpec): stri
   ].join("\n");
 }
 
+/** Per-question instructions for {{generation_spec}} when using assignment.questions[]. */
+export function formatQuestionsForDynamicGenerationPrompt(questions: Question[]): string {
+  const sorted = [...questions].sort((a, b) => a.order - b.order);
+  return sorted
+    .map((q, i) => {
+      const lines = [
+        `--- Question ${i} (question_index=${i}) ---`,
+        `Total points: ${q.total_points}`,
+        `dynamic_prompt: ${q.dynamic_prompt ? "true (generate the student-facing question from the teacher's guidelines + files)" : "false (teacher question text is final; echo it in output or match it)"}`,
+        `dynamic_rubric: ${q.dynamic_rubric ? "true (generate rubric + expected_answer for this question from files; rubric must sum to total points)" : "false (teacher rubric and expected_answer are final for this index — still output placeholder strings if required by schema; server will substitute)"}`,
+      ];
+      if (q.dynamic_prompt) {
+        lines.push(
+          `Guidelines for the question (teacher): ${teacherPromptOrFocus(q).trim() || "(empty)"}`,
+        );
+      } else {
+        lines.push(
+          `Fixed question (teacher): ${teacherPromptOrFocus(q).trim() || "(empty)"}`,
+        );
+      }
+      if (!q.dynamic_rubric) {
+        lines.push(
+          `Fixed rubric (teacher): ${JSON.stringify(q.rubric)}`,
+          `Fixed expected answer (teacher): ${(q.expected_answer ?? "").trim()}`,
+        );
+      }
+      return lines.join("\n");
+    })
+    .join("\n\n");
+}
+
 /**
  * Default system prompt template for dynamic question generation.
  * Uses template variables that are interpolated server-side.
  */
 export function buildDefaultDynamicGenerationPrompt(): string {
-  return `You are an expert educational content creator. Generate questions with rubrics and expected answers based on a student's file submission.
+  return `You are an expert educational content creator. You will output one structured entry per assignment question (see generation_spec). Use the student's file submission to generate any fields marked dynamic; respect teacher-fixed text where indicated.
 
 {{#if title}}
 ==========
@@ -429,18 +465,18 @@ Additional Context: {{context_for_ai}}
 ==========
 {{/if}}
 ==========
-Generation requirements:
+Per-question generation requirements:
 {{generation_spec}}
 ==========
 Student's File Submission:
 {{file_submissions}}
 ==========
 Rules:
-- Each question should be directly based on the student's submitted file content
-- For each question, draw on specific content from the file submission where appropriate
-- For each question, create 3-4 rubric items that sum to exactly the points specified in the generation requirements
-- Each rubric item should assess a distinct aspect of the answer
-- The expected answer should list key points the student's answer should cover
+- For each index, produce prompt, rubric, and expected_answer in the structured output
+- Where dynamic_prompt is true: write a clear student-facing question grounded in the files and the teacher's guidelines for the question
+- Where dynamic_prompt is false: set prompt to align with the teacher's fixed question text
+- Where dynamic_rubric is true: create 3-5 rubric items that sum to exactly the total points for that question; expected_answer lists key points for evaluation
+- Where dynamic_rubric is false: still output rubric and expected_answer fields, but they will be replaced server-side — you may repeat the teacher's fixed content
 - Questions should be distinct from each other — avoid overlap
 - Set question_index to the 0-based index of each question (0 through N-1)`;
 }

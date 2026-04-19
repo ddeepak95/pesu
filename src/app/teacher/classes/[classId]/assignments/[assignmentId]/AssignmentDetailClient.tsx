@@ -18,7 +18,7 @@ import {
   deleteAssignment,
 } from "@/lib/queries/assignments";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
-import { Assignment, parseDynamicGenerationSpec } from "@/types/assignment";
+import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
@@ -37,7 +37,6 @@ import {
   ClipboardCheck,
   ChevronDown,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 
@@ -334,96 +333,17 @@ export default function AssignmentDetailClient({
                 </div>
               )}
 
-              {assignmentData.dynamic_questions_enabled && (
-                <div className="rounded-md border border-primary/25 bg-primary/5 dark:bg-primary/10 text-card-foreground">
-                  <div className="flex items-start gap-3 px-4 py-3">
-                    <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <div className="space-y-1 min-w-0">
-                      <p className="text-sm font-medium">
-                        Questions generated dynamically
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Prompts, rubrics, and expected answers are created per
-                        student after they upload files. The settings below are
-                        what you configured; exact question wording appears on
-                        each student&apos;s submission.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {assignmentData.dynamic_questions_enabled ? (
-                (() => {
-                  const spec = parseDynamicGenerationSpec(
-                    assignmentData.dynamic_question_focuses,
-                  );
-                  if (!spec) {
-                    return (
-                      <p className="text-sm text-muted-foreground">
-                        No valid dynamic generation settings. Edit the assignment
-                        to set number of questions, points per question, and
-                        coverage description.
-                      </p>
-                    );
-                  }
-                  const total =
-                    spec.question_count * spec.points_per_question;
-                  return (
-                    <div className="rounded-md border bg-card text-card-foreground">
-                      <div className="px-4 py-3 text-sm font-medium border-b">
-                        Dynamic generation settings
-                      </div>
-                      <div className="px-4 py-3 space-y-3 text-sm">
-                        <div className="flex flex-wrap gap-x-6 gap-y-2">
-                          <div>
-                            <span className="text-muted-foreground">
-                              Questions:{" "}
-                            </span>
-                            <span className="font-medium tabular-nums">
-                              {spec.question_count}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">
-                              Points each:{" "}
-                            </span>
-                            <span className="font-medium tabular-nums">
-                              {spec.points_per_question}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">
-                              Total points:{" "}
-                            </span>
-                            <span className="font-medium tabular-nums">
-                              {total}
-                            </span>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            What questions should cover
-                          </p>
-                          <p className="text-sm whitespace-pre-wrap">
-                            {spec.coverage_description}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()
-              ) : (
-                assignmentData.questions
-                  .sort((a, b) => a.order - b.order)
-                  .map((question, index) => (
-                    <QuestionView
-                      key={index}
-                      question={question}
-                      index={index}
-                    />
-                  ))
-              )}
+              {assignmentData.questions
+                .sort((a, b) => a.order - b.order)
+                .map((question, index) => (
+                  <QuestionView
+                    key={index}
+                    question={question}
+                    index={index}
+                    showDynamicBadges
+                    showRubric
+                  />
+                ))}
             </TabsContent>
 
             <TabsContent value="config" className="py-6 space-y-6">

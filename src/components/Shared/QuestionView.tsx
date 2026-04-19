@@ -1,11 +1,26 @@
 "use client";
 
-import { Question } from "@/types/assignment";
+import { Question, teacherPromptOrFocus } from "@/types/assignment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+
+const DYNAMIC_QUESTION_BADGE_INFO =
+  "Dynamic question: When on, each student's question is generated from their uploaded files and your guidelines for the question. Turn it off to write the exact question shown to everyone.";
+
+const DYNAMIC_RUBRIC_BADGE_INFO =
+  "Dynamic rubric: When on, the rubric and expected answer are generated per student from their files when they continue past the upload step, instead of the fixed rubric you edit here.";
 
 interface QuestionViewProps {
   question: Question;
   index: number;
+  /** When true, show Dynamic question / Dynamic rubric pills in the card header (e.g. teacher assignment detail). */
+  showDynamicBadges?: boolean;
   showRubric?: boolean;
   showSupportingContent?: boolean;
 }
@@ -17,45 +32,104 @@ interface QuestionViewProps {
 export default function QuestionView({
   question,
   index,
+  showDynamicBadges = false,
   showRubric = false,
   showSupportingContent = true,
 }: QuestionViewProps) {
+  const hasRubric =
+    showRubric && question.rubric && question.rubric.length > 0;
+  const expectedAnswer = question.expected_answer?.trim() ?? "";
+  const hasExpectedAnswer = Boolean(expectedAnswer);
+  const showCollapsible = hasRubric || hasExpectedAnswer;
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="space-y-2">
+        {showDynamicBadges &&
+          (question.dynamic_prompt || question.dynamic_rubric) && (
+            <div className="flex flex-wrap gap-2 justify-start text-xs">
+              {question.dynamic_prompt && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 pl-2 pr-1 py-0.5 text-primary">
+                  <span>Dynamic question</span>
+                  <InfoTooltip
+                    text={DYNAMIC_QUESTION_BADGE_INFO}
+                    iconClassName="h-3.5 w-3.5 text-primary"
+                    ariaLabel="About dynamic question"
+                  />
+                </span>
+              )}
+              {question.dynamic_rubric && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 pl-2 pr-1 py-0.5 text-primary">
+                  <span>Dynamic rubric</span>
+                  <InfoTooltip
+                    text={DYNAMIC_RUBRIC_BADGE_INFO}
+                    iconClassName="h-3.5 w-3.5 text-primary"
+                    ariaLabel="About dynamic rubric"
+                  />
+                </span>
+              )}
+            </div>
+          )}
         <CardTitle className="text-sm">
           Question {index + 1} ({question.total_points} points)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Prompt */}
         <div>
           <h4 className="font-semibold text-sm text-muted-foreground mb-2">
-            Prompt
+            {question.dynamic_prompt
+              ? "Guidelines for the question"
+              : "Question"}
           </h4>
-          <p className="whitespace-pre-wrap">{question.prompt}</p>
+          <p className="whitespace-pre-wrap">
+            {teacherPromptOrFocus(question)}
+          </p>
         </div>
 
-        {/* Rubric */}
-        {showRubric && question.rubric && question.rubric.length > 0 && (
-          <div>
-            <h4 className="font-semibold text-sm text-muted-foreground mb-2">
-              Rubric
-            </h4>
-            <div className="space-y-2">
-              {question.rubric.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex justify-between items-start gap-4 p-3 bg-muted/50 rounded-md"
-                >
-                  <span className="flex-1">{item.item}</span>
-                  <span className="font-semibold text-sm whitespace-nowrap">
-                    {item.points} pts
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+        {showCollapsible && (
+          <Accordion
+            type="multiple"
+            defaultValue={[]}
+            className="w-full rounded-md border px-2"
+          >
+            {hasRubric && (
+              <AccordionItem
+                value="rubric"
+                className={!hasExpectedAnswer ? "border-b-0" : undefined}
+              >
+                <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline">
+                  Rubric
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-2 pb-2">
+                    {(question.rubric ?? []).map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex justify-between items-start gap-4 p-3 bg-muted/50 rounded-md"
+                      >
+                        <span className="flex-1">{item.item}</span>
+                        <span className="font-semibold text-sm whitespace-nowrap">
+                          {item.points} pts
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            )}
+            {hasExpectedAnswer && (
+              <AccordionItem value="expected" className="border-b-0">
+                <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline">
+                  Expected answer
+                </AccordionTrigger>
+                <AccordionContent>
+                  <p className="whitespace-pre-wrap text-muted-foreground pb-2">
+                    {expectedAnswer}
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            )}
+          </Accordion>
         )}
 
         {/* Supporting Content */}

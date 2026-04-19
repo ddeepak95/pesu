@@ -1,4 +1,9 @@
-import { Assignment, Question, RubricItem } from "@/types/assignment";
+import {
+  Assignment,
+  Question,
+  RubricItem,
+  teacherPromptOrFocus,
+} from "@/types/assignment";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 /**
@@ -141,7 +146,9 @@ export function buildPreviewContext(
     language: getLanguageName(lang),
     title: assignment.title || "[Assignment title]",
     instructions: assignment.student_instructions || "",
-    question_prompt: question?.prompt || "[Question prompt will appear here]",
+    question_prompt: question
+      ? teacherPromptOrFocus(question as Question)
+      : "[Question prompt will appear here]",
     rubric: formatRubricForPrompt(question?.rubric || []),
     expected_answer: question?.expected_answer || "",
     max_attempts: assignment.max_attempts || 1,
@@ -181,7 +188,7 @@ export function buildRuntimeContext(
     language: getLanguageName(languageCode),
     title: assignment.title,
     instructions: assignment.student_instructions || "",
-    question_prompt: question.prompt,
+    question_prompt: teacherPromptOrFocus(question),
     rubric: formatRubricForPrompt(question.rubric),
     expected_answer: question.expected_answer || "",
     max_attempts: assignment.max_attempts || 1,

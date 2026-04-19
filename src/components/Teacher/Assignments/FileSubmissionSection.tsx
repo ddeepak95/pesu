@@ -5,10 +5,8 @@ import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { DynamicQuestionSection } from "@/components/Teacher/Assignments/DynamicQuestionSection";
 import {
   FILE_SUBMISSION_TYPE_OPTIONS,
-  type DynamicGenerationSpec,
 } from "@/types/assignment";
 
 interface FileSubmissionSectionProps {
@@ -21,10 +19,6 @@ interface FileSubmissionSectionProps {
   fileInstructions: string;
   setFileInstructions: (instructions: string) => void;
   loading: boolean;
-  dynamicQuestionsEnabled: boolean;
-  setDynamicQuestionsEnabled: (enabled: boolean) => void;
-  dynamicGenerationSpec: DynamicGenerationSpec;
-  setDynamicGenerationSpec: (spec: DynamicGenerationSpec) => void;
 }
 
 export function FileSubmissionSection({
@@ -37,10 +31,6 @@ export function FileSubmissionSection({
   fileInstructions,
   setFileInstructions,
   loading,
-  dynamicQuestionsEnabled,
-  setDynamicQuestionsEnabled,
-  dynamicGenerationSpec,
-  setDynamicGenerationSpec,
 }: FileSubmissionSectionProps) {
   const isOnlySelectedPdf =
     fileAllowedTypes.length === 1 && fileAllowedTypes[0] === ".pdf";
@@ -131,15 +121,10 @@ export function FileSubmissionSection({
             />
           </div>
 
-          <div className="pt-4 mt-4 border-t border-border/80">
-            <DynamicQuestionSection
-              enabled={dynamicQuestionsEnabled}
-              setEnabled={setDynamicQuestionsEnabled}
-              spec={dynamicGenerationSpec}
-              setSpec={setDynamicGenerationSpec}
-              loading={loading}
-            />
-          </div>
+          <p className="text-xs text-muted-foreground pt-2 border-t border-border/80">
+            Per-question <span className="font-medium">Dynamic</span> toggles
+            for the question and/or rubric appear on each question card below.
+          </p>
         </div>
       )}
     </div>

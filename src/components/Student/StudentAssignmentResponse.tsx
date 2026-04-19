@@ -174,9 +174,8 @@ export default function StudentAssignmentResponse({
 
         let questionIndex = localSession?.currentQuestionIndex ?? 0;
 
-        // For dynamic questions, use generated questions length or fallback to assignment questions
-        const effectiveQuestionCount = dynamicQuestionsEnabled && submission.generated_questions
-          ? submission.generated_questions.length
+        const effectiveQuestionCount = dynamicQuestionsEnabled
+          ? submission.generated_questions?.length ?? 0
           : assignmentData.questions.length;
         const maxValidIndex =
           effectiveQuestionCount + (fileUploadRequired ? 1 : 0) - 1;

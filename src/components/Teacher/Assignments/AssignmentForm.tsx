@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,9 @@ import {
   DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES,
   FileSubmissionConfig,
   orderFileSubmissionExtensions,
-  DynamicGenerationSpec,
-  DEFAULT_DYNAMIC_GENERATION_SPEC,
-  isCompleteDynamicGenerationSpec,
+  assignmentHasDynamicQuestionParts,
+  stripDynamicFlagsFromQuestions,
+  teacherPromptOrFocus,
 } from "@/types/assignment";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
@@ -77,8 +77,6 @@ interface AssignmentFormProps {
   initialTabSwitchPolicy?: TabSwitchPolicy;
   initialTabSwitchMaxLeaves?: number;
   initialFileSubmissionConfig?: FileSubmissionConfig | null;
-  initialDynamicQuestionsEnabled?: boolean;
-  initialDynamicGenerationSpec?: DynamicGenerationSpec | null;
   initialDynamicGenerationPrompt?: string;
   initialIsDraft?: boolean;
   onSubmit: (data: {
@@ -111,7 +109,6 @@ interface AssignmentFormProps {
     tabSwitchMaxLeaves?: number;
     fileSubmissionConfig?: FileSubmissionConfig | null;
     dynamicQuestionsEnabled?: boolean;
-    dynamicGenerationSpec?: DynamicGenerationSpec | null;
     dynamicGenerationPrompt?: string | null;
   }) => Promise<void>;
 }
@@ -132,6 +129,9 @@ export default function AssignmentForm({
       ],
       supporting_content: "",
       expected_answer: "",
+      question_focus: "",
+      dynamic_prompt: false,
+      dynamic_rubric: false,
     },
   ],
   initialLanguage = "en",
@@ -158,8 +158,6 @@ export default function AssignmentForm({
   initialTabSwitchPolicy = DEFAULT_TAB_SWITCH_POLICY,
   initialTabSwitchMaxLeaves = 3,
   initialFileSubmissionConfig = null,
-  initialDynamicQuestionsEnabled = false,
-  initialDynamicGenerationSpec = null,
   initialDynamicGenerationPrompt,
   initialIsDraft = false,
   onSubmit,
@@ -253,15 +251,13 @@ export default function AssignmentForm({
     },
     [],
   );
-  const [dynamicQuestionsEnabled, setDynamicQuestionsEnabled] = useState(
-    initialDynamicQuestionsEnabled,
-  );
-  const [dynamicGenerationSpec, setDynamicGenerationSpec] =
-    useState<DynamicGenerationSpec>(
-      initialDynamicGenerationSpec ?? DEFAULT_DYNAMIC_GENERATION_SPEC,
-    );
   const [dynamicGenerationPrompt, setDynamicGenerationPrompt] = useState(
     initialDynamicGenerationPrompt || buildDefaultDynamicGenerationPrompt(),
+  );
+
+  const hasPerQuestionDynamic = useMemo(
+    () => assignmentHasDynamicQuestionParts(questions),
+    [questions],
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -345,6 +341,9 @@ export default function AssignmentForm({
       ],
       supporting_content: "",
       expected_answer: "",
+      question_focus: "",
+      dynamic_prompt: false,
+      dynamic_rubric: false,
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -463,28 +462,22 @@ export default function AssignmentForm({
       return;
     }
 
-    if (dynamicQuestionsEnabled) {
-      if (!isCompleteDynamicGenerationSpec(dynamicGenerationSpec)) {
+    for (let i = 0; i < questions.length; i++) {
+      const question = questions[i];
+
+      if (!teacherPromptOrFocus(question).trim()) {
         setError(
-          "Dynamic generation requires at least 1 question, at least 1 point per question, and a non-empty description of what the questions should cover.",
+          `Question ${i + 1}: ${question.dynamic_prompt ? "Guidelines for the question" : "Question"} is required`,
         );
         return;
       }
-    } else {
-      // Validate each question
-      for (let i = 0; i < questions.length; i++) {
-        const question = questions[i];
 
-        if (!question.prompt.trim()) {
-          setError(`Question ${i + 1}: Prompt is required`);
-          return;
-        }
+      if (question.total_points <= 0) {
+        setError(`Question ${i + 1}: Total points must be greater than 0`);
+        return;
+      }
 
-        if (question.total_points <= 0) {
-          setError(`Question ${i + 1}: Total points must be greater than 0`);
-          return;
-        }
-
+      if (!question.dynamic_rubric) {
         const validRubricItems = question.rubric.filter(
           (item) => item.item.trim() && item.points > 0,
         );
@@ -496,7 +489,6 @@ export default function AssignmentForm({
           return;
         }
 
-        // Validate that rubric points sum equals total points
         const rubricSum = validRubricItems.reduce(
           (sum, item) => sum + (item.points || 0),
           0,
@@ -517,20 +509,25 @@ export default function AssignmentForm({
     setLoading(true);
 
     try {
-      // When dynamic generation is enabled, questions are empty; points come from generation spec
-      const cleanedQuestions = dynamicQuestionsEnabled
-        ? []
-        : questions.map((q) => ({
-            ...q,
-            rubric: q.rubric.filter(
-              (item) => item.item.trim() && item.points > 0,
-            ),
-          }));
+      let cleanedQuestions = questions.map((q) => ({
+        ...q,
+        rubric: q.dynamic_rubric
+          ? q.rubric
+          : q.rubric.filter((item) => item.item.trim() && item.points > 0),
+      }));
 
-      const totalPoints = dynamicQuestionsEnabled
-        ? dynamicGenerationSpec.question_count *
-          dynamicGenerationSpec.points_per_question
-        : cleanedQuestions.reduce((sum, q) => sum + q.total_points, 0);
+      if (!fileSubmissionEnabled) {
+        cleanedQuestions = stripDynamicFlagsFromQuestions(cleanedQuestions);
+      }
+
+      const totalPoints = cleanedQuestions.reduce(
+        (sum, q) => sum + q.total_points,
+        0,
+      );
+
+      const dynamicQuestionsEnabled =
+        fileSubmissionEnabled &&
+        assignmentHasDynamicQuestionParts(cleanedQuestions);
 
       await onSubmit({
         title: title.trim(),
@@ -571,18 +568,9 @@ export default function AssignmentForm({
               allowed_file_types: orderFileSubmissionExtensions(fileAllowedTypes),
             }
           : null,
-        dynamicQuestionsEnabled:
-          fileSubmissionEnabled && dynamicQuestionsEnabled,
-        dynamicGenerationSpec:
-          fileSubmissionEnabled && dynamicQuestionsEnabled
-            ? {
-                ...dynamicGenerationSpec,
-                coverage_description:
-                  dynamicGenerationSpec.coverage_description.trim(),
-              }
-            : null,
+        dynamicQuestionsEnabled,
         dynamicGenerationPrompt:
-          fileSubmissionEnabled && dynamicQuestionsEnabled
+          dynamicQuestionsEnabled
             ? dynamicGenerationPrompt.trim() || null
             : null,
       });
@@ -714,10 +702,12 @@ export default function AssignmentForm({
         fileSubmissionEnabled={fileSubmissionEnabled}
         setFileSubmissionEnabled={(enabled) => {
           setFileSubmissionEnabled(enabled);
+          if (!enabled) {
+            setQuestions((prev) => stripDynamicFlagsFromQuestions(prev));
+          }
           if (enabled && fileAllowedTypes.length === 0) {
             setFileAllowedTypes([...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES]);
           }
-          if (!enabled) setDynamicQuestionsEnabled(false);
         }}
         fileAllowMultiple={fileAllowMultiple}
         setFileAllowMultiple={setFileAllowMultiple}
@@ -726,10 +716,6 @@ export default function AssignmentForm({
         fileInstructions={fileInstructions}
         setFileInstructions={setFileInstructions}
         loading={loading}
-        dynamicQuestionsEnabled={dynamicQuestionsEnabled}
-        setDynamicQuestionsEnabled={setDynamicQuestionsEnabled}
-        dynamicGenerationSpec={dynamicGenerationSpec}
-        setDynamicGenerationSpec={setDynamicGenerationSpec}
       />
 
       {/* More Options (with General & AI Bot subtabs) */}
@@ -811,7 +797,7 @@ export default function AssignmentForm({
                   sharedContext={sharedContext}
                   loading={loading}
                   dynamicQuestionsEnabled={
-                    fileSubmissionEnabled && dynamicQuestionsEnabled
+                    fileSubmissionEnabled && hasPerQuestionDynamic
                   }
                   dynamicGenerationPrompt={dynamicGenerationPrompt}
                   setDynamicGenerationPrompt={setDynamicGenerationPrompt}
@@ -822,55 +808,50 @@ export default function AssignmentForm({
         )}
       </div>
 
-      {/* Questions (hidden when dynamic generation is enabled) */}
-      {!dynamicQuestionsEnabled && (
-        <>
-          <div className="space-y-4">
-            {questions.map((question, index) => (
-              <QuestionCard
-                key={index}
-                question={question}
-                index={index}
-                totalQuestions={questions.length}
-                onChange={handleQuestionChange}
-                onRubricChange={handleRubricChange}
-                onAddRubricItem={handleAddRubricItem}
-                onRemoveRubricItem={handleRemoveRubricItem}
-                onMoveUp={handleMoveQuestionUp}
-                onMoveDown={handleMoveQuestionDown}
-                onDelete={handleDeleteQuestion}
-                disabled={loading}
-                title={title}
-                studentInstructions={studentInstructions}
-                contextForAI={sharedContext}
-                showBotOverride={
-                  assessmentMode === "voice" || assessmentMode === "text_chat"
-                }
-                questionOverride={
-                  botPromptConfig.question_overrides?.[question.order]
-                }
-                onQuestionOverrideChange={handleQuestionOverrideChange}
-                defaultSystemPrompt={botPromptConfig.system_prompt}
-                defaultConversationStart={getDefaultConversationStart(
-                  question.order,
-                )}
-              />
-            ))}
-          </div>
+      <div className="space-y-4">
+        {questions.map((question, index) => (
+          <QuestionCard
+            key={index}
+            question={question}
+            index={index}
+            totalQuestions={questions.length}
+            onChange={handleQuestionChange}
+            onRubricChange={handleRubricChange}
+            onAddRubricItem={handleAddRubricItem}
+            onRemoveRubricItem={handleRemoveRubricItem}
+            onMoveUp={handleMoveQuestionUp}
+            onMoveDown={handleMoveQuestionDown}
+            onDelete={handleDeleteQuestion}
+            disabled={loading}
+            fileSubmissionEnabled={fileSubmissionEnabled}
+            title={title}
+            studentInstructions={studentInstructions}
+            contextForAI={sharedContext}
+            showBotOverride={
+              assessmentMode === "voice" || assessmentMode === "text_chat"
+            }
+            questionOverride={
+              botPromptConfig.question_overrides?.[question.order]
+            }
+            onQuestionOverrideChange={handleQuestionOverrideChange}
+            defaultSystemPrompt={botPromptConfig.system_prompt}
+            defaultConversationStart={getDefaultConversationStart(
+              question.order,
+            )}
+          />
+        ))}
+      </div>
 
-          {/* Add Question Button */}
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleAddQuestion}
-              disabled={loading}
-            >
-              + Add Question
-            </Button>
-          </div>
-        </>
-      )}
+      <div className="flex justify-center">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleAddQuestion}
+          disabled={loading}
+        >
+          + Add Question
+        </Button>
+      </div>
 
       {/* Error Message */}
       {error && <p className="text-sm text-destructive">{error}</p>}

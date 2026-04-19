@@ -1,6 +1,6 @@
 "use client";
 
-import { Question } from "@/types/assignment";
+import { Question, teacherPromptOrFocus } from "@/types/assignment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface QuestionViewProps {
@@ -17,12 +17,13 @@ export default function QuestionView({ question, index }: QuestionViewProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Prompt */}
         <div>
           <h4 className="font-semibold text-sm text-muted-foreground mb-2">
-            Prompt
+            {question.dynamic_prompt ? "Guidelines for the question" : "Question"}
           </h4>
-          <p className="whitespace-pre-wrap">{question.prompt}</p>
+          <p className="whitespace-pre-wrap">
+            {teacherPromptOrFocus(question)}
+          </p>
         </div>
 
         {/* Rubric */}

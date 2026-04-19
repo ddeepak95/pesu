@@ -118,13 +118,15 @@ export default function AssignmentResponseCore({
     setFileMutationWarnedThisCycle(false);
   }, [submissionId]);
 
-  // Sorted questions — use generated questions when dynamic mode is active
+  // Sorted questions — merged snapshot after upload when dynamic; never leak template before merge
   const sortedQuestions = useMemo(() => {
-    const questions =
-      dynamicQuestionsEnabled && generatedQuestions
-        ? generatedQuestions
-        : assignmentData.questions;
-    return [...questions].sort((a, b) => a.order - b.order);
+    if (!dynamicQuestionsEnabled) {
+      return [...assignmentData.questions].sort((a, b) => a.order - b.order);
+    }
+    if (generatedQuestions?.length) {
+      return [...generatedQuestions].sort((a, b) => a.order - b.order);
+    }
+    return [];
   }, [assignmentData.questions, generatedQuestions, dynamicQuestionsEnabled]);
 
   const questionOffset = fileUploadRequired ? 1 : 0;

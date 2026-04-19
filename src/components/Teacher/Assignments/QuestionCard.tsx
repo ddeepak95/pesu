@@ -5,6 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +21,9 @@ import {
   Question,
   RubricItem,
   QuestionPromptOverride,
+  teacherPromptOrFocus,
 } from "@/types/assignment";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   ArrowUp,
   ArrowDown,
@@ -56,6 +60,8 @@ interface QuestionCardProps {
   onMoveDown: (index: number) => void;
   onDelete: (index: number) => void;
   disabled?: boolean;
+  /** When true, per-question dynamic toggles are enabled. */
+  fileSubmissionEnabled?: boolean;
   // Assignment-level context passed to AI generation
   title?: string;
   studentInstructions?: string;
@@ -71,6 +77,12 @@ interface QuestionCardProps {
   defaultConversationStart?: string;
 }
 
+const DYNAMIC_PROMPT_INFO_TOOLTIP =
+  "Dynamic question: When on, each student's question is generated from their uploaded files and your guidelines for the question. Turn it off to write the exact question shown to everyone.";
+
+const DYNAMIC_RUBRIC_INFO_TOOLTIP =
+  "Dynamic rubric: When on, the rubric and expected answer are generated per student from their files when they continue past the upload step, instead of the fixed rubric you edit here.";
+
 export default function QuestionCard({
   question,
   index,
@@ -83,6 +95,7 @@ export default function QuestionCard({
   onMoveDown,
   onDelete,
   disabled = false,
+  fileSubmissionEnabled = false,
   title,
   studentInstructions,
   contextForAI,
@@ -97,9 +110,16 @@ export default function QuestionCard({
   const [isBotOverrideOpen, setIsBotOverrideOpen] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [focusGuidance, setFocusGuidance] = useState("");
+  const [genRubric, setGenRubric] = useState(true);
+  const [genExpected, setGenExpected] = useState(true);
 
-  // Validate rubric points match total points
+  const dynamicPrompt = question.dynamic_prompt === true;
+  const dynamicRubric = question.dynamic_rubric === true;
+  const togglesActive = fileSubmissionEnabled && !disabled;
+
+  // Validate rubric points match total points (skip when rubric is generated later)
   const validateRubricPoints = () => {
+    if (dynamicRubric) return null;
     const validRubricItems = question.rubric.filter(
       (item) => item.item.trim() && item.points > 0,
     );
@@ -118,9 +138,19 @@ export default function QuestionCard({
   const rubricValidationError = validateRubricPoints();
 
   const handleGenerateWithAI = async () => {
-    // Validate that both prompt and total points are entered
-    if (!question.prompt.trim()) {
-      setGenerationError("Please enter a question prompt first");
+    if (!genRubric && !genExpected) {
+      setGenerationError(
+        "Select at least one: generate rubric or expected answer",
+      );
+      return;
+    }
+
+    if (!teacherPromptOrFocus(question).trim()) {
+      setGenerationError(
+        dynamicPrompt
+          ? "Please enter guidelines for the question first"
+          : "Please enter a question prompt first",
+      );
       return;
     }
 
@@ -139,12 +169,14 @@ export default function QuestionCard({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          questionPrompt: question.prompt,
+          questionPrompt: teacherPromptOrFocus(question),
           supportingContent: question.supporting_content || undefined,
           title: title || undefined,
           instructions: studentInstructions || undefined,
           contextForAI: contextForAI || undefined,
           focusGuidance: focusGuidance.trim() || undefined,
+          generateRubric: genRubric,
+          generateExpectedAnswer: genExpected,
         }),
       });
 
@@ -156,34 +188,32 @@ export default function QuestionCard({
       }
 
       const data = await response.json();
-      console.log("AI Generation Response:", data);
 
-      // Create new array references to ensure React detects the change
+      if (genExpected) {
+        onChange(index, "expected_answer", data.expectedAnswer || "");
+      }
+
+      if (!genRubric) {
+        return;
+      }
+
       const newRubric = data.rubric.map((item: RubricItem) => ({ ...item }));
-      console.log("Processed Rubric:", newRubric);
 
       let finalRubric: RubricItem[];
       let finalTotalPoints: number;
 
-      // If total points is already set, distribute them across rubric items
-      // Otherwise, use the sum of AI-generated points
       if (question.total_points > 0) {
-        // Distribute user-entered total points across rubric items
         const totalPoints = question.total_points;
-
-        // Use AI-generated points as weights for proportional distribution
         const totalAIPoints = newRubric.reduce(
           (sum: number, item: RubricItem) => sum + item.points,
           0,
         );
 
         if (totalAIPoints > 0) {
-          // Distribute proportionally based on AI weights
           let distributedSum = 0;
           const distributedRubric = newRubric.map(
             (item: RubricItem, idx: number) => {
               if (idx === newRubric.length - 1) {
-                // Last item gets remainder to ensure exact total
                 const points = totalPoints - distributedSum;
                 distributedSum += points;
                 return { ...item, points };
@@ -196,14 +226,11 @@ export default function QuestionCard({
               }
             },
           );
-
-          // Ensure we create a completely new array reference
           finalRubric = distributedRubric.map((item: RubricItem) => ({
             ...item,
           }));
           finalTotalPoints = totalPoints;
         } else {
-          // Equal distribution if no AI points
           const pointsPerItem = Math.floor(totalPoints / newRubric.length);
           const remainder = totalPoints % newRubric.length;
           const distributedRubric = newRubric.map(
@@ -212,48 +239,29 @@ export default function QuestionCard({
               points: pointsPerItem + (idx < remainder ? 1 : 0),
             }),
           );
-          // Ensure we create a completely new array reference
           finalRubric = distributedRubric.map((item: RubricItem) => ({
             ...item,
           }));
           finalTotalPoints = totalPoints;
         }
       } else {
-        // Calculate total points from AI-generated rubric
         finalTotalPoints = newRubric.reduce(
           (sum: number, item: RubricItem) => sum + item.points,
           0,
         );
-        // Ensure we create a completely new array reference
         finalRubric = newRubric.map((item: RubricItem) => ({ ...item }));
       }
 
-      // Update all fields - ensure rubric gets a completely new array reference
-      // Create fresh objects to ensure React detects the change
-      // Don't filter - keep all items from AI (they should all be valid)
       const rubricCopy = finalRubric.map((item: RubricItem) => ({
         item: String(item.item || ""),
         points: Number(item.points || 0),
       }));
 
-      console.log(
-        "Updating rubric with:",
-        rubricCopy,
-        "for question index:",
-        index,
-      );
-      console.log("Current question rubric before update:", question.rubric);
-
-      // Update rubric first - this should trigger a re-render
       onChange(index, "rubric", rubricCopy);
 
-      // Update other fields immediately - React will batch these
       if (question.total_points !== finalTotalPoints) {
         onChange(index, "total_points", finalTotalPoints);
       }
-      onChange(index, "expected_answer", data.expectedAnswer || "");
-
-      console.log("State updates called for question", index);
     } catch (error) {
       console.error("Error generating rubric and answer:", error);
       setGenerationError(
@@ -267,11 +275,9 @@ export default function QuestionCard({
 
   return (
     <div className="border rounded-lg p-6 space-y-4 bg-card">
-      {/* Question Header with Controls */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Question {index + 1}</h3>
         <div className="flex gap-2">
-          {/* Bot Override Button - Only shown when bot config is enabled */}
           {showBotOverride && onQuestionOverrideChange && (
             <Button
               type="button"
@@ -320,7 +326,6 @@ export default function QuestionCard({
         </div>
       </div>
 
-      {/* Total Points */}
       <div className="space-y-2">
         <Label htmlFor={`totalPoints-${index}`}>
           Total Points <span className="text-destructive">*</span>
@@ -341,27 +346,52 @@ export default function QuestionCard({
           min={0}
           className="w-32"
         />
-        <p className="text-xs text-muted-foreground">
-          Enter the total points for this question
-        </p>
       </div>
 
-      {/* Prompt */}
       <div className="space-y-2">
-        <Label htmlFor={`prompt-${index}`}>
-          Prompt <span className="text-destructive">*</span>
-        </Label>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Label
+            htmlFor={`prompt-${index}`}
+            className="text-sm font-medium min-w-0 flex-1"
+          >
+            {dynamicPrompt ? "Guidelines for the question" : "Question"}{" "}
+            <span className="text-destructive">*</span>
+          </Label>
+          <div className="flex items-center gap-2 shrink-0">
+            <InfoTooltip text={DYNAMIC_PROMPT_INFO_TOOLTIP} />
+            <span className="text-xs text-muted-foreground">Dynamic</span>
+            <Switch
+              id={`dynamic-prompt-${index}`}
+              checked={dynamicPrompt}
+              onCheckedChange={(checked) => {
+                onChange(index, "dynamic_prompt", checked);
+              }}
+              disabled={!togglesActive}
+            />
+          </div>
+        </div>
         <Textarea
           id={`prompt-${index}`}
-          value={question.prompt}
-          onChange={(e) => onChange(index, "prompt", e.target.value)}
+          value={
+            dynamicPrompt
+              ? (question.question_focus ?? "")
+              : question.prompt
+          }
+          onChange={(e) =>
+            dynamicPrompt
+              ? onChange(index, "question_focus", e.target.value)
+              : onChange(index, "prompt", e.target.value)
+          }
           disabled={disabled}
-          placeholder="Enter question prompt"
+          placeholder={
+            dynamicPrompt
+              ? "Describe what the generated question should cover (guidelines for the AI)"
+              : "Enter the question text"
+          }
           rows={4}
         />
       </div>
 
-      {/* AI Generate Button */}
       <div className="space-y-2">
         <Button
           type="button"
@@ -370,11 +400,17 @@ export default function QuestionCard({
           disabled={
             disabled ||
             isGenerating ||
-            !question.prompt.trim() ||
+            dynamicRubric ||
+            !teacherPromptOrFocus(question).trim() ||
             !question.total_points ||
             question.total_points <= 0
           }
           className="w-full"
+          title={
+            dynamicRubric
+              ? "Turn off dynamic rubric to generate rubric and expected answer here"
+              : undefined
+          }
         >
           <Sparkles className="h-4 w-4 mr-2" />
           {isGenerating
@@ -387,7 +423,7 @@ export default function QuestionCard({
             <div className="text-sm">
               <p className="font-medium">AI is processing your question...</p>
               <p className="text-muted-foreground">
-                Detecting language and generating rubric
+                Detecting language and generating content
               </p>
             </div>
           </div>
@@ -397,7 +433,6 @@ export default function QuestionCard({
         )}
       </div>
 
-      {/* AI Generate Dialog */}
       <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
         <DialogContent>
           <DialogHeader>
@@ -405,13 +440,46 @@ export default function QuestionCard({
               <Sparkles className="h-5 w-5" />
               Generate Rubric &amp; Expected Answer
             </DialogTitle>
+            <DialogDescription>
+              Choose what to generate. The model uses your{" "}
+              {dynamicPrompt ? "guidelines for the question" : "question"} text
+              {focusGuidance.trim()
+                ? " and your extra instructions below."
+                : "."}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id={`gen-rubric-${index}`}
+                checked={genRubric}
+                onCheckedChange={(c) => setGenRubric(c === true)}
+              />
+              <Label
+                htmlFor={`gen-rubric-${index}`}
+                className="font-normal cursor-pointer"
+              >
+                Generate rubric
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id={`gen-expected-${index}`}
+                checked={genExpected}
+                onCheckedChange={(c) => setGenExpected(c === true)}
+              />
+              <Label
+                htmlFor={`gen-expected-${index}`}
+                className="font-normal cursor-pointer"
+              >
+                Generate expected answer
+              </Label>
+            </div>
             <Textarea
               id={`focusGuidance-${index}`}
               value={focusGuidance}
               onChange={(e) => setFocusGuidance(e.target.value)}
-              placeholder="Please enter any additional instruction that the AI should consider for the generation. For example, level of the students, topic focus, etc."
+              placeholder="Optional: level of students, topic focus, etc."
               rows={3}
             />
           </div>
@@ -429,10 +497,11 @@ export default function QuestionCard({
             <Button
               type="button"
               onClick={() => {
+                if (!genRubric && !genExpected) return;
                 setShowGenerateDialog(false);
                 handleGenerateWithAI();
               }}
-              disabled={isGenerating}
+              disabled={isGenerating || (!genRubric && !genExpected)}
             >
               <Sparkles className="h-4 w-4 mr-2" />
               Generate
@@ -441,66 +510,102 @@ export default function QuestionCard({
         </DialogContent>
       </Dialog>
 
-      {/* Rubric */}
-      <div className="space-y-2">
-        <div>
-          <Label>
-            Rubric <span className="text-destructive">*</span>
-          </Label>
+      {!dynamicRubric ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label className="text-sm font-medium">
+              Rubric <span className="text-destructive">*</span>
+            </Label>
+            <div className="flex items-center gap-2 shrink-0">
+              <InfoTooltip text={DYNAMIC_RUBRIC_INFO_TOOLTIP} />
+              <span className="text-xs text-muted-foreground">Dynamic</span>
+              <Switch
+                id={`dynamic-rubric-${index}`}
+                checked={dynamicRubric}
+                onCheckedChange={(checked) => {
+                  onChange(index, "dynamic_rubric", checked);
+                }}
+                disabled={!togglesActive}
+              />
+            </div>
+          </div>
           <div className="flex gap-8 mt-2 text-sm text-muted-foreground">
             <span>Item</span>
             <span className="ml-auto">Points</span>
           </div>
-        </div>
 
+          <div className="space-y-2">
+            {question.rubric.map((item, rubricIndex) => (
+              <RubricItemRow
+                key={rubricIndex}
+                item={item}
+                index={rubricIndex}
+                onChange={(rubricIdx, field, value) =>
+                  onRubricChange(index, rubricIdx, field, value)
+                }
+                onRemove={(rubricIdx) => onRemoveRubricItem(index, rubricIdx)}
+                disabled={disabled}
+              />
+            ))}
+          </div>
+
+          {rubricValidationError && (
+            <p className="text-sm text-destructive">{rubricValidationError}</p>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onAddRubricItem(index)}
+            disabled={disabled}
+            size="sm"
+          >
+            Add Rubric Item
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2 rounded-md border border-dashed p-4 bg-muted/20">
+          <div className="flex items-center justify-between gap-3">
+            <Label className="text-sm font-medium">Rubric</Label>
+            <div className="flex items-center gap-2 shrink-0">
+              <InfoTooltip text={DYNAMIC_RUBRIC_INFO_TOOLTIP} />
+              <span className="text-xs text-muted-foreground">Dynamic</span>
+              <Switch
+                id={`dynamic-rubric-on-${index}`}
+                checked={dynamicRubric}
+                onCheckedChange={(checked) => {
+                  onChange(index, "dynamic_rubric", checked);
+                }}
+                disabled={!togglesActive}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Rubric and expected answer will be generated from each
+            student&apos;s uploaded files when they continue past the upload
+            step.
+          </p>
+        </div>
+      )}
+
+      {!dynamicRubric && (
         <div className="space-y-2">
-          {question.rubric.map((item, rubricIndex) => (
-            <RubricItemRow
-              key={rubricIndex}
-              item={item}
-              index={rubricIndex}
-              onChange={(rubricIdx, field, value) =>
-                onRubricChange(index, rubricIdx, field, value)
-              }
-              onRemove={(rubricIdx) => onRemoveRubricItem(index, rubricIdx)}
-              disabled={disabled}
-            />
-          ))}
+          <Label htmlFor={`expectedAnswer-${index}`}>Expected Answer</Label>
+          <Textarea
+            id={`expectedAnswer-${index}`}
+            value={question.expected_answer || ""}
+            onChange={(e) => onChange(index, "expected_answer", e.target.value)}
+            disabled={disabled}
+            placeholder="Enter details about what the answer should cover (optional)"
+            rows={4}
+          />
+          <p className="text-xs text-muted-foreground">
+            Key points the answer should cover. Guides AI evaluation; not shown
+            to learners.
+          </p>
         </div>
+      )}
 
-        {rubricValidationError && (
-          <p className="text-sm text-destructive">{rubricValidationError}</p>
-        )}
-
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => onAddRubricItem(index)}
-          disabled={disabled}
-          size="sm"
-        >
-          Add Rubric Item
-        </Button>
-      </div>
-
-      {/* Expected Answer */}
-      <div className="space-y-2">
-        <Label htmlFor={`expectedAnswer-${index}`}>Expected Answer</Label>
-        <Textarea
-          id={`expectedAnswer-${index}`}
-          value={question.expected_answer || ""}
-          onChange={(e) => onChange(index, "expected_answer", e.target.value)}
-          disabled={disabled}
-          placeholder="Enter details about what the answer should cover (optional)"
-          rows={4}
-        />
-        <p className="text-xs text-muted-foreground">
-          Key points the answer should cover. This guides AI evaluation and
-          won&apos;t be shown to learners.
-        </p>
-      </div>
-
-      {/* Supporting Content - Collapsible */}
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value={`supporting-content-${index}`}>
           <AccordionTrigger>Supporting Content</AccordionTrigger>
@@ -521,7 +626,6 @@ export default function QuestionCard({
         </AccordionItem>
       </Accordion>
 
-      {/* Bot Override Dialog */}
       {showBotOverride && onQuestionOverrideChange && (
         <Dialog open={isBotOverrideOpen} onOpenChange={setIsBotOverrideOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

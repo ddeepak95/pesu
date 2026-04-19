@@ -116,6 +116,44 @@ export interface Question {
   rubric: RubricItem[];
   supporting_content: string;
   expected_answer?: string;
+  /**
+   * When `dynamic_prompt` is true, guidelines for what the generated question
+   * should cover. Falls back to `prompt` if unset (legacy rows).
+   */
+  question_focus?: string;
+  /** When true, teacher text is guidelines for file-based generation at student time. */
+  dynamic_prompt?: boolean;
+  /** When true, rubric and expected answer are generated at student time from files. */
+  dynamic_rubric?: boolean;
+}
+
+/**
+ * Text the teacher is editing: static `prompt` (final question), or
+ * `question_focus` when dynamic — guidelines for the question (with legacy fallback to `prompt`).
+ */
+export function teacherPromptOrFocus(q: Question): string {
+  if (q.dynamic_prompt === true) {
+    const f = q.question_focus?.trim();
+    if (f) return q.question_focus ?? "";
+    return q.prompt;
+  }
+  return q.prompt;
+}
+
+/** True if any question uses per-submission generation (requires file submission). */
+export function assignmentHasDynamicQuestionParts(questions: Question[]): boolean {
+  return questions.some(
+    (q) => q.dynamic_prompt === true || q.dynamic_rubric === true,
+  );
+}
+
+/** Strip dynamic flags when file submission is off (call on save). */
+export function stripDynamicFlagsFromQuestions(questions: Question[]): Question[] {
+  return questions.map((q) => ({
+    ...q,
+    dynamic_prompt: false,
+    dynamic_rubric: false,
+  }));
 }
 
 export interface ResponderFieldConfig {
@@ -293,12 +331,12 @@ export interface Assignment {
    */
   file_submission_config?: FileSubmissionConfig | null;
   /**
-   * When true, questions are generated dynamically per-submission based on uploaded files
-   * and `dynamic_question_focuses` (DynamicGenerationSpec). The `questions` array is typically empty.
+   * When true, file submission is required and at least one question has
+   * `dynamic_prompt` or `dynamic_rubric`; students receive a merged `generated_questions` snapshot.
    */
   dynamic_questions_enabled?: boolean;
   /**
-   * Dynamic generation spec (jsonb). Column name is historical; value is {@link DynamicGenerationSpec}.
+   * Legacy jsonb column; unused with per-question flags — persist null.
    */
   dynamic_question_focuses?: DynamicGenerationSpec | null;
   /**
