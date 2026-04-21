@@ -8,7 +8,6 @@ export const supportedLanguages = [
     {code:"de", name: "German"},
     {code: "ru", name: "Russian"},
     {code: "uk", name: "Ukrainian"},
-    {code: "pa", name: "Punjabi"},
     {code:"kn", name: "Kannada"},
     {code:"ml", name: "Malayalam"},
     {code:"es", name: "Spanish"},
