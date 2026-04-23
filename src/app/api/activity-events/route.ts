@@ -146,7 +146,15 @@ export async function POST(request: NextRequest) {
       interaction_source: resolvedInteractionSource,
     };
 
-    const runWrite = async (payload: typeof insertPayload) =>
+    type ActivityInsertPayload = typeof insertPayload;
+    type ActivityInsertPayloadLegacy = Omit<
+      ActivityInsertPayload,
+      "interaction_source"
+    >;
+
+    const runWrite = async (
+      payload: ActivityInsertPayload | ActivityInsertPayloadLegacy
+    ) =>
       resolvedEventId
         ? supabase
             .from("activity_events")
