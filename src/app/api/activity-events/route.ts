@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { ActivityEventInput } from "@/types/activity";
+import { ActivityEventInput, ALLOWED_EVENT_TYPES } from "@/types/activity";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,15 +30,34 @@ const resolveClassId = async (
 };
 
 /**
+ * Parse the request body. We primarily accept `application/json`, but also
+ * handle `text/plain` (parsed as JSON) so the client can use transports that
+ * don't always preserve JSON content-type headers.
+ */
+async function parseBody(request: NextRequest): Promise<unknown> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return request.json();
+  }
+  const text = await request.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+/**
  * POST /api/activity-events
- * Creates an activity event (INSERT-only, no upsert)
- * For tracking attempt_started and attempt_ended timestamps
+ *
+ * Inserts a semantic activity event. Idempotent on `event_id`: repeated
+ * submissions of the same `eventId` are safely ignored.
  */
 export async function POST(request: NextRequest) {
   try {
-    const body: ActivityEventInput = await request.json();
+    const body = (await parseBody(request)) as ActivityEventInput;
 
-    // Validate required fields
     if (!body.componentType) {
       return NextResponse.json(
         { error: "componentType is required" },
@@ -60,16 +79,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate eventType
-    const validEventTypes = [
-      "attempt_started",
-      "attempt_ended",
-      "bot_connect_initiated",
-      "bot_disconnected",
-    ];
-    if (!validEventTypes.includes(body.eventType)) {
+    if (!ALLOWED_EVENT_TYPES.includes(body.eventType)) {
       return NextResponse.json(
-        { error: `eventType must be one of: ${validEventTypes.join(", ")}` },
+        {
+          error: `eventType must be one of: ${ALLOWED_EVENT_TYPES.join(", ")}`,
+        },
         { status: 400 }
       );
     }
@@ -77,21 +91,35 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerSupabaseClient();
     const resolvedClassId = await resolveClassId(body.classId, supabase);
     const resolvedUserId = isValidUuid(body.userId) ? body.userId : null;
+    const resolvedEventId = isValidUuid(body.eventId) ? body.eventId : null;
+    const resolvedClientTs = body.clientTs ?? null;
 
-    // Insert the activity event (no upsert - each event is a new row)
-    const { data, error } = await supabase
-      .from("activity_events")
-      .insert({
-        user_id: resolvedUserId,
-        submission_id: body.submissionId || null,
-        class_id: resolvedClassId,
-        component_type: body.componentType,
-        component_id: body.componentId,
-        sub_component_id: body.subComponentId || null,
-        event_type: body.eventType,
-      })
-      .select()
-      .single();
+    // Idempotent insert keyed on event_id. If a row with the same event_id
+    // already exists, the insert is ignored (no error, no duplicate row).
+    // Legacy callers without event_id fall through to a standard insert.
+    const insertPayload = {
+      event_id: resolvedEventId,
+      user_id: resolvedUserId,
+      submission_id: body.submissionId || null,
+      class_id: resolvedClassId,
+      component_type: body.componentType,
+      component_id: body.componentId,
+      sub_component_id: body.subComponentId || null,
+      event_type: body.eventType,
+      client_ts: resolvedClientTs,
+    };
+
+    const query = resolvedEventId
+      ? supabase
+          .from("activity_events")
+          .upsert(insertPayload, {
+            onConflict: "event_id",
+            ignoreDuplicates: true,
+          })
+          .select()
+      : supabase.from("activity_events").insert(insertPayload).select().single();
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error inserting activity event:", error);

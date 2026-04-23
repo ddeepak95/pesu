@@ -27,8 +27,12 @@ import {
   DropdownQuestion,
 } from "@/types/survey";
 import { useAuth } from "@/contexts/AuthContext";
-import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import {
+  ActivityTrackingProvider,
+  useActivityTrackingContext,
+} from "@/contexts/ActivityTrackingContext";
+import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
+import { emitActivityEvent } from "@/lib/activity/emitter";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import LikertInput from "@/components/Student/Surveys/LikertInput";
@@ -65,12 +69,25 @@ function SurveyInner({
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Activity tracking for survey viewing time
-  useActivityTracking({
+  const tracking = useActivityTrackingContext();
+
+  useComponentCloseTracking({
     componentType: "survey",
     componentId: survey.survey_id,
-    enabled: true,
   });
+
+  const emitSurveyEvent = (
+    eventType: "navigation_back_clicked" | "submit_clicked"
+  ) => {
+    void emitActivityEvent({
+      eventType,
+      componentType: "survey",
+      componentId: survey.survey_id,
+      userId: tracking.userId,
+      classId: tracking.classId,
+      submissionId: tracking.submissionId,
+    });
+  };
 
   const setAnswer = (questionOrder: number, value: string | number) => {
     setAnswers((prev) => {
@@ -104,6 +121,7 @@ function SurveyInner({
   };
 
   const handleSubmitClick = () => {
+    emitSurveyEvent("submit_clicked");
     const validationError = validate();
     if (validationError) {
       showErrorToast(validationError);
@@ -154,7 +172,10 @@ function SurveyInner({
     <PageLayout>
       <div>
         <div>
-          <div className="mb-4">
+          <div
+            className="mb-4"
+            onClickCapture={() => emitSurveyEvent("navigation_back_clicked")}
+          >
             <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
@@ -277,9 +298,9 @@ function SurveyInner({
                 contentItemId={contentItemId}
               />
             )}
-            <CloseButton
-              href={`/student/classes/${classId}`}
-            />
+            <div onClickCapture={() => emitSurveyEvent("navigation_back_clicked")}>
+              <CloseButton href={`/student/classes/${classId}`} />
+            </div>
           </div>
         </div>
       </div>

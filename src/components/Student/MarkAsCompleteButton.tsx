@@ -14,19 +14,29 @@ import { Check } from "lucide-react";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
 import { invalidateCompletionsCache } from "@/hooks/swr";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { emitActivityEvent } from "@/lib/activity/emitter";
+import { ComponentType } from "@/types/activity";
 
 interface MarkAsCompleteButtonProps {
   contentItemId: string;
+  componentType: ComponentType;
+  componentId: string;
   isComplete: boolean;
   onComplete?: () => void;
   className?: string;
+  userId?: string;
+  classId?: string;
 }
 
 export default function MarkAsCompleteButton({
   contentItemId,
+  componentType,
+  componentId,
   isComplete: initialIsComplete,
   onComplete,
   className,
+  userId,
+  classId,
 }: MarkAsCompleteButtonProps) {
   const [isComplete, setIsComplete] = useState(initialIsComplete);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -35,6 +45,15 @@ export default function MarkAsCompleteButton({
   const handleMarkComplete = async () => {
     setIsLoading(true);
     try {
+      void emitActivityEvent({
+        eventType: "marked_complete_clicked",
+        componentType,
+        componentId,
+        subComponentId: "mark_as_complete_confirm_button",
+        userId,
+        classId,
+      });
+
       await markContentAsComplete(contentItemId);
       await invalidateCompletionsCache();
       setIsComplete(true);

@@ -7,11 +7,15 @@ import GoToClassButton from "@/components/ui/go-to-class-button";
 import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
-import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
-import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import {
+  ActivityTrackingProvider,
+  useActivityTrackingContext,
+} from "@/contexts/ActivityTrackingContext";
 import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
 import { LearningContent } from "@/types/learningContent";
+import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
+import { emitActivityEvent } from "@/lib/activity/emitter";
 
 interface LearningContentInnerProps {
   content: LearningContent;
@@ -29,19 +33,29 @@ function LearningContentInner({
   classUuid,
 }: LearningContentInnerProps) {
   const [isComplete, setIsComplete] = useState(initialIsComplete);
+  const tracking = useActivityTrackingContext();
 
-  // Activity tracking for learning content viewing time
-  useActivityTracking({
+  useComponentCloseTracking({
     componentType: "learning_content",
     componentId: content.learning_content_id,
-    enabled: true,
   });
+
+  const emitBack = () => {
+    void emitActivityEvent({
+      eventType: "navigation_back_clicked",
+      componentType: "learning_content",
+      componentId: content.learning_content_id,
+      userId: tracking.userId,
+      classId: tracking.classId,
+      submissionId: tracking.submissionId,
+    });
+  };
 
   return (
     <PageLayout>
       <div>
         <div>
-          <div className="mb-4">
+          <div className="mb-4" onClickCapture={emitBack}>
             <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
@@ -69,8 +83,12 @@ function LearningContentInner({
               <div className="flex justify-center pt-4">
                 <MarkAsCompleteButton
                   contentItemId={contentItemId}
+                  componentType="learning_content"
+                  componentId={content.learning_content_id}
                   isComplete={isComplete}
                   onComplete={() => setIsComplete(true)}
+                  userId={tracking.userId}
+                  classId={tracking.classId}
                 />
               </div>
             )}
@@ -82,9 +100,9 @@ function LearningContentInner({
                 contentItemId={contentItemId}
               />
             )}
-            <CloseButton
-              href={`/student/classes/${classId}`}
-            />
+            <div onClickCapture={emitBack}>
+              <CloseButton href={`/student/classes/${classId}`} />
+            </div>
           </div>
         </div>
       </div>

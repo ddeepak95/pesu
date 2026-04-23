@@ -6,9 +6,13 @@ import CloseButton from "@/components/ui/close-button";
 import GoToClassButton from "@/components/ui/go-to-class-button";
 import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
-import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAuth } from "@/contexts/AuthContext";
-import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
+import {
+  ActivityTrackingProvider,
+  useActivityTrackingContext,
+} from "@/contexts/ActivityTrackingContext";
+import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
+import { emitActivityEvent } from "@/lib/activity/emitter";
 import { createQuizSubmission } from "@/lib/queries/quizzes";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
 import { invalidateCompletionsCache } from "@/hooks/swr";
@@ -79,12 +83,25 @@ function QuizInner({
     }));
   }, [quiz, sessionSeed]);
 
-  // Activity tracking for quiz viewing time
-  useActivityTracking({
+  const tracking = useActivityTrackingContext();
+
+  useComponentCloseTracking({
     componentType: "quiz",
     componentId: quiz.quiz_id,
-    enabled: true,
   });
+
+  const emitQuizEvent = (
+    eventType: "navigation_back_clicked" | "submit_clicked"
+  ) => {
+    void emitActivityEvent({
+      eventType,
+      componentType: "quiz",
+      componentId: quiz.quiz_id,
+      userId: tracking.userId,
+      classId: tracking.classId,
+      submissionId: tracking.submissionId,
+    });
+  };
 
   const handleSelectAnswer = (questionId: string, optionId: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
@@ -92,6 +109,7 @@ function QuizInner({
 
   const handleSubmit = async () => {
     if (!quiz || submission) return;
+    emitQuizEvent("submit_clicked");
     const allAnswered = displayQuestions.every((q) => answers[q.id]);
     if (!allAnswered) {
       showErrorToast("Please answer all questions before submitting.");
@@ -135,7 +153,10 @@ function QuizInner({
     <PageLayout>
       <div>
         <div>
-          <div className="mb-4">
+          <div
+            className="mb-4"
+            onClickCapture={() => emitQuizEvent("navigation_back_clicked")}
+          >
             <GoToClassButton classId={classId} />
           </div>
           <div className="mb-6">
@@ -190,9 +211,9 @@ function QuizInner({
                 contentItemId={contentItemId}
               />
             )}
-            <CloseButton
-              href={`/student/classes/${classId}`}
-            />
+            <div onClickCapture={() => emitQuizEvent("navigation_back_clicked")}>
+              <CloseButton href={`/student/classes/${classId}`} />
+            </div>
           </div>
         </div>
       </div>

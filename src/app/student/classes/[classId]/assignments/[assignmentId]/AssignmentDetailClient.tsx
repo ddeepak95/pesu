@@ -9,6 +9,8 @@ import NextItemButton from "@/components/ui/next-item-button";
 import { useAuth } from "@/contexts/AuthContext";
 import StudentAssignmentResponse from "@/components/Student/StudentAssignmentResponse";
 import { Assignment } from "@/types/assignment";
+import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
+import { emitActivityEvent } from "@/lib/activity/emitter";
 
 interface AssignmentDetailClientProps {
   assignmentData: Assignment;
@@ -35,10 +37,27 @@ export default function AssignmentDetailClient({
     user?.email?.split("@")[0] ||
     "";
 
+  useComponentCloseTracking({
+    componentType: "assignment",
+    componentId: assignmentId,
+    userId: user?.id,
+    classId: classUuid ?? classId,
+  });
+
+  const emitBack = () => {
+    void emitActivityEvent({
+      eventType: "navigation_back_clicked",
+      componentType: "assignment",
+      componentId: assignmentId,
+      userId: user?.id,
+      classId: classUuid ?? classId,
+    });
+  };
+
   return (
     <PageLayout userName={displayName || studentName}>
       <div>
-        <div className="mb-4">
+        <div className="mb-4" onClickCapture={emitBack}>
           <GoToClassButton classId={classId} />
         </div>
         <div className="w-full">
@@ -67,10 +86,12 @@ export default function AssignmentDetailClient({
               />
             </>
           )}
-          <CloseButton
-            href={`/student/classes/${classId}`}
-            className="pt-2 pb-8"
-          />
+          <div onClickCapture={emitBack}>
+            <CloseButton
+              href={`/student/classes/${classId}`}
+              className="pt-2 pb-8"
+            />
+          </div>
         </div>
       </div>
     </PageLayout>

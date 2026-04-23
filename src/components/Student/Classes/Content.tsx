@@ -22,6 +22,8 @@ import {
   useCompletionsWithDatesForStudent,
 } from "@/hooks/swr";
 import { getTeacherUnlocksForStudent } from "@/lib/queries/teacherUnlocks";
+import { emitActivityEvent } from "@/lib/activity/emitter";
+import type { ComponentType } from "@/types/activity";
 
 interface ContentProps {
   classData: Class;
@@ -164,7 +166,26 @@ export default function Content({ classData }: ContentProps) {
   const error =
     groupError?.message || itemsError?.message || null;
 
-  const handleOpen = (item: ContentItem) => {
+  const emitOpen = (
+    componentType: ComponentType,
+    componentId: string,
+    section: "to_complete_section" | "completed_section"
+  ) => {
+    // Fire-and-forget; emitter uses fetch keepalive so it survives navigation.
+    void emitActivityEvent({
+      eventType: "content_item_opened",
+      componentType,
+      componentId,
+      subComponentId: section,
+      classId: classData.id,
+      userId: user?.id,
+    });
+  };
+
+  const handleOpen = (
+    item: ContentItem,
+    section: "to_complete_section" | "completed_section"
+  ) => {
     // Save scroll position so CloseButton can restore it
     try {
       sessionStorage.setItem(
@@ -176,6 +197,7 @@ export default function Content({ classData }: ContentProps) {
     if (item.type === "formative_assignment") {
       const a = assignmentById[item.ref_id];
       if (a) {
+        emitOpen("assignment", a.assignment_id, section);
         router.push(
           `/student/classes/${classData.class_id}/assignments/${a.assignment_id}`
         );
@@ -186,6 +208,7 @@ export default function Content({ classData }: ContentProps) {
     if (item.type === "learning_content") {
       const lc = learningContentById[item.ref_id];
       if (lc) {
+        emitOpen("learning_content", lc.learning_content_id, section);
         router.push(
           `/student/classes/${classData.class_id}/learning-content/${lc.learning_content_id}`
         );
@@ -195,6 +218,7 @@ export default function Content({ classData }: ContentProps) {
     if (item.type === "quiz") {
       const q = quizById[item.ref_id];
       if (q) {
+        emitOpen("quiz", q.quiz_id, section);
         router.push(
           `/student/classes/${classData.class_id}/quizzes/${q.quiz_id}`
         );
@@ -204,6 +228,7 @@ export default function Content({ classData }: ContentProps) {
     if (item.type === "survey") {
       const s = surveyById[item.ref_id];
       if (s) {
+        emitOpen("survey", s.survey_id, section);
         router.push(
           `/student/classes/${classData.class_id}/surveys/${s.survey_id}`
         );
@@ -211,7 +236,10 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
-  const renderContentCard = (item: ContentItem) => {
+  const renderContentCard = (
+    item: ContentItem,
+    section: "to_complete_section" | "completed_section"
+  ) => {
     const resolvedTitle =
       item.type === "formative_assignment"
         ? assignmentById[item.ref_id]?.title
@@ -242,7 +270,7 @@ export default function Content({ classData }: ContentProps) {
         preferredLanguageCode={preferredLanguageCode}
         isComplete={completedContentIds.has(item.id)}
         unlockState={unlockStates.get(item.id)}
-        onOpen={() => handleOpen(item)}
+        onOpen={() => handleOpen(item, section)}
       />
     );
   };
@@ -279,7 +307,7 @@ export default function Content({ classData }: ContentProps) {
               <List
                 items={toCompleteItems}
                 keyExtractor={(item) => item.id}
-                renderItem={renderContentCard}
+                renderItem={(item) => renderContentCard(item, "to_complete_section")}
               />
             </section>
           )}
@@ -292,7 +320,7 @@ export default function Content({ classData }: ContentProps) {
               <List
                 items={completedItems}
                 keyExtractor={(item) => item.id}
-                renderItem={renderContentCard}
+                renderItem={(item) => renderContentCard(item, "completed_section")}
               />
             </section>
           )}

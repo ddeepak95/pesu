@@ -194,6 +194,8 @@ export function AssessmentShell({
         return;
       }
 
+      logEvent("submit_clicked");
+
       if (feedbackRequiresApproval) {
         // Show pending screen immediately — student won't watch LLM spinner
         setSubmittingForApproval(true);
@@ -265,8 +267,10 @@ export function AssessmentShell({
 
   const handleSaveAndNavigate = (action: "previous" | "next") => {
     if (action === "previous" && onPrevious) {
+      logEvent("question_previous_clicked");
       onPrevious();
     } else if (action === "next" && onNext) {
+      logEvent("question_next_clicked");
       onNext();
     }
   };

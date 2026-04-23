@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Upload, X, FileText, Loader2, Download, FileCode, Check, AlertCircle } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
+import { emitActivityEvent } from "@/lib/activity/emitter";
 
 interface FileUploadZoneProps {
   submissionId: string;
@@ -305,6 +306,13 @@ export default function FileUploadZone({
         })),
       ]);
 
+      void emitActivityEvent({
+        eventType: "upload_started",
+        componentType: "assignment",
+        componentId: assignmentId,
+        subComponentId: "file_upload_zone",
+      });
+
       for (const { file, tempId } of queue) {
         try {
           setUploading((prev) =>
@@ -324,6 +332,13 @@ export default function FileUploadZone({
               );
             },
           );
+
+          void emitActivityEvent({
+            eventType: "upload_completed",
+            componentType: "assignment",
+            componentId: assignmentId,
+            subComponentId: "file_upload_zone",
+          });
 
           setUploading((prev) => prev.filter((u) => u.id !== tempId));
           setDisplayRowKeys((r) =>
