@@ -13,6 +13,7 @@ import {
 } from "@/contexts/ActivityTrackingContext";
 import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
 import { emitActivityEvent } from "@/lib/activity/emitter";
+import { useNavigationTracking } from "@/hooks/useNavigationTracking";
 import { createQuizSubmission } from "@/lib/queries/quizzes";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
 import { invalidateCompletionsCache } from "@/hooks/swr";
@@ -90,9 +91,7 @@ function QuizInner({
     componentId: quiz.quiz_id,
   });
 
-  const emitQuizEvent = (
-    eventType: "navigation_back_clicked" | "submit_clicked"
-  ) => {
+  const emitQuizEvent = (eventType: "submit_clicked") => {
     void emitActivityEvent({
       eventType,
       componentType: "quiz",
@@ -102,6 +101,10 @@ function QuizInner({
       submissionId: tracking.submissionId,
     });
   };
+  const { emitBack, emitClose, emitNextItem } = useNavigationTracking({
+    componentType: "quiz",
+    componentId: quiz.quiz_id,
+  });
 
   const handleSelectAnswer = (questionId: string, optionId: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
@@ -153,11 +156,8 @@ function QuizInner({
     <PageLayout>
       <div>
         <div>
-          <div
-            className="mb-4"
-            onClickCapture={() => emitQuizEvent("navigation_back_clicked")}
-          >
-            <GoToClassButton classId={classId} />
+          <div className="mb-4">
+            <GoToClassButton classId={classId} onBeforeNavigate={emitBack} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -209,11 +209,13 @@ function QuizInner({
                 classDbId={classUuid}
                 classId={classId}
                 contentItemId={contentItemId}
+                onBeforeNavigate={emitNextItem}
               />
             )}
-            <div onClickCapture={() => emitQuizEvent("navigation_back_clicked")}>
-              <CloseButton href={`/student/classes/${classId}`} />
-            </div>
+            <CloseButton
+              href={`/student/classes/${classId}`}
+              onBeforeNavigate={emitClose}
+            />
           </div>
         </div>
       </div>

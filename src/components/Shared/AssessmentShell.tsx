@@ -19,6 +19,7 @@ import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputAre
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
 import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
+import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext";
 
 export interface AssessmentShellProps {
   assessmentMode: "voice" | "text_chat" | "static_text";
@@ -270,7 +271,12 @@ export function AssessmentShell({
       logEvent("question_previous_clicked");
       onPrevious();
     } else if (action === "next" && onNext) {
-      logEvent("question_next_clicked");
+      // Only count as "next question" when we are actually moving to another
+      // question. The same onNext callback is also used for finish/complete
+      // flows on the last question.
+      if (!isLastQuestion) {
+        logEvent("question_next_clicked");
+      }
       onNext();
     }
   };
@@ -319,84 +325,95 @@ export function AssessmentShell({
     studentInstructions,
   };
 
+  const trackingContextValue = React.useMemo(
+    () => ({
+      trackFeedbackOpened: () => logEvent("feedback_view_clicked"),
+      trackFinishMarkCompleteClicked: () =>
+        logEvent("finish_mark_complete_clicked"),
+    }),
+    [logEvent]
+  );
+
   return (
-    <div className="space-y-2 w-full">
-      <AssessmentQuestionHeader
-        questionNumber={headerQuestionNumber ?? questionNumber}
-        totalQuestions={headerTotalQuestions ?? totalQuestions}
-        language={language}
-        onLanguageChange={onLanguageChange}
-        languageDisabled={languageDisabled || isEvaluating}
-        label={headerLabel}
-      />
+    <AssessmentTrackingProvider value={trackingContextValue}>
+      <div className="space-y-2 w-full">
+        <AssessmentQuestionHeader
+          questionNumber={headerQuestionNumber ?? questionNumber}
+          totalQuestions={headerTotalQuestions ?? totalQuestions}
+          language={language}
+          onLanguageChange={onLanguageChange}
+          languageDisabled={languageDisabled || isEvaluating}
+          label={headerLabel}
+        />
 
-      <AssessmentQuestionCard
-        question={question}
-        showRubric={showRubric}
-        showRubricPoints={showRubricPoints}
-        className="w-full"
-      >
-        {isLoadingAttempts ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading...</p>
-          </div>
-        ) : submittingForApproval ? (
-          <div className="flex flex-col items-center gap-5 py-8">
-            <div className="flex items-center gap-1">
-              <p className="text-base">Answer submitted</p>
-              <CheckCircle2 className="text-green-500 size-4" />
+        <AssessmentQuestionCard
+          question={question}
+          showRubric={showRubric}
+          showRubricPoints={showRubricPoints}
+          className="w-full"
+        >
+          {isLoadingAttempts ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading...</p>
             </div>
-            <div className="w-full max-w-xl">
-              <FeedbackPendingBanner />
+          ) : submittingForApproval ? (
+            <div className="flex flex-col items-center gap-5 py-8">
+              <div className="flex items-center gap-1">
+                <p className="text-base">Answer submitted</p>
+                <CheckCircle2 className="text-green-500 size-4" />
+              </div>
+              <div className="w-full max-w-xl">
+                <FeedbackPendingBanner />
+              </div>
             </div>
-          </div>
-        ) : showCompletion && latestAttempt ? (
-          <QuestionCompletionPanel
-            attempt={latestAttempt}
-            useStarDisplay={useStarDisplay}
-            starScale={starScale}
-            onNext={() => handleSaveAndNavigate("next")}
-            onTryAgain={() => setShowCompletion(false)}
-            onFinish={() => navigationRef.current?.triggerFinish()}
-            remainingAttempts={remainingAttempts}
-            isLastQuestion={isLastQuestion}
-            isComplete={isComplete}
-            contentItemId={contentItemId}
-            feedbackApprovalPending={feedbackApprovalPending}
-            feedbackRequiresApproval={feedbackRequiresApproval}
-          />
-        ) : (
-          <>
-            {assessmentMode === "voice" && <VoiceInputArea {...inputProps} />}
-            {assessmentMode === "text_chat" && <ChatInputArea {...inputProps} />}
-            {assessmentMode === "static_text" && <StaticTextInputArea {...inputProps} />}
-          </>
-        )}
-      </AssessmentQuestionCard>
+          ) : showCompletion && latestAttempt ? (
+            <QuestionCompletionPanel
+              attempt={latestAttempt}
+              useStarDisplay={useStarDisplay}
+              starScale={starScale}
+              onNext={() => handleSaveAndNavigate("next")}
+              onTryAgain={() => setShowCompletion(false)}
+              onFinish={() => navigationRef.current?.triggerFinish()}
+              remainingAttempts={remainingAttempts}
+              isLastQuestion={isLastQuestion}
+              isComplete={isComplete}
+              contentItemId={contentItemId}
+              feedbackApprovalPending={feedbackApprovalPending}
+              feedbackRequiresApproval={feedbackRequiresApproval}
+            />
+          ) : (
+            <>
+              {assessmentMode === "voice" && <VoiceInputArea {...inputProps} />}
+              {assessmentMode === "text_chat" && <ChatInputArea {...inputProps} />}
+              {assessmentMode === "static_text" && <StaticTextInputArea {...inputProps} />}
+            </>
+          )}
+        </AssessmentQuestionCard>
 
-      <AssessmentNavigation
-        ref={navigationRef}
-        isFirstQuestion={isFirstQuestion}
-        isLastQuestion={isLastQuestion}
-        onPrevious={() => handleSaveAndNavigate("previous")}
-        onNext={() => handleSaveAndNavigate("next")}
-        previousDisabled={navigationDisabled || isEvaluating}
-        nextDisabled={navigationDisabled || isEvaluating}
-        contentItemId={contentItemId}
-        requireAllAttempts={requireAllAttempts}
-        allQuestionsHaveAttempts={allQuestionsHaveAttempts}
-        questionsWithAttempts={questionsWithAttempts}
-        completedQuestionIndices={completedQuestionIndices}
-        onGoToQuestion={onGoToQuestion}
-        totalQuestions={totalQuestions}
-        onMarkedComplete={onMarkedComplete}
-        isComplete={isComplete}
-        submissionId={submissionId}
-        experienceRatingEnabled={experienceRatingEnabled}
-        experienceRatingRequired={experienceRatingRequired}
-        onClose={onClose}
-      />
-    </div>
+        <AssessmentNavigation
+          ref={navigationRef}
+          isFirstQuestion={isFirstQuestion}
+          isLastQuestion={isLastQuestion}
+          onPrevious={() => handleSaveAndNavigate("previous")}
+          onNext={() => handleSaveAndNavigate("next")}
+          previousDisabled={navigationDisabled || isEvaluating}
+          nextDisabled={navigationDisabled || isEvaluating}
+          contentItemId={contentItemId}
+          requireAllAttempts={requireAllAttempts}
+          allQuestionsHaveAttempts={allQuestionsHaveAttempts}
+          questionsWithAttempts={questionsWithAttempts}
+          completedQuestionIndices={completedQuestionIndices}
+          onGoToQuestion={onGoToQuestion}
+          totalQuestions={totalQuestions}
+          onMarkedComplete={onMarkedComplete}
+          isComplete={isComplete}
+          submissionId={submissionId}
+          experienceRatingEnabled={experienceRatingEnabled}
+          experienceRatingRequired={experienceRatingRequired}
+          onClose={onClose}
+        />
+      </div>
+    </AssessmentTrackingProvider>
   );
 }

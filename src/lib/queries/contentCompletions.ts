@@ -190,6 +190,25 @@ export async function getCompletionsByContentItem(
 }
 
 /**
+ * Remove completion mark for a specific student/content pair (teacher reset flows).
+ */
+export async function deleteContentCompletionForStudent(params: {
+  contentItemId: string;
+  studentId: string;
+}): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("student_content_completions")
+    .delete()
+    .eq("content_item_id", params.contentItemId)
+    .eq("student_id", params.studentId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+/**
  * Get all content completions for a class (for teacher view)
  * Returns a flat list of student-content completion status for all students and content items
  */

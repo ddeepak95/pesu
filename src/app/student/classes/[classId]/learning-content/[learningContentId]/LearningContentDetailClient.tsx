@@ -15,7 +15,7 @@ import {
 import MarkAsCompleteButton from "@/components/Student/MarkAsCompleteButton";
 import { LearningContent } from "@/types/learningContent";
 import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
-import { emitActivityEvent } from "@/lib/activity/emitter";
+import { useNavigationTracking } from "@/hooks/useNavigationTracking";
 
 interface LearningContentInnerProps {
   content: LearningContent;
@@ -39,24 +39,17 @@ function LearningContentInner({
     componentType: "learning_content",
     componentId: content.learning_content_id,
   });
-
-  const emitBack = () => {
-    void emitActivityEvent({
-      eventType: "navigation_back_clicked",
-      componentType: "learning_content",
-      componentId: content.learning_content_id,
-      userId: tracking.userId,
-      classId: tracking.classId,
-      submissionId: tracking.submissionId,
-    });
-  };
+  const { emitBack, emitClose, emitNextItem } = useNavigationTracking({
+    componentType: "learning_content",
+    componentId: content.learning_content_id,
+  });
 
   return (
     <PageLayout>
       <div>
         <div>
-          <div className="mb-4" onClickCapture={emitBack}>
-            <GoToClassButton classId={classId} />
+          <div className="mb-4">
+            <GoToClassButton classId={classId} onBeforeNavigate={emitBack} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -98,11 +91,13 @@ function LearningContentInner({
                 classDbId={classUuid}
                 classId={classId}
                 contentItemId={contentItemId}
+                onBeforeNavigate={emitNextItem}
               />
             )}
-            <div onClickCapture={emitBack}>
-              <CloseButton href={`/student/classes/${classId}`} />
-            </div>
+            <CloseButton
+              href={`/student/classes/${classId}`}
+              onBeforeNavigate={emitClose}
+            />
           </div>
         </div>
       </div>

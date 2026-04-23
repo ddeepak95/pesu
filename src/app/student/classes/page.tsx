@@ -42,7 +42,11 @@ export default function ClassesPage() {
           <List
             items={classes}
             renderItem={(classItem) => (
-              <ClassCard key={classItem.id} classData={classItem} />
+              <ClassCard
+                key={classItem.id}
+                classData={classItem}
+                userId={user.id}
+              />
             )}
             emptyMessage="No classes yet. You'll see classes here once you're enrolled."
           />

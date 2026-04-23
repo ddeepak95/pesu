@@ -169,7 +169,9 @@ export default function Content({ classData }: ContentProps) {
   const emitOpen = (
     componentType: ComponentType,
     componentId: string,
-    section: "to_complete_section" | "completed_section"
+    section:
+      | "class_page_to_complete_section"
+      | "class_page_completed_section"
   ) => {
     // Fire-and-forget; emitter uses fetch keepalive so it survives navigation.
     void emitActivityEvent({
@@ -184,7 +186,9 @@ export default function Content({ classData }: ContentProps) {
 
   const handleOpen = (
     item: ContentItem,
-    section: "to_complete_section" | "completed_section"
+    section:
+      | "class_page_to_complete_section"
+      | "class_page_completed_section"
   ) => {
     // Save scroll position so CloseButton can restore it
     try {
@@ -238,7 +242,9 @@ export default function Content({ classData }: ContentProps) {
 
   const renderContentCard = (
     item: ContentItem,
-    section: "to_complete_section" | "completed_section"
+    section:
+      | "class_page_to_complete_section"
+      | "class_page_completed_section"
   ) => {
     const resolvedTitle =
       item.type === "formative_assignment"
@@ -307,7 +313,9 @@ export default function Content({ classData }: ContentProps) {
               <List
                 items={toCompleteItems}
                 keyExtractor={(item) => item.id}
-                renderItem={(item) => renderContentCard(item, "to_complete_section")}
+                renderItem={(item) =>
+                  renderContentCard(item, "class_page_to_complete_section")
+                }
               />
             </section>
           )}
@@ -320,7 +328,9 @@ export default function Content({ classData }: ContentProps) {
               <List
                 items={completedItems}
                 keyExtractor={(item) => item.id}
-                renderItem={(item) => renderContentCard(item, "completed_section")}
+                renderItem={(item) =>
+                  renderContentCard(item, "class_page_completed_section")
+                }
               />
             </section>
           )}

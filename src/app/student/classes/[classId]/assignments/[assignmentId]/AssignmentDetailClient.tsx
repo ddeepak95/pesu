@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import StudentAssignmentResponse from "@/components/Student/StudentAssignmentResponse";
 import { Assignment } from "@/types/assignment";
 import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
-import { emitActivityEvent } from "@/lib/activity/emitter";
+import { useNavigationTracking } from "@/hooks/useNavigationTracking";
 
 interface AssignmentDetailClientProps {
   assignmentData: Assignment;
@@ -43,22 +43,18 @@ export default function AssignmentDetailClient({
     userId: user?.id,
     classId: classUuid ?? classId,
   });
-
-  const emitBack = () => {
-    void emitActivityEvent({
-      eventType: "navigation_back_clicked",
-      componentType: "assignment",
-      componentId: assignmentId,
-      userId: user?.id,
-      classId: classUuid ?? classId,
-    });
-  };
+  const { emitBack, emitClose, emitNextItem } = useNavigationTracking({
+    componentType: "assignment",
+    componentId: assignmentId,
+    userId: user?.id,
+    classId: classUuid ?? classId,
+  });
 
   return (
     <PageLayout userName={displayName || studentName}>
       <div>
-        <div className="mb-4" onClickCapture={emitBack}>
-          <GoToClassButton classId={classId} />
+        <div className="mb-4">
+          <GoToClassButton classId={classId} onBeforeNavigate={emitBack} />
         </div>
         <div className="w-full">
           <StudentAssignmentResponse
@@ -83,15 +79,15 @@ export default function AssignmentDetailClient({
                 classId={classId}
                 contentItemId={contentItemId}
                 className="pt-6"
+                onBeforeNavigate={emitNextItem}
               />
             </>
           )}
-          <div onClickCapture={emitBack}>
-            <CloseButton
-              href={`/student/classes/${classId}`}
-              className="pt-2 pb-8"
-            />
-          </div>
+          <CloseButton
+            href={`/student/classes/${classId}`}
+            className="pt-2 pb-8"
+            onBeforeNavigate={emitClose}
+          />
         </div>
       </div>
     </PageLayout>

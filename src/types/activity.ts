@@ -3,6 +3,7 @@
  */
 
 export type ComponentType =
+  | "class"
   | "assignment"
   | "question"
   | "learning_content"
@@ -22,9 +23,15 @@ export type EventType =
   | "bot_connect_initiated"
   | "bot_disconnected"
   // Navigation / lifecycle
+  | "class_opened"
+  | "class_closed"
   | "content_item_opened"
   | "component_closed"
   | "navigation_back_clicked"
+  | "navigation_close_clicked"
+  | "navigation_next_item_clicked"
+  | "feedback_view_clicked"
+  | "finish_mark_complete_clicked"
   // Intent-level actions
   | "submit_clicked"
   | "question_next_clicked"
@@ -47,9 +54,15 @@ export const ALLOWED_EVENT_TYPES: ReadonlyArray<EventType> = [
   "attempt_ended",
   "bot_connect_initiated",
   "bot_disconnected",
+  "class_opened",
+  "class_closed",
   "content_item_opened",
   "component_closed",
   "navigation_back_clicked",
+  "navigation_close_clicked",
+  "navigation_next_item_clicked",
+  "feedback_view_clicked",
+  "finish_mark_complete_clicked",
   "submit_clicked",
   "question_next_clicked",
   "question_previous_clicked",

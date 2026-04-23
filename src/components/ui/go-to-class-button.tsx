@@ -7,9 +7,14 @@ import { invalidateCompletionsCache } from "@/hooks/swr";
 interface GoToClassButtonProps {
   /** The class slug (class_id) used to build the URL. */
   classId: string;
+  /** Optional callback fired before navigation. */
+  onBeforeNavigate?: () => void;
 }
 
-export default function GoToClassButton({ classId }: GoToClassButtonProps) {
+export default function GoToClassButton({
+  classId,
+  onBeforeNavigate,
+}: GoToClassButtonProps) {
   const router = useRouter();
 
   return (
@@ -17,6 +22,7 @@ export default function GoToClassButton({ classId }: GoToClassButtonProps) {
       variant="outline"
       className="gap-2"
       onClick={() => {
+        onBeforeNavigate?.();
         invalidateCompletionsCache();
         router.push(`/student/classes/${classId}`, { scroll: false });
       }}

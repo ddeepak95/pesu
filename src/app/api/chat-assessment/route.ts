@@ -114,7 +114,8 @@ export async function POST(request: NextRequest) {
             messages: sdkMessages,
             providerOptions,
           });
-
+          console.log("systemPrompt", systemPrompt);
+          console.log("result", sdkMessages);
           let deliveredToClient = false;
 
           try {

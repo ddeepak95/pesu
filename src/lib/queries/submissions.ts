@@ -117,22 +117,53 @@ export async function getLatestTranscript(
 ): Promise<string | null> {
   const supabase = createClient();
 
-  // Get the latest transcript by attempt_number descending
-  const { data, error } = await supabase
+  // Resolve latest non-stale attempt first so reset/stale history is ignored.
+  const { data: submissionData, error: submissionError } = await supabase
+    .from("submissions")
+    .select("evaluations")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+
+  if (submissionError) {
+    console.error("Error fetching submission for latest transcript:", submissionError);
+    return null;
+  }
+
+  const rawEvaluations = submissionData?.evaluations as
+    | { [key: number]: QuestionEvaluations }
+    | SubmissionAnswer[]
+    | undefined;
+  if (!rawEvaluations) return null;
+
+  const evaluations = isNewFormat(rawEvaluations)
+    ? rawEvaluations
+    : convertToNewFormat(rawEvaluations);
+
+  const questionAttempts = evaluations[questionOrder]?.attempts ?? [];
+  const nonStaleAttempts = questionAttempts.filter((attempt) => !attempt.stale);
+  if (nonStaleAttempts.length === 0) return null;
+
+  const latestAttemptNumber = nonStaleAttempts.reduce(
+    (latest, current) =>
+      current.attempt_number > latest ? current.attempt_number : latest,
+    0,
+  );
+  if (!latestAttemptNumber) return null;
+
+  const { data: transcriptData, error: transcriptError } = await supabase
     .from("submission_transcripts")
     .select("answer_text")
     .eq("submission_id", submissionId)
     .eq("question_order", questionOrder)
-    .order("attempt_number", { ascending: false })
-    .limit(1)
+    .eq("attempt_number", latestAttemptNumber)
     .maybeSingle();
 
-  if (error) {
-    console.error("Error fetching latest transcript:", error);
+  if (transcriptError) {
+    console.error("Error fetching latest transcript attempt:", transcriptError);
     return null;
   }
 
-  return data?.answer_text ?? null;
+  return transcriptData?.answer_text ?? null;
 }
 
 /**
@@ -547,6 +578,9 @@ export async function markAttemptsAsStale(
     const qa = questionEvals as QuestionEvaluations;
     if (qa.attempts) {
       qa.attempts.forEach((attempt) => {
+        // Reset should silently resolve pending approvals without notifying students.
+        // We do this inline instead of using the approval API (which creates notifications).
+        attempt.feedback_approved = true;
         attempt.stale = true;
       });
     }
@@ -557,6 +591,9 @@ export async function markAttemptsAsStale(
     .update({
       evaluations: evaluations,
       has_attempts: false,
+      has_pending_approvals: false,
+      status: "in_progress",
+      submitted_at: null,
       highest_score: 0,
       max_score: 0,
       total_attempts: 0,

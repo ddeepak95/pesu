@@ -3,15 +3,26 @@
 import { useRouter } from "next/navigation";
 import { Class } from "@/types/class";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { emitActivityEvent } from "@/lib/activity/emitter";
 
 interface ClassCardProps {
   classData: Class;
+  userId?: string;
 }
 
-export default function ClassCard({ classData }: ClassCardProps) {
+export default function ClassCard({ classData, userId }: ClassCardProps) {
   const router = useRouter();
 
   const handleCardClick = () => {
+    void emitActivityEvent({
+      eventType: "class_opened",
+      componentType: "class",
+      componentId: classData.class_id,
+      userId,
+      classId: classData.id,
+      subComponentId: "class_card",
+      interactionSource: "click",
+    });
     router.push(`/student/classes/${classData.class_id}`);
   };
 

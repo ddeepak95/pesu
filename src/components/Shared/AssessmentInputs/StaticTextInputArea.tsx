@@ -14,7 +14,7 @@ export function StaticTextInputArea({
   question,
   assignmentId,
   submissionId,
-  existingAnswer,
+  existingAnswer: _existingAnswer,
   maxAttemptsReached,
   attempts,
   isEvaluating,
@@ -49,8 +49,11 @@ export function StaticTextInputArea({
     onLanguageDisabledChange?.(isEvaluating || hasStarted);
   }, [isEvaluating, hasStarted, onLanguageDisabledChange]);
 
-  // Restore in-progress answer from localStorage (only on first run per question)
+  // Bootstrap state per question/submission from local draft only.
+  // We intentionally do not hydrate from existingAnswer here because after teacher
+  // resets attempts, stale transcript/session data may still exist.
   React.useEffect(() => {
+    restoredFromStorageRef.current = false;
     try {
       const stored = window.localStorage.getItem(storageKey);
       if (stored) {
@@ -58,27 +61,17 @@ export function StaticTextInputArea({
         setAnswer(stored);
         sync(stored);
         setHasStarted(true);
+        return;
       }
     } catch {
       /* ignore */
     }
-  }, [storageKey, sync]);
-
-  // Reset state when question changes (if no localStorage restore)
-  React.useEffect(() => {
     if (!restoredFromStorageRef.current) {
-      if (existingAnswer && attempts.length === 0) {
-        setAnswer(existingAnswer);
-        sync(existingAnswer);
-        setHasStarted(true);
-      } else {
-        setAnswer("");
-        sync("");
-        setHasStarted(false);
-      }
+      setAnswer("");
+      sync("");
+      setHasStarted(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [question.order, submissionId]);
+  }, [storageKey, sync]);
 
   // When user clicks "Try Again" (attempts already exist), clear previous response so input starts empty
   React.useEffect(() => {

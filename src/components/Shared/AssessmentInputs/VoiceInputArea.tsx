@@ -14,7 +14,6 @@ import {
   usePipecatClientTransportState,
 } from "@pipecat-ai/client-react";
 import { VoiceVisualizer } from "@pipecat-ai/voice-ui-kit";
-import { getLatestTranscript } from "@/lib/queries/submissions";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { EmojiMatchGame } from "@/components/EmojiMatchGame";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
@@ -26,7 +25,7 @@ function VoiceInputContent({
   language,
   assignmentId,
   submissionId,
-  existingAnswer,
+  existingAnswer: _existingAnswer,
   maxAttemptsReached,
   attempts,
   isEvaluating,
@@ -41,11 +40,12 @@ function VoiceInputContent({
   title,
   studentInstructions,
 }: AssessmentInputProps) {
-  const { transcript, clearTranscript, setTranscript } = useVoiceTranscript();
+  const { transcript, clearTranscript } = useVoiceTranscript();
   const client = usePipecatClient();
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
   const evaluationTriggeredRef = React.useRef(false);
+  const attemptStartedLoggedRef = React.useRef(false);
 
   const { logEvent } = useActivityTracking({
     componentType: "question",
@@ -92,27 +92,11 @@ function VoiceInputContent({
   const transportStateRef = React.useRef(transportState);
   React.useEffect(() => { transportStateRef.current = transportState; }, [transportState]);
 
-  // Load latest transcript when question changes
+  // Voice transcript should only reflect the current active session.
+  // Do not restore historical transcript text from prior attempts.
   React.useEffect(() => {
-    async function loadTranscript() {
-      try {
-        const latestTranscriptText = await getLatestTranscript(submissionId, question.order);
-        if (latestTranscriptText) {
-          setTranscript(latestTranscriptText);
-        } else if (existingAnswer) {
-          setTranscript(existingAnswer);
-        } else {
-          clearTranscript();
-        }
-      } catch {
-        if (existingAnswer) {
-          setTranscript(existingAnswer);
-        } else {
-          clearTranscript();
-        }
-      }
-    }
-    loadTranscript();
+    clearTranscript();
+    attemptStartedLoggedRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question.order, submissionId]);
 
@@ -218,7 +202,15 @@ function VoiceInputContent({
   const handleBotReady = () => {
     clearTranscript();
     evaluationTriggeredRef.current = false;
+    if (attemptStartedLoggedRef.current) return;
+    attemptStartedLoggedRef.current = true;
     logEvent("attempt_started");
+  };
+
+  const handleConnectStart = () => {
+    // Start a fresh logging window for this connect cycle.
+    attemptStartedLoggedRef.current = false;
+    logEvent("bot_connect_initiated");
   };
 
   return (
@@ -229,7 +221,7 @@ function VoiceInputContent({
           connectionData={connectionData}
           connectLabel="Start Answering"
           disconnectLabel="Stop Answering"
-          onConnectStart={() => logEvent("bot_connect_initiated")}
+          onConnectStart={handleConnectStart}
           onBotReady={handleBotReady}
           onDisconnect={handleEvaluate}
           disabled={maxAttemptsReached}

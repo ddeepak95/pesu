@@ -33,6 +33,7 @@ import {
 } from "@/contexts/ActivityTrackingContext";
 import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
 import { emitActivityEvent } from "@/lib/activity/emitter";
+import { useNavigationTracking } from "@/hooks/useNavigationTracking";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import LikertInput from "@/components/Student/Surveys/LikertInput";
@@ -76,9 +77,7 @@ function SurveyInner({
     componentId: survey.survey_id,
   });
 
-  const emitSurveyEvent = (
-    eventType: "navigation_back_clicked" | "submit_clicked"
-  ) => {
+  const emitSurveyEvent = (eventType: "submit_clicked") => {
     void emitActivityEvent({
       eventType,
       componentType: "survey",
@@ -88,6 +87,10 @@ function SurveyInner({
       submissionId: tracking.submissionId,
     });
   };
+  const { emitBack, emitClose, emitNextItem } = useNavigationTracking({
+    componentType: "survey",
+    componentId: survey.survey_id,
+  });
 
   const setAnswer = (questionOrder: number, value: string | number) => {
     setAnswers((prev) => {
@@ -172,11 +175,8 @@ function SurveyInner({
     <PageLayout>
       <div>
         <div>
-          <div
-            className="mb-4"
-            onClickCapture={() => emitSurveyEvent("navigation_back_clicked")}
-          >
-            <GoToClassButton classId={classId} />
+          <div className="mb-4">
+            <GoToClassButton classId={classId} onBeforeNavigate={emitBack} />
           </div>
           <div className="mb-6">
             <PageTitle
@@ -296,11 +296,13 @@ function SurveyInner({
                 classDbId={classUuid}
                 classId={classId}
                 contentItemId={contentItemId}
+                onBeforeNavigate={emitNextItem}
               />
             )}
-            <div onClickCapture={() => emitSurveyEvent("navigation_back_clicked")}>
-              <CloseButton href={`/student/classes/${classId}`} />
-            </div>
+            <CloseButton
+              href={`/student/classes/${classId}`}
+              onBeforeNavigate={emitClose}
+            />
           </div>
         </div>
       </div>

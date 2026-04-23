@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import Content from "@/components/Student/Classes/Content";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Class } from "@/types/class";
 import { useStudentProfile } from "@/hooks/useStudentProfile";
 import { Settings } from "lucide-react";
+import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
+import { emitActivityEvent } from "@/lib/activity/emitter";
 
 interface ClassDetailClientProps {
   classData: Class;
@@ -21,6 +23,49 @@ export default function ClassDetailClient({
   userId,
   classId,
 }: ClassDetailClientProps) {
+  const classClosedEmittedRef = useRef(false);
+
+  const emitClassClosed = useCallback(
+    (subComponentId: string) => {
+      if (classClosedEmittedRef.current) return;
+      classClosedEmittedRef.current = true;
+      void emitActivityEvent({
+        eventType: "class_closed",
+        componentType: "class",
+        componentId: classData.class_id,
+        userId,
+        classId: classData.id,
+        subComponentId,
+        interactionSource: "click",
+      });
+    },
+    [classData.class_id, classData.id, userId]
+  );
+
+  useComponentCloseTracking({
+    componentType: "class",
+    componentId: classData.class_id,
+    userId,
+    classId: classData.id,
+    closeEventType: "class_closed",
+    // Opening class content items unmounts this page, but that's still inside
+    // class context. We only emit class_closed on explicit class exit + pagehide.
+    emitOnUnmount: false,
+  });
+
+  // Browser back/forward should count as class exit when we leave this class route.
+  useEffect(() => {
+    const classPathPrefix = `/student/classes/${classId}`;
+    const onPopState = () => {
+      const nextPath = window.location.pathname;
+      if (!nextPath.startsWith(classPathPrefix)) {
+        emitClassClosed("browser_back_or_forward");
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [classId, emitClassClosed]);
+
   // Use the profile hook to fetch fields and check completion
   const {
     fields: profileFields,
@@ -71,7 +116,12 @@ export default function ClassDetailClient({
         <div>
           <div className="mb-4">
             <Button variant="link" asChild className="p-0">
-              <Link href="/student/classes">&larr; All Classes</Link>
+              <Link
+                href="/student/classes"
+                onClick={() => emitClassClosed("all_classes_link")}
+              >
+                &larr; All Classes
+              </Link>
             </Button>
           </div>
           <div className="flex items-center justify-between mb-6">

@@ -15,6 +15,8 @@ interface NextItemButtonProps {
   contentItemId: string | null;
   /** Extra Tailwind classes for the wrapper div */
   className?: string;
+  /** Optional callback fired before navigation. */
+  onBeforeNavigate?: () => void;
 }
 
 export default function NextItemButton({
@@ -22,6 +24,7 @@ export default function NextItemButton({
   classId,
   contentItemId,
   className,
+  onBeforeNavigate,
 }: NextItemButtonProps) {
   const router = useRouter();
   const { nextUrl } = useNextContentItem(classDbId, classId, contentItemId);
@@ -35,7 +38,10 @@ export default function NextItemButton({
         variant="default"
         size="lg"
         className="gap-2"
-        onClick={() => router.push(nextUrl)}
+        onClick={() => {
+          onBeforeNavigate?.();
+          router.push(nextUrl);
+        }}
       >
         Next Item
         <ArrowRight className="h-4 w-4" />

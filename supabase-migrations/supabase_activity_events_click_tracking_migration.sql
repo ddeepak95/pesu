@@ -39,6 +39,7 @@ COMMENT ON COLUMN activity_events.interaction_source IS
 
 COMMENT ON COLUMN activity_events.event_type IS
   'Semantic event type. Current allowed values: attempt_started, attempt_ended, '
-  'bot_connect_initiated, bot_disconnected, content_item_opened, component_closed, '
-  'navigation_back_clicked, submit_clicked, question_next_clicked, question_previous_clicked, '
-  'upload_started, upload_completed, marked_complete_clicked.';
+  'bot_connect_initiated, bot_disconnected, class_opened, class_closed, content_item_opened, component_closed, '
+  'navigation_back_clicked, navigation_close_clicked, navigation_next_item_clicked, '
+  'feedback_view_clicked, finish_mark_complete_clicked, submit_clicked, question_next_clicked, question_previous_clicked, upload_started, '
+  'upload_completed, marked_complete_clicked.';

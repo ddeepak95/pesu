@@ -16,7 +16,12 @@ const isValidUuid = (value?: string | null) =>
 const inferInteractionSource = (eventType: EventType): InteractionSource => {
   switch (eventType) {
     case "content_item_opened":
+    case "class_opened":
     case "navigation_back_clicked":
+    case "navigation_close_clicked":
+    case "navigation_next_item_clicked":
+    case "feedback_view_clicked":
+    case "finish_mark_complete_clicked":
     case "submit_clicked":
     case "question_next_clicked":
     case "question_previous_clicked":
@@ -24,6 +29,7 @@ const inferInteractionSource = (eventType: EventType): InteractionSource => {
     case "marked_complete_clicked":
       return "click";
     case "component_closed":
+    case "class_closed":
       return "lifecycle";
     case "upload_completed":
     case "bot_disconnected":

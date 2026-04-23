@@ -22,6 +22,7 @@ import {
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import { FinishAssessmentButton } from "@/components/Shared/FinishAssessmentButton";
 import { QuestionsStatusDialog } from "@/components/Shared/QuestionsStatusDialog";
+import { useAssessmentTracking } from "@/contexts/AssessmentTrackingContext";
 
 interface AssessmentNavigationProps {
   isFirstQuestion: boolean;
@@ -79,6 +80,7 @@ export const AssessmentNavigation = forwardRef<
   },
   ref,
 ) {
+  const { trackFinishMarkCompleteClicked } = useAssessmentTracking();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isQuestionsStatusDialogOpen, setIsQuestionsStatusDialogOpen] =
     useState(false);
@@ -157,6 +159,8 @@ export const AssessmentNavigation = forwardRef<
 
 
   const handleConfirmFinish = async () => {
+    trackFinishMarkCompleteClicked();
+
     if (!contentItemId) {
       if (onNext) onNext();
       return;

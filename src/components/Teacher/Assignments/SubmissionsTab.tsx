@@ -21,6 +21,7 @@ import {
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
+import { deleteContentCompletionForStudent } from "@/lib/queries/contentCompletions";
 import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
 import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import SubmissionViewDialog from "./SubmissionViewDialog";
@@ -220,6 +221,12 @@ export default function SubmissionsTab({
     setResetting(item.submission.submission_id);
     try {
       await markAttemptsAsStale(item.submission.submission_id);
+      if ("student" in item && contentItemId) {
+        await deleteContentCompletionForStudent({
+          contentItemId,
+          studentId: item.student.student_id,
+        });
+      }
 
       // Refresh the appropriate submissions list
       if ("student" in item) {

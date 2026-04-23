@@ -15,6 +15,7 @@ import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner
 import { FeedbackAvailableBanner } from "@/components/Shared/FeedbackAvailableBanner";
 import { getScoreColor, getScoreBgColor } from "@/lib/utils/scoreDisplay";
 import { CheckCircle2 } from "lucide-react";
+import { useAssessmentTracking } from "@/contexts/AssessmentTrackingContext";
 
 interface QuestionCompletionPanelProps {
   attempt: SubmissionAttempt;
@@ -47,6 +48,7 @@ export function QuestionCompletionPanel({
   feedbackApprovalPending = false,
   feedbackRequiresApproval = false,
 }: QuestionCompletionPanelProps) {
+  const { trackFeedbackOpened } = useAssessmentTracking();
   const scorePercentage = (attempt.score / attempt.max_score) * 100;
   // Retry is blocked while feedback is pending approval
   const canTryAgain =
@@ -103,7 +105,13 @@ export function QuestionCompletionPanel({
             {feedbackRequiresApproval && <FeedbackAvailableBanner />}
             {(attempt.evaluation_feedback ||
               (attempt.rubric_scores && attempt.rubric_scores.length > 0)) && (
-              <Accordion type="single" collapsible>
+              <Accordion
+                type="single"
+                collapsible
+                onValueChange={(value) => {
+                  if (value === "feedback") trackFeedbackOpened();
+                }}
+              >
                 <AccordionItem value="feedback" className="border rounded-lg">
                   <AccordionTrigger className="px-4 py-3 hover:no-underline">
                     <span className="text-sm font-medium">View Feedback</span>

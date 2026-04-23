@@ -165,6 +165,7 @@ Your role:
 learning: `{{#if file_submissions}}
 The student has uploaded the following files. Use this as part of the activity.
 {{file_submissions}}
+{{/if}}
 
 The student needs to answer this question:
 {{question_prompt}}

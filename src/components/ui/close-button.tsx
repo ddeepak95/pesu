@@ -11,12 +11,15 @@ interface CloseButtonProps {
   label?: string;
   /** Extra Tailwind classes for the wrapper div. */
   className?: string;
+  /** Optional callback fired before navigation. */
+  onBeforeNavigate?: () => void;
 }
 
 export default function CloseButton({
   href,
   label = "Close",
   className,
+  onBeforeNavigate,
 }: CloseButtonProps) {
   const router = useRouter();
 
@@ -26,7 +29,10 @@ export default function CloseButton({
         type="button"
         variant="outline"
         size="lg"
-        onClick={() => router.push(href, { scroll: false })}
+        onClick={() => {
+          onBeforeNavigate?.();
+          router.push(href, { scroll: false });
+        }}
       >
         {label}
       </Button>
