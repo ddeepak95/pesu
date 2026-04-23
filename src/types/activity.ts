@@ -24,8 +24,6 @@ export type EventType =
   // Navigation / lifecycle
   | "content_item_opened"
   | "component_closed"
-  | "component_backgrounded"
-  | "component_foregrounded"
   | "navigation_back_clicked"
   // Intent-level actions
   | "submit_clicked"
@@ -34,6 +32,12 @@ export type EventType =
   | "upload_started"
   | "upload_completed"
   | "marked_complete_clicked";
+
+export type InteractionSource =
+  | "click"
+  | "lifecycle"
+  | "async_callback"
+  | "system";
 
 /**
  * Whitelist of allowed event types, kept in sync with the API route validator.
@@ -45,8 +49,6 @@ export const ALLOWED_EVENT_TYPES: ReadonlyArray<EventType> = [
   "bot_disconnected",
   "content_item_opened",
   "component_closed",
-  "component_backgrounded",
-  "component_foregrounded",
   "navigation_back_clicked",
   "submit_clicked",
   "question_next_clicked",
@@ -73,6 +75,7 @@ export interface ActivityEventInput {
   componentId: string;
   subComponentId?: string;
   eventType: EventType;
+  interactionSource?: InteractionSource;
   clientTs?: string; // ISO 8601; generated at emit
 }
 

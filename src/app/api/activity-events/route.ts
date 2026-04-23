@@ -1,12 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { ActivityEventInput, ALLOWED_EVENT_TYPES } from "@/types/activity";
+import {
+  ActivityEventInput,
+  ALLOWED_EVENT_TYPES,
+  EventType,
+  InteractionSource,
+} from "@/types/activity";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const isValidUuid = (value?: string | null) =>
   !!value && UUID_REGEX.test(value);
+
+const inferInteractionSource = (eventType: EventType): InteractionSource => {
+  switch (eventType) {
+    case "content_item_opened":
+    case "navigation_back_clicked":
+    case "submit_clicked":
+    case "question_next_clicked":
+    case "question_previous_clicked":
+    case "upload_started":
+    case "marked_complete_clicked":
+      return "click";
+    case "component_closed":
+      return "lifecycle";
+    case "upload_completed":
+    case "bot_disconnected":
+      return "async_callback";
+    case "attempt_started":
+    case "attempt_ended":
+    case "bot_connect_initiated":
+    default:
+      return "system";
+  }
+};
 
 const resolveClassId = async (
   classId: string | undefined,
@@ -93,6 +121,8 @@ export async function POST(request: NextRequest) {
     const resolvedUserId = isValidUuid(body.userId) ? body.userId : null;
     const resolvedEventId = isValidUuid(body.eventId) ? body.eventId : null;
     const resolvedClientTs = body.clientTs ?? null;
+    const resolvedInteractionSource =
+      body.interactionSource ?? inferInteractionSource(body.eventType);
 
     // Idempotent insert keyed on event_id. If a row with the same event_id
     // already exists, the insert is ignored (no error, no duplicate row).
@@ -107,22 +137,39 @@ export async function POST(request: NextRequest) {
       sub_component_id: body.subComponentId || null,
       event_type: body.eventType,
       client_ts: resolvedClientTs,
+      interaction_source: resolvedInteractionSource,
     };
 
-    const query = resolvedEventId
-      ? supabase
-          .from("activity_events")
-          .upsert(insertPayload, {
-            onConflict: "event_id",
-            ignoreDuplicates: true,
-          })
-          .select()
-      : supabase.from("activity_events").insert(insertPayload).select().single();
+    const runWrite = async (payload: typeof insertPayload) =>
+      resolvedEventId
+        ? supabase
+            .from("activity_events")
+            .upsert(payload, {
+              onConflict: "event_id",
+              ignoreDuplicates: true,
+            })
+            .select()
+        : supabase.from("activity_events").insert(payload).select().single();
 
-    const { data, error } = await query;
+    let { data, error } = await runWrite(insertPayload);
+    if (error?.code === "42703") {
+      // Backward compatibility while DB migration for interaction_source rolls out.
+      const { interaction_source: _drop, ...fallbackPayload } = insertPayload;
+      void _drop;
+      ({ data, error } = await runWrite(fallbackPayload));
+    }
 
     if (error) {
       console.error("Error inserting activity event:", error);
+      if (error.code === "42P10") {
+        return NextResponse.json(
+          {
+            error:
+              "activity_events.event_id unique index is missing or incompatible. Apply latest activity_events migrations.",
+          },
+          { status: 500 }
+        );
+      }
       return NextResponse.json(
         { error: "Failed to log activity event" },
         { status: 500 }
