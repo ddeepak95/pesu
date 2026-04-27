@@ -9,6 +9,7 @@ import {
   useVoiceTranscript,
 } from "@/contexts/VoiceAssessmentContext";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
+import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import {
   usePipecatClient,
   usePipecatClientTransportState,
@@ -41,6 +42,7 @@ function VoiceInputContent({
   studentInstructions,
 }: AssessmentInputProps) {
   const { transcript, clearTranscript } = useVoiceTranscript();
+  const { state: micPermission, requestAccess } = useMicrophonePermission();
   const client = usePipecatClient();
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
@@ -217,7 +219,10 @@ function VoiceInputContent({
 
   return (
     <div className="relative w-full">
-      <AgentStatus className="py-2" />
+      <AgentStatus
+        className="py-2"
+        showDisconnectedGuidance={micPermission === "granted"}
+      />
       <div className="flex flex-col items-center gap-2">
         <VoiceConnectButton
           connectionData={connectionData}
@@ -227,6 +232,8 @@ function VoiceInputContent({
           onBotReady={handleBotReady}
           onDisconnect={handleEvaluate}
           disabled={maxAttemptsReached}
+          micPermission={micPermission}
+          onRequestMicrophone={requestAccess}
         />
         {maxAttemptsReached && (
           <p className="text-xs text-muted-foreground text-center">

@@ -14,13 +14,18 @@ type AgentState =
 
 interface AgentStatusProps {
   className?: string;
+  /** When false and the agent is disconnected, status copy under the avatar is omitted. */
+  showDisconnectedGuidance?: boolean;
 }
 
 /**
  * Component that displays the current state of the voice agent
  * States: Starting Up, Listening, Speaking, Thinking, Ready, Disconnected
  */
-export function AgentStatus({ className = "" }: AgentStatusProps) {
+export function AgentStatus({
+  className = "",
+  showDisconnectedGuidance = true,
+}: AgentStatusProps) {
   const [isLLMProcessing, setIsLLMProcessing] = useState(false);
   const [isBotSpeaking, setIsBotSpeaking] = useState(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
@@ -353,9 +358,11 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
       </div>
 
       {/* Status text */}
-      <p className={`text-sm text-center font-medium ${display.color}`}>
-        {display.text}
-      </p>
+      {!(agentState === "disconnected" && !showDisconnectedGuidance) && (
+        <p className={`text-sm text-center font-medium ${display.color}`}>
+          {display.text}
+        </p>
+      )}
     </div>
   );
 }
