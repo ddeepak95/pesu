@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import CloseButton from "@/components/ui/close-button";
 import GoToClassButton from "@/components/ui/go-to-class-button";
@@ -27,7 +27,7 @@ export default function AssignmentDetailClient({
   contentItemId,
   classUuid,
 }: AssignmentDetailClientProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const { user } = useAuth();
   const [displayName, setDisplayName] = useState<string>("");
 

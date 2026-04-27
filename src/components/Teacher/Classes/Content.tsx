@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
 import {
@@ -48,7 +49,7 @@ interface ContentProps {
 }
 
 export default function Content({ classData }: ContentProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const searchParams = useSearchParams();
   // Initialize from URL so we don't flash empty content when navigating back
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(

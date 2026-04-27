@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { useQuizByShortIdForTeacher } from "@/hooks/swr";
 
 export default function EditQuizPage() {
   const params = useParams();
-  const router = useRouter();
+  const router = useTrackedRouter();
   const { user } = useAuth();
 
   const quizId = params.quizId as string;

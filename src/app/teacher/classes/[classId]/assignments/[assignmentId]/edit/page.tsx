@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { useAssignmentByIdForTeacher } from "@/hooks/swr";
 
 export default function EditAssignmentPage() {
   const params = useParams();
-  const router = useRouter();
+  const router = useTrackedRouter();
   const { user } = useAuth();
   const classId = params.classId as string;
   const assignmentId = params.assignmentId as string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +32,7 @@ function timeAgo(isoString: string): string {
 }
 
 export function NotificationBell({ studentId }: NotificationBellProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const [open, setOpen] = useState(false);
 
   const notificationsQuery = useStudentNotifications(studentId);

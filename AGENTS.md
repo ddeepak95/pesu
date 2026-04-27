@@ -43,8 +43,43 @@ How to add a new read:
 After a mutation, call `mutate(key)` (or a tagged invalidator like
 `invalidateCompletionsCache`) instead of re-running an imperative fetch.
 
+## Client-side navigation
+
+All client components MUST use `useTrackedRouter` from
+[`src/hooks/useTrackedRouter.ts`](src/hooks/useTrackedRouter.ts) instead of
+`useRouter` from `next/navigation`. This is enforced by ESLint
+([`eslint.config.mjs`](eslint.config.mjs)) for files under `src/components/**`
+and `src/app/**/*Client*.{ts,tsx}`.
+
+Why:
+
+- `useTrackedRouter` wraps every `push/replace/back/forward/refresh` call in
+  `startTransition` and ties React's `isPending` flag to the same global busy
+  counter the SWR middleware uses. The result: the global overlay appears
+  during the RSC fetch between click and target page mount, not only after
+  the new page starts running its own data fetches.
+- `useTransition` also keeps the previous page interactive while the next one
+  loads, which is the React-recommended UX for slow navigations.
+
+Other exports from `next/navigation` (`usePathname`, `useSearchParams`,
+`useParams`, `redirect`, `notFound`) are not restricted and continue to be
+imported directly.
+
+The global overlay is now driven by three signals that all funnel through
+[`src/lib/swr/busyStore.ts`](src/lib/swr/busyStore.ts):
+
+1. SWR fetchers in flight (via `trackInFlight` middleware).
+2. Imperative tracked reads (via [`src/lib/swr/imperativeReads.ts`](src/lib/swr/imperativeReads.ts)).
+3. Pending route transitions (via `useTrackedRouter`).
+
+`<Link>` from `next/link` is currently used only in a small set of landing,
+auth, and legal pages. It is not wired to the busy store; if a heavy `<Link>`
+navigation lands in a frequently used flow, prefer `useTrackedRouter` or wrap
+it with a tracked link helper.
+
 ## Server components and route handlers
 
 Server components, route handlers, and `server-only` helpers are exempt from
-the rule above and may import `@/lib/queries/*` directly (the lint rule
-applies only to `src/components/**` and `src/app/**/*Client*.{ts,tsx}`).
+the rules above and may import `@/lib/queries/*` and `useRouter`-style
+helpers directly (the lint rules apply only to `src/components/**` and
+`src/app/**/*Client*.{ts,tsx}`).

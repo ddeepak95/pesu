@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
@@ -12,7 +12,7 @@ export default function BackButton({
   label?: string;
   className?: string;
 }) {
-  const router = useRouter();
+  const router = useTrackedRouter();
 
   return (
     <div className={cn("inline-flex items-center", className)}>

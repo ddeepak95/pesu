@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Button } from "@/components/ui/button";
 import { invalidateCompletionsCache } from "@/hooks/swr";
 
@@ -15,7 +15,7 @@ export default function GoToClassButton({
   classId,
   onBeforeNavigate,
 }: GoToClassButtonProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
 
   return (
     <Button

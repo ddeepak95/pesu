@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,7 @@ export default function CloseButton({
   className,
   onBeforeNavigate,
 }: CloseButtonProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
 
   return (
     <div className={cn("flex justify-center pt-2", className)}>

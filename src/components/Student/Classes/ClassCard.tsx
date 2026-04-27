@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Class } from "@/types/class";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { emitActivityEvent } from "@/lib/activity/emitter";
@@ -11,7 +11,7 @@ interface ClassCardProps {
 }
 
 export default function ClassCard({ classData, userId }: ClassCardProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
 
   const handleCardClick = () => {
     void emitActivityEvent({

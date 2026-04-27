@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Class } from "@/types/class";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -9,7 +9,7 @@ interface ClassCardProps {
 }
 
 export default function ClassCard({ classData }: ClassCardProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
 
   const handleCardClick = () => {
     router.push(`/teacher/classes/${classData.class_id}`);

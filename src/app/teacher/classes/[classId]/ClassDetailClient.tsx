@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import Content from "@/components/Teacher/Classes/Content";
@@ -22,7 +23,7 @@ export default function ClassDetailClient({
   userId,
   classId,
 }: ClassDetailClientProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const searchParams = useSearchParams();
 
   const activeTab = useMemo(() => {

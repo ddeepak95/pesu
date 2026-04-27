@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { mutate } from "swr";
 import { Class } from "@/types/class";
 import { Assignment } from "@/types/assignment";
@@ -19,7 +19,7 @@ interface AssignmentsProps {
 }
 
 export default function Assignments({ classData }: AssignmentsProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const { user } = useAuth();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);

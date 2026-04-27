@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
@@ -30,7 +30,7 @@ interface ContentProps {
 }
 
 export default function Content({ classData }: ContentProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const { user } = useAuth();
 
   // --- SWR hooks ---
