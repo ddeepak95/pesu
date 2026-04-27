@@ -396,6 +396,8 @@ export default function AssignmentResponseCore({
   }, [fileUploadRequired, submissionId, currentStepIndex]);
 
   const [tabTrackingActive, setTabTrackingActive] = useState(false);
+  const [voiceMicPermissionPending, setVoiceMicPermissionPending] =
+    useState(false);
 
   const { showTabWarning, dismissTabWarning, tabWarningQuota } =
     useTabLeaveTracking({
@@ -404,6 +406,7 @@ export default function AssignmentResponseCore({
       integrityAccessRevoked,
       active: tabTrackingActive,
       onAccessRevoked: onIntegrityAccessRevoked,
+      suspendTabLeaveTracking: voiceMicPermissionPending,
     });
 
   // If language is locked, don't allow students to change it
@@ -610,6 +613,9 @@ export default function AssignmentResponseCore({
           allowCopyPaste={allowCopyPaste}
           onIntegrityAccessRevoked={onIntegrityAccessRevoked}
           onTabTrackingActiveChange={setTabTrackingActive}
+          onVoiceMicPermissionRequestPendingChange={
+            setVoiceMicPermissionPending
+          }
           fileSubmissionsContent={fileSubmissionsContent}
           activityType={assignmentData.activity_type ?? "learning"}
           title={assignmentData.title}

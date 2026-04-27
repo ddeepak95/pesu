@@ -65,6 +65,8 @@ export interface AssessmentShellProps {
   onIntegrityAccessRevoked?: () => void;
   /** When the voice / chat / static input surface is shown (not loading, results, or evaluating). */
   onTabTrackingActiveChange?: (active: boolean) => void;
+  /** Voice: true while the microphone permission request is in flight (getUserMedia pending). */
+  onVoiceMicPermissionRequestPendingChange?: (pending: boolean) => void;
   /** Override the header label (default "Question") */
   headerLabel?: string;
   /** Override the number shown in the header (defaults to questionNumber) */
@@ -120,6 +122,7 @@ export function AssessmentShell({
   allowCopyPaste = false,
   onIntegrityAccessRevoked,
   onTabTrackingActiveChange,
+  onVoiceMicPermissionRequestPendingChange,
   headerLabel,
   headerQuestionNumber,
   headerTotalQuestions,
@@ -332,6 +335,7 @@ export function AssessmentShell({
     activityType,
     title,
     studentInstructions,
+    onVoiceMicPermissionRequestPendingChange,
   };
 
   const trackingContextValue = React.useMemo(

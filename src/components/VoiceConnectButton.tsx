@@ -27,6 +27,8 @@ interface VoiceConnectButtonProps {
   onRequestMicrophone?: () => Promise<void>;
   requestMicLabel?: string;
   micDeniedHint?: string;
+  /** Notifies parent while getUserMedia is awaiting (browser mic prompt). */
+  onVoiceMicPermissionRequestPendingChange?: (pending: boolean) => void;
 }
 
 /**
@@ -47,11 +49,28 @@ export function VoiceConnectButton({
   onRequestMicrophone,
   requestMicLabel = "Allow microphone access",
   micDeniedHint = "Microphone access is blocked. Update site permissions in your browser settings, then reload the page.",
+  onVoiceMicPermissionRequestPendingChange,
 }: VoiceConnectButtonProps) {
   const client = usePipecatClient();
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
   const [micRequestPending, setMicRequestPending] = React.useState(false);
+  const onMicPendingChangeRef = React.useRef(
+    onVoiceMicPermissionRequestPendingChange,
+  );
+  React.useEffect(() => {
+    onMicPendingChangeRef.current = onVoiceMicPermissionRequestPendingChange;
+  }, [onVoiceMicPermissionRequestPendingChange]);
+
+  React.useEffect(() => {
+    onMicPendingChangeRef.current?.(micRequestPending);
+  }, [micRequestPending]);
+
+  React.useEffect(() => {
+    return () => {
+      onMicPendingChangeRef.current?.(false);
+    };
+  }, []);
 
   const micGateActive =
     micPermission !== undefined &&

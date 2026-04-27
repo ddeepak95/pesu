@@ -33,6 +33,7 @@ function VoiceInputContent({
   onSubmitForEvaluation,
   onLanguageDisabledChange,
   onNavigationDisabledChange,
+  onVoiceMicPermissionRequestPendingChange,
   botPromptConfig,
   maxAttempts,
   sharedContext,
@@ -234,6 +235,9 @@ function VoiceInputContent({
           disabled={maxAttemptsReached}
           micPermission={micPermission}
           onRequestMicrophone={requestAccess}
+          onVoiceMicPermissionRequestPendingChange={
+            onVoiceMicPermissionRequestPendingChange
+          }
         />
         {maxAttemptsReached && (
           <p className="text-xs text-muted-foreground text-center">
