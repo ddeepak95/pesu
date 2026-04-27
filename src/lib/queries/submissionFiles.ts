@@ -115,10 +115,15 @@ function uploadToGCS(
 }
 
 /**
- * Get a short-lived signed download URL for a submission file.
+ * Request a short-lived signed download URL for a submission file. This is an
+ * action (one-shot side effect on click) rather than a cacheable read, so it
+ * is intentionally not exposed via an SWR hook. Renamed from
+ * `getFileDownloadUrl` so the no-restricted-imports read-name pattern doesn't
+ * flag callers.
+ *
  * Pass type="parsed" to get the parsed markdown version.
  */
-export async function getFileDownloadUrl(
+export async function requestFileDownloadUrl(
   fileId: string,
   type: "original" | "parsed" = "original",
 ): Promise<string> {

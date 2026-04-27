@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -18,9 +18,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle } from "lucide-react";
-import { getClassStudentsWithInfo } from "@/lib/queries/students";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import { resetStudentProgress } from "@/lib/queries/contentCompletions";
+import {
+  invalidateClassContentCompletionsCache,
+  useClassStudents,
+} from "@/hooks/swr";
 
 interface ResetProgressSectionProps {
   classId: string;
@@ -31,36 +34,19 @@ export default function ResetProgressSection({
   classId,
   isOwner,
 }: ResetProgressSectionProps) {
-  const [students, setStudents] = useState<
-    Array<{
-      student_id: string;
-      student_display_name: string | null;
-      student_email: string | null;
-    }>
-  >([]);
+  const studentsQuery = useClassStudents(classId);
+  const students = useMemo(
+    () => studentsQuery.data ?? [],
+    [studentsQuery.data]
+  );
+  const loading = studentsQuery.isLoading;
+
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
-  const [loading, setLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    studentsQuery.error ? "Failed to load students" : null
+  );
   const [success, setSuccess] = useState(false);
-
-  const fetchStudents = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const studentsData = await getClassStudentsWithInfo(classId);
-      setStudents(studentsData);
-    } catch (err) {
-      console.error("Error fetching students:", err);
-      setError("Failed to load students");
-    } finally {
-      setLoading(false);
-    }
-  }, [classId]);
-
-  useEffect(() => {
-    fetchStudents();
-  }, [fetchStudents]);
 
   const handleReset = async () => {
     if (!selectedStudentId) {
@@ -74,6 +60,7 @@ export default function ResetProgressSection({
 
     try {
       await resetStudentProgress(classId, selectedStudentId);
+      await invalidateClassContentCompletionsCache();
       setSuccess(true);
       setSelectedStudentId("");
       setTimeout(() => setSuccess(false), 3000);

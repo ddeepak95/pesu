@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ContentItem } from "@/types/contentItem";
-import { Class } from "@/types/class";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
@@ -21,9 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getClassesByUser } from "@/lib/queries/classes";
-import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
 import { duplicateContentItem } from "@/lib/queries/duplicateContent";
+import { useClassesByUser, useClassGroups } from "@/hooks/swr";
 
 export default function DuplicateContentDialog({
   open,
@@ -38,81 +36,71 @@ export default function DuplicateContentDialog({
 }) {
   const { user } = useAuth();
 
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [groups, setGroups] = useState<ClassGroup[]>([]);
+  const classesQuery = useClassesByUser(open ? user?.id ?? null : null);
+  const classes = useMemo(
+    () => classesQuery.data ?? [],
+    [classesQuery.data]
+  );
+
   const [destinationClassDbId, setDestinationClassDbId] = useState<string>("");
   const [destinationGroupId, setDestinationGroupId] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const groupsQuery = useClassGroups(
+    open && destinationClassDbId ? destinationClassDbId : null
+  );
+  const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+
+  // Default the destination class to the first class as soon as data arrives,
+  // and reset the group selection whenever the available `groups` array
+  // changes. We use the "store info from previous render" pattern (rather
+  // than `useEffect` + `setState`) to avoid the
+  // `react-hooks/set-state-in-effect` warning.
+  const [seenClassesRef, setSeenClassesRef] = useState<unknown>(null);
+  if (classesQuery.data && seenClassesRef !== classesQuery.data) {
+    setSeenClassesRef(classesQuery.data);
+    if (!destinationClassDbId && classes.length > 0) {
+      setDestinationClassDbId(classes[0].id);
+    }
+  }
+
+  const [seenGroupsRef, setSeenGroupsRef] = useState<unknown>(null);
+  if (groupsQuery.data && seenGroupsRef !== groupsQuery.data) {
+    setSeenGroupsRef(groupsQuery.data);
+    if (groups.length === 0) {
+      if (destinationGroupId !== "") setDestinationGroupId("");
+    } else if (
+      !destinationGroupId ||
+      !groups.some((g) => g.id === destinationGroupId)
+    ) {
+      setDestinationGroupId(groups[0].id);
+    }
+  }
 
   const destinationClass = useMemo(
     () => classes.find((c) => c.id === destinationClassDbId) ?? null,
     [classes, destinationClassDbId]
   );
 
-  useEffect(() => {
-    const load = async () => {
-      if (!open) return;
-      setError(null);
-      setLoading(true);
-      try {
-        if (!user) throw new Error("You must be logged in");
-        const data = await getClassesByUser(user.id);
-        setClasses(data);
-        const first = data[0]?.id ?? "";
-        setDestinationClassDbId(first);
-      } catch (err) {
-        console.error("Error loading classes:", err);
-        const message =
-          typeof err === "object" && err !== null
-            ? ((err as Record<string, unknown>)["message"] as
-                | string
-                | undefined)
-            : undefined;
-        setError(message || "Failed to load classes.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [open, user]);
-
-  useEffect(() => {
-    const loadGroups = async () => {
-      if (!open) return;
-      if (!destinationClassDbId) {
-        setGroups([]);
-        setDestinationGroupId("");
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      try {
-        const gs = await getClassGroups(destinationClassDbId);
-        setGroups(gs);
-        setDestinationGroupId(gs[0]?.id ?? "");
-      } catch (err) {
-        console.error("Error loading groups:", err);
-        setError("Failed to load class groups.");
-        setGroups([]);
-        setDestinationGroupId("");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadGroups();
-  }, [open, destinationClassDbId]);
+  const loadingClasses = classesQuery.isLoading;
+  const loadingGroups = groupsQuery.isLoading;
+  const loading = loadingClasses || loadingGroups || submitting;
+  const error = submitError
+    ? submitError
+    : classesQuery.error
+      ? "Failed to load classes."
+      : groupsQuery.error
+        ? "Failed to load class groups."
+        : null;
 
   const canSubmit =
     !!item && !!user && !!destinationClassDbId && !!destinationGroupId;
 
   const handleDuplicate = async () => {
     if (!item || !user) return;
-    setLoading(true);
-    setError(null);
+    setSubmitting(true);
+    setSubmitError(null);
     try {
       await duplicateContentItem({
         item,
@@ -128,9 +116,9 @@ export default function DuplicateContentDialog({
         typeof err === "object" && err !== null
           ? ((err as Record<string, unknown>)["message"] as string | undefined)
           : undefined;
-      setError(message || "Failed to duplicate content.");
+      setSubmitError(message || "Failed to duplicate content.");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -205,13 +193,10 @@ export default function DuplicateContentDialog({
             onClick={handleDuplicate}
             disabled={!canSubmit || loading}
           >
-            {loading ? "Duplicating…" : "Duplicate"}
+            {submitting ? "Duplicating…" : "Duplicate"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
-
-

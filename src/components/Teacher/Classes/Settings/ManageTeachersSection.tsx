@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,18 +14,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
+import { removeCoTeacher } from "@/lib/queries/classTeachers";
 import {
-  listClassTeachers,
-  removeCoTeacher,
-  ClassTeacherWithUserInfo,
-} from "@/lib/queries/classTeachers";
-import {
-  ClassTeacherInvite,
   createTeacherInvite,
-  listTeacherInvites,
   revokeTeacherInvite,
 } from "@/lib/queries/teacherInvites";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import {
+  invalidateClassTeachersCache,
+  invalidateTeacherInvitesCache,
+  useClassTeachers,
+  useTeacherInvites,
+} from "@/hooks/swr";
 
 interface ManageTeachersSectionProps {
   classData: Class;
@@ -38,11 +38,32 @@ export default function ManageTeachersSection({
 }: ManageTeachersSectionProps) {
   const { user: _user } = useAuth();
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [teachers, setTeachers] = useState<ClassTeacherWithUserInfo[]>([]);
-  const [invites, setInvites] = useState<ClassTeacherInvite[]>([]);
+  const teachersQuery = useClassTeachers(classData.id);
+  const invitesQuery = useTeacherInvites(classData.id);
+
+  const teachers = useMemo(
+    () => teachersQuery.data ?? [],
+    [teachersQuery.data]
+  );
+  const invites = useMemo(
+    () => invitesQuery.data ?? [],
+    [invitesQuery.data]
+  );
+
+  const [busy, setBusy] = useState(false);
   const [newInviteLink, setNewInviteLink] = useState<string>("");
+
+  const error = useMemo<string | null>(() => {
+    const err = (teachersQuery.error || invitesQuery.error) as
+      | { code?: string; cause?: { code?: string } }
+      | undefined;
+    if (!err) return null;
+    const code = err.code ?? err.cause?.code;
+    if (code === "42P01") {
+      return "Teacher management tables/functions are not installed yet. Run the Supabase teacher-invites migration.";
+    }
+    return "Failed to load teacher management data.";
+  }, [teachersQuery.error, invitesQuery.error]);
 
   const activeInvite = useMemo(() => {
     const now = Date.now();
@@ -59,64 +80,20 @@ export default function ManageTeachersSection({
     return `${window.location.origin}/teacher/invites/${token}`;
   }, [activeInvite, newInviteLink]);
 
-  const refresh = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [t, i] = await Promise.all([
-        listClassTeachers(classData.id),
-        listTeacherInvites(classData.id),
-      ]);
-      setTeachers(t);
-      setInvites(i);
-    } catch (err: unknown) {
-      const code =
-        typeof err === "object" && err !== null
-          ? (err as Record<string, unknown>)["code"] ||
-            (typeof (err as Record<string, unknown>)["cause"] === "object" &&
-            (err as Record<string, unknown>)["cause"] !== null
-              ? (
-                  (err as Record<string, unknown>)["cause"] as Record<
-                    string,
-                    unknown
-                  >
-                )["code"]
-              : undefined)
-          : undefined;
-      if (code === "42P01") {
-        setError(
-          "Teacher management tables/functions are not installed yet. Run the Supabase teacher-invites migration."
-        );
-      } else {
-        console.error("Error loading teacher management data:", err);
-        setError("Failed to load teacher management data.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setNewInviteLink("");
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classData.id]);
-
   const handleGenerateInvite = async () => {
     if (!isOwner) return;
-    setLoading(true);
-    setError(null);
+    setBusy(true);
     try {
       const token = await createTeacherInvite({
         classDbId: classData.id,
       });
       setNewInviteLink(token);
-      await refresh();
+      await invalidateTeacherInvitesCache();
     } catch (err) {
       console.error("Error creating invite:", err);
-      setError("Failed to create invite.");
+      showErrorToast("Failed to create invite.");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
@@ -131,16 +108,16 @@ export default function ManageTeachersSection({
     const confirmed = window.confirm("Revoke this invite link?");
     if (!confirmed) return;
 
-    setLoading(true);
+    setBusy(true);
     try {
       await revokeTeacherInvite(inviteId);
       setNewInviteLink("");
-      await refresh();
+      await invalidateTeacherInvitesCache();
     } catch (err) {
       console.error("Error revoking invite:", err);
       showErrorToast("Failed to revoke invite.");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
@@ -149,16 +126,23 @@ export default function ManageTeachersSection({
     const confirmed = window.confirm("Remove this co-teacher from the class?");
     if (!confirmed) return;
 
-    setLoading(true);
+    setBusy(true);
     try {
       await removeCoTeacher({ classDbId: classData.id, teacherId });
-      await refresh();
+      await invalidateClassTeachersCache();
     } catch (err) {
       console.error("Error removing teacher:", err);
       showErrorToast("Failed to remove co-teacher.");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
+  };
+
+  const refresh = async () => {
+    await Promise.all([
+      invalidateClassTeachersCache(),
+      invalidateTeacherInvitesCache(),
+    ]);
   };
 
   return (
@@ -208,7 +192,7 @@ export default function ManageTeachersSection({
             <Button
               type="button"
               onClick={handleGenerateInvite}
-              disabled={!isOwner || loading}
+              disabled={!isOwner || busy}
             >
               {activeInvite ? "Regenerate invite" : "Generate invite"}
             </Button>
@@ -216,7 +200,7 @@ export default function ManageTeachersSection({
               type="button"
               variant="outline"
               onClick={refresh}
-              disabled={loading}
+              disabled={busy}
             >
               Refresh
             </Button>
@@ -225,7 +209,7 @@ export default function ManageTeachersSection({
                 type="button"
                 variant="destructive"
                 onClick={() => handleRevokeInvite(activeInvite.id)}
-                disabled={!isOwner || loading}
+                disabled={!isOwner || busy}
               >
                 Revoke
               </Button>
@@ -283,7 +267,7 @@ export default function ManageTeachersSection({
                         variant="destructive"
                         size="sm"
                         onClick={() => handleRemoveTeacher(t.teacher_id)}
-                        disabled={!isOwner || loading}
+                        disabled={!isOwner || busy}
                       >
                         Remove
                       </Button>

@@ -1,20 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  getLearningContentByShortIdForTeacher,
-  updateLearningContent,
-} from "@/lib/queries/learningContent";
+import { updateLearningContent } from "@/lib/queries/learningContent";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import LearningContentForm from "@/components/Teacher/LearningContent/LearningContentForm";
-import { LearningContent } from "@/types/learningContent";
 import { showSuccessToast } from "@/lib/toast";
+import { useLearningContentByShortIdForTeacher } from "@/hooks/swr";
 
 export default function EditLearningContentPage() {
   const params = useParams();
@@ -23,37 +19,19 @@ export default function EditLearningContentPage() {
 
   const learningContentId = params.learningContentId as string;
 
-  const [content, setContent] = useState<LearningContent | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getLearningContentByShortIdForTeacher(
-          learningContentId
-        );
-        if (!data) setError("Learning content not found");
-        else setContent(data);
-      } catch (err) {
-        console.error("Error fetching learning content:", err);
-        setError("Failed to load learning content");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (learningContentId) fetch();
-  }, [learningContentId]);
+  const contentQuery = useLearningContentByShortIdForTeacher(learningContentId);
+  const content = contentQuery.data ?? null;
+  const loading = contentQuery.isLoading;
+  const error = contentQuery.error
+    ? "Failed to load learning content"
+    : !loading && !content
+      ? "Learning content not found"
+      : null;
 
   if (loading) {
     return (
       <PageLayout>
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading…</p>
-        </div>
+        <div />
       </PageLayout>
     );
   }

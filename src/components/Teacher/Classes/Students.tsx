@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClient } from "@/lib/supabase";
+import { useIsCoTeacherForClass } from "@/hooks/swr";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
@@ -33,8 +33,13 @@ interface StudentsProps {
 
 export default function Students({ classData }: StudentsProps) {
   const { user } = useAuth();
-  const [isTeacher, setIsTeacher] = useState(false);
   const isOwner = user?.id === classData.created_by;
+  // Only fetch co-teacher membership when the user isn't already the owner.
+  const { data: isCoTeacher } = useIsCoTeacherForClass(
+    !isOwner && user?.id ? classData.id : null,
+    !isOwner ? user?.id ?? null : null
+  );
+  const isTeacher = isOwner || isCoTeacher === true;
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
 
   // Change group dialog state
@@ -58,37 +63,6 @@ export default function Students({ classData }: StudentsProps) {
     useState<StudentWithInfo | null>(null);
 
   const [activeTab, setActiveTab] = useState("list");
-
-  // Check if user is a co-teacher
-  useEffect(() => {
-    const checkTeacherStatus = async () => {
-      if (!user) {
-        setIsTeacher(false);
-        return;
-      }
-
-      if (isOwner) {
-        setIsTeacher(true);
-        return;
-      }
-
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from("class_teachers")
-          .select("id")
-          .eq("class_id", classData.id)
-          .eq("teacher_id", user.id)
-          .single();
-
-        setIsTeacher(!error && data !== null);
-      } catch {
-        setIsTeacher(false);
-      }
-    };
-
-    checkTeacherStatus();
-  }, [user, classData.id, isOwner]);
 
   const {
     loading,

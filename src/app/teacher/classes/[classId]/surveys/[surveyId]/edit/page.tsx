@@ -1,20 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  getSurveyByShortIdForTeacher,
-  updateSurvey,
-} from "@/lib/queries/surveys";
+import { updateSurvey } from "@/lib/queries/surveys";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import SurveyForm from "@/components/Teacher/Surveys/SurveyForm";
-import { Survey } from "@/types/survey";
 import { showSuccessToast } from "@/lib/toast";
+import { useSurveyByShortIdForTeacher } from "@/hooks/swr";
 
 export default function EditSurveyPage() {
   const params = useParams();
@@ -23,38 +19,19 @@ export default function EditSurveyPage() {
 
   const surveyId = params.surveyId as string;
 
-  const [survey, setSurvey] = useState<Survey | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getSurveyByShortIdForTeacher(surveyId);
-        if (!data) {
-          setError("Survey not found");
-        } else {
-          setSurvey(data);
-        }
-      } catch (err) {
-        console.error("Error fetching survey:", err);
-        setError("Failed to load survey");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (surveyId) fetch();
-  }, [surveyId]);
+  const surveyQuery = useSurveyByShortIdForTeacher(surveyId);
+  const survey = surveyQuery.data ?? null;
+  const loading = surveyQuery.isLoading;
+  const error = surveyQuery.error
+    ? "Failed to load survey"
+    : !loading && !survey
+      ? "Survey not found"
+      : null;
 
   if (loading) {
     return (
       <PageLayout>
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading…</p>
-        </div>
+        <div />
       </PageLayout>
     );
   }

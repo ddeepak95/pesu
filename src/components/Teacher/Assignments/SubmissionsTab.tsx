@@ -1,29 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  getSubmissionsByAssignmentWithStudents,
-  getPublicSubmissionsByAssignment,
   StudentSubmissionStatus,
   PublicSubmissionStatus,
   markAttemptsAsStale,
 } from "@/lib/queries/submissions";
-import { getClassByClassId } from "@/lib/queries/classes";
-import { getProgressViewConfig } from "@/lib/queries/classes";
 import {
-  getProfileFieldsForClass,
-  getAllStudentProfiles,
-} from "@/lib/queries/profileFields";
-import {
-  getTeacherUnlocksForContentItem,
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
 import { deleteContentCompletionForStudent } from "@/lib/queries/contentCompletions";
-import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
-import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import SubmissionViewDialog from "./SubmissionViewDialog";
 import { IntegrityLockBadge } from "@/components/Shared/Integrity/IntegrityLockBadge";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
@@ -31,8 +20,20 @@ import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
-import { ProfileField } from "@/types/profileFields";
 import { showErrorToast } from "@/lib/toast";
+import {
+  invalidateSubmissionsCache,
+  invalidateTeacherUnlocksCache,
+  useAllStudentProfiles,
+  useAssignmentByIdForTeacher,
+  useClassData,
+  useContentItemByRefId,
+  usePublicSubmissionsForAssignment,
+  useProfileFieldsForClass,
+  useProgressViewConfig,
+  useSubmissionsForAssignment,
+  useTeacherUnlocksForContentItem,
+} from "@/hooks/swr";
 
 interface SubmissionsTabProps {
   assignmentId: string;
@@ -47,153 +48,98 @@ export default function SubmissionsTab({
   isPublic,
   classGroupId,
 }: SubmissionsTabProps) {
-  // Class students state
-  const [classSubmissions, setClassSubmissions] = useState<
-    StudentSubmissionStatus[]
-  >([]);
-  const [classLoading, setClassLoading] = useState(true);
-  const [classError, setClassError] = useState<string | null>(null);
+  const classQuery = useClassData(classId);
+  const classDbId = classQuery.data?.id ?? null;
 
-  // Public submissions state
-  const [publicSubmissions, setPublicSubmissions] = useState<
-    PublicSubmissionStatus[]
-  >([]);
-  const [publicLoading, setPublicLoading] = useState(true);
-  const [publicError, setPublicError] = useState<string | null>(null);
+  const assignmentQuery = useAssignmentByIdForTeacher(assignmentId);
+  const assignment = assignmentQuery.data ?? null;
 
-  // Shared state for dialog
+  const submissionsQuery = useSubmissionsForAssignment({
+    assignmentId,
+    classId: classDbId,
+    classGroupId,
+  });
+  const publicSubmissionsQuery = usePublicSubmissionsForAssignment(
+    isPublic ? assignmentId : null
+  );
+
+  const profileFieldsQuery = useProfileFieldsForClass(classDbId);
+  const profilesQuery = useAllStudentProfiles(classDbId);
+  const progressViewQuery = useProgressViewConfig(classDbId);
+
+  const contentItemQuery = useContentItemByRefId(
+    assignment?.id ?? null,
+    "formative_assignment"
+  );
+  const contentItem = contentItemQuery.data ?? null;
+  const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;
+
+  const unlocksQuery = useTeacherUnlocksForContentItem(
+    requireTeacherUnlock ? contentItem?.id ?? null : null
+  );
+
+  const classSubmissions = useMemo<StudentSubmissionStatus[]>(
+    () => submissionsQuery.data ?? [],
+    [submissionsQuery.data]
+  );
+  const publicSubmissions = useMemo<PublicSubmissionStatus[]>(
+    () => publicSubmissionsQuery.data ?? [],
+    [publicSubmissionsQuery.data]
+  );
+  const profileFields = useMemo(
+    () => profileFieldsQuery.data ?? [],
+    [profileFieldsQuery.data]
+  );
+  const studentProfilesMap = useMemo(() => {
+    const map = new Map<string, Record<string, string>>();
+    (profilesQuery.data ?? []).forEach((p) =>
+      map.set(p.student_id, p.field_responses)
+    );
+    return map;
+  }, [profilesQuery.data]);
+  const displayFieldIds = useMemo(
+    () => new Set(progressViewQuery.data?.display_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const filterFieldIds = useMemo(
+    () => new Set(progressViewQuery.data?.filter_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const unlockedStudentIds = useMemo(
+    () => new Set((unlocksQuery.data ?? []).map((u) => u.student_id)),
+    [unlocksQuery.data]
+  );
+  const totalQuestionCount = assignment?.questions?.length ?? 0;
+
+  const classLoading =
+    classQuery.isLoading ||
+    submissionsQuery.isLoading ||
+    profileFieldsQuery.isLoading ||
+    profilesQuery.isLoading ||
+    progressViewQuery.isLoading;
+  const classError =
+    !classQuery.isLoading && classDbId === null
+      ? "Class not found"
+      : classQuery.error ||
+          submissionsQuery.error ||
+          profileFieldsQuery.error ||
+          profilesQuery.error ||
+          progressViewQuery.error
+        ? "Failed to load submissions."
+        : null;
+
+  const publicLoading =
+    isPublic && (publicSubmissionsQuery.isLoading || assignmentQuery.isLoading);
+  const publicError =
+    isPublic && (publicSubmissionsQuery.error || assignmentQuery.error)
+      ? "Failed to load public submissions."
+      : null;
+
   const [selectedSubmission, setSelectedSubmission] = useState<
     StudentSubmissionStatus | PublicSubmissionStatus | null
   >(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [resetting, setResetting] = useState<string | null>(null);
-
-  // Profile + config state
-  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
-  const [studentProfilesMap, setStudentProfilesMap] = useState<
-    Map<string, Record<string, string>>
-  >(new Map());
-  const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(
-    new Set()
-  );
-  const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(
-    new Set()
-  );
-
-  // Teacher unlock state
-  const [requireTeacherUnlock, setRequireTeacherUnlock] = useState(false);
-  const [unlockedStudentIds, setUnlockedStudentIds] = useState<Set<string>>(
-    new Set()
-  );
-  const [contentItemId, setContentItemId] = useState<string | null>(null);
-  const [classDbId, setClassDbId] = useState<string | null>(null);
-  const [totalQuestionCount, setTotalQuestionCount] = useState(0);
-
-  // Fetch class student submissions
-  useEffect(() => {
-    const fetchClassSubmissions = async () => {
-      setClassLoading(true);
-      setClassError(null);
-      try {
-        const classData = await getClassByClassId(classId);
-        if (!classData) {
-          setClassError("Class not found");
-          return;
-        }
-        setClassDbId(classData.id);
-
-        // Fetch submissions, assignment, profile data, and config in parallel
-        const [data, assignment, fields, profiles, savedConfig] =
-          await Promise.all([
-            getSubmissionsByAssignmentWithStudents(
-              assignmentId,
-              classData.id,
-              classGroupId
-            ),
-            getAssignmentByIdForTeacher(assignmentId),
-            getProfileFieldsForClass(classData.id),
-            getAllStudentProfiles(classData.id),
-            getProgressViewConfig(classData.id),
-          ]);
-
-        // content_items.ref_id is the assignment's UUID (id), not assignment_id (public short id)
-        const contentItem = assignment
-          ? await getContentItemByRefId(assignment.id, "formative_assignment")
-          : null;
-
-        setClassSubmissions(data);
-        setProfileFields(fields);
-        setTotalQuestionCount(assignment?.questions?.length ?? 0);
-
-        // Build profile map
-        const profilesMap = new Map<string, Record<string, string>>();
-        profiles.forEach((p) => {
-          profilesMap.set(p.student_id, p.field_responses);
-        });
-        setStudentProfilesMap(profilesMap);
-
-        // Display fields and filter fields from config
-        setDisplayFieldIds(
-          new Set<string>(savedConfig?.display_fields ?? [])
-        );
-        setFilterFieldIds(
-          new Set<string>(savedConfig?.filter_fields ?? [])
-        );
-
-        // Content item and teacher unlock
-        if (contentItem) {
-          setContentItemId(contentItem.id);
-          setRequireTeacherUnlock(
-            contentItem.require_teacher_unlock ?? false
-          );
-
-          if (contentItem.require_teacher_unlock) {
-            const unlocks = await getTeacherUnlocksForContentItem(
-              contentItem.id
-            );
-            setUnlockedStudentIds(
-              new Set(unlocks.map((u) => u.student_id))
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching class submissions:", err);
-        setClassError("Failed to load submissions.");
-      } finally {
-        setClassLoading(false);
-      }
-    };
-
-    fetchClassSubmissions();
-  }, [assignmentId, classId, classGroupId]);
-
-  // Fetch public submissions and total question count (only if assignment is public)
-  useEffect(() => {
-    if (!isPublic) {
-      setPublicLoading(false);
-      return;
-    }
-
-    const fetchPublicSubmissions = async () => {
-      setPublicLoading(true);
-      setPublicError(null);
-      try {
-        const [data, assignment] = await Promise.all([
-          getPublicSubmissionsByAssignment(assignmentId),
-          getAssignmentByIdForTeacher(assignmentId),
-        ]);
-        setPublicSubmissions(data);
-        setTotalQuestionCount(assignment?.questions?.length ?? 0);
-      } catch (err) {
-        console.error("Error fetching public submissions:", err);
-        setPublicError("Failed to load public submissions.");
-      } finally {
-        setPublicLoading(false);
-      }
-    };
-
-    fetchPublicSubmissions();
-  }, [assignmentId, isPublic]);
 
   const handleViewSubmission = (
     item: StudentSubmissionStatus | PublicSubmissionStatus
@@ -221,30 +167,14 @@ export default function SubmissionsTab({
     setResetting(item.submission.submission_id);
     try {
       await markAttemptsAsStale(item.submission.submission_id);
-      if ("student" in item && contentItemId) {
+      if ("student" in item && contentItem?.id) {
         await deleteContentCompletionForStudent({
-          contentItemId,
+          contentItemId: contentItem.id,
           studentId: item.student.student_id,
         });
       }
 
-      // Refresh the appropriate submissions list
-      if ("student" in item) {
-        const classData = await getClassByClassId(classId);
-        if (!classData) {
-          showErrorToast("Class not found");
-          return;
-        }
-        const data = await getSubmissionsByAssignmentWithStudents(
-          assignmentId,
-          classData.id,
-          classGroupId
-        );
-        setClassSubmissions(data);
-      } else {
-        const data = await getPublicSubmissionsByAssignment(assignmentId);
-        setPublicSubmissions(data);
-      }
+      await invalidateSubmissionsCache();
     } catch (err) {
       console.error("Error resetting attempts:", err);
       showErrorToast("Failed to reset attempts. Please try again.");
@@ -267,25 +197,7 @@ export default function SubmissionsTab({
   };
 
   const refetchSubmissionLists = async () => {
-    if (!classDbId) return;
-    try {
-      const classData = await getSubmissionsByAssignmentWithStudents(
-        assignmentId,
-        classDbId,
-        classGroupId,
-      );
-      setClassSubmissions(classData);
-    } catch (e) {
-      console.error(e);
-    }
-    if (isPublic) {
-      try {
-        const pub = await getPublicSubmissionsByAssignment(assignmentId);
-        setPublicSubmissions(pub);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    await invalidateSubmissionsCache();
   };
 
   const getStatusBadge = (status: "completed" | "started" | "not_started") => {
@@ -318,28 +230,18 @@ export default function SubmissionsTab({
     }
   };
 
-  // Handle unlock toggle
   const handleToggleUnlock = async (
     studentId: string,
     currentlyUnlocked: boolean
   ) => {
-    if (!contentItemId) return;
+    if (!contentItem?.id) return;
 
     if (currentlyUnlocked) {
-      await lockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.delete(studentId);
-        return next;
-      });
+      await lockContentForStudent(contentItem.id, studentId);
     } else {
-      await unlockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.add(studentId);
-        return next;
-      });
+      await unlockContentForStudent(contentItem.id, studentId);
     }
+    await invalidateTeacherUnlocksCache();
   };
 
   // Build class students table columns
@@ -676,17 +578,7 @@ export default function SubmissionsTab({
             // Re-fetch the lightweight list when the dialog closes so the table
             // badges (has_pending_approvals) reflect any approvals just made.
             if (!open) {
-              if ("student" in selectedSubmission && classDbId) {
-                const data = await getSubmissionsByAssignmentWithStudents(
-                  assignmentId,
-                  classDbId,
-                  classGroupId
-                );
-                setClassSubmissions(data);
-              } else if (!("student" in selectedSubmission)) {
-                const data = await getPublicSubmissionsByAssignment(assignmentId);
-                setPublicSubmissions(data);
-              }
+              await invalidateSubmissionsCache();
             }
           }}
           studentSubmission={selectedSubmission}

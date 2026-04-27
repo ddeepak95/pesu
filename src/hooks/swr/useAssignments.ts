@@ -1,5 +1,7 @@
 import useSWR from "swr";
 import {
+  getAssignmentByIdForTeacher,
+  getAssignmentsByClassForTeacher,
   getAssignmentsByIds,
   getAssignmentsByIdsForTeacher,
 } from "@/lib/queries/assignments";
@@ -25,5 +27,25 @@ export function useAssignmentsByIdsForTeacher(ids: string[]) {
   return useSWR<Assignment[]>(
     sortedKey ? ["assignmentsByIdsTeacher", sortedKey] : null,
     () => getAssignmentsByIdsForTeacher(ids)
+  );
+}
+
+/**
+ * Fetch a single assignment by its public assignment_id (teacher view).
+ */
+export function useAssignmentByIdForTeacher(assignmentId: string | null) {
+  return useSWR<Assignment | null>(
+    assignmentId ? ["assignmentByIdTeacher", assignmentId] : null,
+    () => getAssignmentByIdForTeacher(assignmentId!)
+  );
+}
+
+/**
+ * Fetch all assignments for a class (teacher view — includes drafts).
+ */
+export function useAssignmentsByClassForTeacher(classId: string | null) {
+  return useSWR<Assignment[]>(
+    classId ? ["assignmentsByClassTeacher", classId] : null,
+    () => getAssignmentsByClassForTeacher(classId!)
   );
 }

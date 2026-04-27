@@ -1,9 +1,21 @@
 import useSWR from "swr";
 import {
+  getSurveyByShortIdForTeacher,
   getSurveysByIds,
   getSurveysByIdsForStudent,
 } from "@/lib/queries/surveys";
 import { Survey } from "@/types/survey";
+
+/**
+ * Fetch a single survey by its public short id (teacher view — includes
+ * drafts).
+ */
+export function useSurveyByShortIdForTeacher(shortId: string | null) {
+  return useSWR<Survey | null>(
+    shortId ? ["surveyByShortIdTeacher", shortId] : null,
+    () => getSurveyByShortIdForTeacher(shortId!)
+  );
+}
 
 /**
  * Fetch surveys by their database UUIDs (teacher view — active + draft)

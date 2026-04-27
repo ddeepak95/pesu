@@ -3,7 +3,7 @@
 import React, { useCallback, useRef } from "react";
 import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
-import { getQuestionAttempts } from "@/lib/queries/submissions";
+import { useQuestionAttempts } from "@/hooks/swr";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
 import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCard";
@@ -129,8 +129,6 @@ export function AssessmentShell({
   studentInstructions,
 }: AssessmentShellProps) {
   const [isEvaluating, setIsEvaluating] = React.useState(false);
-  const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(true);
-  const [attempts, setAttempts] = React.useState<SubmissionAttempt[]>([]);
   const [showCompletion, setShowCompletion] = React.useState(false);
   const [languageDisabled, setLanguageDisabled] = React.useState(false);
   const [navigationDisabled, setNavigationDisabled] = React.useState(false);
@@ -138,6 +136,35 @@ export function AssessmentShell({
   // student sees the pending view right away instead of watching the evaluating spinner.
   const [submittingForApproval, setSubmittingForApproval] = React.useState(false);
   const navigationRef = useRef<AssessmentNavigationHandle>(null);
+
+  // Existing attempts for this question. Driven by SWR so the global
+  // overlay covers the load and the cache is shared across remounts.
+  const attemptsQuery = useQuestionAttempts({
+    submissionId,
+    questionOrder: question.order,
+    excludeStale: true,
+  });
+  const attempts = React.useMemo(
+    () => attemptsQuery.data ?? [],
+    [attemptsQuery.data]
+  );
+  const isLoadingAttempts = attemptsQuery.isLoading;
+
+  // When SWR returns attempts, ensure the completion panel reflects them.
+  // Using the "store information from previous render" pattern instead of an
+  // effect avoids cascading renders flagged by react-hooks/set-state-in-effect.
+  const [seenAttemptsKey, setSeenAttemptsKey] = React.useState<string | null>(
+    null
+  );
+  const attemptsKey = `${submissionId}::${question.order}`;
+  if (
+    !attemptsQuery.isLoading &&
+    attemptsQuery.data !== undefined &&
+    seenAttemptsKey !== attemptsKey
+  ) {
+    setSeenAttemptsKey(attemptsKey);
+    setShowCompletion(attempts.length > 0);
+  }
 
   const maxAttemptsReached = maxAttempts != null && attempts.length >= maxAttempts;
 
@@ -163,30 +190,6 @@ export function AssessmentShell({
     subComponentId: String(question.order),
   });
 
-  // Load existing attempts -- show completion panel if any exist
-  React.useEffect(() => {
-    setAttempts([]);
-    setShowCompletion(false);
-    setIsLoadingAttempts(true);
-    async function loadAttempts() {
-      try {
-        const questionAttempts = await getQuestionAttempts(
-          submissionId,
-          question.order,
-          true,
-        );
-        setAttempts(questionAttempts);
-        if (questionAttempts.length > 0) {
-          setShowCompletion(true);
-        }
-      } catch (error) {
-        console.error("Error loading attempts:", error);
-      } finally {
-        setIsLoadingAttempts(false);
-      }
-    }
-    loadAttempts();
-  }, [question.order, submissionId]);
 
   const handleEvaluate = useCallback(
     async (answerText: string) => {
@@ -238,7 +241,10 @@ export function AssessmentShell({
         const newAttempt = result.attempt as SubmissionAttempt;
         if (!newAttempt) throw new Error("No attempt data received from evaluation API");
 
-        setAttempts((prev) => [...prev, newAttempt]);
+        attemptsQuery.mutate(
+          (prev) => [...(prev ?? []), newAttempt],
+          false
+        );
         setSubmittingForApproval(false);
         setShowCompletion(true);
         if (feedbackRequiresApproval) {
@@ -265,6 +271,7 @@ export function AssessmentShell({
       maxAttemptsReached, buildEvaluationPrompt, question,
       sharedContext, language, submissionId, onAnswerSave,
       logEvent, onAttemptCreated, feedbackRequiresApproval,
+      attemptsQuery,
     ],
   );
 

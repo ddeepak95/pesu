@@ -1,20 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { mutate } from "swr";
 import { Class } from "@/types/class";
-import {
-  StudentWithInfo,
-  getClassStudentsWithInfo,
-} from "@/lib/queries/students";
-import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
-import {
-  getAllStudentProfiles,
-  getProfileFieldsForClass,
-} from "@/lib/queries/profileFields";
-import { getProgressViewConfig } from "@/lib/queries/classes";
+import { StudentWithInfo } from "@/lib/queries/students";
+import { ClassGroup } from "@/lib/queries/groups";
 import { ProfileField } from "@/types/profileFields";
-import { getClassContentCompletions } from "@/lib/queries/contentCompletions";
 import { StudentContentCompletionWithDetails } from "@/types/contentCompletion";
+import {
+  useAllStudentProfiles,
+  useClassGroups,
+  useClassStudents,
+  useClassContentCompletions,
+  useProfileFieldsForClass,
+  useProgressViewConfig,
+} from "@/hooks/swr";
 
 export type StudentProgressStatus =
   | "complete"
@@ -75,93 +75,109 @@ export function useClassStudentsData({
   classData,
   isTeacher,
 }: UseClassStudentsDataProps): UseClassStudentsDataReturn {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [students, setStudents] = useState<StudentWithInfo[]>([]);
-  const [groups, setGroups] = useState<ClassGroup[]>([]);
-  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
-  const [studentProfilesMap, setStudentProfilesMap] = useState<
-    Map<string, Record<string, string>>
-  >(new Map());
-  const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(new Set());
-  const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(new Set());
+  const classDbId = isTeacher ? classData.id : null;
 
-  const [progressData, setProgressData] = useState<
-    StudentContentCompletionWithDetails[]
-  >([]);
-  const [progressLoading, setProgressLoading] = useState(false);
-  const [progressLoaded, setProgressLoaded] = useState(false);
+  const studentsQuery = useClassStudents(classDbId);
+  const groupsQuery = useClassGroups(classDbId);
+  const profileFieldsQuery = useProfileFieldsForClass(classDbId);
+  const profilesQuery = useAllStudentProfiles(classDbId);
+  // Skip the fetch if the parent already passed a config (it's also stored on
+  // the Class row).
+  const skipProgressView = classData.progress_view_config != null;
+  const progressViewQuery = useProgressViewConfig(
+    skipProgressView ? null : classDbId
+  );
 
-  const fetchBaseData = useCallback(async () => {
-    if (!isTeacher) {
-      setLoading(false);
-      setStudents([]);
-      setGroups([]);
-      setProfileFields([]);
-      setStudentProfilesMap(new Map());
-      setDisplayFieldIds(new Set());
-      setFilterFieldIds(new Set());
-      return;
-    }
+  const [progressEnabled, setProgressEnabled] = useState(false);
+  const progressQuery = useClassContentCompletions(classDbId, progressEnabled);
 
-    setLoading(true);
-    setError(null);
-    try {
-      const [studentsData, groupsData, fields, profiles, savedConfig] =
-        await Promise.all([
-          getClassStudentsWithInfo(classData.id),
-          getClassGroups(classData.id),
-          getProfileFieldsForClass(classData.id),
-          getAllStudentProfiles(classData.id),
-          classData.progress_view_config != null
-            ? Promise.resolve(classData.progress_view_config)
-            : getProgressViewConfig(classData.id),
-        ]);
+  // Reset on-demand progress when the class changes. Using the
+  // "store information from previous render" pattern instead of an effect
+  // avoids cascading renders flagged by `react-hooks/set-state-in-effect`.
+  const [trackedClassId, setTrackedClassId] = useState(classData.id);
+  if (trackedClassId !== classData.id) {
+    setTrackedClassId(classData.id);
+    setProgressEnabled(false);
+  }
 
-      setStudents(studentsData);
-      setGroups(groupsData);
-      setProfileFields(fields);
+  const baseError =
+    studentsQuery.error ||
+    groupsQuery.error ||
+    profileFieldsQuery.error ||
+    profilesQuery.error ||
+    progressViewQuery.error;
 
-      const profilesMap = new Map<string, Record<string, string>>();
-      profiles.forEach((p) => {
-        profilesMap.set(p.student_id, p.field_responses);
-      });
-      setStudentProfilesMap(profilesMap);
+  const loading =
+    isTeacher &&
+    (studentsQuery.isLoading ||
+      groupsQuery.isLoading ||
+      profileFieldsQuery.isLoading ||
+      profilesQuery.isLoading ||
+      (!skipProgressView && progressViewQuery.isLoading));
 
-      setDisplayFieldIds(new Set(savedConfig?.display_fields ?? []));
-      setFilterFieldIds(new Set(savedConfig?.filter_fields ?? []));
-    } catch (err) {
-      console.error("Error fetching students:", err);
-      setError("Failed to load students.");
-    } finally {
-      setLoading(false);
-    }
-  }, [classData.id, classData.progress_view_config, isTeacher]);
+  const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+  const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const profileFields = useMemo(
+    () => profileFieldsQuery.data ?? [],
+    [profileFieldsQuery.data]
+  );
+
+  const studentProfilesMap = useMemo(() => {
+    const map = new Map<string, Record<string, string>>();
+    (profilesQuery.data ?? []).forEach((p) => {
+      map.set(p.student_id, p.field_responses);
+    });
+    return map;
+  }, [profilesQuery.data]);
+
+  const savedConfig = skipProgressView
+    ? classData.progress_view_config ?? null
+    : progressViewQuery.data ?? null;
+
+  const displayFieldIds = useMemo(
+    () => new Set(savedConfig?.display_fields ?? []),
+    [savedConfig]
+  );
+  const filterFieldIds = useMemo(
+    () => new Set(savedConfig?.filter_fields ?? []),
+    [savedConfig]
+  );
+
+  const progressData = useMemo(
+    () => progressQuery.data ?? [],
+    [progressQuery.data]
+  );
+  const progressLoaded = progressEnabled && progressQuery.data !== undefined;
+  const progressLoading = progressEnabled && progressQuery.isLoading;
+
+  const refreshBase = useCallback(async () => {
+    if (!isTeacher) return;
+    await Promise.all([
+      studentsQuery.mutate(),
+      groupsQuery.mutate(),
+      profileFieldsQuery.mutate(),
+      profilesQuery.mutate(),
+      skipProgressView ? Promise.resolve() : progressViewQuery.mutate(),
+      progressEnabled ? progressQuery.mutate() : Promise.resolve(),
+    ]);
+  }, [
+    isTeacher,
+    studentsQuery,
+    groupsQuery,
+    profileFieldsQuery,
+    profilesQuery,
+    progressViewQuery,
+    progressQuery,
+    progressEnabled,
+    skipProgressView,
+  ]);
 
   const ensureProgressDataLoaded = useCallback(async () => {
-    if (!isTeacher || progressLoaded || progressLoading) return;
-
-    setProgressLoading(true);
-    try {
-      const completions = await getClassContentCompletions(classData.id);
-      setProgressData(completions);
-      setProgressLoaded(true);
-    } catch (err) {
-      console.error("Error fetching progress data:", err);
-    } finally {
-      setProgressLoading(false);
-    }
-  }, [classData.id, isTeacher, progressLoaded, progressLoading]);
-
-  useEffect(() => {
-    fetchBaseData();
-  }, [fetchBaseData]);
-
-  useEffect(() => {
-    setProgressData([]);
-    setProgressLoaded(false);
-    setProgressLoading(false);
-  }, [classData.id]);
+    if (!isTeacher) return;
+    setProgressEnabled(true);
+    // If already enabled and cached, the SWR call is a no-op revalidation.
+    await mutate(["classContentCompletions", classData.id]);
+  }, [classData.id, isTeacher]);
 
   const filterableFields = useMemo(() => {
     if (filterFieldIds.size === 0) return [];
@@ -316,9 +332,9 @@ export function useClassStudentsData({
   );
 
   return {
-    loading,
+    loading: !!loading,
     progressLoading,
-    error,
+    error: baseError ? "Failed to load students." : null,
     students,
     groups,
     profileFields,
@@ -329,7 +345,7 @@ export function useClassStudentsData({
     progressData,
     progressLoaded,
     progressStatsMap,
-    refreshBase: fetchBaseData,
+    refreshBase,
     ensureProgressDataLoaded,
     buildGroupAnalyticsBuckets,
     buildProfileAnalyticsBuckets,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,15 +11,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Survey } from "@/types/survey";
 import type { SurveyQuestion, LikertQuestion } from "@/types/survey";
-import { getClassStudentsWithInfo } from "@/lib/queries/students";
 import {
-  getSurveyResponsesWithStudents,
   deleteSurveyResponseForStudent,
   SurveyResponseWithStudent,
 } from "@/lib/queries/surveyResponses";
-import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import {
-  getTeacherUnlocksForContentItem,
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
@@ -31,6 +27,15 @@ import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
+import {
+  invalidateClassContentCompletionsCache,
+  invalidateSurveyResponsesCache,
+  invalidateTeacherUnlocksCache,
+  useClassStudents,
+  useContentItemByRefId,
+  useSurveyResponses,
+  useTeacherUnlocksForContentItem,
+} from "@/hooks/swr";
 
 interface SurveyResponsesTabProps {
   survey: Survey;
@@ -123,52 +128,45 @@ export default function SurveyResponsesTab({
   survey,
   classId: _classId,
 }: SurveyResponsesTabProps) {
-  const [students, setStudents] = useState<StudentWithInfo[]>([]);
-  const [responsesWithStudents, setResponsesWithStudents] = useState<
-    SurveyResponseWithStudent[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [contentItemId, setContentItemId] = useState<string | null>(null);
-  const [requireTeacherUnlock, setRequireTeacherUnlock] = useState(false);
-  const [unlockedStudentIds, setUnlockedStudentIds] = useState<Set<string>>(
-    new Set()
+  const studentsQuery = useClassStudents(survey.class_id);
+  const responsesQuery = useSurveyResponses({
+    surveyId: survey.id,
+    classDbId: survey.class_id,
+  });
+  const contentItemQuery = useContentItemByRefId(survey.id, "survey");
+
+  const contentItem = contentItemQuery.data ?? null;
+  const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;
+  const unlocksQuery = useTeacherUnlocksForContentItem(
+    requireTeacherUnlock ? contentItem?.id ?? null : null
   );
+
+  const students = useMemo<StudentWithInfo[]>(
+    () => studentsQuery.data ?? [],
+    [studentsQuery.data]
+  );
+  const responsesWithStudents = useMemo(
+    () => responsesQuery.data ?? [],
+    [responsesQuery.data]
+  );
+  const unlockedStudentIds = useMemo(
+    () => new Set((unlocksQuery.data ?? []).map((u) => u.student_id)),
+    [unlocksQuery.data]
+  );
+
+  const loading =
+    studentsQuery.isLoading ||
+    responsesQuery.isLoading ||
+    contentItemQuery.isLoading;
+  const error =
+    studentsQuery.error || responsesQuery.error || contentItemQuery.error
+      ? "Failed to load responses."
+      : null;
+
   const [viewResponse, setViewResponse] =
     useState<SurveyResponseWithStudent | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [resetting, setResetting] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [studentsData, responsesData, contentItem] = await Promise.all([
-        getClassStudentsWithInfo(survey.class_id),
-        getSurveyResponsesWithStudents(survey.id, survey.class_id),
-        getContentItemByRefId(survey.id, "survey"),
-      ]);
-
-      setStudents(studentsData);
-      setResponsesWithStudents(responsesData);
-      setContentItemId(contentItem?.id ?? null);
-      setRequireTeacherUnlock(contentItem?.require_teacher_unlock ?? false);
-
-      if (contentItem?.require_teacher_unlock && contentItem?.id) {
-        const unlocks = await getTeacherUnlocksForContentItem(contentItem.id);
-        setUnlockedStudentIds(new Set(unlocks.map((u) => u.student_id)));
-      }
-    } catch (err) {
-      console.error("Error fetching survey responses:", err);
-      setError("Failed to load responses.");
-    } finally {
-      setLoading(false);
-    }
-  }, [survey.id, survey.class_id]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   const responseByStudentId = useMemo(() => {
     const map = new Map<string, SurveyResponseWithStudent>();
@@ -188,22 +186,13 @@ export default function SurveyResponsesTab({
     studentId: string,
     currentlyUnlocked: boolean
   ) => {
-    if (!contentItemId) return;
+    if (!contentItem?.id) return;
     if (currentlyUnlocked) {
-      await lockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.delete(studentId);
-        return next;
-      });
+      await lockContentForStudent(contentItem.id, studentId);
     } else {
-      await unlockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.add(studentId);
-        return next;
-      });
+      await unlockContentForStudent(contentItem.id, studentId);
     }
+    await invalidateTeacherUnlocksCache();
   };
 
   const handleView = (item: SurveyRowItem) => {
@@ -226,13 +215,16 @@ export default function SurveyResponsesTab({
           surveyId: survey.id,
           studentId: item.student.student_id,
         });
-        if (contentItemId) {
+        if (contentItem?.id) {
           await deleteQuizCompletionForStudent({
-            contentItemId,
+            contentItemId: contentItem.id,
             studentId: item.student.student_id,
           });
         }
-        await fetchData();
+        await Promise.all([
+          invalidateSurveyResponsesCache(),
+          invalidateClassContentCompletionsCache(),
+        ]);
       } catch (err) {
         console.error("Error resetting survey response:", err);
         showErrorToast("Failed to reset response. Please try again.");
@@ -240,7 +232,7 @@ export default function SurveyResponsesTab({
         setResetting(null);
       }
     },
-    [survey.id, contentItemId, fetchData]
+    [survey.id, contentItem?.id]
   );
 
   const columns: SubmissionsTableColumn[] = useMemo(

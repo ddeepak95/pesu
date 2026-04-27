@@ -8,9 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SubmissionAttempt } from "@/types/submission";
-import { getTranscript } from "@/lib/queries/submissions";
-import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useTranscript } from "@/hooks/swr";
 
 interface TranscriptDialogProps {
   open: boolean;
@@ -27,28 +26,18 @@ export function TranscriptDialog({
   questionOrder,
   submissionId,
 }: TranscriptDialogProps) {
-  const [transcriptText, setTranscriptText] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (open && submissionId && attempt && questionOrder !== null) {
-      queueMicrotask(() => {
-        setLoading(true);
-        setTranscriptText(null);
-      });
-      getTranscript(submissionId, questionOrder, attempt.attempt_number)
-        .then((text) => setTranscriptText(text))
-        .catch((err) => {
-          console.error("Error loading transcript:", err);
-          setTranscriptText(null);
-        })
-        .finally(() => setLoading(false));
-    }
-  }, [open, submissionId, attempt, questionOrder]);
+  const transcriptQuery = useTranscript({
+    submissionId: open ? submissionId ?? null : null,
+    questionOrder: open ? questionOrder : null,
+    attemptNumber: open && attempt ? attempt.attempt_number : null,
+  });
 
   if (!attempt || questionOrder === null) {
     return null;
   }
+
+  const loading = transcriptQuery.isLoading;
+  const transcriptText = transcriptQuery.data ?? null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

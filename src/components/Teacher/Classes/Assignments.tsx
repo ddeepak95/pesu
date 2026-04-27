@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { mutate } from "swr";
 import { Class } from "@/types/class";
 import { Assignment } from "@/types/assignment";
 import { Button } from "@/components/ui/button";
@@ -9,11 +10,9 @@ import List from "@/components/ui/List";
 import AssignmentCard from "@/components/Teacher/Assignments/AssignmentCard";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  getAssignmentsByClassForTeacher,
-  deleteAssignment,
-} from "@/lib/queries/assignments";
+import { deleteAssignment } from "@/lib/queries/assignments";
 import { showErrorToast } from "@/lib/toast";
+import { useAssignmentsByClassForTeacher } from "@/hooks/swr";
 
 interface AssignmentsProps {
   classData: Class;
@@ -22,36 +21,18 @@ interface AssignmentsProps {
 export default function Assignments({ classData }: AssignmentsProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
-  const fetchAssignments = useCallback(async () => {
-    if (!classData.id) {
-      console.log("No class ID available");
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await getAssignmentsByClassForTeacher(classData.id);
-      setAssignments(data);
-    } catch (err) {
-      console.error("Error fetching assignments:", err);
-      setError("Failed to load assignments. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [classData.id]);
-
-  useEffect(() => {
-    fetchAssignments();
-  }, [fetchAssignments]);
+  const assignmentsQuery = useAssignmentsByClassForTeacher(classData.id ?? null);
+  const assignments = useMemo(
+    () => assignmentsQuery.data ?? [],
+    [assignmentsQuery.data]
+  );
+  const loading = assignmentsQuery.isLoading;
+  const error = assignmentsQuery.error
+    ? "Failed to load assignments. Please try again."
+    : null;
 
   const handleDelete = async (assignmentId: string) => {
     if (!user) return;
@@ -64,8 +45,7 @@ export default function Assignments({ classData }: AssignmentsProps) {
 
     try {
       await deleteAssignment(assignmentId, classData.id);
-      // Refresh the list after deletion
-      await fetchAssignments();
+      await mutate(["assignmentsByClassTeacher", classData.id]);
     } catch (err) {
       console.error("Error deleting assignment:", err);
       showErrorToast("Failed to delete assignment. Please try again.");

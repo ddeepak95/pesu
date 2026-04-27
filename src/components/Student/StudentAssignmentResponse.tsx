@@ -1,18 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createSubmission } from "@/lib/queries/submissions";
 import {
-  createSubmission,
-  getSubmissionById,
-  getSubmissionForSessionRestore,
-  getSubmissionByStudentAndAssignment,
-  getTranscriptsForSubmission,
-} from "@/lib/queries/submissions";
+  fetchSubmissionByIdTracked,
+  fetchSubmissionByStudentAndAssignmentTracked,
+  fetchSubmissionFilesTracked,
+  fetchSubmissionForSessionRestoreTracked,
+  fetchTranscriptsForSubmissionTracked,
+} from "@/lib/swr/imperativeReads";
 import { Assignment } from "@/types/assignment";
 import { Submission, SubmissionFile } from "@/types/submission";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import { IntegrityAccessRevokedScreen } from "@/components/Shared/Integrity/IntegrityAccessRevokedScreen";
-import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import {
   saveSession,
   loadSession,
@@ -103,7 +103,7 @@ export default function StudentAssignmentResponse({
 
   useEffect(() => {
     if (!submissionId || !fileUploadRequired) return;
-    getSubmissionFiles(submissionId).then((files) => {
+    fetchSubmissionFilesTracked(submissionId).then((files) => {
       setUploadedFiles(files);
     });
   }, [submissionId, fileUploadRequired]);
@@ -122,10 +122,11 @@ export default function StudentAssignmentResponse({
       const localSession = loadSession(assignmentId);
 
       // ALWAYS try to get existing submission by student and assignment first
-      const existingSubmission = await getSubmissionByStudentAndAssignment(
-        user.id,
-        assignmentData.assignment_id
-      );
+      const existingSubmission =
+        await fetchSubmissionByStudentAndAssignmentTracked(
+          user.id,
+          assignmentData.assignment_id
+        );
 
       // Prefer existing submission from database, then URL parameter, then localStorage
       const sessionSubmissionId =
@@ -134,7 +135,9 @@ export default function StudentAssignmentResponse({
         localSession?.submissionId;
 
       if (sessionSubmissionId) {
-        const submission = await getSubmissionForSessionRestore(sessionSubmissionId);
+        const submission = await fetchSubmissionForSessionRestoreTracked(
+          sessionSubmissionId
+        );
 
         if (
           !submission ||
@@ -163,7 +166,9 @@ export default function StudentAssignmentResponse({
 
         // Reconstruct answers from transcripts table
         const reconstructedAnswers: { [key: number]: string } = {};
-        const transcripts = await getTranscriptsForSubmission(submission.submission_id);
+        const transcripts = await fetchTranscriptsForSubmissionTracked(
+          submission.submission_id
+        );
 
         for (const t of transcripts) {
           if (!reconstructedAnswers[t.question_order] || t.attempt_number > 0) {
@@ -214,13 +219,15 @@ export default function StudentAssignmentResponse({
     if (!user?.id || !assignmentData) return;
 
     // Check if existing submission exists (shouldn't happen, but double-check)
-    const existing = await getSubmissionByStudentAndAssignment(
+    const existing = await fetchSubmissionByStudentAndAssignmentTracked(
       user.id,
       assignmentData.assignment_id
     );
 
     if (existing) {
-      const submission = await getSubmissionForSessionRestore(existing.submission_id);
+      const submission = await fetchSubmissionForSessionRestoreTracked(
+        existing.submission_id
+      );
       if (submission) {
         await restoreSubmission(submission);
         return;
@@ -281,7 +288,9 @@ export default function StudentAssignmentResponse({
 
     // Reconstruct answers from transcripts table
     const reconstructedAnswers: { [key: number]: string } = {};
-    const transcripts = await getTranscriptsForSubmission(submission.submission_id);
+    const transcripts = await fetchTranscriptsForSubmissionTracked(
+      submission.submission_id
+    );
 
     // Build a map of question_order -> latest transcript text
     for (const t of transcripts) {
@@ -360,7 +369,7 @@ export default function StudentAssignmentResponse({
   }
 
   const handleIntegrityAccessRevoked = async () => {
-    const s = await getSubmissionById(submissionId);
+    const s = await fetchSubmissionByIdTracked(submissionId);
     if (s) applyIntegrityFromSubmission(s);
   };
 

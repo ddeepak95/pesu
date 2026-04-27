@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,21 +11,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Quiz } from "@/types/quiz";
 import type { MCQQuestion } from "@/types/quiz";
-import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import {
   deleteQuizCompletionForStudent,
   deleteQuizSubmissionForStudent,
-  getQuizSubmissionsByQuizWithStudents,
   QuizSubmissionStatus,
 } from "@/lib/queries/quizzes";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
-import { getProgressViewConfig } from "@/lib/queries/classes";
 import {
-  getProfileFieldsForClass,
-  getAllStudentProfiles,
-} from "@/lib/queries/profileFields";
-import {
-  getTeacherUnlocksForContentItem,
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
@@ -33,9 +25,18 @@ import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
-import { ProfileField } from "@/types/profileFields";
 import { Check, X } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
+import {
+  invalidateQuizSubmissionsCache,
+  invalidateTeacherUnlocksCache,
+  useAllStudentProfiles,
+  useContentItemByRefId,
+  useProfileFieldsForClass,
+  useProgressViewConfig,
+  useQuizSubmissionsForQuiz,
+  useTeacherUnlocksForContentItem,
+} from "@/hooks/swr";
 
 interface QuizSubmissionsTabProps {
   quiz: Quiz;
@@ -159,92 +160,67 @@ function QuizSubmissionViewDialog({
 }
 
 export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
-  const [submissions, setSubmissions] = useState<QuizSubmissionStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const submissionsQuery = useQuizSubmissionsForQuiz(quiz);
+  const contentItemQuery = useContentItemByRefId(quiz.id, "quiz");
+  const classDbId = quiz.class_id;
+
+  const profileFieldsQuery = useProfileFieldsForClass(classDbId);
+  const profilesQuery = useAllStudentProfiles(classDbId);
+  const progressViewQuery = useProgressViewConfig(classDbId);
+
+  const contentItem = contentItemQuery.data ?? null;
+  const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;
+  const unlocksQuery = useTeacherUnlocksForContentItem(
+    requireTeacherUnlock ? contentItem?.id ?? null : null
+  );
+
+  const submissions = useMemo(
+    () => submissionsQuery.data ?? [],
+    [submissionsQuery.data]
+  );
+  const profileFields = useMemo(
+    () => profileFieldsQuery.data ?? [],
+    [profileFieldsQuery.data]
+  );
+  const studentProfilesMap = useMemo(() => {
+    const map = new Map<string, Record<string, string>>();
+    (profilesQuery.data ?? []).forEach((p) =>
+      map.set(p.student_id, p.field_responses)
+    );
+    return map;
+  }, [profilesQuery.data]);
+  const displayFieldIds = useMemo(
+    () => new Set(progressViewQuery.data?.display_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const filterFieldIds = useMemo(
+    () => new Set(progressViewQuery.data?.filter_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const unlockedStudentIds = useMemo(
+    () => new Set((unlocksQuery.data ?? []).map((u) => u.student_id)),
+    [unlocksQuery.data]
+  );
+
+  const loading =
+    submissionsQuery.isLoading ||
+    contentItemQuery.isLoading ||
+    profileFieldsQuery.isLoading ||
+    profilesQuery.isLoading ||
+    progressViewQuery.isLoading;
+  const error =
+    submissionsQuery.error ||
+    contentItemQuery.error ||
+    profileFieldsQuery.error ||
+    profilesQuery.error ||
+    progressViewQuery.error
+      ? "Failed to load submissions."
+      : null;
+
   const [resetting, setResetting] = useState<string | null>(null);
-  const [contentItemId, setContentItemId] = useState<string | null>(null);
   const [viewSubmission, setViewSubmission] =
     useState<QuizSubmissionStatus | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-
-  // Profile + config state
-  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
-  const [studentProfilesMap, setStudentProfilesMap] = useState<
-    Map<string, Record<string, string>>
-  >(new Map());
-  const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(
-    new Set()
-  );
-  const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(
-    new Set()
-  );
-
-  // Teacher unlock state
-  const [requireTeacherUnlock, setRequireTeacherUnlock] = useState(false);
-  const [unlockedStudentIds, setUnlockedStudentIds] = useState<Set<string>>(
-    new Set()
-  );
-
-  const fetchSubmissions = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [rows, contentItem] = await Promise.all([
-        getQuizSubmissionsByQuizWithStudents(quiz),
-        getContentItemByRefId(quiz.id, "quiz"),
-      ]);
-      setSubmissions(rows);
-      setContentItemId(contentItem?.id ?? null);
-
-      // Fetch profile and teacher unlock data if we have a content item
-      if (contentItem) {
-        setRequireTeacherUnlock(
-          contentItem.require_teacher_unlock ?? false
-        );
-
-        // quiz.class_id is the database UUID (classes.id)
-        const classDbId = quiz.class_id;
-        const [fields, profiles, savedConfig] = await Promise.all([
-          getProfileFieldsForClass(classDbId),
-          getAllStudentProfiles(classDbId),
-          getProgressViewConfig(classDbId),
-        ]);
-
-        setProfileFields(fields);
-        const profilesMap = new Map<string, Record<string, string>>();
-        profiles.forEach((p) => {
-          profilesMap.set(p.student_id, p.field_responses);
-        });
-        setStudentProfilesMap(profilesMap);
-        setDisplayFieldIds(
-          new Set<string>(savedConfig?.display_fields ?? [])
-        );
-        setFilterFieldIds(
-          new Set<string>(savedConfig?.filter_fields ?? [])
-        );
-
-        if (contentItem.require_teacher_unlock) {
-          const unlocks = await getTeacherUnlocksForContentItem(
-            contentItem.id
-          );
-          setUnlockedStudentIds(
-            new Set(unlocks.map((u) => u.student_id))
-          );
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching quiz submissions:", err);
-      setError("Failed to load submissions.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSubmissions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quiz.id]);
 
   const handleReset = async (item: QuizSubmissionStatus) => {
     if (!item.submission) return;
@@ -259,13 +235,13 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
         quizId: quiz.id,
         studentId: item.student.student_id,
       });
-      if (contentItemId) {
+      if (contentItem?.id) {
         await deleteQuizCompletionForStudent({
-          contentItemId,
+          contentItemId: contentItem.id,
           studentId: item.student.student_id,
         });
       }
-      await fetchSubmissions();
+      await invalidateQuizSubmissionsCache();
     } catch (err) {
       console.error("Error resetting submission:", err);
       showErrorToast("Failed to reset submission. Please try again.");
@@ -280,28 +256,18 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
     setViewDialogOpen(true);
   };
 
-  // Handle unlock toggle
   const handleToggleUnlock = async (
     studentId: string,
     currentlyUnlocked: boolean
   ) => {
-    if (!contentItemId) return;
+    if (!contentItem?.id) return;
 
     if (currentlyUnlocked) {
-      await lockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.delete(studentId);
-        return next;
-      });
+      await lockContentForStudent(contentItem.id, studentId);
     } else {
-      await unlockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.add(studentId);
-        return next;
-      });
+      await unlockContentForStudent(contentItem.id, studentId);
     }
+    await invalidateTeacherUnlocksCache();
   };
 
   // Build columns

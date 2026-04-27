@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Class } from "@/types/class";
 import { ContentItem } from "@/types/contentItem";
@@ -20,8 +20,8 @@ import {
   useQuizzesByIdsForStudent,
   useSurveysByIdsForStudent,
   useCompletionsWithDatesForStudent,
+  useTeacherUnlocksForStudent,
 } from "@/hooks/swr";
-import { getTeacherUnlocksForStudent } from "@/lib/queries/teacherUnlocks";
 import { emitActivityEvent } from "@/lib/activity/emitter";
 import type { ComponentType } from "@/types/activity";
 
@@ -99,22 +99,17 @@ export default function Content({ classData }: ContentProps) {
     };
   }, [mutateCompletions]);
 
-  // Fetch teacher unlock IDs for items that require teacher unlock
-  const [teacherUnlockedIds, setTeacherUnlockedIds] = useState<Set<string>>(new Set());
   const itemsRequiringTeacherUnlock = useMemo(
     () => items.filter((i) => i.require_teacher_unlock).map((i) => i.id),
     [items]
   );
-
-  useEffect(() => {
-    if (itemsRequiringTeacherUnlock.length === 0) {
-      setTeacherUnlockedIds(new Set());
-      return;
-    }
-    getTeacherUnlocksForStudent(itemsRequiringTeacherUnlock).then(
-      (unlocked) => setTeacherUnlockedIds(unlocked)
-    );
-  }, [itemsRequiringTeacherUnlock]);
+  const { data: teacherUnlocksData } = useTeacherUnlocksForStudent(
+    itemsRequiringTeacherUnlock
+  );
+  const teacherUnlockedIds = useMemo(
+    () => teacherUnlocksData ?? new Set<string>(),
+    [teacherUnlocksData]
+  );
 
   // Build lookup maps
   const assignmentById = useMemo(() => {

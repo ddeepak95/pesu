@@ -16,18 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { createSubmission } from "@/lib/queries/submissions";
 import {
-  createSubmission,
-  getSubmissionById,
-  getSubmissionForSessionRestore,
-  getTranscriptsForSubmission,
-} from "@/lib/queries/submissions";
+  fetchSubmissionByIdTracked,
+  fetchSubmissionFilesTracked,
+  fetchSubmissionForSessionRestoreTracked,
+  fetchTranscriptsForSubmissionTracked,
+} from "@/lib/swr/imperativeReads";
 import { Assignment } from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import ResponderDetailsForm from "./ResponderDetailsForm";
-import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import {
   saveSession,
   loadSession,
@@ -164,7 +164,8 @@ const PublicAssignmentResponse = forwardRef<
         return;
       }
 
-      const submission = await getSubmissionForSessionRestore(sessionSubmissionId);
+      const submission =
+        await fetchSubmissionForSessionRestoreTracked(sessionSubmissionId);
 
       if (!submission || submission.assignment_id !== assignmentId) {
         console.warn("Invalid submission ID, clearing session");
@@ -203,7 +204,9 @@ const PublicAssignmentResponse = forwardRef<
 
       // Reconstruct answers from transcripts table
       const reconstructedAnswers: { [key: number]: string } = {};
-      const transcripts = await getTranscriptsForSubmission(submission.submission_id);
+      const transcripts = await fetchTranscriptsForSubmissionTracked(
+        submission.submission_id
+      );
 
       // Build a map of question_order -> latest transcript text
       for (const t of transcripts) {
@@ -230,7 +233,9 @@ const PublicAssignmentResponse = forwardRef<
       setCurrentQuestionIndex(questionIndex);
 
       if (fileUploadRequired) {
-        const files = await getSubmissionFiles(submission.submission_id);
+        const files = await fetchSubmissionFilesTracked(
+          submission.submission_id
+        );
         setUploadedFiles(files);
       }
       setPhase("answering");
@@ -355,7 +360,7 @@ const PublicAssignmentResponse = forwardRef<
 
   const handleIntegrityAccessRevoked = async () => {
     if (!submissionId) return;
-    const s = await getSubmissionById(submissionId);
+    const s = await fetchSubmissionByIdTracked(submissionId);
     if (s) applyIntegrityFromSubmission(s);
   };
 

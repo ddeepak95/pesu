@@ -1,0 +1,43 @@
+﻿
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Public\PublicAssignmentResponse.tsx
+  21:3   warning  'getSubmissionById' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there               no-restricted-imports
+  22:3   warning  'getSubmissionForSessionRestore' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+  23:3   warning  'getTranscriptsForSubmission' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there     no-restricted-imports
+  30:10  warning  'getSubmissionFiles' import from '@/lib/queries/submissionFiles' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there          no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Shared\AssessmentShell.tsx
+  6:10  warning  'getQuestionAttempts' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Shared\AssignmentResponseCore.tsx
+  13:10  warning  'getQuestionsWithAttempts' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+  15:10  warning  'isContentComplete' import from '@/lib/queries/contentCompletions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Shared\FileUploadZone.tsx
+  12:3  warning  'getSubmissionFiles' import from '@/lib/queries/submissionFiles' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+  13:3  warning  'getFileDownloadUrl' import from '@/lib/queries/submissionFiles' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Student\Classes\Content.tsx
+  24:10  warning  'getTeacherUnlocksForStudent' import from '@/lib/queries/teacherUnlocks' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Student\NotificationBell.tsx
+  14:3  warning  'getStudentNotifications' import from '@/lib/queries/notifications' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Student\StudentAssignmentResponse.tsx
+   6:3   warning  'getSubmissionById' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there                    no-restricted-imports
+   7:3   warning  'getSubmissionForSessionRestore' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there       no-restricted-imports
+   8:3   warning  'getSubmissionByStudentAndAssignment' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+   9:3   warning  'getTranscriptsForSubmission' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there          no-restricted-imports
+  15:10  warning  'getSubmissionFiles' import from '@/lib/queries/submissionFiles' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there               no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Teacher\Assignments\FeedbackApprovalEditor.tsx
+  9:10  warning  'getTranscript' import from '@/lib/queries/submissions' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Teacher\Assignments\SubmissionViewDialog.tsx
+  21:10  warning  'getFileDownloadUrl' import from '@/lib/queries/submissionFiles' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+
+D:\Projects\PhD\asr\asr-frontend\concept-asr\src\components\Teacher\Classes\DuplicateContentDialog.tsx
+  24:10  warning  'getClassesByUser' import from '@/lib/queries/classes' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there  no-restricted-imports
+  25:22  warning  'getClassGroups' import from '@/lib/queries/groups' is restricted from being used by a pattern. Read Supabase data via an SWR hook in `src/hooks/swr/**`, not directly from `@/lib/queries`. If the hook does not exist, add one there     no-restricted-imports
+
+Γ£û 20 problems (0 errors, 20 warnings)
+

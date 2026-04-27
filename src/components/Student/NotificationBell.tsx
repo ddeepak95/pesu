@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/popover";
 import {
   StudentNotification,
-  getStudentNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
 } from "@/lib/queries/notifications";
+import { useStudentNotifications } from "@/hooks/swr";
 
 interface NotificationBellProps {
   studentId: string;
@@ -34,35 +34,41 @@ function timeAgo(isoString: string): string {
 export function NotificationBell({ studentId }: NotificationBellProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<StudentNotification[]>([]);
 
+  const notificationsQuery = useStudentNotifications(studentId);
+  const notifications = notificationsQuery.data ?? [];
   const unreadCount = notifications.filter((n) => !n.read_at).length;
-
-  useEffect(() => {
-    getStudentNotifications(studentId).then(setNotifications);
-  }, [studentId]);
 
   const handleClick = async (notification: StudentNotification) => {
     setOpen(false);
     if (!notification.read_at) {
-      // Optimistic update
-      setNotifications((prev) =>
-        prev.map((n) =>
-          n.id === notification.id
-            ? { ...n, read_at: new Date().toISOString() }
-            : n
-        )
+      // Optimistic update via SWR cache.
+      notificationsQuery.mutate(
+        (current) =>
+          (current ?? []).map((n) =>
+            n.id === notification.id
+              ? { ...n, read_at: new Date().toISOString() }
+              : n
+          ),
+        false
       );
       await markNotificationAsRead(notification.id);
+      notificationsQuery.mutate();
     }
     router.push(notification.data.nav_path);
   };
 
   const handleMarkAllRead = async () => {
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() }))
+    notificationsQuery.mutate(
+      (current) =>
+        (current ?? []).map((n) => ({
+          ...n,
+          read_at: n.read_at ?? new Date().toISOString(),
+        })),
+      false
     );
     await markAllNotificationsAsRead(studentId);
+    notificationsQuery.mutate();
   };
 
   return (

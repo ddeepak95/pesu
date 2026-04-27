@@ -1,9 +1,21 @@
 import useSWR from "swr";
 import {
+  getLearningContentByShortIdForTeacher,
   getLearningContentsByIds,
   getLearningContentsByIdsForStudent,
 } from "@/lib/queries/learningContent";
 import { LearningContent } from "@/types/learningContent";
+
+/**
+ * Fetch a single learning content by its public short id (teacher view —
+ * includes drafts).
+ */
+export function useLearningContentByShortIdForTeacher(shortId: string | null) {
+  return useSWR<LearningContent | null>(
+    shortId ? ["learningContentByShortIdTeacher", shortId] : null,
+    () => getLearningContentByShortIdForTeacher(shortId!)
+  );
+}
 
 /**
  * Fetch learning contents by their database UUIDs (teacher view — active + draft)

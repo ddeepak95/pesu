@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { useAuth } from "@/contexts/AuthContext";
-import { getQuizByShortIdForTeacher, updateQuiz } from "@/lib/queries/quizzes";
+import { updateQuiz } from "@/lib/queries/quizzes";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import QuizForm from "@/components/Teacher/Quizzes/QuizForm";
-import { Quiz } from "@/types/quiz";
 import { showSuccessToast } from "@/lib/toast";
+import { useQuizByShortIdForTeacher } from "@/hooks/swr";
 
 export default function EditQuizPage() {
   const params = useParams();
@@ -20,38 +19,19 @@ export default function EditQuizPage() {
 
   const quizId = params.quizId as string;
 
-  const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getQuizByShortIdForTeacher(quizId);
-        if (!data) {
-          setError("Quiz not found");
-        } else {
-          setQuiz(data);
-        }
-      } catch (err) {
-        console.error("Error fetching quiz:", err);
-        setError("Failed to load quiz");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (quizId) fetch();
-  }, [quizId]);
+  const quizQuery = useQuizByShortIdForTeacher(quizId);
+  const quiz = quizQuery.data ?? null;
+  const loading = quizQuery.isLoading;
+  const error = quizQuery.error
+    ? "Failed to load quiz"
+    : !loading && !quiz
+      ? "Quiz not found"
+      : null;
 
   if (loading) {
     return (
       <PageLayout>
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading…</p>
-        </div>
+        <div />
       </PageLayout>
     );
   }
