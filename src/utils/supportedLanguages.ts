@@ -10,7 +10,7 @@ export const supportedLanguages = [
     {code:"de", name: "German"},
     {code:"hi", name: "Hindi"},
     {code:"kn", name: "Kannada"},
-    {code:"kr", name: "Korean"},
+    {code:"ko", name: "Korean"},
     {code:"ml", name: "Malayalam"},
     {code:"mr", name: "Marathi"},
     {code: "ru", name: "Russian"},
