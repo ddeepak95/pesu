@@ -291,6 +291,10 @@ function SurveyInner({
               </div>
             )}
 
+            {!isSubmitted && contentItemId && (
+              <div className="my-2 w-full border-t border-border/60" />
+            )}
+
             {contentItemId && (
               <NextItemButton
                 classDbId={classUuid}

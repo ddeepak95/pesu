@@ -1,12 +1,8 @@
 "use client";
 
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  SearchableSelect,
+} from "@/components/ui/searchable-select";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 interface AssessmentQuestionHeaderProps {
@@ -26,6 +22,11 @@ export function AssessmentQuestionHeader({
   languageDisabled = false,
   label = "Question",
 }: AssessmentQuestionHeaderProps) {
+  const languageOptions = supportedLanguages.map((lang) => ({
+    value: lang.code,
+    label: lang.name,
+  }));
+
   return (
     <div className="flex items-center justify-between">
       <p className="text-sm text-muted-foreground">
@@ -35,22 +36,14 @@ export function AssessmentQuestionHeader({
       {onLanguageChange && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Language:</span>
-          <Select
+          <SearchableSelect
             value={language}
             onValueChange={onLanguageChange}
+            options={languageOptions}
+            placeholder="Select language..."
             disabled={languageDisabled}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {supportedLanguages.map((lang) => (
-                <SelectItem key={lang.code} value={lang.code}>
-                  {lang.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="w-[180px]"
+          />
         </div>
       )}
     </div>

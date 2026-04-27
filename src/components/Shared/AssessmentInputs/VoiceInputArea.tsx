@@ -98,7 +98,7 @@ function VoiceInputContent({
     clearTranscript();
     attemptStartedLoggedRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [question.order, submissionId]);
+  }, [assignmentId, question.order, submissionId]);
 
   // Disconnect when question changes
   React.useEffect(() => {
@@ -213,6 +213,8 @@ function VoiceInputContent({
     logEvent("bot_connect_initiated");
   };
 
+  const showLiveTranscript = isConnected && Boolean(transcript.trim());
+
   return (
     <div className="relative">
       <AgentStatus className="py-2" />
@@ -244,7 +246,7 @@ function VoiceInputContent({
         <VoiceVisualizer participantType="bot" barColor="currentColor" />
       </div>
 
-      {transcript && (
+      {showLiveTranscript && (
         <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
           <div className="text-sm whitespace-pre-wrap">{transcript}</div>
         </div>

@@ -20,7 +20,7 @@ import {
 export interface SearchableSelectProps {
   value: string
   onValueChange: (value: string) => void
-  options: string[]
+  options: string[] | { value: string; label: string }[]
   placeholder?: string
   disabled?: boolean
   id?: string
@@ -38,6 +38,11 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
   const listboxId = React.useId()
+  const normalizedOptions = options.map((option) =>
+    typeof option === "string" ? { value: option, label: option } : option
+  )
+  const selectedLabel =
+    normalizedOptions.find((option) => option.value === value)?.label ?? ""
 
   const handleSelect = (selected: string) => {
     onValueChange(selected)
@@ -62,7 +67,7 @@ export function SearchableSelect({
           )}
         >
           <span className="line-clamp-1 truncate">
-            {value || placeholder}
+            {selectedLabel || placeholder}
           </span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </button>
@@ -75,13 +80,13 @@ export function SearchableSelect({
           <CommandInput placeholder="Search..." className="h-9" />
           <CommandList id={listboxId}>
             <CommandEmpty>No option found.</CommandEmpty>
-            {options.map((option) => (
+            {normalizedOptions.map((option) => (
               <CommandItem
-                key={option}
-                value={option}
-                onSelect={() => handleSelect(option)}
+                key={option.value}
+                value={option.label}
+                onSelect={() => handleSelect(option.value)}
               >
-                {option}
+                {option.label}
               </CommandItem>
             ))}
           </CommandList>

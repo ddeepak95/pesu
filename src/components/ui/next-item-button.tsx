@@ -35,7 +35,7 @@ export default function NextItemButton({
     <div className={cn("flex justify-center pt-2", className)}>
       <Button
         type="button"
-        variant="default"
+        variant="outline"
         size="lg"
         className="gap-2"
         onClick={() => {
