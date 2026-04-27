@@ -255,7 +255,7 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
       case "starting":
         return {
           text: startingTimerElapsed
-            ? "Konvo is preparing for the activity. This might take up to 3 minutes. You can think of the answer or play the game below in the meanwhile."
+            ? "Konvo is preparing for the activity. This might take up to 3 minutes. You can think of the answer in the meanwhile."
             : "Please wait while Konvo is starting up. Respond only after Konvo is ready and talking.",
           color: "text-yellow-600",
         };

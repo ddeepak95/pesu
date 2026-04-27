@@ -216,7 +216,7 @@ function VoiceInputContent({
   const showLiveTranscript = isConnected && Boolean(transcript.trim());
 
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <AgentStatus className="py-2" />
       <div className="flex flex-col items-center gap-2">
         <VoiceConnectButton
@@ -247,7 +247,7 @@ function VoiceInputContent({
       </div>
 
       {showLiveTranscript && (
-        <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
+        <div className="mt-4 w-full min-w-0 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
           <div className="text-sm whitespace-pre-wrap">{transcript}</div>
         </div>
       )}
