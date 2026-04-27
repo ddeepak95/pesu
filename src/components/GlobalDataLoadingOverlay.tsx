@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import ConvoedSymbolLoader from "@/components/ConvoedSymbolLoader";
 import { useIsBusy } from "@/lib/swr/busyStore";
 
 /**
@@ -21,7 +21,7 @@ export default function GlobalDataLoadingOverlay() {
       aria-label="Loading"
       className="fixed inset-0 z-[100] flex items-center justify-center bg-background/60 backdrop-blur-sm"
     >
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <ConvoedSymbolLoader />
     </div>
   );
 }
