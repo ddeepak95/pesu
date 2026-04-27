@@ -17,9 +17,11 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { VoiceInputArea } from "@/components/Shared/AssessmentInputs/VoiceInputArea";
 import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputArea";
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext";
+import { supportedLanguages } from "@/utils/supportedLanguages";
 
 export interface AssessmentShellProps {
   assessmentMode: "voice" | "text_chat" | "static_text";
@@ -334,15 +336,31 @@ export function AssessmentShell({
     [logEvent]
   );
 
+  const languageOptions = React.useMemo(
+    () =>
+      supportedLanguages.map((lang) => ({
+        value: lang.code,
+        label: lang.name,
+      })),
+    [],
+  );
+
+  const showInCardLanguageSelector =
+    Boolean(onLanguageChange) &&
+    (assessmentMode === "voice" || assessmentMode === "text_chat");
+  const handleLanguageValueChange = React.useCallback(
+    (nextLanguage: string) => {
+      onLanguageChange?.(nextLanguage);
+    },
+    [onLanguageChange],
+  );
+
   return (
     <AssessmentTrackingProvider value={trackingContextValue}>
       <div className="space-y-2 w-full">
         <AssessmentQuestionHeader
           questionNumber={headerQuestionNumber ?? questionNumber}
           totalQuestions={headerTotalQuestions ?? totalQuestions}
-          language={language}
-          onLanguageChange={onLanguageChange}
-          languageDisabled={languageDisabled || isEvaluating}
           label={headerLabel}
         />
 
@@ -384,6 +402,19 @@ export function AssessmentShell({
             />
           ) : (
             <>
+              {showInCardLanguageSelector && (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-sm text-muted-foreground">Language:</span>
+                  <SearchableSelect
+                    value={language}
+                    onValueChange={handleLanguageValueChange}
+                    options={languageOptions}
+                    placeholder="Select language..."
+                    disabled={languageDisabled || isEvaluating}
+                    className="w-[180px]"
+                  />
+                </div>
+              )}
               {assessmentMode === "voice" && <VoiceInputArea {...inputProps} />}
               {assessmentMode === "text_chat" && <ChatInputArea {...inputProps} />}
               {assessmentMode === "static_text" && <StaticTextInputArea {...inputProps} />}
