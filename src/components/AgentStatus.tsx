@@ -282,7 +282,7 @@ export function AgentStatus({ className = "" }: AgentStatusProps) {
       case "disconnected":
       default:
         return {
-          text: "Konvo is disconnected",
+          text: "Click the below button to start the conversation. Wait for the bot to talk before you speak.",
           color: "text-gray-400",
         };
     }
