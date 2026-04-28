@@ -103,36 +103,37 @@ export function AgentStatus({
   useEffect(() => {
     if (!client) return;
 
-    const subscriptions: Array<[RTVIEvent | string, () => void]> = [
-      [RTVIEvent.BotReady, markBotReady],
-      ["botConnected", markBotReady],
-      [RTVIEvent.BotLlmStarted, startBotThinking],
-      [RTVIEvent.BotLlmStopped, stopBotThinking],
-      [RTVIEvent.BotStartedSpeaking, startBotSpeaking],
-      [RTVIEvent.BotStoppedSpeaking, stopBotSpeaking],
-      [RTVIEvent.BotTtsStarted, startBotSpeaking],
-      [RTVIEvent.BotTtsStopped, stopBotSpeaking],
-      [
-        RTVIEvent.BotTtsText,
-        () => {
-          setIsUserSpeaking(false);
-          setIsLLMProcessing(false);
-          setIsBotSpeaking(true);
-          scheduleSpeakingFallbackStop();
-        },
-      ],
-      [RTVIEvent.UserStartedSpeaking, startUserSpeaking],
-      [RTVIEvent.UserStoppedSpeaking, stopUserSpeaking],
-    ];
+    const handleBotTtsText = () => {
+      setIsUserSpeaking(false);
+      setIsLLMProcessing(false);
+      setIsBotSpeaking(true);
+      scheduleSpeakingFallbackStop();
+    };
 
-    subscriptions.forEach(([eventName, handler]) => {
-      client.on(eventName, handler);
-    });
+    client.on(RTVIEvent.BotReady, markBotReady);
+    client.on("botConnected", markBotReady);
+    client.on(RTVIEvent.BotLlmStarted, startBotThinking);
+    client.on(RTVIEvent.BotLlmStopped, stopBotThinking);
+    client.on(RTVIEvent.BotStartedSpeaking, startBotSpeaking);
+    client.on(RTVIEvent.BotStoppedSpeaking, stopBotSpeaking);
+    client.on(RTVIEvent.BotTtsStarted, startBotSpeaking);
+    client.on(RTVIEvent.BotTtsStopped, stopBotSpeaking);
+    client.on(RTVIEvent.BotTtsText, handleBotTtsText);
+    client.on(RTVIEvent.UserStartedSpeaking, startUserSpeaking);
+    client.on(RTVIEvent.UserStoppedSpeaking, stopUserSpeaking);
 
     return () => {
-      subscriptions.forEach(([eventName, handler]) => {
-        client.off(eventName, handler);
-      });
+      client.off(RTVIEvent.BotReady, markBotReady);
+      client.off("botConnected", markBotReady);
+      client.off(RTVIEvent.BotLlmStarted, startBotThinking);
+      client.off(RTVIEvent.BotLlmStopped, stopBotThinking);
+      client.off(RTVIEvent.BotStartedSpeaking, startBotSpeaking);
+      client.off(RTVIEvent.BotStoppedSpeaking, stopBotSpeaking);
+      client.off(RTVIEvent.BotTtsStarted, startBotSpeaking);
+      client.off(RTVIEvent.BotTtsStopped, stopBotSpeaking);
+      client.off(RTVIEvent.BotTtsText, handleBotTtsText);
+      client.off(RTVIEvent.UserStartedSpeaking, startUserSpeaking);
+      client.off(RTVIEvent.UserStoppedSpeaking, stopUserSpeaking);
     };
   }, [
     client,
