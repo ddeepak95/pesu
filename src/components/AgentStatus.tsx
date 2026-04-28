@@ -1,8 +1,18 @@
 "use client";
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
+import { RTVIEvent } from "@pipecat-ai/client-js";
 import { usePipecatEventStream } from "@pipecat-ai/voice-ui-kit";
-import { usePipecatClientTransportState } from "@pipecat-ai/client-react";
+import {
+  usePipecatClient,
+  usePipecatClientTransportState,
+} from "@pipecat-ai/client-react";
 
 type AgentState =
   | "starting"
@@ -31,108 +41,221 @@ export function AgentStatus({
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isBotReady, setIsBotReady] = useState(false);
   const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const processedEventCountRef = useRef(0);
 
+  const client = usePipecatClient();
   const transportState = usePipecatClientTransportState();
   const { events } = usePipecatEventStream({
     maxEvents: 100,
     groupConsecutive: false,
   });
 
+  const clearSpeakingTimeout = useCallback(() => {
+    if (speakingTimeoutRef.current) {
+      clearTimeout(speakingTimeoutRef.current);
+      speakingTimeoutRef.current = null;
+    }
+  }, []);
+
+  const startBotSpeaking = useCallback(() => {
+    clearSpeakingTimeout();
+    setIsUserSpeaking(false);
+    setIsLLMProcessing(false);
+    setIsBotSpeaking(true);
+  }, [clearSpeakingTimeout]);
+
+  const stopBotSpeaking = useCallback(() => {
+    clearSpeakingTimeout();
+    setIsBotSpeaking(false);
+  }, [clearSpeakingTimeout]);
+
+  const scheduleSpeakingFallbackStop = useCallback(() => {
+    clearSpeakingTimeout();
+    speakingTimeoutRef.current = setTimeout(() => {
+      setIsBotSpeaking(false);
+      speakingTimeoutRef.current = null;
+    }, 1000);
+  }, [clearSpeakingTimeout]);
+
+  const startBotThinking = useCallback(() => {
+    clearSpeakingTimeout();
+    setIsUserSpeaking(false);
+    setIsBotSpeaking(false);
+    setIsLLMProcessing(true);
+  }, [clearSpeakingTimeout]);
+
+  const stopBotThinking = useCallback(() => {
+    setIsLLMProcessing(false);
+  }, []);
+
+  const startUserSpeaking = useCallback(() => {
+    setIsUserSpeaking(true);
+  }, []);
+
+  const stopUserSpeaking = useCallback(() => {
+    setIsUserSpeaking(false);
+  }, []);
+
+  const markBotReady = useCallback(() => {
+    setIsBotReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!client) return;
+
+    const subscriptions: Array<[RTVIEvent | string, () => void]> = [
+      [RTVIEvent.BotReady, markBotReady],
+      ["botConnected", markBotReady],
+      [RTVIEvent.BotLlmStarted, startBotThinking],
+      [RTVIEvent.BotLlmStopped, stopBotThinking],
+      [RTVIEvent.BotStartedSpeaking, startBotSpeaking],
+      [RTVIEvent.BotStoppedSpeaking, stopBotSpeaking],
+      [RTVIEvent.BotTtsStarted, startBotSpeaking],
+      [RTVIEvent.BotTtsStopped, stopBotSpeaking],
+      [
+        RTVIEvent.BotTtsText,
+        () => {
+          setIsUserSpeaking(false);
+          setIsLLMProcessing(false);
+          setIsBotSpeaking(true);
+          scheduleSpeakingFallbackStop();
+        },
+      ],
+      [RTVIEvent.UserStartedSpeaking, startUserSpeaking],
+      [RTVIEvent.UserStoppedSpeaking, stopUserSpeaking],
+    ];
+
+    subscriptions.forEach(([eventName, handler]) => {
+      client.on(eventName, handler);
+    });
+
+    return () => {
+      subscriptions.forEach(([eventName, handler]) => {
+        client.off(eventName, handler);
+      });
+    };
+  }, [
+    client,
+    markBotReady,
+    scheduleSpeakingFallbackStop,
+    startBotSpeaking,
+    startBotThinking,
+    startUserSpeaking,
+    stopBotSpeaking,
+    stopBotThinking,
+    stopUserSpeaking,
+  ]);
+
   // Process RTVI events to track agent state
   // Note: setState calls here are in response to external event stream, not derived from React state
   useEffect(() => {
-    if (events.length === 0) return;
+    if (events.length === 0) {
+      processedEventCountRef.current = 0;
+      return;
+    }
 
-    // Get the most recent event
-    const latestEvent = events[events.length - 1];
+    if (processedEventCountRef.current > events.length) {
+      processedEventCountRef.current = 0;
+    }
+
+    const newEvents = events.slice(processedEventCountRef.current);
+    processedEventCountRef.current = events.length;
+    if (newEvents.length === 0) return;
 
     // Using queueMicrotask to defer state updates and avoid cascading render warnings
     const handleEvent = () => {
-      switch (latestEvent.type) {
-        // Bot ready events (camelCase format)
-        case "botReady":
-        case "bot-ready":
-        case "botConnected":
-          setIsBotReady(true);
-          break;
+      for (const event of newEvents) {
+        switch (event.type) {
+          // Bot ready events (camelCase format)
+          case "botReady":
+          case "bot-ready":
+          case "botConnected":
+            markBotReady();
+            break;
 
-        // LLM processing events
-        case "botLlmStarted":
-        case "bot-llm-started":
-          setIsLLMProcessing(true);
-          break;
+          // LLM processing events
+          case "botLlmStarted":
+          case "bot-llm-started":
+            startBotThinking();
+            break;
 
-        case "botLlmStopped":
-        case "bot-llm-stopped":
-          setIsLLMProcessing(false);
-          break;
+          case "botLlmStopped":
+          case "bot-llm-stopped":
+            stopBotThinking();
+            break;
 
-        // TTS processing events (not currently used, but kept for compatibility)
-        case "botTtsStarted":
-        case "bot-tts-started":
-          // TTS started - no action needed as we track botTtsText for speaking state
-          break;
+          // Bot speaking lifecycle
+          case "botStartedSpeaking":
+          case "bot-started-speaking":
+          case "botTtsStarted":
+          case "bot-tts-started":
+            startBotSpeaking();
+            break;
 
-        case "botTtsStopped":
-        case "bot-tts-stopped":
-          // TTS stopped - no action needed
-          break;
+          case "botStoppedSpeaking":
+          case "bot-stopped-speaking":
+          case "botTtsStopped":
+          case "bot-tts-stopped":
+            stopBotSpeaking();
+            break;
 
-        // Bot speaking (TTS output)
-        case "botTtsText":
-        case "bot-tts-text":
-          // Bot is actively speaking
-          setIsBotSpeaking(true);
+          // Bot speaking fallback for clients that only emit TTS text chunks.
+          case "botTtsText":
+          case "bot-tts-text":
+            setIsUserSpeaking(false);
+            setIsLLMProcessing(false);
+            setIsBotSpeaking(true);
+            scheduleSpeakingFallbackStop();
+            break;
 
-          // Clear any existing timeout
-          if (speakingTimeoutRef.current) {
-            clearTimeout(speakingTimeoutRef.current);
-          }
+          // User speaking events
+          case "userStartedSpeaking":
+          case "user-started-speaking":
+            startUserSpeaking();
+            break;
 
-          // Set a timeout to mark speaking as done if no more text comes
-          speakingTimeoutRef.current = setTimeout(() => {
-            setIsBotSpeaking(false);
-          }, 1000); // 1 second after last text chunk
-
-          break;
-
-        // User speaking events
-        case "userStartedSpeaking":
-        case "user-started-speaking":
-          setIsUserSpeaking(true);
-          break;
-
-        case "userStoppedSpeaking":
-        case "user-stopped-speaking":
-          setIsUserSpeaking(false);
-          break;
+          case "userStoppedSpeaking":
+          case "user-stopped-speaking":
+            stopUserSpeaking();
+            break;
+        }
       }
     };
 
     queueMicrotask(handleEvent);
-  }, [events]);
+  }, [
+    clearSpeakingTimeout,
+    events,
+    markBotReady,
+    scheduleSpeakingFallbackStop,
+    startBotSpeaking,
+    startBotThinking,
+    startUserSpeaking,
+    stopBotSpeaking,
+    stopBotThinking,
+    stopUserSpeaking,
+  ]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (speakingTimeoutRef.current) {
-        clearTimeout(speakingTimeoutRef.current);
-      }
+      clearSpeakingTimeout();
     };
-  }, []);
+  }, [clearSpeakingTimeout]);
 
   // Reset states when disconnected
   // Note: setState calls here are in response to transport state changes (external system)
   useEffect(() => {
     if (!["connected", "ready"].includes(transportState)) {
       queueMicrotask(() => {
+        clearSpeakingTimeout();
         setIsBotReady(false);
         setIsLLMProcessing(false);
         setIsBotSpeaking(false);
         setIsUserSpeaking(false);
       });
     }
-  }, [transportState]);
+  }, [clearSpeakingTimeout, transportState]);
 
   const agentState: AgentState = useMemo(() => {
     // Priority 1: Starting up (connecting or connected but bot not ready)
@@ -148,19 +271,19 @@ export function AgentStatus({
       return "disconnected";
     }
 
-    // Priority 2: User is speaking (listening)
-    if (isUserSpeaking) {
-      return "listening";
-    }
-
-    // Priority 3: Bot is speaking
+    // Priority 2: Bot is speaking. Prefer real bot output over stale user VAD.
     if (isBotSpeaking) {
       return "speaking";
     }
 
-    // Priority 4: Bot is processing LLM (thinking)
+    // Priority 3: Bot is processing LLM (thinking)
     if (isLLMProcessing) {
       return "thinking";
+    }
+
+    // Priority 4: User is speaking (listening)
+    if (isUserSpeaking) {
+      return "listening";
     }
 
     // Priority 5: Connected and ready (idle)

@@ -3,10 +3,15 @@
         "origin": [
             "http://localhost:3000",
             "https://convoed.com",
+            "https://www.convoed.com",
             "https://viva.convoed.com"
         ],
         "method": [
-            "PUT"
+            "PUT",
+            "GET",
+            "POST",
+            "DELETE",
+            "OPTIONS"
         ],
         "responseHeader": [
             "Content-Type"
