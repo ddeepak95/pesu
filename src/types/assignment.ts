@@ -15,6 +15,7 @@ export const FILE_SUBMISSION_TYPE_OPTIONS: readonly {
   { ext: ".pdf", label: "PDF" },
   { ext: ".txt", label: "Plain text (.txt)" },
   { ext: ".py", label: "Python (.py)" },
+  { ext: ".rmd", label: "R Markdown (.rmd)" },
 ];
 
 const _FILE_SUBMISSION_EXT_ORDER = FILE_SUBMISSION_TYPE_OPTIONS.map((o) => o.ext);
