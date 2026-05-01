@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -93,6 +93,8 @@ interface SubmissionsTableProps {
   emptyMessage?: string;
   /** Search placeholder */
   searchPlaceholder?: string;
+  /** Rendered next to the student count on the right side of the toolbar */
+  toolbarEndExtra?: ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +114,7 @@ export default function SubmissionsTable({
   onToggleUnlock,
   emptyMessage = "No data available.",
   searchPlaceholder = "Search by student name...",
+  toolbarEndExtra,
 }: SubmissionsTableProps) {
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -301,9 +304,12 @@ export default function SubmissionsTable({
           onFiltersChange={setProfileFilters}
         />
 
-        <div className="text-sm text-muted-foreground ml-auto">
-          {sortedRows.length} of {rows.length} student
-          {rows.length !== 1 ? "s" : ""}
+        <div className="flex items-center gap-2 ml-auto shrink-0">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">
+            {sortedRows.length} of {rows.length} student
+            {rows.length !== 1 ? "s" : ""}
+          </span>
+          {toolbarEndExtra}
         </div>
       </div>
 

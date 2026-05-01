@@ -36,6 +36,7 @@ import {
   useSurveyResponses,
   useTeacherUnlocksForContentItem,
 } from "@/hooks/swr";
+import { Download } from "lucide-react";
 
 interface SurveyResponsesTabProps {
   survey: Survey;
@@ -58,6 +59,67 @@ function formatAnswerValue(
     return opt ? opt.text : String(value);
   }
   return String(value);
+}
+
+function escapeCsvCell(value: string): string {
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function sanitizeFilenameSegment(segment: string): string {
+  const cleaned = segment.replace(/[/\\:*?"<>|]/g, "_").replace(/\s+/g, " ").trim();
+  return cleaned.slice(0, 80) || "survey";
+}
+
+function buildSurveyResponsesCsv(survey: Survey, items: SurveyRowItem[]): string {
+  const questionsToShow = survey.questions
+    .filter((q) => q.type !== "section_title")
+    .sort((a, b) => a.order - b.order);
+
+  const headerCells = [
+    "student_id",
+    "student_display_name",
+    "student_email",
+    "status",
+    "submitted_at",
+    ...questionsToShow.map((q) => `${q.order}. ${q.prompt}`),
+  ];
+
+  const lines = [headerCells.map(escapeCsvCell).join(",")];
+
+  for (const { student, response } of items) {
+    const answerMap = response
+      ? new Map(response.answers.map((a) => [a.question_order, a.value]))
+      : new Map<number, string | number>();
+
+    const status = response ? "Submitted" : "Not submitted";
+    const submittedAt = response?.submitted_at ?? "";
+
+    const rowCells = [
+      student.student_id,
+      student.student_display_name ?? "",
+      student.student_email ?? "",
+      status,
+      submittedAt,
+      ...questionsToShow.map((q) => {
+        const raw = answerMap.get(q.order);
+        if (raw === undefined || raw === null) return "";
+        return formatAnswerValue(q, raw);
+      }),
+    ];
+
+    lines.push(rowCells.map(escapeCsvCell).join(","));
+  }
+
+  return `\uFEFF${lines.join("\r\n")}`;
+}
+
+function surveyResponsesCsvFilename(survey: Survey): string {
+  const date = new Date().toISOString().slice(0, 10);
+  const title = sanitizeFilenameSegment(survey.title);
+  return `survey-responses-${survey.survey_id}-${title}-${date}.csv`;
 }
 
 function SurveyResponseViewDialog({
@@ -181,6 +243,26 @@ export default function SurveyResponsesTab({
     }
     return students;
   }, [students, survey.class_group_id]);
+
+  const csvRowItems = useMemo<SurveyRowItem[]>(
+    () =>
+      studentsInScope.map((student) => ({
+        student,
+        response: responseByStudentId.get(student.student_id) ?? null,
+      })),
+    [studentsInScope, responseByStudentId]
+  );
+
+  const handleDownloadCsv = useCallback(() => {
+    const csv = buildSurveyResponsesCsv(survey, csvRowItems);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = surveyResponsesCsvFilename(survey);
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [survey, csvRowItems]);
 
   const handleToggleUnlock = async (
     studentId: string,
@@ -362,6 +444,19 @@ export default function SurveyResponsesTab({
           survey.class_group_id != null
             ? "No students in this group yet."
             : "No students enrolled yet."
+        }
+        toolbarEndExtra={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={handleDownloadCsv}
+            title="Download CSV"
+            aria-label="Download survey responses as CSV"
+          >
+            <Download />
+          </Button>
         }
       />
       <SurveyResponseViewDialog
