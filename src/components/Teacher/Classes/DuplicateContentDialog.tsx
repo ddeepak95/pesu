@@ -1,7 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ContentItem } from "@/types/contentItem";
+import {
+  type ContentDuplicateMode,
+  contentDuplicateFailureMessage,
+} from "@/lib/contentPlacements";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
@@ -21,7 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { duplicateContentItem } from "@/lib/queries/duplicateContent";
-import { useClassesByUser, useClassGroups } from "@/hooks/swr";
+import { useClassesByUser, useClassGroups, invalidateContentItemsByGroup } from "@/hooks/swr";
+import { DuplicateContentModeSelect } from "@/components/Teacher/Classes/DuplicateContentModeSelect";
+import { showErrorToast } from "@/lib/toast";
 
 export default function DuplicateContentDialog({
   open,
@@ -44,6 +50,7 @@ export default function DuplicateContentDialog({
 
   const [destinationClassDbId, setDestinationClassDbId] = useState<string>("");
   const [destinationGroupId, setDestinationGroupId] = useState<string>("");
+  const [duplicateMode, setDuplicateMode] = useState<ContentDuplicateMode>("copy");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -52,16 +59,26 @@ export default function DuplicateContentDialog({
   );
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
 
-  // Default the destination class to the first class as soon as data arrives,
-  // and reset the group selection whenever the available `groups` array
-  // changes. We use the "store info from previous render" pattern (rather
-  // than `useEffect` + `setState`) to avoid the
-  // `react-hooks/set-state-in-effect` warning.
+  const linkedAllowed = !!item && destinationClassDbId === item.class_id;
+  useEffect(() => {
+    if (!linkedAllowed && duplicateMode === "linked") {
+      setDuplicateMode("copy");
+    }
+  }, [linkedAllowed, duplicateMode]);
+
+  // Default the destination class to the source item's class when possible,
+  // otherwise the first class, as soon as data arrives. Reset group when
+  // `groups` changes. We use the "store info from previous render" pattern
+  // (rather than `useEffect` + `setState`) for the classes/groups sync.
   const [seenClassesRef, setSeenClassesRef] = useState<unknown>(null);
   if (classesQuery.data && seenClassesRef !== classesQuery.data) {
     setSeenClassesRef(classesQuery.data);
     if (!destinationClassDbId && classes.length > 0) {
-      setDestinationClassDbId(classes[0].id);
+      const preferred =
+        item?.class_id && classes.some((c) => c.id === item.class_id)
+          ? item.class_id
+          : classes[0].id;
+      setDestinationClassDbId(preferred);
     }
   }
 
@@ -77,6 +94,16 @@ export default function DuplicateContentDialog({
       setDestinationGroupId(groups[0].id);
     }
   }
+
+  useEffect(() => {
+    if (!open) {
+      setDestinationClassDbId("");
+      setDestinationGroupId("");
+      setSubmitError(null);
+      setSeenClassesRef(null);
+      setSeenGroupsRef(null);
+    }
+  }, [open]);
 
   const destinationClass = useMemo(
     () => classes.find((c) => c.id === destinationClassDbId) ?? null,
@@ -94,11 +121,24 @@ export default function DuplicateContentDialog({
         ? "Failed to load class groups."
         : null;
 
+  const modeForSubmit: ContentDuplicateMode =
+    duplicateMode === "linked" && linkedAllowed ? "linked" : "copy";
+
   const canSubmit =
     !!item && !!user && !!destinationClassDbId && !!destinationGroupId;
 
   const handleDuplicate = async () => {
     if (!item || !user) return;
+    if (
+      modeForSubmit === "linked" &&
+      item.class_group_id != null &&
+      item.class_group_id === destinationGroupId
+    ) {
+      const msg = "This material is already in the selected group.";
+      setSubmitError(msg);
+      showErrorToast(msg);
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -107,16 +147,19 @@ export default function DuplicateContentDialog({
         destinationClassDbId,
         destinationClassGroupId: destinationGroupId,
         userId: user.id,
+        mode: modeForSubmit,
       });
+      await invalidateContentItemsByGroup(destinationClassDbId, destinationGroupId);
+      if (item.class_group_id && item.class_group_id !== destinationGroupId) {
+        await invalidateContentItemsByGroup(item.class_id, item.class_group_id);
+      }
       onOpenChange(false);
       onDuplicated?.();
     } catch (err: unknown) {
       console.error("Error duplicating content:", err);
-      const message =
-        typeof err === "object" && err !== null
-          ? ((err as Record<string, unknown>)["message"] as string | undefined)
-          : undefined;
-      setSubmitError(message || "Failed to duplicate content.");
+      const message = contentDuplicateFailureMessage(err, "Failed to duplicate content.");
+      setSubmitError(message);
+      showErrorToast(message);
     } finally {
       setSubmitting(false);
     }
@@ -128,7 +171,8 @@ export default function DuplicateContentDialog({
         <DialogHeader>
           <DialogTitle>Duplicate to…</DialogTitle>
           <DialogDescription>
-            Create a copy of this item in another class group.
+            Add this item to another class group as an independent copy or a
+            linked placement that shares the same underlying material.
           </DialogDescription>
         </DialogHeader>
 
@@ -177,6 +221,18 @@ export default function DuplicateContentDialog({
               </p>
             )}
           </div>
+
+          <DuplicateContentModeSelect
+            value={duplicateMode}
+            onChange={setDuplicateMode}
+            linkedDisabled={!linkedAllowed}
+          />
+          {!linkedAllowed && (
+            <p className="text-xs text-muted-foreground">
+              Linked duplicate is only available when the destination class is
+              the same as the source.
+            </p>
+          )}
         </div>
 
         <DialogFooter>

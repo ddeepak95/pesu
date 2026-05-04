@@ -41,6 +41,7 @@ import { Download } from "lucide-react";
 interface SurveyResponsesTabProps {
   survey: Survey;
   classId: string;
+  placementGroupId?: string | null;
 }
 
 interface SurveyRowItem {
@@ -189,13 +190,14 @@ function SurveyResponseViewDialog({
 export default function SurveyResponsesTab({
   survey,
   classId: _classId,
+  placementGroupId,
 }: SurveyResponsesTabProps) {
   const studentsQuery = useClassStudents(survey.class_id);
   const responsesQuery = useSurveyResponses({
     surveyId: survey.id,
     classDbId: survey.class_id,
   });
-  const contentItemQuery = useContentItemByRefId(survey.id, "survey");
+  const contentItemQuery = useContentItemByRefId(survey.id, "survey", placementGroupId);
 
   const contentItem = contentItemQuery.data ?? null;
   const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;
@@ -236,13 +238,13 @@ export default function SurveyResponsesTab({
     return map;
   }, [responsesWithStudents]);
 
-  // When survey is group-scoped, show only students in that group
+  const scopeGroupId = placementGroupId ?? survey.class_group_id ?? null;
   const studentsInScope = useMemo(() => {
-    if (survey.class_group_id != null) {
-      return students.filter((s) => s.group_id === survey.class_group_id);
+    if (scopeGroupId != null) {
+      return students.filter((s) => s.group_id === scopeGroupId);
     }
     return students;
-  }, [students, survey.class_group_id]);
+  }, [students, scopeGroupId]);
 
   const csvRowItems = useMemo<SurveyRowItem[]>(
     () =>
@@ -441,7 +443,7 @@ export default function SurveyResponsesTab({
         contentName={survey.title}
         onToggleUnlock={handleToggleUnlock}
         emptyMessage={
-          survey.class_group_id != null
+          scopeGroupId != null
             ? "No students in this group yet."
             : "No students enrolled yet."
         }

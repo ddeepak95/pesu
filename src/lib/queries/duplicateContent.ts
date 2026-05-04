@@ -1,4 +1,5 @@
 import { ContentItem } from "@/types/contentItem";
+import type { ContentDuplicateMode } from "@/lib/contentPlacements";
 import { createAssignment, getAssignmentsByIdsForTeacherFull } from "@/lib/queries/assignments";
 import { createLearningContent, getLearningContentsByIdsFull } from "@/lib/queries/learningContent";
 import { createQuiz, getQuizzesByIdsFull } from "@/lib/queries/quizzes";
@@ -10,8 +11,46 @@ export async function duplicateContentItem(params: {
   destinationClassDbId: string;
   destinationClassGroupId: string | null;
   userId: string;
+  mode?: ContentDuplicateMode;
 }): Promise<void> {
   const { item, destinationClassDbId, destinationClassGroupId, userId } = params;
+  const mode = params.mode ?? "copy";
+
+  if (mode === "linked") {
+    if (destinationClassDbId !== item.class_id) {
+      throw new Error("Linked duplicate is only supported within the same class.");
+    }
+    if (!destinationClassGroupId) {
+      throw new Error("Linked duplicate requires a destination group.");
+    }
+    if (destinationClassGroupId === item.class_group_id) {
+      throw new Error("This material is already in the selected group.");
+    }
+    const {
+      id: _ciId,
+      content_item_id: _ciShortId,
+      created_by: _ciCreatedBy,
+      created_at: _ciCreatedAt,
+      updated_at: _ciUpdatedAt,
+      class_id: _ciClassId,
+      class_group_id: _ciClassGroupId,
+      type: _ciType,
+      ref_id: _ciRefId,
+      position: _ciPosition,
+      ...contentItemFields
+    } = item;
+    await createContentItem(
+      {
+        ...contentItemFields,
+        class_id: destinationClassDbId,
+        class_group_id: destinationClassGroupId,
+        type: item.type,
+        ref_id: item.ref_id,
+      },
+      userId
+    );
+    return;
+  }
 
   // Strip system-generated fields from the content item wrapper so that all
   // user-configured fields (due_at, lock_after_complete, status, …) are
@@ -210,6 +249,7 @@ export async function duplicateContentItems(params: {
   destinationClassDbId: string;
   destinationClassGroupId: string | null;
   userId: string;
+  mode?: ContentDuplicateMode;
 }): Promise<void> {
   const sorted = [...params.items].sort((a, b) => a.position - b.position);
   for (const item of sorted) {
@@ -218,6 +258,7 @@ export async function duplicateContentItems(params: {
       destinationClassDbId: params.destinationClassDbId,
       destinationClassGroupId: params.destinationClassGroupId,
       userId: params.userId,
+      mode: params.mode,
     });
   }
 }

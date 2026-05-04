@@ -31,6 +31,8 @@ interface StudentUnlockTabProps {
   classId: string;
   /** Content name for the unlock dialog */
   contentName: string;
+  /** When the same material is linked across groups, disambiguate the placement. */
+  placementGroupId?: string | null;
 }
 
 export default function StudentUnlockTab({
@@ -38,6 +40,7 @@ export default function StudentUnlockTab({
   contentType,
   classId,
   contentName,
+  placementGroupId,
 }: StudentUnlockTabProps) {
   const classQuery = useClassData(classId);
   const classDbId = classQuery.data?.id ?? null;
@@ -46,7 +49,7 @@ export default function StudentUnlockTab({
   const profileFieldsQuery = useProfileFieldsForClass(classDbId);
   const profilesQuery = useAllStudentProfiles(classDbId);
   const progressViewQuery = useProgressViewConfig(classDbId);
-  const contentItemQuery = useContentItemByRefId(refId, contentType);
+  const contentItemQuery = useContentItemByRefId(refId, contentType, placementGroupId);
 
   const contentItem = contentItemQuery.data ?? null;
   const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;

@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { ContentItem } from "@/types/contentItem";
+import {
+  type ContentDuplicateMode,
+  contentDuplicateFailureMessage,
+} from "@/lib/contentPlacements";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
@@ -22,6 +26,9 @@ import {
 } from "@/components/ui/select";
 import { ClassGroup } from "@/lib/queries/groups";
 import { duplicateContentItems } from "@/lib/queries/duplicateContent";
+import { invalidateContentItemsByGroup } from "@/hooks/swr";
+import { DuplicateContentModeSelect } from "@/components/Teacher/Classes/DuplicateContentModeSelect";
+import { showErrorToast } from "@/lib/toast";
 
 export default function BulkDuplicateContentDialog({
   open,
@@ -43,6 +50,7 @@ export default function BulkDuplicateContentDialog({
   const { user } = useAuth();
 
   const [destinationGroupId, setDestinationGroupId] = useState<string>("");
+  const [duplicateMode, setDuplicateMode] = useState<ContentDuplicateMode>("copy");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +62,18 @@ export default function BulkDuplicateContentDialog({
 
   const handleDuplicate = async () => {
     if (!user || items.length === 0 || !destinationGroupId) return;
+    if (
+      duplicateMode === "linked" &&
+      items.some(
+        (i) => i.class_group_id != null && i.class_group_id === destinationGroupId
+      )
+    ) {
+      const msg =
+        "One or more selected items are already linked in the destination group.";
+      setError(msg);
+      showErrorToast(msg);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -62,17 +82,29 @@ export default function BulkDuplicateContentDialog({
         destinationClassDbId: classDbId,
         destinationClassGroupId: destinationGroupId,
         userId: user.id,
+        mode: duplicateMode,
       });
+      await invalidateContentItemsByGroup(classDbId, destinationGroupId);
+      const sourceIds = new Set(
+        items.map((i) => i.class_group_id).filter((id): id is string => !!id)
+      );
+      for (const gid of sourceIds) {
+        if (gid !== destinationGroupId) {
+          await invalidateContentItemsByGroup(classDbId, gid);
+        }
+      }
       onOpenChange(false);
       setDestinationGroupId("");
+      setDuplicateMode("copy");
       onDuplicated?.();
     } catch (err: unknown) {
       console.error("Error duplicating content items:", err);
-      const message =
-        typeof err === "object" && err !== null
-          ? ((err as Record<string, unknown>)["message"] as string | undefined)
-          : undefined;
-      setError(message || "Failed to duplicate content items.");
+      const message = contentDuplicateFailureMessage(
+        err,
+        "Failed to duplicate content items."
+      );
+      setError(message);
+      showErrorToast(message);
     } finally {
       setLoading(false);
     }
@@ -81,6 +113,7 @@ export default function BulkDuplicateContentDialog({
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
       setDestinationGroupId("");
+      setDuplicateMode("copy");
       setError(null);
     }
     onOpenChange(nextOpen);
@@ -92,8 +125,8 @@ export default function BulkDuplicateContentDialog({
         <DialogHeader>
           <DialogTitle>Duplicate {items.length} item{items.length !== 1 ? "s" : ""} to...</DialogTitle>
           <DialogDescription>
-            Create copies of the selected items in another group within this
-            class. Items will be added in their current order.
+            Add the selected items to another group in this class, in their
+            current order, as independent copies or linked placements.
           </DialogDescription>
         </DialogHeader>
 
@@ -124,6 +157,13 @@ export default function BulkDuplicateContentDialog({
               </Select>
             )}
           </div>
+
+          {availableGroups.length > 0 && (
+            <DuplicateContentModeSelect
+              value={duplicateMode}
+              onChange={setDuplicateMode}
+            />
+          )}
         </div>
 
         <DialogFooter>

@@ -11,6 +11,8 @@ import {
   softDeleteContentItemByRef,
   updateContentItem,
 } from "@/lib/queries/contentItems";
+import { shouldUnlinkOnlyPlacement } from "@/lib/contentPlacements";
+import { countContentItemPlacementsByRefTracked } from "@/lib/swr/imperativeReads";
 import { deleteAssignment } from "@/lib/queries/assignments";
 import { deleteLearningContent } from "@/lib/queries/learningContent";
 import { deleteQuiz } from "@/lib/queries/quizzes";
@@ -37,12 +39,15 @@ import ContentCard from "@/components/Teacher/Classes/ContentParts/ContentCard";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
 import {
   useClassGroups,
+  useContentItemsByClass,
   useContentItemsByGroup,
+  invalidateContentItemsByClass,
   useAssignmentsByIdsForTeacher,
   useLearningContentsByIds,
   useQuizzesByIds,
   useSurveysByIds,
 } from "@/hooks/swr";
+import { contentMaterialKey, linkedMaterialKeySet } from "@/lib/contentPlacements";
 
 interface ContentProps {
   classData: Class;
@@ -95,6 +100,12 @@ export default function Content({ classData }: ContentProps) {
     isLoading: itemsLoading,
     mutate: mutateItems,
   } = useContentItemsByGroup(classData.id, selectedGroupId);
+
+  const { data: allClassContentItems } = useContentItemsByClass(classData.id);
+  const linkedMaterialKeys = useMemo(
+    () => linkedMaterialKeySet(allClassContentItems ?? []),
+    [allClassContentItems]
+  );
 
   // Use localItems for optimistic UI, fall back to SWR data
   const items = useMemo(
@@ -233,7 +244,7 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
-  const handleOpen = (item: ContentItem) => {
+  const getContentHref = (item: ContentItem) => {
     const backQs = selectedGroupId
       ? `?tab=content&groupId=${selectedGroupId}`
       : `?tab=content`;
@@ -241,38 +252,38 @@ export default function Content({ classData }: ContentProps) {
     if (item.type === "formative_assignment") {
       const a = assignmentById[item.ref_id];
       if (a) {
-        router.push(
-          `/teacher/classes/${classData.class_id}/assignments/${a.assignment_id}${backQs}`
-        );
-        return;
+        return `/teacher/classes/${classData.class_id}/assignments/${a.assignment_id}${backQs}`;
       }
     }
 
     if (item.type === "learning_content") {
       const lc = learningContentById[item.ref_id];
       if (lc) {
-        router.push(
-          `/teacher/classes/${classData.class_id}/learning-content/${lc.learning_content_id}${backQs}`
-        );
+        return `/teacher/classes/${classData.class_id}/learning-content/${lc.learning_content_id}${backQs}`;
       }
     }
 
     if (item.type === "quiz") {
       const q = quizById[item.ref_id];
       if (q) {
-        router.push(
-          `/teacher/classes/${classData.class_id}/quizzes/${q.quiz_id}${backQs}`
-        );
+        return `/teacher/classes/${classData.class_id}/quizzes/${q.quiz_id}${backQs}`;
       }
     }
 
     if (item.type === "survey") {
       const s = surveyById[item.ref_id];
       if (s) {
-        router.push(
-          `/teacher/classes/${classData.class_id}/surveys/${s.survey_id}${backQs}`
-        );
+        return `/teacher/classes/${classData.class_id}/surveys/${s.survey_id}${backQs}`;
       }
+    }
+
+    return undefined;
+  };
+
+  const handleOpen = (item: ContentItem) => {
+    const href = getContentHref(item);
+    if (href) {
+      router.push(href);
     }
   };
 
@@ -324,10 +335,20 @@ export default function Content({ classData }: ContentProps) {
     }
   };
 
-  /** Soft-delete both the content_item and the underlying entity so no orphaned rows remain. */
+  /** Remove one feed row, or delete the underlying entity when it is the last placement. */
   const deleteContentItemAndEntity = useCallback(
     async (item: ContentItem) => {
       const classId = classData.id;
+      const placementCount = await countContentItemPlacementsByRefTracked({
+        classId,
+        type: item.type,
+        refId: item.ref_id,
+      });
+      if (shouldUnlinkOnlyPlacement(placementCount)) {
+        await softDeleteContentItem(item.id);
+        return;
+      }
+
       switch (item.type) {
         case "formative_assignment":
           await deleteAssignment(item.ref_id, classId);
@@ -373,6 +394,7 @@ export default function Content({ classData }: ContentProps) {
       await deleteContentItemAndEntity(item);
       setLocalItems((prev) => (prev ?? items).filter((i) => i.id !== item.id));
       mutateItems();
+      void invalidateContentItemsByClass(classData.id);
     } catch (err) {
       console.error("Error deleting content item:", err);
       showErrorToast("Failed to delete item. Please try again.");
@@ -392,6 +414,7 @@ export default function Content({ classData }: ContentProps) {
       setLocalItems((prev) => (prev ?? items).filter((i) => !selectedIds.has(i.id)));
       exitSelectionMode();
       mutateItems();
+      void invalidateContentItemsByClass(classData.id);
     } catch (err) {
       console.error("Error bulk deleting content items:", err);
       showErrorToast("Failed to delete some items. Please try again.");
@@ -620,10 +643,14 @@ export default function Content({ classData }: ContentProps) {
                       index={index}
                       total={items.length}
                       title={resolvedTitle}
+                      href={getContentHref(item)}
                       titleLoading={titleLoading}
                       savingOrder={savingOrder}
                       assessmentMode={assessmentMode}
                       language={language}
+                      isLinked={linkedMaterialKeys.has(
+                        contentMaterialKey(item.type, item.ref_id)
+                      )}
                       selectionMode={selectionMode}
                       selected={selectedIds.has(item.id)}
                       onToggleSelect={() => toggleSelectItem(item.id)}
@@ -653,6 +680,7 @@ export default function Content({ classData }: ContentProps) {
         item={duplicateItem}
         onDuplicated={async () => {
           mutateItems();
+          await invalidateContentItemsByClass(classData.id);
         }}
       />
 
@@ -665,6 +693,8 @@ export default function Content({ classData }: ContentProps) {
         sourceGroupId={selectedGroupId}
         onDuplicated={() => {
           exitSelectionMode();
+          mutateItems();
+          void invalidateContentItemsByClass(classData.id);
         }}
       />
 

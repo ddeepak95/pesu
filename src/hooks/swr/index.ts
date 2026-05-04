@@ -8,9 +8,12 @@ export {
 } from "./useClasses";
 export { useClassGroups, useStudentGroupForClass } from "./useGroups";
 export {
+  invalidateContentItemsByClass,
+  invalidateContentItemsByGroup,
   useContentItemByRefId,
   useContentItemsByClass,
   useContentItemsByGroup,
+  useMaterialLinkedAcrossGroups,
 } from "./useContentItems";
 export {
   useAssignmentByIdForTeacher,

@@ -252,13 +252,40 @@ export async function updateContentItemStatusByRef(params: {
   if (error) throw error;
 }
 
+const CONTENT_ITEM_LOOKUP_COLUMNS =
+  "id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock, unlock_days_after_previous";
+
 /**
- * Get a content item by its ref_id (the UUID of the underlying entity)
- * Used to look up the content_item_id from a learning content, quiz, or assignment UUID
+ * Count active/draft content_item rows for a material within a class (all groups).
+ */
+export async function countContentItemPlacementsByRef(params: {
+  classId: string;
+  type: ContentItem["type"];
+  refId: string;
+}): Promise<number> {
+  const supabase = createClient();
+
+  const { count, error } = await supabase
+    .from("content_items")
+    .select("id", { count: "exact", head: true })
+    .eq("class_id", params.classId)
+    .eq("type", params.type)
+    .eq("ref_id", params.refId)
+    .in("status", ["active", "draft"]);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Get a content item by its ref_id (the UUID of the underlying entity).
+ * When multiple placements exist (linked across groups), pass `classGroupId`
+ * to disambiguate; otherwise returns null if ambiguous.
  */
 export async function getContentItemByRefId(
   refId: string,
-  type: ContentItem["type"]
+  type: ContentItem["type"],
+  options?: { classGroupId?: string | null }
 ): Promise<ContentItem | null> {
   if (!refId?.trim()) {
     return null;
@@ -266,36 +293,73 @@ export async function getContentItemByRefId(
 
   const supabase = createClient();
 
+  const classGroupId = options?.classGroupId?.trim();
+
+  if (classGroupId) {
+    const { data, error } = await supabase
+      .from("content_items")
+      .select(CONTENT_ITEM_LOOKUP_COLUMNS)
+      .eq("ref_id", refId)
+      .eq("type", type)
+      .eq("class_group_id", classGroupId)
+      .in("status", ["active", "draft"])
+      .maybeSingle();
+
+    if (error) {
+      logContentItemByRefError(refId, type, error);
+      return null;
+    }
+
+    return data as ContentItem | null;
+  }
+
   const { data, error } = await supabase
     .from("content_items")
-    .select("id, content_item_id, class_id, class_group_id, type, ref_id, position, due_at, created_by, created_at, updated_at, status, lock_after_complete, require_teacher_unlock, unlock_days_after_previous")
+    .select(CONTENT_ITEM_LOOKUP_COLUMNS)
     .eq("ref_id", refId)
     .eq("type", type)
     .in("status", ["active", "draft"])
-    .maybeSingle();
+    .limit(2);
 
   if (error) {
-    const errMsg =
-      error && typeof error === "object" && "message" in error
-        ? (error as { message: string }).message
-        : String(error);
-    const errCode =
-      error && typeof error === "object" && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-    console.error(
-      "Error fetching content item by ref_id:",
-      "refId=",
-      refId,
-      "type=",
-      type,
-      errCode ? `code=${errCode}` : "",
-      errMsg
-    );
+    logContentItemByRefError(refId, type, error);
     return null;
   }
 
-  return data as ContentItem | null;
+  const rows = (data || []) as ContentItem[];
+  if (rows.length === 0) return null;
+  if (rows.length > 1) {
+    console.warn(
+      "getContentItemByRefId: multiple placements for ref_id; pass classGroupId",
+      { refId, type }
+    );
+    return null;
+  }
+  return rows[0] ?? null;
+}
+
+function logContentItemByRefError(
+  refId: string,
+  type: ContentItem["type"],
+  error: unknown
+): void {
+  const errMsg =
+    error && typeof error === "object" && "message" in error
+      ? (error as { message: string }).message
+      : String(error);
+  const errCode =
+    error && typeof error === "object" && "code" in error
+      ? (error as { code: string }).code
+      : undefined;
+  console.error(
+    "Error fetching content item by ref_id:",
+    "refId=",
+    refId,
+    "type=",
+    type,
+    errCode ? `code=${errCode}` : "",
+    errMsg
+  );
 }
 
 

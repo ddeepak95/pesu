@@ -42,12 +42,18 @@ export function useQuizByShortIdForTeacher(shortId: string | null) {
 
 /**
  * Fetch all quiz submissions for a quiz, joined with student info. Pass
- * `null` to skip the fetch.
+ * `null` to skip the fetch. `placementGroupId` scopes the student list to a
+ * content feed group when the quiz is linked across groups.
  */
-export function useQuizSubmissionsForQuiz(quiz: Quiz | null) {
+export function useQuizSubmissionsForQuiz(
+  quiz: Quiz | null,
+  placementGroupId?: string | null
+) {
   return useSWR<QuizSubmissionStatus[]>(
-    quiz ? ["quizSubmissionsForQuiz", quiz.id, quiz.class_id] : null,
-    () => getQuizSubmissionsByQuizWithStudents(quiz!)
+    quiz
+      ? ["quizSubmissionsForQuiz", quiz.id, quiz.class_id, placementGroupId ?? ""]
+      : null,
+    () => getQuizSubmissionsByQuizWithStudents(quiz!, { placementGroupId })
   );
 }
 

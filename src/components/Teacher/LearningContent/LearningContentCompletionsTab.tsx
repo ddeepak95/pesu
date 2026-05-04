@@ -27,14 +27,20 @@ import {
 interface LearningContentCompletionsTabProps {
   content: LearningContent;
   classId: string;
+  placementGroupId?: string | null;
 }
 
 export default function LearningContentCompletionsTab({
   content,
   classId: _classId,
+  placementGroupId,
 }: LearningContentCompletionsTabProps) {
   const studentsQuery = useClassStudents(content.class_id);
-  const contentItemQuery = useContentItemByRefId(content.id, "learning_content");
+  const contentItemQuery = useContentItemByRefId(
+    content.id,
+    "learning_content",
+    placementGroupId
+  );
   const contentItem = contentItemQuery.data ?? null;
 
   const completionsQuery = useCompletionsByContentItem(contentItem?.id ?? null);
@@ -67,13 +73,13 @@ export default function LearningContentCompletionsTab({
 
   const [resetting, setResetting] = useState<string | null>(null);
 
-  // When content is group-scoped, show only students in that group
+  const scopeGroupId = placementGroupId ?? content.class_group_id ?? null;
   const studentsInScope = useMemo(() => {
-    if (content.class_group_id != null) {
-      return students.filter((s) => s.group_id === content.class_group_id);
+    if (scopeGroupId != null) {
+      return students.filter((s) => s.group_id === scopeGroupId);
     }
     return students;
-  }, [students, content.class_group_id]);
+  }, [students, scopeGroupId]);
 
   const completionByStudentId = useMemo(() => {
     const map = new Map<string, string>();
@@ -232,7 +238,7 @@ export default function LearningContentCompletionsTab({
       contentName={content.title}
       onToggleUnlock={handleToggleUnlock}
       emptyMessage={
-        content.class_group_id != null
+        scopeGroupId != null
           ? "No students in this group yet."
           : "No students enrolled yet."
       }

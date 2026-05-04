@@ -69,7 +69,8 @@ export default function SubmissionsTab({
 
   const contentItemQuery = useContentItemByRefId(
     assignment?.id ?? null,
-    "formative_assignment"
+    "formative_assignment",
+    classGroupId ?? null
   );
   const contentItem = contentItemQuery.data ?? null;
   const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;

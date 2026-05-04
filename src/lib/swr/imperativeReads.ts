@@ -16,12 +16,14 @@
  * needing per-line lint suppressions.
  */
 
+import { countContentItemPlacementsByRef } from "@/lib/queries/contentItems";
 import {
   getSubmissionById,
   getSubmissionByStudentAndAssignment,
   getSubmissionForSessionRestore,
   getTranscriptsForSubmission,
 } from "@/lib/queries/submissions";
+import type { ContentItem } from "@/types/contentItem";
 import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import { increment, decrement } from "./busyStore";
 
@@ -61,4 +63,13 @@ export function fetchTranscriptsForSubmissionTracked(submissionId: string) {
 
 export function fetchSubmissionFilesTracked(submissionId: string) {
   return runTracked(() => getSubmissionFiles(submissionId));
+}
+
+/** Imperative read for delete/unlink confirm flows (teacher detail & content list). */
+export function countContentItemPlacementsByRefTracked(params: {
+  classId: string;
+  type: ContentItem["type"];
+  refId: string;
+}) {
+  return runTracked(() => countContentItemPlacementsByRef(params));
 }

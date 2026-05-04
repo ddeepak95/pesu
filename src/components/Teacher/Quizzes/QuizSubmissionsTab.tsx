@@ -40,6 +40,8 @@ import {
 
 interface QuizSubmissionsTabProps {
   quiz: Quiz;
+  /** Class group feed context (from URL `groupId` or entity default). */
+  placementGroupId?: string | null;
 }
 
 function QuizSubmissionViewDialog({
@@ -159,9 +161,12 @@ function QuizSubmissionViewDialog({
   );
 }
 
-export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
-  const submissionsQuery = useQuizSubmissionsForQuiz(quiz);
-  const contentItemQuery = useContentItemByRefId(quiz.id, "quiz");
+export default function QuizSubmissionsTab({
+  quiz,
+  placementGroupId,
+}: QuizSubmissionsTabProps) {
+  const submissionsQuery = useQuizSubmissionsForQuiz(quiz, placementGroupId);
+  const contentItemQuery = useContentItemByRefId(quiz.id, "quiz", placementGroupId);
   const classDbId = quiz.class_id;
 
   const profileFieldsQuery = useProfileFieldsForClass(classDbId);
@@ -410,7 +415,7 @@ export default function QuizSubmissionsTab({ quiz }: QuizSubmissionsTabProps) {
         contentName={quiz.title}
         onToggleUnlock={handleToggleUnlock}
         emptyMessage={
-          quiz.class_group_id != null
+          (placementGroupId ?? quiz.class_group_id) != null
             ? "No students in this group yet."
             : "No students enrolled yet."
         }
