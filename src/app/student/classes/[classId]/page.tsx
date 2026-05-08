@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import ClassDetailClient from "./ClassDetailClient";
 
 const CLASS_COLUMNS =
-  "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy";
+  "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, institution_id";
 
 export default async function ClassDetailPage({
   params,

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { ContentItem } from "@/types/contentItem";
 import { getUnlockState } from "@/lib/utils/unlockLogic";
@@ -24,6 +24,31 @@ export const verifySession = cache(
 
     if (!user) {
       redirect(loginPath);
+    }
+
+    return { user, supabase };
+  }
+);
+
+/**
+ * Verify the user's session and that they appear in `public.platform_super_admins`.
+ *
+ * Use in server components, server actions, and route handlers under `/platform`
+ * or any other internal super-admin surface. Returns notFound() (instead of
+ * redirect) for non-super-admins so the surface stays unannounced.
+ */
+export const requireSuperAdmin = cache(
+  async (loginPath = "/teacher/login") => {
+    const { user, supabase } = await verifySession(loginPath);
+
+    const { data, error } = await supabase
+      .from("platform_super_admins")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error || !data) {
+      notFound();
     }
 
     return { user, supabase };

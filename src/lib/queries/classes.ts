@@ -39,7 +39,7 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
   // Avoid relying on join/or syntax across embedded relationships.
   // Fetch owned classes + co-taught classes via class_teachers, then merge.
 
-  const CLASS_COLUMNS = "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config";
+  const CLASS_COLUMNS = "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
 
   const ownedQuery = supabase
     .from("classes")
@@ -102,7 +102,8 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
 export async function createClass(
   name: string,
   userId: string,
-  preferredLanguage: string = "en"
+  preferredLanguage: string = "en",
+  institutionId: string | null = null
 ): Promise<Class> {
   const supabase = createClient();
   const classId = generateClassId();
@@ -115,6 +116,7 @@ export async function createClass(
       created_by: userId,
       status: "active",
       preferred_language: preferredLanguage,
+      ...(institutionId ? { institution_id: institutionId } : {}),
     })
     .select()
     .single();
@@ -233,7 +235,7 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
 
   const { data, error } = await supabase
     .from("classes")
-    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id")
     .eq("class_id", classId)
     .eq("status", "active")
     .single();
@@ -285,7 +287,7 @@ export async function getClassesByStudent(studentId: string): Promise<Class[]> {
   // Fetch the actual class data
   const { data: classes, error: classesError } = await supabase
     .from("classes")
-    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id")
     .in("id", classDbIds)
     .eq("status", "active");
 
@@ -358,7 +360,7 @@ export async function saveProgressViewConfig(
 }
 
 const CLASS_COLUMNS_FULL =
-  "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config";
+  "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
 
 /**
  * Duplicate a class with all settings, profile fields, groups, and content.
@@ -399,6 +401,7 @@ export async function duplicateClass(
     enable_progressive_unlock: source.enable_progressive_unlock ?? false,
     student_assignment_strategy: source.student_assignment_strategy ?? "round_robin",
     progress_view_config: source.progress_view_config ?? null,
+    institution_id: source.institution_id,
   };
 
   const { data: newClass, error: insertError } = await supabase
@@ -465,5 +468,35 @@ export async function duplicateClass(
   }
 
   return newClassRow;
+}
+
+/**
+ * Super-admin only: move a class into a different institution.
+ *
+ * Calls the SECURITY DEFINER RPC `public.move_class_to_institution`, which
+ * verifies the caller is in `public.platform_super_admins`, updates
+ * `classes.institution_id`, and writes a row to `class_institution_moves`.
+ *
+ * Returns the audit row id, or null if the class was already under the
+ * target institution (treated as a no-op so callers can retry safely).
+ */
+export async function moveClassToInstitution(
+  classDbId: string,
+  targetInstitutionId: string,
+  reason?: string
+): Promise<string | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("move_class_to_institution", {
+    p_class_id: classDbId,
+    p_target_institution_id: targetInstitutionId,
+    p_reason: reason ?? null,
+  });
+
+  if (error) {
+    console.error("Error moving class to institution:", error);
+    throw error;
+  }
+
+  return (data as string | null) ?? null;
 }
 

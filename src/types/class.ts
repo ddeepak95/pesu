@@ -16,6 +16,7 @@ export interface Class {
   enable_progressive_unlock?: boolean;
   student_assignment_strategy?: "round_robin" | "default_group";
   progress_view_config?: ProgressViewConfig | null;
+  institution_id: string;
 }
 
 export interface ClassTeacher {
