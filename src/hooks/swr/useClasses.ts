@@ -3,9 +3,10 @@ import {
   getClassByClassId,
   getClassesByUser,
   getClassesByStudent,
+  getProgressViewConfig,
   isTeacherApproved,
 } from "@/lib/queries/classes";
-import { Class } from "@/types/class";
+import { Class, ProgressViewConfig } from "@/types/class";
 
 /**
  * Fetch a single class by its short class_id
@@ -44,5 +45,15 @@ export function useIsTeacherApproved(email: string | null) {
   return useSWR<boolean>(
     email ? ["teacherApproved", email] : null,
     () => isTeacherApproved(email!)
+  );
+}
+
+/**
+ * Fetch the saved progress-view config for a class.
+ */
+export function useProgressViewConfig(classDbId: string | null) {
+  return useSWR<ProgressViewConfig | null>(
+    classDbId ? ["progressViewConfig", classDbId] : null,
+    () => getProgressViewConfig(classDbId!)
   );
 }

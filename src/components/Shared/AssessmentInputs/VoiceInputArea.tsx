@@ -9,6 +9,7 @@ import {
   useVoiceTranscript,
 } from "@/contexts/VoiceAssessmentContext";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
+import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import {
   usePipecatClient,
   usePipecatClientTransportState,
@@ -32,6 +33,7 @@ function VoiceInputContent({
   onSubmitForEvaluation,
   onLanguageDisabledChange,
   onNavigationDisabledChange,
+  onVoiceMicPermissionRequestPendingChange,
   botPromptConfig,
   maxAttempts,
   sharedContext,
@@ -41,6 +43,7 @@ function VoiceInputContent({
   studentInstructions,
 }: AssessmentInputProps) {
   const { transcript, clearTranscript } = useVoiceTranscript();
+  const { state: micPermission, requestAccess } = useMicrophonePermission();
   const client = usePipecatClient();
   const transportState = usePipecatClientTransportState();
   const isConnected = ["connected", "ready"].includes(transportState);
@@ -98,7 +101,7 @@ function VoiceInputContent({
     clearTranscript();
     attemptStartedLoggedRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [question.order, submissionId]);
+  }, [assignmentId, question.order, submissionId]);
 
   // Disconnect when question changes
   React.useEffect(() => {
@@ -213,9 +216,14 @@ function VoiceInputContent({
     logEvent("bot_connect_initiated");
   };
 
+  const showLiveTranscript = isConnected && Boolean(transcript.trim());
+
   return (
-    <div className="relative">
-      <AgentStatus className="py-2" />
+    <div className="relative w-full">
+      <AgentStatus
+        className="py-2"
+        showDisconnectedGuidance={micPermission === "granted"}
+      />
       <div className="flex flex-col items-center gap-2">
         <VoiceConnectButton
           connectionData={connectionData}
@@ -225,6 +233,11 @@ function VoiceInputContent({
           onBotReady={handleBotReady}
           onDisconnect={handleEvaluate}
           disabled={maxAttemptsReached}
+          micPermission={micPermission}
+          onRequestMicrophone={requestAccess}
+          onVoiceMicPermissionRequestPendingChange={
+            onVoiceMicPermissionRequestPendingChange
+          }
         />
         {maxAttemptsReached && (
           <p className="text-xs text-muted-foreground text-center">
@@ -244,8 +257,8 @@ function VoiceInputContent({
         <VoiceVisualizer participantType="bot" barColor="currentColor" />
       </div>
 
-      {transcript && (
-        <div className="mt-4 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
+      {showLiveTranscript && (
+        <div className="mt-4 w-full min-w-0 p-4 bg-muted/50 rounded-md max-h-76 overflow-y-auto">
           <div className="text-sm whitespace-pre-wrap">{transcript}</div>
         </div>
       )}

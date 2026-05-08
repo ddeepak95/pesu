@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -162,7 +162,7 @@ export default function AssignmentForm({
   initialIsDraft = false,
   onSubmit,
 }: AssignmentFormProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const [title, setTitle] = useState(initialTitle);
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);

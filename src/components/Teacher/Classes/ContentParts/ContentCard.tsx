@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type MouseEvent } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import {
   CalendarClock,
   Settings,
 } from "lucide-react";
+import { LinkedMaterialPillWithInfoTooltip } from "@/components/Shared/LinkedMaterialPill";
 import { ContentItem, ContentItemType } from "@/types/contentItem";
 import { Assignment } from "@/types/assignment";
 import { Switch } from "@/components/ui/switch";
@@ -39,6 +40,7 @@ export default function ContentCard({
   index,
   total,
   title,
+  href,
   titleLoading,
   savingOrder,
   assessmentMode,
@@ -55,15 +57,19 @@ export default function ContentCard({
   onToggleRequireTeacherUnlock,
   onUpdateUnlockDaysAfterPrevious,
   language,
+  isLinked,
 }: {
   item: ContentItem;
   index: number;
   total: number;
   title?: string;
+  href?: string;
   titleLoading?: boolean;
   savingOrder: boolean;
   assessmentMode?: Assignment["assessment_mode"];
   language?: string;
+  /** Same underlying material appears in more than one group feed. */
+  isLinked?: boolean;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -75,24 +81,24 @@ export default function ContentCard({
   onShareLinks?: () => void;
   onToggleLockAfterComplete?: (
     itemId: string,
-    lockAfterComplete: boolean
+    lockAfterComplete: boolean,
   ) => void;
   onToggleRequireTeacherUnlock?: (
     itemId: string,
-    requireTeacherUnlock: boolean
+    requireTeacherUnlock: boolean,
   ) => void;
   onUpdateUnlockDaysAfterPrevious?: (
     itemId: string,
-    days: number | null
+    days: number | null,
   ) => void;
 }) {
-  const [localDays, setLocalDays] = useState<string>(
-    () => String(item.unlock_days_after_previous ?? 0)
+  const [localDays, setLocalDays] = useState<string>(() =>
+    String(item.unlock_days_after_previous ?? 0),
   );
 
   useEffect(() => {
     queueMicrotask(() =>
-      setLocalDays(String(item.unlock_days_after_previous ?? 0))
+      setLocalDays(String(item.unlock_days_after_previous ?? 0)),
     );
   }, [item.unlock_days_after_previous]);
 
@@ -112,7 +118,7 @@ export default function ContentCard({
   };
 
   const labelForAssessmentMode = (
-    mode: Assignment["assessment_mode"]
+    mode: Assignment["assessment_mode"],
   ): string => {
     switch (mode) {
       case "voice":
@@ -126,25 +132,47 @@ export default function ContentCard({
     }
   };
 
-  const handleCardClick = () => {
-    if (selectionMode && onToggleSelect) {
-      onToggleSelect();
-    } else {
-      onOpen();
+  const handleSelectionClick = () => {
+    if (selectionMode) {
+      onToggleSelect?.();
     }
+  };
+
+  const handleLinkClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    const isPlainLeftClick =
+      event.button === 0 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey;
+
+    if (!isPlainLeftClick) return;
+
+    event.preventDefault();
+    onOpen();
   };
 
   return (
     <Card
-      className={`cursor-pointer hover:bg-accent transition-colors ${
+      className={`relative hover:bg-accent transition-colors ${
+        href || selectionMode ? "cursor-pointer" : ""
+      } ${
         selectionMode && selected ? "ring-2 ring-primary" : ""
       }`}
-      onClick={handleCardClick}
+      onClick={selectionMode ? handleSelectionClick : undefined}
     >
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+      {!selectionMode && href && (
+        <a
+          href={href}
+          onClick={handleLinkClick}
+          className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label={`Open ${title ?? labelForType(item.type)}`}
+        />
+      )}
+      <CardHeader className="relative z-10 flex flex-row items-start justify-between gap-4 space-y-0 pointer-events-none">
         {selectionMode && (
           <div
-            className="flex items-center pt-1 shrink-0"
+            className="flex items-center pt-1 shrink-0 pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <Checkbox
@@ -169,9 +197,15 @@ export default function ContentCard({
                 Draft
               </span>
             )}
+            {isLinked && (
+              <span className="pointer-events-auto">
+                <LinkedMaterialPillWithInfoTooltip />
+              </span>
+            )}
             {language && (
               <span className="text-xs rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-400">
-                {supportedLanguages.find((l) => l.code === language)?.name || language}
+                {supportedLanguages.find((l) => l.code === language)?.name ||
+                  language}
               </span>
             )}
             {item.lock_after_complete && (
@@ -198,12 +232,16 @@ export default function ContentCard({
           {titleLoading ? (
             <div className="h-6 w-48 rounded bg-muted animate-pulse" />
           ) : (
-            <CardTitle className="text-lg truncate">{title}</CardTitle>
+            <div className="flex items-center gap-2 min-w-0">
+              <CardTitle className="text-lg truncate min-w-0">
+                {title}
+              </CardTitle>
+            </div>
           )}
         </div>
 
         <div
-          className="flex items-center shrink-0"
+          className="flex items-center shrink-0 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <DropdownMenu>
@@ -254,7 +292,7 @@ export default function ContentCard({
                           e.stopPropagation();
                           onToggleLockAfterComplete(
                             item.id,
-                            !(item.lock_after_complete ?? false)
+                            !(item.lock_after_complete ?? false),
                           );
                         }}
                       >
@@ -282,7 +320,7 @@ export default function ContentCard({
                           e.stopPropagation();
                           onToggleRequireTeacherUnlock(
                             item.id,
-                            !(item.require_teacher_unlock ?? false)
+                            !(item.require_teacher_unlock ?? false),
                           );
                         }}
                       >
@@ -328,12 +366,12 @@ export default function ContentCard({
                                 ? 0
                                 : Math.min(
                                     365,
-                                    Math.max(0, parseInt(localDays, 10) || 0)
+                                    Math.max(0, parseInt(localDays, 10) || 0),
                                   );
                             setLocalDays(String(num));
                             onUpdateUnlockDaysAfterPrevious(
                               item.id,
-                              num === 0 ? null : num
+                              num === 0 ? null : num,
                             );
                           }}
                           className="h-8 w-16"
@@ -345,9 +383,7 @@ export default function ContentCard({
               )}
               {(onToggleLockAfterComplete ||
                 onToggleRequireTeacherUnlock ||
-                onUpdateUnlockDaysAfterPrevious) && (
-                <DropdownMenuSeparator />
-              )}
+                onUpdateUnlockDaysAfterPrevious) && <DropdownMenuSeparator />}
               <DropdownMenuItem
                 disabled={savingOrder || index === 0}
                 onClick={() => onMove("up")}

@@ -51,10 +51,10 @@ export function VoiceAssessmentProvider({
       .filter(Boolean)
       .join("\n\n");
 
-    if (conversationText) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTranscript(conversationText);
-    }
+    // Keep transcript exactly in sync with the current conversation,
+    // including clearing it when there are no messages.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTranscript(conversationText);
   }, [messages]);
 
   const clearTranscript = () => {

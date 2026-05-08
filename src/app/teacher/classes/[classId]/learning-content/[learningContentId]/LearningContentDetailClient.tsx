@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
@@ -17,15 +18,16 @@ import {
   updateLearningContent,
   deleteLearningContent,
 } from "@/lib/queries/learningContent";
-import {
-  softDeleteContentItemByRef,
-  updateContentItemStatusByRef,
-} from "@/lib/queries/contentItems";
+import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
+import { countContentItemPlacementsByRefTracked } from "@/lib/swr/imperativeReads";
+import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
+import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRemove";
 import { LearningContent } from "@/types/learningContent";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LearningContentCompletionsTab from "@/components/Teacher/LearningContent/LearningContentCompletionsTab";
 import { showErrorToast } from "@/lib/toast";
+import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
 
 interface LearningContentDetailClientProps {
   initialContent: LearningContent;
@@ -36,12 +38,23 @@ export default function LearningContentDetailClient({
   initialContent,
   classId,
 }: LearningContentDetailClientProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
   const learningContentId = initialContent.learning_content_id;
   const [content, setContent] = useState<LearningContent>(initialContent);
+
+  const placementGroupId = useMemo(
+    () => resolveTeacherPlacementGroupId(searchParams.get("groupId"), content.class_group_id),
+    [searchParams, content.class_group_id]
+  );
+
+  const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
+    content.class_id,
+    "learning_content",
+    content.id
+  );
 
   const handleEdit = () => {
     const qs = searchParams.toString();
@@ -55,22 +68,42 @@ export default function LearningContentDetailClient({
   const handleDelete = async () => {
     if (!user || !content) return;
 
+    let placementCount = 1;
+    try {
+      placementCount = await countContentItemPlacementsByRefTracked({
+        classId: content.class_id,
+        type: "learning_content",
+        refId: content.id,
+      });
+    } catch (e) {
+      console.error(e);
+      showErrorToast("Could not verify placements. Please try again.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Are you sure you want to delete this learning content? This action cannot be undone."
+      placementCount > 1
+        ? "This item is linked in more than one group. Remove it only from this group's feed? Open from Class Content with the correct group tab if unsure."
+        : "Are you sure you want to delete this learning content? This action cannot be undone."
     );
     if (!confirmed) return;
 
     try {
-      await deleteLearningContent(content.id);
-      await softDeleteContentItemByRef({
-        class_id: content.class_id,
+      await removeTeacherMaterialPlacementOrEntity({
+        classDbId: content.class_id,
         type: "learning_content",
-        ref_id: content.id,
+        refId: content.id,
+        placementGroupId,
+        deleteEntitySoft: () => deleteLearningContent(content.id),
       });
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting learning content:", err);
-      showErrorToast("Failed to delete learning content. Please try again.");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to delete learning content. Please try again.";
+      showErrorToast(msg);
     }
   };
 
@@ -108,7 +141,7 @@ export default function LearningContentDetailClient({
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <PageTitle title={content.title} />
+              <PageTitle title={content.title} isLinked={isLinkedAcrossGroups} />
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
                 <p className="capitalize">Status: {content.status}</p>
               </div>
@@ -151,7 +184,11 @@ export default function LearningContentDetailClient({
             </TabsContent>
 
             <TabsContent value="completions" className="py-6">
-              <LearningContentCompletionsTab content={content} classId={classId} />
+              <LearningContentCompletionsTab
+                content={content}
+                classId={classId}
+                placementGroupId={placementGroupId}
+              />
             </TabsContent>
           </Tabs>
         </div>

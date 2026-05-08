@@ -1,25 +1,26 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { getClassStudentsWithInfo, StudentWithInfo } from "@/lib/queries/students";
+import { useMemo } from "react";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
-import { getClassByClassId, getProgressViewConfig } from "@/lib/queries/classes";
 import {
-  getProfileFieldsForClass,
-  getAllStudentProfiles,
-} from "@/lib/queries/profileFields";
-import {
-  getTeacherUnlocksForContentItem,
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
-import { getContentItemByRefId } from "@/lib/queries/contentItems";
 import { ContentItemType } from "@/types/contentItem";
 import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "./SubmissionsTable";
-import { ProfileField } from "@/types/profileFields";
+import {
+  invalidateTeacherUnlocksCache,
+  useAllStudentProfiles,
+  useClassData,
+  useClassStudents,
+  useContentItemByRefId,
+  useProfileFieldsForClass,
+  useProgressViewConfig,
+  useTeacherUnlocksForContentItem,
+} from "@/hooks/swr";
 
 interface StudentUnlockTabProps {
   /** UUID of the underlying entity (survey.id, learning_content.id, etc.) */
@@ -30,6 +31,8 @@ interface StudentUnlockTabProps {
   classId: string;
   /** Content name for the unlock dialog */
   contentName: string;
+  /** When the same material is linked across groups, disambiguate the placement. */
+  placementGroupId?: string | null;
 }
 
 export default function StudentUnlockTab({
@@ -37,117 +40,85 @@ export default function StudentUnlockTab({
   contentType,
   classId,
   contentName,
+  placementGroupId,
 }: StudentUnlockTabProps) {
-  const [students, setStudents] = useState<StudentWithInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const classQuery = useClassData(classId);
+  const classDbId = classQuery.data?.id ?? null;
 
-  // Profile + config
-  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
-  const [studentProfilesMap, setStudentProfilesMap] = useState<
-    Map<string, Record<string, string>>
-  >(new Map());
-  const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(
-    new Set()
+  const studentsQuery = useClassStudents(classDbId);
+  const profileFieldsQuery = useProfileFieldsForClass(classDbId);
+  const profilesQuery = useAllStudentProfiles(classDbId);
+  const progressViewQuery = useProgressViewConfig(classDbId);
+  const contentItemQuery = useContentItemByRefId(refId, contentType, placementGroupId);
+
+  const contentItem = contentItemQuery.data ?? null;
+  const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;
+
+  const unlocksQuery = useTeacherUnlocksForContentItem(
+    requireTeacherUnlock ? contentItem?.id ?? null : null
   );
-  const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(
-    new Set()
+
+  const students = useMemo(
+    () => studentsQuery.data ?? [],
+    [studentsQuery.data]
+  );
+  const profileFields = useMemo(
+    () => profileFieldsQuery.data ?? [],
+    [profileFieldsQuery.data]
+  );
+  const studentProfilesMap = useMemo(() => {
+    const map = new Map<string, Record<string, string>>();
+    (profilesQuery.data ?? []).forEach((p) =>
+      map.set(p.student_id, p.field_responses)
+    );
+    return map;
+  }, [profilesQuery.data]);
+  const displayFieldIds = useMemo(
+    () => new Set(progressViewQuery.data?.display_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const filterFieldIds = useMemo(
+    () => new Set(progressViewQuery.data?.filter_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const unlockedStudentIds = useMemo(
+    () => new Set((unlocksQuery.data ?? []).map((u) => u.student_id)),
+    [unlocksQuery.data]
   );
 
-  // Teacher unlock state
-  const [requireTeacherUnlock, setRequireTeacherUnlock] = useState(false);
-  const [unlockedStudentIds, setUnlockedStudentIds] = useState<Set<string>>(
-    new Set()
-  );
-  const [contentItemId, setContentItemId] = useState<string | null>(null);
+  const loading =
+    classQuery.isLoading ||
+    studentsQuery.isLoading ||
+    profileFieldsQuery.isLoading ||
+    profilesQuery.isLoading ||
+    progressViewQuery.isLoading ||
+    contentItemQuery.isLoading;
+  const error =
+    !classQuery.isLoading && classDbId === null
+      ? "Class not found"
+      : classQuery.error ||
+          studentsQuery.error ||
+          profileFieldsQuery.error ||
+          profilesQuery.error ||
+          progressViewQuery.error ||
+          contentItemQuery.error
+        ? "Failed to load student data."
+        : null;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const classData = await getClassByClassId(classId);
-        if (!classData) {
-          setError("Class not found");
-          return;
-        }
-
-        const [classStudents, contentItem, fields, profiles, savedConfig] =
-          await Promise.all([
-            getClassStudentsWithInfo(classData.id),
-            getContentItemByRefId(refId, contentType),
-            getProfileFieldsForClass(classData.id),
-            getAllStudentProfiles(classData.id),
-            getProgressViewConfig(classData.id),
-          ]);
-
-        setStudents(classStudents);
-        setProfileFields(fields);
-
-        // Build profile map
-        const profilesMap = new Map<string, Record<string, string>>();
-        profiles.forEach((p) => {
-          profilesMap.set(p.student_id, p.field_responses);
-        });
-        setStudentProfilesMap(profilesMap);
-        setDisplayFieldIds(
-          new Set<string>(savedConfig?.display_fields ?? [])
-        );
-        setFilterFieldIds(
-          new Set<string>(savedConfig?.filter_fields ?? [])
-        );
-
-        if (contentItem) {
-          setContentItemId(contentItem.id);
-          setRequireTeacherUnlock(
-            contentItem.require_teacher_unlock ?? false
-          );
-
-          if (contentItem.require_teacher_unlock) {
-            const unlocks = await getTeacherUnlocksForContentItem(
-              contentItem.id
-            );
-            setUnlockedStudentIds(
-              new Set(unlocks.map((u) => u.student_id))
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching student unlock data:", err);
-        setError("Failed to load student data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [refId, contentType, classId]);
-
-  // Handle unlock toggle
   const handleToggleUnlock = async (
     studentId: string,
     currentlyUnlocked: boolean
   ) => {
-    if (!contentItemId) return;
+    if (!contentItem?.id) return;
 
     if (currentlyUnlocked) {
-      await lockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.delete(studentId);
-        return next;
-      });
+      await lockContentForStudent(contentItem.id, studentId);
     } else {
-      await unlockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.add(studentId);
-        return next;
-      });
+      await unlockContentForStudent(contentItem.id, studentId);
     }
+    await invalidateTeacherUnlocksCache();
   };
 
-  // Columns: just the student list (no submission-specific data)
   const columns: SubmissionsTableColumn[] = useMemo(() => {
     return [
       {
@@ -168,7 +139,6 @@ export default function StudentUnlockTab({
     ];
   }, []);
 
-  // Build rows
   const rows: SubmissionsTableRow[] = useMemo(() => {
     return students.map((student) => ({
       id: student.student_id,

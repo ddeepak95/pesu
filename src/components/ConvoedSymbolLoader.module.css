@@ -1,0 +1,96 @@
+/**
+ * Sheen uses CSS mask over /convoed-symbol.svg so geometry stays a single
+ * public asset (see public/convoed-symbol.svg).
+ */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Square wrap so the ring is a true circle around the (wider) logo bounds. */
+.ringWrap {
+  --logo-w: calc(3rem * 216 / 206);
+  --logo-h: 3rem;
+  --ring-inset: 0.85rem;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: calc(var(--logo-w) + 2 * var(--ring-inset));
+  height: calc(var(--logo-w) + 2 * var(--ring-inset));
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  animation: convoedRingSpin 0.9s linear infinite;
+}
+
+@keyframes convoedRingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.stack {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  flex-shrink: 0;
+  height: var(--logo-h);
+  width: var(--logo-w);
+  transform: translateY(5px);
+}
+
+.mark {
+  display: block;
+  height: 100%;
+  width: 100%;
+  -webkit-mask-image: url("/convoed-symbol.svg");
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-image: url("/convoed-symbol.svg");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  background: linear-gradient(
+    118deg,
+    color-mix(in srgb, currentColor 35%, transparent) 0%,
+    currentColor 38%,
+    color-mix(in srgb, white 92%, currentColor) 50%,
+    currentColor 62%,
+    color-mix(in srgb, currentColor 35%, transparent) 100%
+  );
+  background-size: 240% 240%;
+  background-position: 0% 50%;
+  animation: convoedLoaderSheen 2.2s ease-in-out infinite;
+}
+
+@keyframes convoedLoaderSheen {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    animation: none;
+    background-position: 50% 50%;
+  }
+
+  .ring {
+    animation: none;
+    border-color: color-mix(in srgb, currentColor 38%, transparent);
+    border-top-color: color-mix(in srgb, currentColor 38%, transparent);
+  }
+}

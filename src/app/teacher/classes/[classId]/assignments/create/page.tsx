@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 
 export default function CreateAssignmentPage() {
   const params = useParams();
-  const router = useRouter();
+  const router = useTrackedRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const classId = params.classId as string;

@@ -7,7 +7,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Mic, Languages, Users, BarChart3 } from "lucide-react";
+import {
+  Mic,
+  Languages,
+  Users,
+  BarChart3,
+  Code2,
+  ClipboardCheck,
+  MessagesSquare,
+  Quote,
+  Keyboard,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import LandingNavbar from "./LandingNavbar";
@@ -42,6 +52,11 @@ export default function LandingPage() {
     textDecorationThickness: "1px",
     textUnderlineOffset: "0.3em",
   };
+
+  // Active tab for use cases section
+  const [activeTab, setActiveTab] = useState<"viva" | "oral" | "socratic">(
+    "viva",
+  );
 
   // State and refs for checking if scrolling is needed
   const [needsScrolling, setNeedsScrolling] = useState(false);
@@ -199,13 +214,13 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-pink-mist-50/30 via-glaucous-50/20 to-electric-aqua-50/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-30 sm:py-24 lg:py-40 relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 sm:pt-28 sm:pb-24 lg:pt-36 lg:pb-40 relative z-10">
           <div className="grid lg:grid-cols-[55%_45%] gap-6 lg:gap-3 items-center">
             {/* Hero illustration - appears first on mobile, second on desktop */}
             <div className="relative z-20 flex items-center justify-center lg:justify-start order-1 lg:order-2">
               <Image
                 src="/home/hero.png"
-                alt="Hero illustration"
+                alt="Illustration of conversational learning with ConvoEd"
                 width={512}
                 height={512}
                 className="h-auto w-full max-w-xs sm:max-w-sm lg:max-w-lg mx-auto lg:mx-0"
@@ -213,21 +228,21 @@ export default function LandingPage() {
             </div>
 
             {/* Hero text content - appears second on mobile, first on desktop */}
-            <div className="text-left lg:pl-20 order-2 lg:order-1">
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground">
+            <div className="text-left lg:pl-20 order-2 lg:order-1 max-w-xl lg:max-w-none">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground text-balance">
                 Improve Learning Through Conversations
               </h1>
 
-              <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed">
-                Provide your students with personalized{" "}
-                <span className="font-medium" style={wavyUnderlineStyle}>
-                  one-on-one learning support
+              <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed text-pretty">
+                Conduct conversational activities such as{" "}
+                <span
+                  className="font-medium text-foreground/90"
+                  style={wavyUnderlineStyle}
+                >
+                  vivas on student work, oral assessments, and guided learning
+                  conversations
                 </span>{" "}
-                through{" "}
-                <span className="font-medium" style={wavyUnderlineStyle}>
-                  voice dialogues with AI in their native language
-                </span>
-                .
+                for your whole class with AI support.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-start">
@@ -266,76 +281,367 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Problem Section */}
-      <section className="relative py-16 sm:py-20 lg:py-24 bg-muted/30 overflow-hidden">
+      {/* Bridge strip */}
+      <section className="py-12 sm:py-14 bg-muted/40">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-3xl mx-auto text-center space-y-5">
+            <p className="text-xl sm:text-2xl font-semibold text-foreground leading-snug">
+              ConvoEd acts as your teaching assistant, conducting conversational
+              learning activities with students based on your instructions. You
+              define the activity and set the goals; ConvoEd runs each session
+              and brings back the insights.
+            </p>
+            <p className="text-lg text-muted-foreground leading-relaxed">
+              Multilingual learners can{" "}
+              <span
+                className="font-medium text-foreground/90"
+                style={wavyUnderlineStyle}
+              >
+                use their native-language strengths
+              </span>{" "}
+              instead of being limited to English-only explanations.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* How teachers use ConvoEd */}
+      <section
+        id="how-teachers-use-it"
+        className="relative py-16 sm:py-20 lg:py-24 bg-muted/30 overflow-hidden"
+      >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-8 lg:mb-12 text-center text-foreground">
-            The Challenge
-          </h2>
-          <div className="grid lg:grid-cols-[60%_40%] gap-6 lg:gap-8 items-center">
-            {/* Left column: Challenge text content */}
-            <div className="lg:pl-20 order-2 lg:order-1">
-              <div className="space-y-6 text-lg text-muted-foreground">
-                <p>
-                  Millions of students learn Science and Mathematics in English,
-                  even when English is not their native language and they have
-                  not yet fully learned it. While teachers often explain
-                  concepts bilingually, assignments and assessments remain
-                  English-only, pushing students toward rote memorization rather
-                  than understanding.
-                </p>
-                <p>
-                  Large class sizes and limited teacher time make individualized
-                  support difficult. Over time, these gaps compound, causing
-                  many learners to fall permanently behind.
-                </p>
-                {/* <p>{t("landing.challenge.paragraph2")}</p> */}
-              </div>
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">
+              How teachers use ConvoEd
+            </h2>
+            <p className="text-lg text-center text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed text-pretty">
+              ConvoEd conducts the conversation on your behalf. You set the
+              activity and the goals. It runs each session and brings back the
+              insights.
+            </p>
+
+            {/* Tab bar */}
+            <div className="flex flex-col sm:flex-row gap-1 sm:gap-0 border-b border-border mb-10">
+              {(
+                [
+                  { key: "viva", label: "Viva on student work" },
+                  { key: "oral", label: "Oral assessments" },
+                  { key: "socratic", label: "Socratic support" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className="flex-1 py-3 px-4 text-sm sm:text-base font-medium text-left sm:text-center transition-colors duration-150 border-b-2 -mb-px"
+                  style={{
+                    borderBottomColor:
+                      activeTab === tab.key
+                        ? colors.glaucous.base
+                        : "transparent",
+                    color:
+                      activeTab === tab.key
+                        ? colors.glaucous.base
+                        : "oklch(0.556 0 0)",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
-            {/* Right column: Challenge illustration */}
-            <div className="flex items-center justify-center lg:pr-20 order-1 lg:order-2">
-              <Image
-                src="/home/challenge.png"
-                alt="Challenge illustration"
-                width={448}
-                height={448}
-                className="w-full h-auto max-w-md mx-auto lg:mx-0"
-              />
+            {/* Tab panels */}
+            {activeTab === "viva" && (
+              <div className="space-y-8">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 mt-1"
+                    style={{ backgroundColor: colors["pink-mist"].light }}
+                  >
+                    <Code2
+                      className="w-6 h-6"
+                      style={{ color: colors["pink-mist"].base }}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground mb-2">
+                      Viva on student work
+                    </h3>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Assign a viva to your whole class. ConvoEd reads each
+                      student&apos;s submission (code, writing, or other work)
+                      and conducts a focused voice dialogue, probing
+                      understanding and asking follow-up questions grounded in
+                      the actual artifact.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-6 pl-0 sm:pl-16">
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      You assign the activity.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Share the submission with ConvoEd and set the scope: which
+                      concepts or criteria you want probed.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      Each student completes a voice session.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      ConvoEd opens the dialogue by referencing the
+                      student&apos;s specific work, then asks questions that go
+                      deeper based on their responses.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      You receive a per-student summary.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      ConvoEd flags areas of shallow reasoning or confusion so
+                      you know exactly where to follow up.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "oral" && (
+              <div className="space-y-8">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 mt-1"
+                    style={{ backgroundColor: colors.glaucous.light }}
+                  >
+                    <ClipboardCheck
+                      className="w-6 h-6"
+                      style={{ color: colors.glaucous.base }}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground mb-2">
+                      Oral assessments
+                    </h3>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Check whether students truly understand concepts, not just
+                      how well they recall answers in writing. ConvoEd asks
+                      probing questions, follows up on vague responses, and
+                      surfaces how a student reasons aloud.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-6 pl-0 sm:pl-16">
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      You set the topic and targets.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Define the concepts you want assessed and the level of
+                      understanding you are looking for.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      ConvoEd runs the assessment.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Each student answers and explains through voice. ConvoEd
+                      follows up based on what they say, probing further where
+                      responses are incomplete.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      You review the outcomes.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      A summary highlights which students demonstrated secure
+                      understanding and which need revisiting before moving on.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "socratic" && (
+              <div className="space-y-8">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 mt-1"
+                    style={{ backgroundColor: colors["glaucous-light"].light }}
+                  >
+                    <MessagesSquare
+                      className="w-6 h-6"
+                      style={{ color: colors["glaucous-light"].base }}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground mb-2">
+                      Socratic support
+                    </h3>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Let students revisit topics through guided voice
+                      conversation at their own pace. ConvoEd does not give
+                      answers directly. It asks questions that help students
+                      reason toward understanding themselves.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-6 pl-0 sm:pl-16">
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      You assign it as practice or support.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      It can be optional extra help or required revision after a
+                      lesson.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      The student engages when ready.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      ConvoEd opens with a question grounded in the topic and
+                      builds on each response, guiding the student to work
+                      through the idea themselves.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">
+                      The conversation adapts as it progresses.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      If the student is stuck, ConvoEd adjusts its questions. If
+                      understanding is clear, it moves on to related or more
+                      complex ideas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* What students say — moved above capabilities for social proof flow */}
+      <section className="py-16 sm:py-20 lg:py-24 bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
+              What students say about ConvoEd
+            </h2>
+            <div className="grid md:grid-cols-2 gap-8">
+              <Card className="border-border/80 shadow-sm">
+                <CardHeader>
+                  <Quote
+                    className="w-8 h-8 mb-2 opacity-40"
+                    style={{ color: colors.glaucous.base }}
+                    aria-hidden
+                  />
+                  <blockquote className="text-base sm:text-lg text-muted-foreground leading-relaxed border-l-0 pl-0">
+                    <p>
+                      The questions the bot asked often made sure I understood
+                      the material fully and was able to point out areas where I
+                      was incorrect, which I thought was helpful because I
+                      received immediate feedback. I also liked that I was able
+                      to talk about my thought process, and I think talking
+                      about it would really help the material stick in my brain.
+                    </p>
+                  </blockquote>
+                </CardHeader>
+              </Card>
+              <Card className="border-border/80 shadow-sm">
+                <CardHeader>
+                  <Quote
+                    className="w-8 h-8 mb-2 opacity-40"
+                    style={{ color: colors["pink-mist"].base }}
+                    aria-hidden
+                  />
+                  <blockquote className="text-base sm:text-lg text-muted-foreground leading-relaxed border-l-0 pl-0">
+                    <p>
+                      I really like the fact that bot had my code and was asking
+                      probing questions about it, which I thought was really
+                      well done. The assistant was very polite, and very
+                      patient.
+                    </p>
+                  </blockquote>
+                </CardHeader>
+              </Card>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Solution Section */}
-      <section className="py-16 sm:py-20 lg:py-24 bg-background">
+      {/* What makes it work */}
+      <section className="py-16 sm:py-20 lg:py-24 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-8 text-foreground">
-              Our Solution
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">
+              What makes it work
             </h2>
-            <Image
-              src="/home/konvo.png"
-              alt="Solution illustration"
-              width={384}
-              height={384}
-              className="w-full h-auto max-w-sm mx-auto mt-8"
-            />
-            <div className="text-center mb-6 mt-10">
-              <h2
-                className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2 inline-block px-6 rounded-2xl"
-                style={{ color: "var(--color-glaucous-500)" }}
-              >
-                Meet Konvo
-              </h2>
-              <p className="text-lg sm:text-xl text-center text-muted-foreground mb-12">
-                Your AI-powered Teaching Assistant, helping students master
-                concepts with personalized support in their native language.
-              </p>
-            </div>
+            <p className="text-lg text-center text-muted-foreground mb-12 max-w-2xl mx-auto leading-relaxed">
+              Conversational activities at class scale, learner profiles from
+              every session, and summaries you can act on.
+            </p>
+
+            {/* Modality card — full width */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-center mb-6">
+                  Voice or text, your choice
+                </CardTitle>
+                <div className="grid sm:grid-cols-2 gap-6">
+                  <div className="flex gap-4 items-start">
+                    <div
+                      className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: colors["pink-mist"].light }}
+                    >
+                      <Mic
+                        className="w-6 h-6"
+                        style={{ color: colors["pink-mist"].base }}
+                      />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground mb-1">
+                        Voice conversation
+                      </p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Students speak naturally and ConvoEd listens, responds,
+                        and adapts. Best for vivas, oral assessments, and
+                        practice activities where spoken explanation matters.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 items-start">
+                    <div
+                      className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: colors.glaucous.light }}
+                    >
+                      <Keyboard
+                        className="w-6 h-6"
+                        style={{ color: colors.glaucous.base }}
+                      />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground mb-1">
+                        Text conversation
+                      </p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Students type their responses. Same conversational depth
+                        and adaptive follow-up, in a text format. Useful where
+                        voice is not practical.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
 
             <div className="grid md:grid-cols-2 gap-8 mb-12">
-              {/* Card 1 - Coral */}
               <Card>
                 <CardHeader>
                   <div
@@ -347,17 +653,15 @@ export default function LandingPage() {
                       style={{ color: colors["pink-mist"].base }}
                     />
                   </div>
-                  <CardTitle>Voice-Based Dialogue</CardTitle>
+                  <CardTitle>Conversation-based activities</CardTitle>
                   <CardDescription>
-                    Konvo enables students to explain concepts and respond to
-                    questions through natural voice conversations in their
-                    native or most comfortable language. This voice-first
-                    approach reduces cognitive load and enables deeper thinking.
+                    Students explain and reason through conversation for vivas,
+                    oral checks, and Socratic practice you could never run
+                    one-on-one for a whole class.
                   </CardDescription>
                 </CardHeader>
               </Card>
 
-              {/* Card 2 - Sky */}
               <Card>
                 <CardHeader>
                   <div
@@ -369,17 +673,16 @@ export default function LandingPage() {
                       style={{ color: colors.glaucous.base }}
                     />
                   </div>
-                  <CardTitle>Progressive English Scaffolding</CardTitle>
+                  <CardTitle>Native language strengths first</CardTitle>
                   <CardDescription>
-                    Konvo gradually introduces English terms and expressions
-                    through meaningful, context-grounded interactions. As
-                    students engage with concepts, Konvo naturally builds
-                    English proficiency alongside conceptual understanding.
+                    Multilingual learners can explain and wrestle with ideas in
+                    the language they know best. English scaffolding still
+                    appears in context when it helps, but competency is not
+                    defined solely by English-only responses.
                   </CardDescription>
                 </CardHeader>
               </Card>
 
-              {/* Card 3 - Lavender */}
               <Card>
                 <CardHeader>
                   <div
@@ -391,18 +694,15 @@ export default function LandingPage() {
                       style={{ color: colors["glaucous-light"].base }}
                     />
                   </div>
-                  <CardTitle>Personalized Learner Profiles</CardTitle>
+                  <CardTitle>Profiles grounded in dialogue</CardTitle>
                   <CardDescription>
-                    Konvo builds a comprehensive learner profile for each
-                    student based on their interactions over time. This profile
-                    identifies misconceptions, tracks understanding, and reveals
-                    individualized learning needs, creating a sustained record
-                    that grows and adapts with each conversation.
+                    Each learner builds a profile from conversational evidence:
+                    misconceptions, strengths, and how they explain concepts
+                    aloud, growing across every activity you assign.
                   </CardDescription>
                 </CardHeader>
               </Card>
 
-              {/* Card 4 - Mint */}
               <Card>
                 <CardHeader>
                   <div
@@ -414,12 +714,12 @@ export default function LandingPage() {
                       style={{ color: colors["electric-aqua"].base }}
                     />
                   </div>
-                  <CardTitle>Teacher Insights</CardTitle>
+                  <CardTitle>Teacher-ready insights</CardTitle>
                   <CardDescription>
-                    Konvo provides teachers with actionable summaries that help
-                    identify which concepts are secure, where misconceptions
-                    persist, and which students need targeted support based on
-                    learner profiles and interaction data.
+                    Actionable summaries highlight who needs follow-up, which
+                    ideas are fragile after oral assessment, and how
+                    conversational data complements written work, so you
+                    intervene with confidence.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -429,7 +729,7 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-16 sm:py-20 lg:py-24 bg-muted/30">
+      <section className="py-16 sm:py-20 lg:py-24 bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-foreground">
@@ -439,36 +739,36 @@ export default function LandingPage() {
               <HowItWorksStep
                 stepNumber={1}
                 imageSrc="/home/how-it-works/1_teach.png"
-                imageAlt="Learn in Class"
-                title="Learn in Class"
-                description="Teachers introduce concepts in class as usual, then assign short oral homework using ConvoEd."
+                imageAlt="Set up conversational activities"
+                title="Set up conversational activities"
+                description="Choose an activity: a viva on student work, an oral conceptual check, or a Socratic practice sequence. Set your rubric and learning goals, then assign it to your class."
                 badgeColor={colors["pink-mist"].base}
                 borderColor={colors["pink-mist"].light}
               />
               <HowItWorksStep
                 stepNumber={2}
                 imageSrc="/home/how-it-works/2_interact.png"
-                imageAlt="One-on-One Practice at Home"
-                title="One-on-One Practice at Home"
-                description="Each student engages in personalized voice dialogues with Konvo, explaining concepts, responding to questions, and receiving individualized feedback in their native language."
+                imageAlt="Students engage in conversation"
+                title="Students engage in conversation"
+                description="Each learner holds a personalized conversation with ConvoEd: explaining ideas, answering probes, and receiving immediate feedback, often in the language they find most comfortable."
                 badgeColor={colors.glaucous.base}
                 borderColor={colors.glaucous.light}
               />
               <HowItWorksStep
                 stepNumber={3}
                 imageSrc="/home/how-it-works/3_understand.png"
-                imageAlt="Build Understanding"
-                title="Build Understanding"
-                description="Through guided practice, immediate feedback, and progressive English scaffolding, students build strong conceptual foundations."
+                imageAlt="Build understanding through dialogue"
+                title="Build understanding through dialogue"
+                description="Guided questions, clarifications, and feedback help students consolidate concepts and surface misconceptions before high-stakes assessments."
                 badgeColor={colors["glaucous-light"].base}
                 borderColor={colors["glaucous-light"].light}
               />
               <HowItWorksStep
                 stepNumber={4}
                 imageSrc="/home/how-it-works/4_teacher_insights.png"
-                imageAlt="Support Teachers"
-                title="Support Teachers"
-                description="Teachers receive actionable insights about student understanding, enabling targeted support and better instruction."
+                imageAlt="Review insights and follow up"
+                title="Review insights and follow up"
+                description="You receive summaries grounded in conversational evidence: who needs support, which ideas are shaky, and how conversational evidence complements written work."
                 badgeColor={colors["electric-aqua"].base}
                 borderColor={colors["electric-aqua"].light}
               />
@@ -478,7 +778,7 @@ export default function LandingPage() {
       </section>
 
       {/* Supported By Section */}
-      <section className="py-16 sm:py-20 lg:py-24 bg-background">
+      <section className="py-16 sm:py-20 lg:py-24 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12 text-foreground">
@@ -534,15 +834,15 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA Section */}
-      <section className="py-16 sm:py-20 lg:py-24 relative bg-muted/30">
+      <section className="py-16 sm:py-20 lg:py-24 relative bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Ready to Transform Learning?
+              Start assigning conversational activities.
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Get started with ConvoEd and help shape the future of multilingual
-              education.
+              Use ConvoEd for vivas, oral assessments, and multilingual dialogue
+              without extra time on your end.
             </p>
             <Button
               asChild
@@ -591,9 +891,9 @@ export default function LandingPage() {
                 className="text-sm leading-relaxed max-w-xs"
                 style={{ color: "oklch(0.556 0 0)" }}
               >
-                Provide your students with personalized one-on-one learning
-                support through voice dialogues with AI in their native
-                language.
+                ConvoEd helps teachers run conversational learning activities at
+                scale: vivas, oral assessments, and multilingual conversational
+                support for every learner.
               </p>
             </div>
 

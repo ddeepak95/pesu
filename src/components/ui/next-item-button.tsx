@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
@@ -26,7 +26,7 @@ export default function NextItemButton({
   className,
   onBeforeNavigate,
 }: NextItemButtonProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const { nextUrl } = useNextContentItem(classDbId, classId, contentItemId);
 
   if (!nextUrl) return null;
@@ -35,7 +35,7 @@ export default function NextItemButton({
     <div className={cn("flex justify-center pt-2", className)}>
       <Button
         type="button"
-        variant="default"
+        variant="outline"
         size="lg"
         className="gap-2"
         onClick={() => {

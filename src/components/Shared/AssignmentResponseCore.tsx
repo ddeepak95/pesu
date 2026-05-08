@@ -10,9 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import FileUploadZone from "@/components/Shared/FileUploadZone";
 import { updateQuestionIndex } from "@/utils/sessionStorage";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { getQuestionsWithAttempts } from "@/lib/queries/submissions";
+import {
+  useIsContentComplete,
+  useQuestionsWithAttempts,
+} from "@/hooks/swr";
 import { getEffectiveAllowCopyPaste } from "@/lib/integrity/assignmentPolicy";
-import { isContentComplete } from "@/lib/queries/contentCompletions";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import PageTitle from "@/components/Shared/PageTitle";
 import { TabSwitchWarningDialog } from "@/components/Shared/Integrity/TabSwitchWarningDialog";
@@ -85,16 +87,22 @@ export default function AssignmentResponseCore({
   const [answers, setAnswers] = useState<{ [key: number]: string }>(
     existingAnswers,
   );
-  const [isComplete, setIsComplete] = useState(false);
   // Use assignment's preferred_language as fallback if initialPreferredLanguage is empty
   const [preferredLanguage, setPreferredLanguage] = useState(
     initialPreferredLanguage || assignmentData.preferred_language || "en",
   );
 
-  // Track which questions have at least one attempt
-  const [questionsWithAttempts, setQuestionsWithAttempts] = useState<
-    Set<number>
-  >(new Set());
+  // Track which questions have at least one attempt (driven by SWR so the
+  // global overlay covers the load).
+  const questionsWithAttemptsQuery = useQuestionsWithAttempts(submissionId);
+  const questionsWithAttempts = useMemo(
+    () => questionsWithAttemptsQuery.data ?? new Set<number>(),
+    [questionsWithAttemptsQuery.data]
+  );
+
+  // Has the current student already completed this content item?
+  const isContentCompleteQuery = useIsContentComplete(contentItemId ?? null);
+  const isComplete = isContentCompleteQuery.data ?? false;
 
   // Dynamic question generation state
   const [generatedQuestions, setGeneratedQuestions] = useState<
@@ -134,55 +142,17 @@ export default function AssignmentResponseCore({
   const isOnFileUploadStep = fileUploadRequired && currentStepIndex === 0;
   const questionIndex = currentStepIndex - questionOffset;
 
-  // Single-query check: which questions have at least one non-stale attempt?
-  const checkAttempts = useCallback(async () => {
-    if (!submissionId) return;
-
-    try {
-      const withAttempts = await getQuestionsWithAttempts(submissionId);
-      setQuestionsWithAttempts(withAttempts);
-    } catch (error) {
-      console.error("Error checking question attempts:", error);
-    }
-  }, [submissionId]);
-
-  // Check attempts when component mounts and when navigating between questions
+  // Re-check attempts when navigating between questions. SWR will dedupe the
+  // call so this is cheap.
+  const revalidateAttempts = questionsWithAttemptsQuery.mutate;
   useEffect(() => {
-    checkAttempts();
-  }, [checkAttempts, currentStepIndex]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkCompletion = async () => {
-      if (!contentItemId) {
-        if (isMounted) {
-          setIsComplete(false);
-        }
-        return;
-      }
-
-      try {
-        const completed = await isContentComplete(contentItemId);
-        if (isMounted) {
-          setIsComplete(completed);
-        }
-      } catch (error) {
-        console.error("Error checking completion status:", error);
-      }
-    };
-
-    checkCompletion();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [contentItemId]);
+    revalidateAttempts();
+  }, [revalidateAttempts, currentStepIndex]);
 
   // Callback for assessment components to trigger re-check after new attempt
   const handleAttemptCreated = useCallback(() => {
-    checkAttempts();
-  }, [checkAttempts]);
+    revalidateAttempts();
+  }, [revalidateAttempts]);
 
   // Determine if all questions have attempts
   const allQuestionsHaveAttempts =
@@ -426,6 +396,8 @@ export default function AssignmentResponseCore({
   }, [fileUploadRequired, submissionId, currentStepIndex]);
 
   const [tabTrackingActive, setTabTrackingActive] = useState(false);
+  const [voiceMicPermissionPending, setVoiceMicPermissionPending] =
+    useState(false);
 
   const { showTabWarning, dismissTabWarning, tabWarningQuota } =
     useTabLeaveTracking({
@@ -434,6 +406,7 @@ export default function AssignmentResponseCore({
       integrityAccessRevoked,
       active: tabTrackingActive,
       onAccessRevoked: onIntegrityAccessRevoked,
+      suspendTabLeaveTracking: voiceMicPermissionPending,
     });
 
   // If language is locked, don't allow students to change it
@@ -618,7 +591,9 @@ export default function AssignmentResponseCore({
           completedQuestionIndices={completedQuestionIndices}
           onGoToQuestion={handleGoToQuestion}
           onAttemptCreated={handleAttemptCreated}
-          onMarkedComplete={() => setIsComplete(true)}
+          onMarkedComplete={() => {
+            isContentCompleteQuery.mutate(true, false);
+          }}
           isComplete={isComplete}
           sharedContext={
             assignmentData.shared_context_enabled
@@ -638,6 +613,9 @@ export default function AssignmentResponseCore({
           allowCopyPaste={allowCopyPaste}
           onIntegrityAccessRevoked={onIntegrityAccessRevoked}
           onTabTrackingActiveChange={setTabTrackingActive}
+          onVoiceMicPermissionRequestPendingChange={
+            setVoiceMicPermissionPending
+          }
           fileSubmissionsContent={fileSubmissionsContent}
           activityType={assignmentData.activity_type ?? "learning"}
           title={assignmentData.title}

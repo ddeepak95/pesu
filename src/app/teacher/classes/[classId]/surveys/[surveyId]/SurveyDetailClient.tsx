@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
@@ -15,14 +16,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateSurvey, deleteSurvey } from "@/lib/queries/surveys";
-import {
-  softDeleteContentItemByRef,
-  updateContentItemStatusByRef,
-} from "@/lib/queries/contentItems";
+import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
+import { countContentItemPlacementsByRefTracked } from "@/lib/swr/imperativeReads";
+import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
+import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRemove";
 import { Survey } from "@/types/survey";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SurveyResponsesTab from "@/components/Teacher/Surveys/SurveyResponsesTab";
 import { showErrorToast } from "@/lib/toast";
+import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
 
 interface SurveyDetailClientProps {
   initialSurvey: Survey;
@@ -35,13 +37,24 @@ export default function SurveyDetailClient({
   initialResponseCount,
   classId,
 }: SurveyDetailClientProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
   const surveyId = initialSurvey.survey_id;
   const [survey, setSurvey] = useState<Survey>(initialSurvey);
   const [responseCount] = useState<number>(initialResponseCount);
+
+  const placementGroupId = useMemo(
+    () => resolveTeacherPlacementGroupId(searchParams.get("groupId"), survey.class_group_id),
+    [searchParams, survey.class_group_id]
+  );
+
+  const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
+    survey.class_id,
+    "survey",
+    survey.id
+  );
 
   const handleEdit = () => {
     const qs = searchParams.toString();
@@ -55,22 +68,40 @@ export default function SurveyDetailClient({
   const handleDelete = async () => {
     if (!user || !survey) return;
 
+    let placementCount = 1;
+    try {
+      placementCount = await countContentItemPlacementsByRefTracked({
+        classId: survey.class_id,
+        type: "survey",
+        refId: survey.id,
+      });
+    } catch (e) {
+      console.error(e);
+      showErrorToast("Could not verify placements. Please try again.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Are you sure you want to delete this survey? This action cannot be undone."
+      placementCount > 1
+        ? "This survey is linked in more than one group. Remove it only from this group's feed?"
+        : "Are you sure you want to delete this survey? This action cannot be undone."
     );
     if (!confirmed) return;
 
     try {
-      await deleteSurvey(survey.id);
-      await softDeleteContentItemByRef({
-        class_id: survey.class_id,
+      await removeTeacherMaterialPlacementOrEntity({
+        classDbId: survey.class_id,
         type: "survey",
-        ref_id: survey.id,
+        refId: survey.id,
+        placementGroupId,
+        deleteEntitySoft: () => deleteSurvey(survey.id),
       });
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting survey:", err);
-      showErrorToast("Failed to delete survey. Please try again.");
+      const msg =
+        err instanceof Error ? err.message : "Failed to delete survey. Please try again.";
+      showErrorToast(msg);
     }
   };
 
@@ -108,7 +139,7 @@ export default function SurveyDetailClient({
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <PageTitle title={survey.title} />
+              <PageTitle title={survey.title} isLinked={isLinkedAcrossGroups} />
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
                 <p>
                   {survey.questions.length} question
@@ -259,7 +290,11 @@ export default function SurveyDetailClient({
             </TabsContent>
 
             <TabsContent value="responses" className="py-6">
-              <SurveyResponsesTab survey={survey} classId={classId} />
+              <SurveyResponsesTab
+                survey={survey}
+                classId={classId}
+                placementGroupId={placementGroupId}
+              />
             </TabsContent>
           </Tabs>
         </div>

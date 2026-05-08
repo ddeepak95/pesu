@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mutate } from "swr";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,16 +22,16 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  getProfileFieldsForClass,
   createProfileField,
   updateProfileField,
   deleteProfileField,
 } from "@/lib/queries/profileFields";
-import {
-  getProgressViewConfig,
-  saveProgressViewConfig,
-} from "@/lib/queries/classes";
+import { saveProgressViewConfig } from "@/lib/queries/classes";
 import { ProgressViewConfig } from "@/types/class";
+import {
+  useProfileFieldsForClass,
+  useProgressViewConfig,
+} from "@/hooks/swr";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus,
@@ -61,55 +62,52 @@ export default function ProfileFieldsSection({
   classData,
   isOwner: _isOwner,
 }: ProfileFieldsSectionProps) {
+  const profileFieldsQuery = useProfileFieldsForClass(classData.id);
+  const progressViewQuery = useProgressViewConfig(classData.id);
+
+  const loading =
+    profileFieldsQuery.isLoading || progressViewQuery.isLoading;
+
   const [fields, setFields] = useState<LocalField[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [deletedFieldIds, setDeletedFieldIds] = useState<string[]>([]);
   const [optionInputs, setOptionInputs] = useState<Record<number, string>>({});
 
-  // Display-in-views config (progress_view_config)
   const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(new Set());
   const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(new Set());
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSuccess, setConfigSuccess] = useState(false);
 
   useEffect(() => {
-    const loadFields = async () => {
-      setLoading(true);
-      setError(null);
-      setDeletedFieldIds([]);
+    if (profileFieldsQuery.error) {
+      setError("Failed to load profile fields");
+      return;
+    }
+    if (!profileFieldsQuery.data) return;
+    setError(null);
+    setDeletedFieldIds([]);
+    setFields(
+      profileFieldsQuery.data.map((f) => ({
+        id: f.id,
+        field_name: f.field_name,
+        field_type: f.field_type,
+        options: f.options || [],
+        position: f.position,
+        is_mandatory: f.is_mandatory,
+        is_display_name: f.is_display_name,
+        isNew: false,
+      }))
+    );
+  }, [profileFieldsQuery.data, profileFieldsQuery.error]);
 
-      try {
-        const [existingFields, savedConfig] = await Promise.all([
-          getProfileFieldsForClass(classData.id),
-          getProgressViewConfig(classData.id),
-        ]);
-        setFields(
-          existingFields.map((f) => ({
-            id: f.id,
-            field_name: f.field_name,
-            field_type: f.field_type,
-            options: f.options || [],
-            position: f.position,
-            is_mandatory: f.is_mandatory,
-            is_display_name: f.is_display_name,
-            isNew: false,
-          }))
-        );
-        setDisplayFieldIds(new Set<string>(savedConfig?.display_fields ?? []));
-        setFilterFieldIds(new Set<string>(savedConfig?.filter_fields ?? []));
-      } catch (err) {
-        console.error("Error loading profile fields:", err);
-        setError("Failed to load profile fields");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadFields();
-  }, [classData.id]);
+  useEffect(() => {
+    if (!progressViewQuery.data && !progressViewQuery.isLoading) return;
+    const cfg = progressViewQuery.data;
+    setDisplayFieldIds(new Set<string>(cfg?.display_fields ?? []));
+    setFilterFieldIds(new Set<string>(cfg?.filter_fields ?? []));
+  }, [progressViewQuery.data, progressViewQuery.isLoading]);
 
   const handleAddField = () => {
     const newPosition =
@@ -263,20 +261,9 @@ export default function ProfileFieldsSection({
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
 
-      // Reload to get fresh IDs for newly created fields
-      const existingFields = await getProfileFieldsForClass(classData.id);
-      setFields(
-        existingFields.map((f) => ({
-          id: f.id,
-          field_name: f.field_name,
-          field_type: f.field_type,
-          options: f.options || [],
-          position: f.position,
-          is_mandatory: f.is_mandatory,
-          is_display_name: f.is_display_name,
-          isNew: false,
-        }))
-      );
+      // Reload to get fresh IDs for newly created fields. The SWR cache update
+      // will trigger the seeding `useEffect` above.
+      await mutate(["profileFields", classData.id]);
     } catch (err) {
       console.error("Error saving profile fields:", err);
       setError("Failed to save profile fields. Please try again.");
@@ -627,6 +614,10 @@ export default function ProfileFieldsSection({
                           filter_fields: Array.from(filterFieldIds),
                         };
                         await saveProgressViewConfig(classData.id, config);
+                        await mutate([
+                          "progressViewConfig",
+                          classData.id,
+                        ]);
                         setConfigSuccess(true);
                         setTimeout(() => setConfigSuccess(false), 3000);
                       } catch (err) {

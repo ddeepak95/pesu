@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { SubmissionAttempt, RubricScore } from "@/types/submission";
-import { getTranscript } from "@/lib/queries/submissions";
+import { useTranscript } from "@/hooks/swr";
 
 interface FeedbackApprovalEditorProps {
   attempt: SubmissionAttempt;
@@ -35,15 +35,13 @@ export function FeedbackApprovalEditor({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [answerText, setAnswerText] = useState<string | null>(null);
-  const [loadingAnswer, setLoadingAnswer] = useState(true);
-
-  useEffect(() => {
-    getTranscript(submissionId, questionOrder, attempt.attempt_number)
-      .then(setAnswerText)
-      .catch(() => setAnswerText(null))
-      .finally(() => setLoadingAnswer(false));
-  }, [submissionId, questionOrder, attempt.attempt_number]);
+  const transcriptQuery = useTranscript({
+    submissionId,
+    questionOrder,
+    attemptNumber: attempt.attempt_number,
+  });
+  const answerText = transcriptQuery.data ?? null;
+  const loadingAnswer = transcriptQuery.isLoading;
 
   const handleRubricFeedbackChange = (index: number, value: string) => {
     setRubricFeedbacks((prev) => {

@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
     // Idempotent insert keyed on event_id. If a row with the same event_id
     // already exists, the insert is ignored (no error, no duplicate row).
     // Legacy callers without event_id fall through to a standard insert.
+    // Use INSERT (not UPSERT) to avoid requiring UPDATE RLS policy paths.
     const insertPayload = {
       event_id: resolvedEventId,
       user_id: resolvedUserId,
@@ -154,26 +155,21 @@ export async function POST(request: NextRequest) {
 
     const runWrite = async (
       payload: ActivityInsertPayload | ActivityInsertPayloadLegacy
-    ) =>
-      resolvedEventId
-        ? supabase
-            .from("activity_events")
-            .upsert(payload, {
-              onConflict: "event_id",
-              ignoreDuplicates: true,
-            })
-            .select()
-        : supabase.from("activity_events").insert(payload).select().single();
+    ) => supabase.from("activity_events").insert(payload);
 
-    let { data, error } = await runWrite(insertPayload);
+    let { error } = await runWrite(insertPayload);
     if (error?.code === "42703") {
       // Backward compatibility while DB migration for interaction_source rolls out.
       const { interaction_source: _drop, ...fallbackPayload } = insertPayload;
       void _drop;
-      ({ data, error } = await runWrite(fallbackPayload));
+      ({ error } = await runWrite(fallbackPayload));
     }
 
     if (error) {
+      if (error.code === "23505" && resolvedEventId) {
+        // Duplicate event_id is expected under retry/replay; treat as success.
+        return NextResponse.json({ success: true, duplicate: true });
+      }
       console.error("Error inserting activity event:", error);
       if (error.code === "42P10") {
         return NextResponse.json(
@@ -190,7 +186,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error in activity-events API:", error);
     return NextResponse.json(

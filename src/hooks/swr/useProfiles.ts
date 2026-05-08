@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import {
+  getAllStudentProfiles,
   getProfileFieldsForClass,
   getStudentProfile,
 } from "@/lib/queries/profileFields";
@@ -27,5 +28,15 @@ export function useStudentProfileData(
       ? ["studentProfile", classDbId, studentId]
       : null,
     () => getStudentProfile(classDbId!, studentId!)
+  );
+}
+
+/**
+ * Fetch every student's profile responses for a class.
+ */
+export function useAllStudentProfiles(classDbId: string | null) {
+  return useSWR<StudentProfile[]>(
+    classDbId ? ["allStudentProfiles", classDbId] : null,
+    () => getAllStudentProfiles(classDbId!)
   );
 }

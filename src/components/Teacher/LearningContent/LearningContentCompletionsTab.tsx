@@ -1,17 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { LearningContent } from "@/types/learningContent";
-import { getClassStudentsWithInfo } from "@/lib/queries/students";
 import type { StudentWithInfo } from "@/lib/queries/students";
-import { getContentItemByRefId } from "@/lib/queries/contentItems";
-import {
-  getCompletionsByContentItem,
-} from "@/lib/queries/contentCompletions";
 import { deleteQuizCompletionForStudent } from "@/lib/queries/quizzes";
 import {
-  getTeacherUnlocksForContentItem,
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
@@ -21,75 +15,71 @@ import SubmissionsTable, {
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
 import { showErrorToast } from "@/lib/toast";
+import {
+  invalidateClassContentCompletionsCache,
+  invalidateTeacherUnlocksCache,
+  useClassStudents,
+  useCompletionsByContentItem,
+  useContentItemByRefId,
+  useTeacherUnlocksForContentItem,
+} from "@/hooks/swr";
 
 interface LearningContentCompletionsTabProps {
   content: LearningContent;
   classId: string;
+  placementGroupId?: string | null;
 }
 
 export default function LearningContentCompletionsTab({
   content,
   classId: _classId,
+  placementGroupId,
 }: LearningContentCompletionsTabProps) {
-  const [students, setStudents] = useState<StudentWithInfo[]>([]);
-  const [completions, setCompletions] = useState<
-    { student_id: string; completed_at: string }[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [contentItemId, setContentItemId] = useState<string | null>(null);
-  const [requireTeacherUnlock, setRequireTeacherUnlock] = useState(false);
-  const [unlockedStudentIds, setUnlockedStudentIds] = useState<Set<string>>(
-    new Set()
+  const studentsQuery = useClassStudents(content.class_id);
+  const contentItemQuery = useContentItemByRefId(
+    content.id,
+    "learning_content",
+    placementGroupId
   );
+  const contentItem = contentItemQuery.data ?? null;
+
+  const completionsQuery = useCompletionsByContentItem(contentItem?.id ?? null);
+  const requireTeacherUnlock = !!contentItem?.require_teacher_unlock;
+  const unlocksQuery = useTeacherUnlocksForContentItem(
+    requireTeacherUnlock ? contentItem?.id ?? null : null
+  );
+
+  const students = useMemo<StudentWithInfo[]>(
+    () => studentsQuery.data ?? [],
+    [studentsQuery.data]
+  );
+  const completions = useMemo(
+    () => completionsQuery.data ?? [],
+    [completionsQuery.data]
+  );
+  const unlockedStudentIds = useMemo(
+    () => new Set((unlocksQuery.data ?? []).map((u) => u.student_id)),
+    [unlocksQuery.data]
+  );
+
+  const loading =
+    studentsQuery.isLoading ||
+    contentItemQuery.isLoading ||
+    completionsQuery.isLoading;
+  const error =
+    studentsQuery.error || contentItemQuery.error || completionsQuery.error
+      ? "Failed to load completions."
+      : null;
+
   const [resetting, setResetting] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [studentsData, contentItem] = await Promise.all([
-        getClassStudentsWithInfo(content.class_id),
-        getContentItemByRefId(content.id, "learning_content"),
-      ]);
-
-      setStudents(studentsData);
-      setContentItemId(contentItem?.id ?? null);
-      setRequireTeacherUnlock(contentItem?.require_teacher_unlock ?? false);
-
-      if (contentItem?.id) {
-        const [completionsData, unlocks] = await Promise.all([
-          getCompletionsByContentItem(contentItem.id),
-          contentItem.require_teacher_unlock
-            ? getTeacherUnlocksForContentItem(contentItem.id)
-            : Promise.resolve([]),
-        ]);
-        setCompletions(completionsData);
-        if (contentItem.require_teacher_unlock) {
-          setUnlockedStudentIds(new Set(unlocks.map((u) => u.student_id)));
-        }
-      } else {
-        setCompletions([]);
-      }
-    } catch (err) {
-      console.error("Error fetching learning content completions:", err);
-      setError("Failed to load completions.");
-    } finally {
-      setLoading(false);
-    }
-  }, [content.id, content.class_id]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // When content is group-scoped, show only students in that group
+  const scopeGroupId = placementGroupId ?? content.class_group_id ?? null;
   const studentsInScope = useMemo(() => {
-    if (content.class_group_id != null) {
-      return students.filter((s) => s.group_id === content.class_group_id);
+    if (scopeGroupId != null) {
+      return students.filter((s) => s.group_id === scopeGroupId);
     }
     return students;
-  }, [students, content.class_group_id]);
+  }, [students, scopeGroupId]);
 
   const completionByStudentId = useMemo(() => {
     const map = new Map<string, string>();
@@ -101,27 +91,18 @@ export default function LearningContentCompletionsTab({
     studentId: string,
     currentlyUnlocked: boolean
   ) => {
-    if (!contentItemId) return;
+    if (!contentItem?.id) return;
     if (currentlyUnlocked) {
-      await lockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.delete(studentId);
-        return next;
-      });
+      await lockContentForStudent(contentItem.id, studentId);
     } else {
-      await unlockContentForStudent(contentItemId, studentId);
-      setUnlockedStudentIds((prev) => {
-        const next = new Set(prev);
-        next.add(studentId);
-        return next;
-      });
+      await unlockContentForStudent(contentItem.id, studentId);
     }
+    await invalidateTeacherUnlocksCache();
   };
 
   const handleReset = useCallback(
     async (studentId: string) => {
-      if (!contentItemId) return;
+      if (!contentItem?.id) return;
       const confirmed = window.confirm(
         "Remove completion for this student? They can mark it complete again."
       );
@@ -130,10 +111,10 @@ export default function LearningContentCompletionsTab({
       setResetting(studentId);
       try {
         await deleteQuizCompletionForStudent({
-          contentItemId,
+          contentItemId: contentItem.id,
           studentId,
         });
-        await fetchData();
+        await invalidateClassContentCompletionsCache();
       } catch (err) {
         console.error("Error resetting completion:", err);
         showErrorToast("Failed to reset completion. Please try again.");
@@ -141,7 +122,7 @@ export default function LearningContentCompletionsTab({
         setResetting(null);
       }
     },
-    [contentItemId, fetchData]
+    [contentItem?.id]
   );
 
   const columns: SubmissionsTableColumn[] = useMemo(
@@ -257,7 +238,7 @@ export default function LearningContentCompletionsTab({
       contentName={content.title}
       onToggleUnlock={handleToggleUnlock}
       emptyMessage={
-        content.class_group_id != null
+        scopeGroupId != null
           ? "No students in this group yet."
           : "No students enrolled yet."
       }

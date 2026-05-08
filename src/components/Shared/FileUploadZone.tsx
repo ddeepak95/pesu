@@ -9,8 +9,10 @@ import { SubmissionFile } from "@/types/submission";
 import {
   uploadSubmissionFile,
   deleteSubmissionFile,
+  requestFileDownloadUrl,
+  // Background polling — intentionally untracked (no overlay flash every 3s).
+  // eslint-disable-next-line no-restricted-imports
   getSubmissionFiles,
-  getFileDownloadUrl,
 } from "@/lib/queries/submissionFiles";
 import { Button } from "@/components/ui/button";
 import { Upload, X, FileText, Loader2, Download, FileCode, Check, AlertCircle } from "lucide-react";
@@ -373,7 +375,7 @@ export default function FileUploadZone({
     type: "original" | "parsed" = "original",
   ) => {
     try {
-      const url = await getFileDownloadUrl(file.id, type);
+      const url = await requestFileDownloadUrl(file.id, type);
       window.open(url, "_blank");
     } catch (err) {
       console.error("Download error:", err);

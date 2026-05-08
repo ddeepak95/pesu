@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import AssignmentForm from "@/components/Teacher/Assignments/AssignmentForm";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  getAssignmentByIdForTeacher,
-  updateAssignment,
-} from "@/lib/queries/assignments";
+import { updateAssignment } from "@/lib/queries/assignments";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import {
   Question,
@@ -20,10 +18,11 @@ import {
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
+import { useAssignmentByIdForTeacher } from "@/hooks/swr";
 
 export default function EditAssignmentPage() {
   const params = useParams();
-  const router = useRouter();
+  const router = useTrackedRouter();
   const { user } = useAuth();
   const classId = params.classId as string;
   const assignmentId = params.assignmentId as string;
@@ -63,64 +62,65 @@ export default function EditAssignmentPage() {
   const [fileSubmissionConfig, setFileSubmissionConfig] =
     useState<FileSubmissionConfig | null>(null);
   const [dynamicGenerationPrompt, setDynamicGenerationPrompt] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
   const [assignmentDbId, setAssignmentDbId] = useState<string | null>(null);
   const [assignmentClassId, setAssignmentClassId] = useState<string | null>(null);
   const [initialIsDraft, setInitialIsDraft] = useState(false);
-  const [loadingAssignment, setLoadingAssignment] = useState(true);
 
-  // Fetch assignment data
-  useEffect(() => {
-    const fetchAssignment = async () => {
-      setLoadingAssignment(true);
-      try {
-        const assignmentData = await getAssignmentByIdForTeacher(assignmentId);
-        if (assignmentData) {
-          setTitle(assignmentData.title);
-          setQuestions(assignmentData.questions);
-          setPreferredLanguage(assignmentData.preferred_language);
-          setLockLanguage(assignmentData.lock_language ?? false);
-          setIsPublic(assignmentData.is_public);
-          setActivityType(assignmentData.activity_type ?? "learning");
-          setAssessmentMode(assignmentData.assessment_mode ?? "voice");
-          setResponderFieldsConfig(assignmentData.responder_fields_config);
-          setMaxAttempts(assignmentData.max_attempts ?? 1);
-          setBotPromptConfig(assignmentData.bot_prompt_config);
-          setStudentInstructions(assignmentData.student_instructions ?? "");
-          setShowRubric(assignmentData.show_rubric ?? true);
-          setShowRubricPoints(assignmentData.show_rubric_points ?? true);
-          setUseStarDisplay(assignmentData.use_star_display ?? false);
-          setStarScale(assignmentData.star_scale ?? 5);
-          setRequireAllAttempts(assignmentData.require_all_attempts ?? false);
-          setSharedContextEnabled(assignmentData.shared_context_enabled ?? false);
-          setSharedContext(assignmentData.shared_context ?? "");
-          setEvaluationPrompt(assignmentData.evaluation_prompt ?? "");
-          setExperienceRatingEnabled(assignmentData.experience_rating_enabled ?? false);
-          setExperienceRatingRequired(assignmentData.experience_rating_required ?? false);
-          setFeedbackRequiresApproval(assignmentData.feedback_requires_approval ?? false);
-          setAllowCopyPaste(assignmentData.allow_copy_paste ?? false);
-          setTabSwitchPolicy(assignmentData.tab_switch_policy ?? "warn");
-          setTabSwitchMaxLeaves(assignmentData.tab_switch_max_leaves ?? 3);
-          setFileSubmissionConfig(assignmentData.file_submission_config ?? null);
-          setDynamicGenerationPrompt(assignmentData.dynamic_generation_prompt ?? "");
-          setAssignmentDbId(assignmentData.id);
-          setAssignmentClassId(assignmentData.class_id);
-          setInitialIsDraft(assignmentData.status === "draft");
-        } else {
-          setError("Assignment not found");
-        }
-      } catch (err) {
-        console.error("Error fetching assignment:", err);
-        setError("Failed to load assignment");
-      } finally {
-        setLoadingAssignment(false);
-      }
-    };
+  const assignmentQuery = useAssignmentByIdForTeacher(assignmentId);
+  const assignmentData = assignmentQuery.data ?? null;
+  const loadingAssignment = assignmentQuery.isLoading;
+  const fetchError = assignmentQuery.error
+    ? "Failed to load assignment"
+    : !loadingAssignment && !assignmentData
+      ? "Assignment not found"
+      : null;
 
-    if (assignmentId) {
-      fetchAssignment();
-    }
-  }, [assignmentId]);
+  // Seed editable form state once when the SWR data first arrives. Using the
+  // "store information from previous render" pattern avoids cascading renders
+  // flagged by `react-hooks/set-state-in-effect`.
+  const [seededAssignmentRef, setSeededAssignmentRef] =
+    useState<unknown>(null);
+  if (assignmentData && seededAssignmentRef !== assignmentData) {
+    setSeededAssignmentRef(assignmentData);
+    setTitle(assignmentData.title);
+    setQuestions(assignmentData.questions);
+    setPreferredLanguage(assignmentData.preferred_language);
+    setLockLanguage(assignmentData.lock_language ?? false);
+    setIsPublic(assignmentData.is_public);
+    setActivityType(assignmentData.activity_type ?? "learning");
+    setAssessmentMode(assignmentData.assessment_mode ?? "voice");
+    setResponderFieldsConfig(assignmentData.responder_fields_config);
+    setMaxAttempts(assignmentData.max_attempts ?? 1);
+    setBotPromptConfig(assignmentData.bot_prompt_config);
+    setStudentInstructions(assignmentData.student_instructions ?? "");
+    setShowRubric(assignmentData.show_rubric ?? true);
+    setShowRubricPoints(assignmentData.show_rubric_points ?? true);
+    setUseStarDisplay(assignmentData.use_star_display ?? false);
+    setStarScale(assignmentData.star_scale ?? 5);
+    setRequireAllAttempts(assignmentData.require_all_attempts ?? false);
+    setSharedContextEnabled(assignmentData.shared_context_enabled ?? false);
+    setSharedContext(assignmentData.shared_context ?? "");
+    setEvaluationPrompt(assignmentData.evaluation_prompt ?? "");
+    setExperienceRatingEnabled(
+      assignmentData.experience_rating_enabled ?? false
+    );
+    setExperienceRatingRequired(
+      assignmentData.experience_rating_required ?? false
+    );
+    setFeedbackRequiresApproval(
+      assignmentData.feedback_requires_approval ?? false
+    );
+    setAllowCopyPaste(assignmentData.allow_copy_paste ?? false);
+    setTabSwitchPolicy(assignmentData.tab_switch_policy ?? "warn");
+    setTabSwitchMaxLeaves(assignmentData.tab_switch_max_leaves ?? 3);
+    setFileSubmissionConfig(assignmentData.file_submission_config ?? null);
+    setDynamicGenerationPrompt(
+      assignmentData.dynamic_generation_prompt ?? ""
+    );
+    setAssignmentDbId(assignmentData.id);
+    setAssignmentClassId(assignmentData.class_id);
+    setInitialIsDraft(assignmentData.status === "draft");
+  }
 
   const handleSubmit = async (data: {
     title: string;
@@ -222,18 +222,16 @@ export default function EditAssignmentPage() {
   if (loadingAssignment) {
     return (
       <PageLayout>
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading assignment...</p>
-        </div>
+        <div />
       </PageLayout>
     );
   }
 
-  if (error && !assignmentDbId) {
+  if (fetchError && !assignmentDbId) {
     return (
       <PageLayout>
         <div className="text-center">
-          <p className="text-destructive">{error}</p>
+          <p className="text-destructive">{fetchError}</p>
         </div>
       </PageLayout>
     );

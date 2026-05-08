@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ContentItem } from "@/types/contentItem";
-import { Class } from "@/types/class";
+import {
+  type ContentDuplicateMode,
+  contentDuplicateFailureMessage,
+} from "@/lib/contentPlacements";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
@@ -21,9 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getClassesByUser } from "@/lib/queries/classes";
-import { ClassGroup, getClassGroups } from "@/lib/queries/groups";
 import { duplicateContentItem } from "@/lib/queries/duplicateContent";
+import { useClassesByUser, useClassGroups, invalidateContentItemsByGroup } from "@/hooks/swr";
+import { DuplicateContentModeSelect } from "@/components/Teacher/Classes/DuplicateContentModeSelect";
+import { showErrorToast } from "@/lib/toast";
 
 export default function DuplicateContentDialog({
   open,
@@ -38,99 +42,126 @@ export default function DuplicateContentDialog({
 }) {
   const { user } = useAuth();
 
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [groups, setGroups] = useState<ClassGroup[]>([]);
+  const classesQuery = useClassesByUser(open ? user?.id ?? null : null);
+  const classes = useMemo(
+    () => classesQuery.data ?? [],
+    [classesQuery.data]
+  );
+
   const [destinationClassDbId, setDestinationClassDbId] = useState<string>("");
   const [destinationGroupId, setDestinationGroupId] = useState<string>("");
+  const [duplicateMode, setDuplicateMode] = useState<ContentDuplicateMode>("copy");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const groupsQuery = useClassGroups(
+    open && destinationClassDbId ? destinationClassDbId : null
+  );
+  const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+
+  const linkedAllowed = !!item && destinationClassDbId === item.class_id;
+  useEffect(() => {
+    if (!linkedAllowed && duplicateMode === "linked") {
+      setDuplicateMode("copy");
+    }
+  }, [linkedAllowed, duplicateMode]);
+
+  // Default the destination class to the source item's class when possible,
+  // otherwise the first class, as soon as data arrives. Reset group when
+  // `groups` changes. We use the "store info from previous render" pattern
+  // (rather than `useEffect` + `setState`) for the classes/groups sync.
+  const [seenClassesRef, setSeenClassesRef] = useState<unknown>(null);
+  if (classesQuery.data && seenClassesRef !== classesQuery.data) {
+    setSeenClassesRef(classesQuery.data);
+    if (!destinationClassDbId && classes.length > 0) {
+      const preferred =
+        item?.class_id && classes.some((c) => c.id === item.class_id)
+          ? item.class_id
+          : classes[0].id;
+      setDestinationClassDbId(preferred);
+    }
+  }
+
+  const [seenGroupsRef, setSeenGroupsRef] = useState<unknown>(null);
+  if (groupsQuery.data && seenGroupsRef !== groupsQuery.data) {
+    setSeenGroupsRef(groupsQuery.data);
+    if (groups.length === 0) {
+      if (destinationGroupId !== "") setDestinationGroupId("");
+    } else if (
+      !destinationGroupId ||
+      !groups.some((g) => g.id === destinationGroupId)
+    ) {
+      setDestinationGroupId(groups[0].id);
+    }
+  }
+
+  useEffect(() => {
+    if (!open) {
+      setDestinationClassDbId("");
+      setDestinationGroupId("");
+      setSubmitError(null);
+      setSeenClassesRef(null);
+      setSeenGroupsRef(null);
+    }
+  }, [open]);
 
   const destinationClass = useMemo(
     () => classes.find((c) => c.id === destinationClassDbId) ?? null,
     [classes, destinationClassDbId]
   );
 
-  useEffect(() => {
-    const load = async () => {
-      if (!open) return;
-      setError(null);
-      setLoading(true);
-      try {
-        if (!user) throw new Error("You must be logged in");
-        const data = await getClassesByUser(user.id);
-        setClasses(data);
-        const first = data[0]?.id ?? "";
-        setDestinationClassDbId(first);
-      } catch (err) {
-        console.error("Error loading classes:", err);
-        const message =
-          typeof err === "object" && err !== null
-            ? ((err as Record<string, unknown>)["message"] as
-                | string
-                | undefined)
-            : undefined;
-        setError(message || "Failed to load classes.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [open, user]);
+  const loadingClasses = classesQuery.isLoading;
+  const loadingGroups = groupsQuery.isLoading;
+  const loading = loadingClasses || loadingGroups || submitting;
+  const error = submitError
+    ? submitError
+    : classesQuery.error
+      ? "Failed to load classes."
+      : groupsQuery.error
+        ? "Failed to load class groups."
+        : null;
 
-  useEffect(() => {
-    const loadGroups = async () => {
-      if (!open) return;
-      if (!destinationClassDbId) {
-        setGroups([]);
-        setDestinationGroupId("");
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      try {
-        const gs = await getClassGroups(destinationClassDbId);
-        setGroups(gs);
-        setDestinationGroupId(gs[0]?.id ?? "");
-      } catch (err) {
-        console.error("Error loading groups:", err);
-        setError("Failed to load class groups.");
-        setGroups([]);
-        setDestinationGroupId("");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadGroups();
-  }, [open, destinationClassDbId]);
+  const modeForSubmit: ContentDuplicateMode =
+    duplicateMode === "linked" && linkedAllowed ? "linked" : "copy";
 
   const canSubmit =
     !!item && !!user && !!destinationClassDbId && !!destinationGroupId;
 
   const handleDuplicate = async () => {
     if (!item || !user) return;
-    setLoading(true);
-    setError(null);
+    if (
+      modeForSubmit === "linked" &&
+      item.class_group_id != null &&
+      item.class_group_id === destinationGroupId
+    ) {
+      const msg = "This material is already in the selected group.";
+      setSubmitError(msg);
+      showErrorToast(msg);
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
     try {
       await duplicateContentItem({
         item,
         destinationClassDbId,
         destinationClassGroupId: destinationGroupId,
         userId: user.id,
+        mode: modeForSubmit,
       });
+      await invalidateContentItemsByGroup(destinationClassDbId, destinationGroupId);
+      if (item.class_group_id && item.class_group_id !== destinationGroupId) {
+        await invalidateContentItemsByGroup(item.class_id, item.class_group_id);
+      }
       onOpenChange(false);
       onDuplicated?.();
     } catch (err: unknown) {
       console.error("Error duplicating content:", err);
-      const message =
-        typeof err === "object" && err !== null
-          ? ((err as Record<string, unknown>)["message"] as string | undefined)
-          : undefined;
-      setError(message || "Failed to duplicate content.");
+      const message = contentDuplicateFailureMessage(err, "Failed to duplicate content.");
+      setSubmitError(message);
+      showErrorToast(message);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -140,7 +171,8 @@ export default function DuplicateContentDialog({
         <DialogHeader>
           <DialogTitle>Duplicate to…</DialogTitle>
           <DialogDescription>
-            Create a copy of this item in another class group.
+            Add this item to another class group as an independent copy or a
+            linked placement that shares the same underlying material.
           </DialogDescription>
         </DialogHeader>
 
@@ -189,6 +221,18 @@ export default function DuplicateContentDialog({
               </p>
             )}
           </div>
+
+          <DuplicateContentModeSelect
+            value={duplicateMode}
+            onChange={setDuplicateMode}
+            linkedDisabled={!linkedAllowed}
+          />
+          {!linkedAllowed && (
+            <p className="text-xs text-muted-foreground">
+              Linked duplicate is only available when the destination class is
+              the same as the source.
+            </p>
+          )}
         </div>
 
         <DialogFooter>
@@ -205,13 +249,10 @@ export default function DuplicateContentDialog({
             onClick={handleDuplicate}
             disabled={!canSubmit || loading}
           >
-            {loading ? "Duplicating…" : "Duplicate"}
+            {submitting ? "Duplicating…" : "Duplicate"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
-
-

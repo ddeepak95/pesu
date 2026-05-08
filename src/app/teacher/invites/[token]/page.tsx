@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import { acceptTeacherInvite } from "@/lib/queries/teacherInvites";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ type InviteStatus = "pending" | "accepting" | "success" | "error";
 
 export default function AcceptTeacherInvitePage() {
   const params = useParams();
-  const router = useRouter();
+  const router = useTrackedRouter();
   const token = params.token as string;
   const { user, loading: authLoading } = useAuth();
 

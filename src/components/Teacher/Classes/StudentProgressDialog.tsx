@@ -25,30 +25,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getClassContentCompletions } from "@/lib/queries/contentCompletions";
-import {
-  StudentContentCompletionWithDetails,
-  ContentItemType,
-} from "@/types/contentCompletion";
+import { ContentItemType } from "@/types/contentCompletion";
 import { CheckCircle2, XCircle, Columns3, Lock, Unlock } from "lucide-react";
-import { getClassGroups, ClassGroup } from "@/lib/queries/groups";
-import { ProfileField } from "@/types/profileFields";
 import {
-  getProfileFieldsForClass,
-  getAllStudentProfiles,
-} from "@/lib/queries/profileFields";
-import {
-  getProgressViewConfig,
-} from "@/lib/queries/classes";
-import { getContentItemsByClass } from "@/lib/queries/contentItems";
-import {
-  getTeacherUnlocksForClass,
   unlockContentForStudent,
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
-import { TeacherContentUnlock } from "@/types/contentItem";
 import UnlockConfirmDialog from "@/components/Teacher/Shared/UnlockConfirmDialog";
 import ProfileFieldFilters from "@/components/Teacher/Shared/ProfileFieldFilters";
+import {
+  invalidateTeacherUnlocksCache,
+  useAllStudentProfiles,
+  useClassContentCompletions,
+  useClassGroups,
+  useContentItemsByClass,
+  useProfileFieldsForClass,
+  useProgressViewConfig,
+  useTeacherUnlocksForClass,
+} from "@/hooks/swr";
 
 interface StudentProgressDialogProps {
   open: boolean;
@@ -86,13 +80,74 @@ export default function StudentProgressDialog({
   onOpenChange,
   classDbId,
 }: StudentProgressDialogProps) {
-  const [data, setData] = useState<StudentContentCompletionWithDetails[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [groups, setGroups] = useState<ClassGroup[]>([]);
+  const fetchKey = open ? classDbId : null;
+
+  const completionsQuery = useClassContentCompletions(fetchKey);
+  const groupsQuery = useClassGroups(fetchKey);
+  const profileFieldsQuery = useProfileFieldsForClass(fetchKey);
+  const profilesQuery = useAllStudentProfiles(fetchKey);
+  const progressViewQuery = useProgressViewConfig(fetchKey);
+  const contentItemsQuery = useContentItemsByClass(fetchKey);
+  const teacherUnlocksQuery = useTeacherUnlocksForClass(fetchKey);
+
+  const data = useMemo(
+    () => completionsQuery.data ?? [],
+    [completionsQuery.data]
+  );
+  const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const profileFields = useMemo(
+    () => profileFieldsQuery.data ?? [],
+    [profileFieldsQuery.data]
+  );
+  const studentProfilesMap = useMemo(() => {
+    const map = new Map<string, Record<string, string>>();
+    (profilesQuery.data ?? []).forEach((p) =>
+      map.set(p.student_id, p.field_responses)
+    );
+    return map;
+  }, [profilesQuery.data]);
+  const displayFields = useMemo(
+    () => new Set(progressViewQuery.data?.display_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const filterFields = useMemo(
+    () => new Set(progressViewQuery.data?.filter_fields ?? []),
+    [progressViewQuery.data]
+  );
+  const requireTeacherUnlockItems = useMemo(() => {
+    const set = new Set<string>();
+    (contentItemsQuery.data ?? []).forEach((ci) => {
+      if (ci.require_teacher_unlock) set.add(ci.id);
+    });
+    return set;
+  }, [contentItemsQuery.data]);
+  const teacherUnlockMap = useMemo(
+    () => teacherUnlocksQuery.data ?? new Map(),
+    [teacherUnlocksQuery.data]
+  );
+
+  const loading =
+    open &&
+    (completionsQuery.isLoading ||
+      groupsQuery.isLoading ||
+      profileFieldsQuery.isLoading ||
+      profilesQuery.isLoading ||
+      progressViewQuery.isLoading ||
+      contentItemsQuery.isLoading ||
+      teacherUnlocksQuery.isLoading);
+  const error =
+    completionsQuery.error ||
+    groupsQuery.error ||
+    profileFieldsQuery.error ||
+    profilesQuery.error ||
+    progressViewQuery.error ||
+    contentItemsQuery.error ||
+    teacherUnlocksQuery.error
+      ? "Failed to load student progress data."
+      : null;
+
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
-  // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [completionFilter, setCompletionFilter] =
     useState<CompletionFilter>("all");
@@ -103,30 +158,10 @@ export default function StudentProgressDialog({
     new Set()
   );
 
-  // Profile fields & student profiles
-  const [profileFields, setProfileFields] = useState<ProfileField[]>([]);
-  const [studentProfilesMap, setStudentProfilesMap] = useState<
-    Map<string, Record<string, string>>
-  >(new Map());
-
-  // Configure: which fields to display under name / use as filters (shared, persisted to DB)
-  const [displayFields, setDisplayFields] = useState<Set<string>>(new Set());
-  const [filterFields, setFilterFields] = useState<Set<string>>(new Set());
-
-  // Profile filter selections (per-teacher, persisted to localStorage)
   const [profileFilters, setProfileFilters] = useState<
     Record<string, Set<string>>
   >({});
 
-  // Teacher unlock state
-  const [teacherUnlockMap, setTeacherUnlockMap] = useState<
-    Map<string, TeacherContentUnlock>
-  >(new Map());
-  const [requireTeacherUnlockItems, setRequireTeacherUnlockItems] = useState<
-    Set<string>
-  >(new Set());
-
-  // Unlock confirmation dialog
   const [unlockDialogOpen, setUnlockDialogOpen] = useState(false);
   const [unlockDialogTarget, setUnlockDialogTarget] = useState<{
     contentItemId: string;
@@ -136,77 +171,24 @@ export default function StudentProgressDialog({
     isCurrentlyUnlocked: boolean;
   } | null>(null);
 
-
-  // Fetch data when dialog opens
+  // Default selectedGroupId to first group when groups load.
   useEffect(() => {
-    if (!open) return;
+    if (groups.length > 0 && selectedGroupId === null) {
+      setSelectedGroupId(groups[0].id);
+    }
+  }, [groups, selectedGroupId]);
 
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [completions, classGroups, fields, profiles, savedConfig, contentItems, unlockMap] =
-          await Promise.all([
-            getClassContentCompletions(classDbId),
-            getClassGroups(classDbId),
-            getProfileFieldsForClass(classDbId),
-            getAllStudentProfiles(classDbId),
-            getProgressViewConfig(classDbId),
-            getContentItemsByClass(classDbId),
-            getTeacherUnlocksForClass(classDbId),
-          ]);
-        setData(completions);
-        setGroups(classGroups);
-        setProfileFields(fields);
+  // Initialize selectedColumns once completions data arrives.
+  useEffect(() => {
+    if (data.length === 0) return;
+    setSelectedColumns((prev) => {
+      if (prev.size > 0) return prev;
+      const next = new Set<string>();
+      data.forEach((item) => next.add(item.contentItemId));
+      return next;
+    });
+  }, [data]);
 
-        // Track which content items require teacher unlock
-        const requireUnlockSet = new Set<string>();
-        for (const ci of contentItems) {
-          if (ci.require_teacher_unlock) {
-            requireUnlockSet.add(ci.id);
-          }
-        }
-        setRequireTeacherUnlockItems(requireUnlockSet);
-        setTeacherUnlockMap(unlockMap);
-
-        // Build studentId -> profileData lookup map
-        const profilesMap = new Map<string, Record<string, string>>();
-        profiles.forEach((p) => {
-          profilesMap.set(p.student_id, p.field_responses);
-        });
-        setStudentProfilesMap(profilesMap);
-
-        // Default to first group
-        if (classGroups.length > 0) {
-          setSelectedGroupId(classGroups[0].id);
-        }
-        // Initialize all columns as selected
-        const allColumnIds = new Set<string>();
-        completions.forEach((item) => allColumnIds.add(item.contentItemId));
-        setSelectedColumns(allColumnIds);
-
-        // Initialize display/filter fields from saved config
-        const savedDisplayFields = new Set<string>(
-          savedConfig?.display_fields ?? []
-        );
-        const savedFilterFields = new Set<string>(
-          savedConfig?.filter_fields ?? []
-        );
-        setDisplayFields(savedDisplayFields);
-        setFilterFields(savedFilterFields);
-
-      } catch (err) {
-        console.error("Error fetching progress data:", err);
-        setError("Failed to load student progress data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [open, classDbId]);
-
-  // Reset filters when dialog closes
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setSearchQuery("");
@@ -214,14 +196,7 @@ export default function StudentProgressDialog({
       setContentTypeFilter("all");
       setSelectedColumns(new Set());
       setSelectedGroupId(null);
-      setGroups([]);
-      setProfileFields([]);
-      setStudentProfilesMap(new Map());
-      setDisplayFields(new Set());
-      setFilterFields(new Set());
       setProfileFilters({});
-      setTeacherUnlockMap(new Map());
-      setRequireTeacherUnlockItems(new Set());
     }
     onOpenChange(newOpen);
   };
@@ -752,26 +727,13 @@ export default function StudentProgressDialog({
           onConfirm={async () => {
             const { contentItemId, studentId, isCurrentlyUnlocked } =
               unlockDialogTarget;
-            const unlockKey = `${contentItemId}:${studentId}`;
 
             if (isCurrentlyUnlocked) {
               await lockContentForStudent(contentItemId, studentId);
-              setTeacherUnlockMap((prev) => {
-                const next = new Map(prev);
-                next.delete(unlockKey);
-                return next;
-              });
             } else {
-              const unlock = await unlockContentForStudent(
-                contentItemId,
-                studentId
-              );
-              setTeacherUnlockMap((prev) => {
-                const next = new Map(prev);
-                next.set(unlockKey, unlock);
-                return next;
-              });
+              await unlockContentForStudent(contentItemId, studentId);
             }
+            await invalidateTeacherUnlocksCache();
           }}
         />
       )}

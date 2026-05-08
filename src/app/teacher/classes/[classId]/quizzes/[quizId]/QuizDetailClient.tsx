@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
@@ -15,15 +16,16 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateQuiz, deleteQuiz } from "@/lib/queries/quizzes";
-import {
-  softDeleteContentItemByRef,
-  updateContentItemStatusByRef,
-} from "@/lib/queries/contentItems";
+import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
+import { countContentItemPlacementsByRefTracked } from "@/lib/swr/imperativeReads";
+import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
+import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRemove";
 import { Quiz } from "@/types/quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import QuizSubmissionsTab from "@/components/Teacher/Quizzes/QuizSubmissionsTab";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import { showErrorToast } from "@/lib/toast";
+import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
 
 interface QuizDetailClientProps {
   initialQuiz: Quiz;
@@ -34,12 +36,23 @@ export default function QuizDetailClient({
   initialQuiz,
   classId,
 }: QuizDetailClientProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
   const quizId = initialQuiz.quiz_id;
   const [quiz, setQuiz] = useState<Quiz>(initialQuiz);
+
+  const placementGroupId = useMemo(
+    () => resolveTeacherPlacementGroupId(searchParams.get("groupId"), quiz.class_group_id),
+    [searchParams, quiz.class_group_id]
+  );
+
+  const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
+    quiz.class_id,
+    "quiz",
+    quiz.id
+  );
 
   const handleEdit = () => {
     const qs = searchParams.toString();
@@ -51,22 +64,40 @@ export default function QuizDetailClient({
   const handleDelete = async () => {
     if (!user || !quiz) return;
 
+    let placementCount = 1;
+    try {
+      placementCount = await countContentItemPlacementsByRefTracked({
+        classId: quiz.class_id,
+        type: "quiz",
+        refId: quiz.id,
+      });
+    } catch (e) {
+      console.error(e);
+      showErrorToast("Could not verify quiz placements. Please try again.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Are you sure you want to delete this quiz? This action cannot be undone.",
+      placementCount > 1
+        ? "This quiz is linked in more than one group. Remove it only from this group's feed? Other groups will keep access. To choose which feed, open the quiz from Class Content with the correct group tab (or add ?groupId=… to the URL)."
+        : "Are you sure you want to delete this quiz? This action cannot be undone.",
     );
     if (!confirmed) return;
 
     try {
-      await deleteQuiz(quiz.id);
-      await softDeleteContentItemByRef({
-        class_id: quiz.class_id,
+      await removeTeacherMaterialPlacementOrEntity({
+        classDbId: quiz.class_id,
         type: "quiz",
-        ref_id: quiz.id,
+        refId: quiz.id,
+        placementGroupId,
+        deleteEntitySoft: () => deleteQuiz(quiz.id),
       });
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting quiz:", err);
-      showErrorToast("Failed to delete quiz. Please try again.");
+      const msg =
+        err instanceof Error ? err.message : "Failed to delete quiz. Please try again.";
+      showErrorToast(msg);
     }
   };
 
@@ -107,7 +138,7 @@ export default function QuizDetailClient({
           </div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <PageTitle title={quiz.title} />
+              <PageTitle title={quiz.title} isLinked={isLinkedAcrossGroups} />
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
                 <p>{quiz.total_points} points total</p>
                 <span>&bull;</span>
@@ -191,7 +222,7 @@ export default function QuizDetailClient({
             </TabsContent>
 
             <TabsContent value="submissions" className="py-6">
-              <QuizSubmissionsTab quiz={quiz} />
+              <QuizSubmissionsTab quiz={quiz} placementGroupId={placementGroupId} />
             </TabsContent>
           </Tabs>
         </div>

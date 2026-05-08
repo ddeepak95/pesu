@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,13 +15,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  ClassStudentInvite,
   createStudentInvite,
-  listStudentInvites,
   revokeStudentInvite,
 } from "@/lib/queries/studentInvites";
-import { createClient } from "@/lib/supabase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import {
+  invalidateStudentInvitesCache,
+  useIsCoTeacherForClass,
+  useStudentInvites,
+} from "@/hooks/swr";
 
 export default function ManageStudentsDialog({
   classData,
@@ -33,13 +35,32 @@ export default function ManageStudentsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { user } = useAuth();
-  const [isTeacher, setIsTeacher] = useState(false);
   const isOwner = user?.id === classData.created_by;
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [invites, setInvites] = useState<ClassStudentInvite[]>([]);
+  const coTeacherQuery = useIsCoTeacherForClass(
+    open && user && !isOwner ? classData.id : null,
+    user?.id ?? null
+  );
+  const isTeacher = isOwner || !!coTeacherQuery.data;
+
+  const invitesQuery = useStudentInvites(open ? classData.id : null);
+  const invites = useMemo(
+    () => invitesQuery.data ?? [],
+    [invitesQuery.data]
+  );
+
+  const [busy, setBusy] = useState(false);
   const [newInviteLink, setNewInviteLink] = useState<string>("");
+
+  const error = useMemo<string | null>(() => {
+    const err = invitesQuery.error as { code?: string; cause?: { code?: string } } | undefined;
+    if (!err) return null;
+    const code = err.code ?? err.cause?.code;
+    if (code === "42P01") {
+      return "Student management tables/functions are not installed yet. Run the Supabase student-invites migration.";
+    }
+    return "Failed to load student management data.";
+  }, [invitesQuery.error]);
 
   const activeInvite = useMemo(() => {
     const now = Date.now();
@@ -51,98 +72,33 @@ export default function ManageStudentsDialog({
   }, [invites]);
 
   const inviteUrl = useMemo(() => {
-    // Use token from activeInvite if available, otherwise use newly generated token
     const token = activeInvite?.token || newInviteLink;
     if (!token) return "";
     return `${window.location.origin}/student/invites/${token}`;
   }, [activeInvite, newInviteLink]);
 
-  // Check if user is a co-teacher
-  useEffect(() => {
-    const checkTeacherStatus = async () => {
-      if (!user || isOwner) {
-        setIsTeacher(isOwner);
-        return;
-      }
-
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from("class_teachers")
-          .select("id")
-          .eq("class_id", classData.id)
-          .eq("teacher_id", user.id)
-          .single();
-
-        setIsTeacher(!error && data !== null);
-      } catch {
-        setIsTeacher(false);
-      }
-    };
-
-    if (open && user) {
-      checkTeacherStatus();
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      setNewInviteLink("");
     }
-  }, [open, user, classData.id, isOwner]);
-
-  const refresh = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Fetch invites
-      const i = await listStudentInvites(classData.id);
-      setInvites(i);
-    } catch (err: unknown) {
-      const code =
-        typeof err === "object" && err !== null
-          ? (err as Record<string, unknown>)["code"] ||
-            (typeof (err as Record<string, unknown>)["cause"] === "object" &&
-            (err as Record<string, unknown>)["cause"] !== null
-              ? (
-                  (err as Record<string, unknown>)["cause"] as Record<
-                    string,
-                    unknown
-                  >
-                )["code"]
-              : undefined)
-          : undefined;
-      if (code === "42P01") {
-        setError(
-          "Student management tables/functions are not installed yet. Run the Supabase student-invites migration."
-        );
-      } else {
-        console.error("Error loading student management data:", err);
-        setError("Failed to load student management data.");
-      }
-    } finally {
-      setLoading(false);
-    }
+    onOpenChange(next);
   };
-
-  useEffect(() => {
-    if (open) {
-      setNewInviteLink(""); // Clear newly generated token when dialog opens
-      refresh();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   const handleGenerateInvite = async () => {
     if (!isTeacher) return;
-    setLoading(true);
-    setError(null);
+    setBusy(true);
     try {
       const token = await createStudentInvite({
         classDbId: classData.id,
       });
       setNewInviteLink(token);
-      await refresh();
+      await invalidateStudentInvitesCache();
       showSuccessToast("Invite link generated");
     } catch (err) {
       console.error("Error creating invite:", err);
       showErrorToast("Failed to create invite");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
@@ -157,22 +113,22 @@ export default function ManageStudentsDialog({
     const confirmed = window.confirm("Revoke this invite link?");
     if (!confirmed) return;
 
-    setLoading(true);
+    setBusy(true);
     try {
       await revokeStudentInvite(inviteId);
       setNewInviteLink("");
-      await refresh();
+      await invalidateStudentInvitesCache();
       showSuccessToast("Invite revoked successfully");
     } catch (err) {
       console.error("Error revoking invite:", err);
       showErrorToast("Failed to revoke invite");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Invite Students</DialogTitle>
@@ -219,7 +175,7 @@ export default function ManageStudentsDialog({
               <Button
                 type="button"
                 onClick={handleGenerateInvite}
-                disabled={loading || (activeInvite ? !isOwner : !isTeacher)}
+                disabled={busy || (activeInvite ? !isOwner : !isTeacher)}
               >
                 {activeInvite ? "Regenerate invite" : "Generate invite"}
               </Button>
@@ -229,7 +185,7 @@ export default function ManageStudentsDialog({
                 type="button"
                 variant="destructive"
                 onClick={() => handleRevokeInvite(activeInvite.id)}
-                disabled={loading}
+                disabled={busy}
               >
                 Revoke
               </Button>
@@ -267,4 +223,3 @@ export default function ManageStudentsDialog({
     </Dialog>
   );
 }
-

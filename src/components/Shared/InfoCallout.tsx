@@ -15,12 +15,15 @@ export default function InfoCallout({
   return (
     <div
       className={cn(
-        "rounded-md border border-blue-200/60 bg-blue-50/10 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-50 p-4",
+        "rounded-md border border-blue-200 bg-blue-50 p-4 text-foreground shadow-sm",
+        "dark:border-blue-800 dark:bg-blue-950 dark:text-blue-50",
         className
       )}
     >
-      <p className="mb-1 text-sm font-semibold">{title}</p>
-      <div className="text-sm">{children}</div>
+      <p className="mb-1 text-sm font-semibold text-foreground dark:text-blue-50">
+        {title}
+      </p>
+      <div className="text-sm text-foreground/95 dark:text-blue-100">{children}</div>
     </div>
   );
 }

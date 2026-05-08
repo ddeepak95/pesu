@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Class } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,7 @@ export default function DangerZoneSection({
   isOwner,
 }: DangerZoneSectionProps) {
   const { user } = useAuth();
-  const router = useRouter();
+  const router = useTrackedRouter();
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {

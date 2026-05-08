@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ export default function CreateContentMenu({
   classPublicId: string;
   selectedGroupId: string | null;
 }) {
-  const router = useRouter();
+  const router = useTrackedRouter();
 
   const qs = selectedGroupId ? `?tab=content&groupId=${selectedGroupId}` : "";
 

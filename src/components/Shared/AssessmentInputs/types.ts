@@ -18,6 +18,11 @@ export interface AssessmentInputProps {
   onSubmitForEvaluation: (answerText: string) => Promise<void>;
   onLanguageDisabledChange?: (disabled: boolean) => void;
   onNavigationDisabledChange?: (disabled: boolean) => void;
+  /**
+   * Voice assessments: true while getUserMedia is awaiting so the shell can
+   * pause tab-leave integrity tracking during the browser permission prompt.
+   */
+  onVoiceMicPermissionRequestPendingChange?: (pending: boolean) => void;
 
   botPromptConfig?: BotPromptConfig;
   maxAttempts?: number;

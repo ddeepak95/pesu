@@ -10,7 +10,6 @@ import {
 import {
   StudentSubmissionStatus,
   PublicSubmissionStatus,
-  getSubmissionById,
 } from "@/lib/queries/submissions";
 import {
   Submission,
@@ -19,18 +18,20 @@ import {
   SubmissionFile,
 } from "@/types/submission";
 import { Assignment, Question } from "@/types/assignment";
-import { getAssignmentByIdForTeacher } from "@/lib/queries/assignments";
-import {
-  getSubmissionFiles,
-  getFileDownloadUrl,
-} from "@/lib/queries/submissionFiles";
+import { requestFileDownloadUrl } from "@/lib/queries/submissionFiles";
 import { showErrorToast } from "@/lib/toast";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { FileText, Info, Loader2 } from "lucide-react";
 import { SubmissionQuestionCard } from "./SubmissionQuestionCard";
 import { TranscriptDialog } from "./TranscriptDialog";
 import { SubmissionDisplayName } from "./SubmissionDisplayName";
 import { SubmissionIntegrityLockBanner } from "@/components/Shared/Integrity/SubmissionIntegrityLockBanner";
+import {
+  invalidateSubmissionByIdCache,
+  useAssignmentByIdForTeacher,
+  useSubmissionById,
+  useSubmissionFiles,
+} from "@/hooks/swr";
 
 const FILE_STATUS_LABEL: Record<string, string> = {
   uploading: "Uploading…",
@@ -114,19 +115,12 @@ export default function SubmissionViewDialog({
   studentSubmission,
   onIntegrityRestored,
 }: SubmissionViewDialogProps) {
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
-  const [fullSubmission, setFullSubmission] = useState<Submission | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [transcriptDialogOpen, setTranscriptDialogOpen] = useState(false);
   const [selectedAttempt, setSelectedAttempt] =
     useState<SubmissionAttempt | null>(null);
   const [selectedQuestionOrder, setSelectedQuestionOrder] = useState<
     number | null
   >(null);
-  const [submissionFiles, setSubmissionFiles] = useState<SubmissionFile[]>(
-    [],
-  );
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
 
   // Get submission from either type (list view -- may not include evaluations JSONB)
@@ -135,45 +129,37 @@ export default function SubmissionViewDialog({
       ? studentSubmission.submission
       : studentSubmission.submission;
 
-  useEffect(() => {
-    if (!open) {
-      setSubmissionFiles([]);
-    }
-  }, [open]);
+  const fetchKey = open && submission ? submission.submission_id : null;
+  const assignmentKey = open && submission ? submission.assignment_id : null;
 
-  useEffect(() => {
-    if (open && submission) {
-      const fetchData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const [assignmentData, submissionData, filesData] =
-            await Promise.all([
-              getAssignmentByIdForTeacher(submission.assignment_id),
-              getSubmissionById(submission.submission_id),
-              getSubmissionFiles(submission.submission_id),
-            ]);
-          setAssignment(assignmentData);
-          setFullSubmission(submissionData);
-          setSubmissionFiles(filesData);
-        } catch (err) {
-          console.error("Error fetching submission details:", err);
-          setError("Failed to load submission details");
-          setSubmissionFiles([]);
-        } finally {
-          setLoading(false);
-        }
-      };
+  const assignmentQuery = useAssignmentByIdForTeacher(assignmentKey);
+  const fullSubmissionQuery = useSubmissionById(fetchKey);
+  const submissionFilesQuery = useSubmissionFiles(fetchKey);
 
-      fetchData();
-    }
-  }, [open, submission]);
+  const assignment = assignmentQuery.data ?? null;
+  const fullSubmission = fullSubmissionQuery.data ?? null;
+  const submissionFiles: SubmissionFile[] = useMemo(
+    () => submissionFilesQuery.data ?? [],
+    [submissionFilesQuery.data]
+  );
+
+  const loading =
+    open &&
+    (assignmentQuery.isLoading ||
+      fullSubmissionQuery.isLoading ||
+      submissionFilesQuery.isLoading);
+  const error =
+    assignmentQuery.error ||
+    fullSubmissionQuery.error ||
+    submissionFilesQuery.error
+      ? "Failed to load submission details"
+      : null;
 
   const handleOpenSubmissionFile = async (file: SubmissionFile) => {
     if (openingFileId === file.id) return;
     setOpeningFileId(file.id);
     try {
-      const url = await getFileDownloadUrl(file.id, "original");
+      const url = await requestFileDownloadUrl(file.id, "original");
       window.open(url, "_blank");
     } catch (err) {
       console.error("Open file error:", err);
@@ -195,13 +181,10 @@ export default function SubmissionViewDialog({
   const getSubmissionEvaluations = (submission: Submission) => {
     if (!submission.evaluations) return {};
 
-    // Check if it's the new format
     if (Array.isArray(submission.evaluations)) {
-      // Legacy format - convert to new format structure for display
       return {};
     }
 
-    // Handle both string and number keys (PostgreSQL JSONB may stringify keys)
     return submission.evaluations as {
       [key: number | string]: QuestionEvaluations;
     };
@@ -210,11 +193,9 @@ export default function SubmissionViewDialog({
   if (!submission) {
     return null;
   }
-  // Use the full submission (fetched with evaluations JSONB) for displaying attempts
   const evaluations = fullSubmission
     ? getSubmissionEvaluations(fullSubmission)
     : {};
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -244,10 +225,7 @@ export default function SubmissionViewDialog({
                 revokedAt={fullSubmission.integrity_access_revoked_at}
                 reasonCode={fullSubmission.integrity_access_revoked_reason}
                 onRestored={async () => {
-                  const s = await getSubmissionById(
-                    fullSubmission.submission_id,
-                  );
-                  setFullSubmission(s);
+                  await invalidateSubmissionByIdCache();
                   await onIntegrityRestored?.();
                 }}
               />
@@ -299,7 +277,6 @@ export default function SubmissionViewDialog({
                 </ul>
               </div>
             ) : null}
-            {/* Dynamic questions notice */}
             {assignment?.dynamic_questions_enabled &&
               fullSubmission?.generated_questions && (
                 <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-3">
@@ -311,7 +288,6 @@ export default function SubmissionViewDialog({
                 </div>
               )}
 
-            {/* Attempts by Question */}
             <SubmissionQuestions
               assignment={assignment}
               fullSubmission={fullSubmission}
@@ -323,7 +299,6 @@ export default function SubmissionViewDialog({
         )}
       </DialogContent>
 
-      {/* Transcript Dialog */}
       <TranscriptDialog
         open={transcriptDialogOpen}
         onOpenChange={setTranscriptDialogOpen}

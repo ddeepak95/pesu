@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, AuthError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
 import { clearUserCache } from "@/lib/auth-cache";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { getBaseURL } from "@/lib/get-url";
 
 interface AuthContextType {
@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const router = useTrackedRouter();
   const supabase = createClient();
 
   useEffect(() => {

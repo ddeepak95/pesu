@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,16 +12,16 @@ import { CheckCircle2, Lock, Unlock, XCircle } from "lucide-react";
 import UnlockConfirmDialog from "@/components/Teacher/Shared/UnlockConfirmDialog";
 import { StudentWithInfo } from "@/lib/queries/students";
 import {
-  getClassStudentContentCompletions,
-  StudentContentCompletionForStudent,
-} from "@/lib/queries/contentCompletions";
-import {
-  getTeacherUnlocksForStudentInClass,
   lockContentForStudent,
   unlockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import type { ContentItemType } from "@/types/contentCompletion";
+import {
+  invalidateTeacherUnlocksCache,
+  useClassStudentContentCompletions,
+  useTeacherUnlocksForStudentInClass,
+} from "@/hooks/swr";
 
 interface StudentIndividualProgressDialogProps {
   open: boolean;
@@ -43,12 +43,40 @@ export default function StudentIndividualProgressDialog({
   classDbId,
   student,
 }: StudentIndividualProgressDialogProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<StudentContentCompletionForStudent[]>([]);
-  const [unlockedContentItemIds, setUnlockedContentItemIds] = useState<Set<string>>(
-    new Set()
+  const fetchKey = open && student ? classDbId : null;
+
+  const completionsQuery = useClassStudentContentCompletions({
+    classDbId: fetchKey,
+    studentId: student?.student_id ?? null,
+    studentGroupId: student?.group_id ?? null,
+  });
+
+  const rows = useMemo(
+    () => completionsQuery.data ?? [],
+    [completionsQuery.data]
   );
+  const contentItemIds = useMemo(
+    () => rows.map((r) => r.contentItemId),
+    [rows]
+  );
+
+  const unlocksQuery = useTeacherUnlocksForStudentInClass({
+    classDbId: fetchKey,
+    studentId: student?.student_id ?? null,
+    contentItemIds,
+  });
+
+  const unlockedContentItemIds = useMemo(
+    () => unlocksQuery.data ?? new Set<string>(),
+    [unlocksQuery.data]
+  );
+
+  const loading =
+    open && (completionsQuery.isLoading || unlocksQuery.isLoading);
+  const error =
+    completionsQuery.error || unlocksQuery.error
+      ? "Failed to load student progress data."
+      : null;
 
   const studentName = useMemo(() => {
     if (!student) return "";
@@ -63,46 +91,8 @@ export default function StudentIndividualProgressDialog({
     isCurrentlyUnlocked: boolean;
   } | null>(null);
 
-  useEffect(() => {
-    if (!open || !student) return;
-
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const scopedCompletions = await getClassStudentContentCompletions({
-          classDbId,
-          studentId: student.student_id,
-          studentGroupId: student.group_id,
-        });
-
-        setRows(scopedCompletions);
-
-        const contentItemIds = scopedCompletions.map(
-          (r) => r.contentItemId
-        );
-        const unlockedSet = await getTeacherUnlocksForStudentInClass({
-          classDbId,
-          studentId: student.student_id,
-          contentItemIds,
-        });
-        setUnlockedContentItemIds(unlockedSet);
-      } catch (err) {
-        console.error("Error fetching individual student progress:", err);
-        setError("Failed to load student progress data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [open, classDbId, student?.student_id, student?.group_id, student]);
-
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      setRows([]);
-      setUnlockedContentItemIds(new Set());
-      setError(null);
       setUnlockDialogOpen(false);
       setUnlockDialogTarget(null);
     }
@@ -247,7 +237,6 @@ export default function StudentIndividualProgressDialog({
         </div>
       </DialogContent>
 
-      {/* Unlock confirmation dialog */}
       {unlockDialogTarget && (
         <UnlockConfirmDialog
           open={unlockDialogOpen}
@@ -257,33 +246,20 @@ export default function StudentIndividualProgressDialog({
           isCurrentlyUnlocked={unlockDialogTarget.isCurrentlyUnlocked}
           onConfirm={async () => {
             if (!student) return;
-            const {
-              contentItemId,
-              isCurrentlyUnlocked,
-            } = unlockDialogTarget;
+            const { contentItemId, isCurrentlyUnlocked } = unlockDialogTarget;
 
             if (isCurrentlyUnlocked) {
               await lockContentForStudent(contentItemId, student.student_id);
-              setUnlockedContentItemIds((prev) => {
-                const next = new Set(prev);
-                next.delete(contentItemId);
-                return next;
-              });
             } else {
               await unlockContentForStudent(
                 contentItemId,
                 student.student_id
               );
-              setUnlockedContentItemIds((prev) => {
-                const next = new Set(prev);
-                next.add(contentItemId);
-                return next;
-              });
             }
+            await invalidateTeacherUnlocksCache();
           }}
         />
       )}
     </Dialog>
   );
 }
-

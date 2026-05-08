@@ -5,6 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/providers/I18nProvider";
 import { SWRProvider } from "@/providers/SWRProvider";
 import { Toaster } from "@/components/ui/sonner";
+import GlobalDataLoadingOverlay from "@/components/GlobalDataLoadingOverlay";
 import en from "@/locales/en.json";
 
 const geistSans = Geist({
@@ -45,6 +46,7 @@ export default function RootLayout({
         <I18nProvider>
           <SWRProvider>
             <AuthProvider>{children}</AuthProvider>
+            <GlobalDataLoadingOverlay />
           </SWRProvider>
         </I18nProvider>
         <Toaster position="top-right" richColors />

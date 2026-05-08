@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +20,9 @@ import {
   deleteAssignment,
 } from "@/lib/queries/assignments";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
+import { countContentItemPlacementsByRefTracked } from "@/lib/swr/imperativeReads";
+import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
+import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRemove";
 import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
@@ -39,6 +44,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
+import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
 
 function CollapsibleSection({
   icon: Icon,
@@ -85,13 +91,28 @@ export default function AssignmentDetailClient({
   initialAssignment,
   classId,
 }: AssignmentDetailClientProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const assignmentId = initialAssignment.assignment_id;
   const [assignmentData, setAssignmentData] =
     useState<Assignment>(initialAssignment);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
+  const placementGroupId = useMemo(
+    () =>
+      resolveTeacherPlacementGroupId(
+        searchParams.get("groupId"),
+        assignmentData.class_group_id
+      ),
+    [searchParams, assignmentData.class_group_id]
+  );
+
+  const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
+    assignmentData.class_id,
+    "formative_assignment",
+    assignmentData.id
+  );
 
   const tabParam = searchParams.get("tab");
   const activeTab = useMemo(() => {
@@ -126,19 +147,37 @@ export default function AssignmentDetailClient({
   const handleDelete = async () => {
     if (!user || !assignmentData) return;
 
+    let placementCount = 1;
+    try {
+      placementCount = await countContentItemPlacementsByRefTracked({
+        classId: assignmentData.class_id,
+        type: "formative_assignment",
+        refId: assignmentData.id,
+      });
+    } catch (e) {
+      console.error(e);
+      showErrorToast("Could not verify placements. Please try again.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Are you sure you want to delete this assignment? This action cannot be undone."
+      placementCount > 1
+        ? "This assignment is linked in more than one group. Remove it only from this group's feed?"
+        : "Are you sure you want to delete this assignment? This action cannot be undone."
     );
 
     if (!confirmed) return;
 
     try {
-      console.log("Deleting assignment:", {
-        id: assignmentData.id,
-        assignment_id: assignmentData.assignment_id,
-        class_id: assignmentData.class_id,
+      await removeTeacherMaterialPlacementOrEntity({
+        classDbId: assignmentData.class_id,
+        type: "formative_assignment",
+        refId: assignmentData.id,
+        placementGroupId,
+        deleteEntitySoft: () =>
+          deleteAssignment(assignmentData.id, assignmentData.class_id),
+        contentItemsAlreadyHandledWithEntity: true,
       });
-      await deleteAssignment(assignmentData.id, assignmentData.class_id);
       router.push(`/teacher/classes/${classId}`);
     } catch (err) {
       console.error("Error deleting assignment:", err);
@@ -214,7 +253,11 @@ export default function AssignmentDetailClient({
           </div>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold">{assignmentData.title}</h1>
+              <PageTitle
+                title={assignmentData.title}
+                isLinked={isLinkedAcrossGroups}
+                variant="hero"
+              />
               <div className="flex items-center gap-4 mt-1 text-muted-foreground">
                 <p>{assignmentData.total_points} points total</p>
                 <span>&bull;</span>
@@ -532,7 +575,7 @@ export default function AssignmentDetailClient({
                 assignmentId={assignmentData.assignment_id}
                 classId={classId}
                 isPublic={assignmentData.is_public}
-                classGroupId={assignmentData.class_group_id ?? undefined}
+                classGroupId={placementGroupId}
               />
             </TabsContent>
           </Tabs>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import GeneralSettingsSection from "@/components/Teacher/Classes/Settings/GeneralSettingsSection";
@@ -23,7 +23,7 @@ export default function ClassSettingsClient({
   classData: initialClassData,
   classId: _classId,
 }: ClassSettingsClientProps) {
-  const router = useRouter();
+  const router = useTrackedRouter();
 
   // After a settings update, refresh server data via router.refresh()
   const handleUpdated = useCallback(() => {

@@ -1,14 +1,105 @@
 // SWR hook barrel exports
-export { useClassData, useClassesByUser, useClassesByStudent, useIsTeacherApproved } from "./useClasses";
+export {
+  useClassData,
+  useClassesByUser,
+  useClassesByStudent,
+  useIsTeacherApproved,
+  useProgressViewConfig,
+} from "./useClasses";
 export { useClassGroups, useStudentGroupForClass } from "./useGroups";
-export { useContentItemsByGroup } from "./useContentItems";
-export { useAssignmentsByIds, useAssignmentsByIdsForTeacher } from "./useAssignments";
-export { useLearningContentsByIds, useLearningContentsByIdsForStudent } from "./useLearningContents";
-export { useQuizzesByIds, useQuizzesByIdsForStudent } from "./useQuizzes";
-export { useSurveysByIds, useSurveysByIdsForStudent } from "./useSurveys";
+export {
+  invalidateContentItemsByClass,
+  invalidateContentItemsByGroup,
+  useContentItemByRefId,
+  useContentItemsByClass,
+  useContentItemsByGroup,
+  useMaterialLinkedAcrossGroups,
+} from "./useContentItems";
+export {
+  useAssignmentByIdForTeacher,
+  useAssignmentsByClassForTeacher,
+  useAssignmentsByIds,
+  useAssignmentsByIdsForTeacher,
+} from "./useAssignments";
+export {
+  useLearningContentByShortIdForTeacher,
+  useLearningContentsByIds,
+  useLearningContentsByIdsForStudent,
+} from "./useLearningContents";
+export {
+  invalidateQuizSubmissionsCache,
+  useQuizByShortIdForTeacher,
+  useQuizSubmissionsForQuiz,
+  useQuizzesByIds,
+  useQuizzesByIdsForStudent,
+} from "./useQuizzes";
+export {
+  useSurveyByShortIdForTeacher,
+  useSurveysByIds,
+  useSurveysByIdsForStudent,
+} from "./useSurveys";
 export {
   useCompletionsForStudent,
   useCompletionsWithDatesForStudent,
   invalidateCompletionsCache,
 } from "./useCompletions";
-export { useProfileFieldsForClass, useStudentProfileData } from "./useProfiles";
+export {
+  useAllStudentProfiles,
+  useProfileFieldsForClass,
+  useStudentProfileData,
+} from "./useProfiles";
+export { useClassStudents } from "./useStudents";
+export {
+  invalidateClassTeachersCache,
+  useClassTeachers,
+  useIsCoTeacherForClass,
+} from "./useClassTeachers";
+export {
+  invalidateTeacherInvitesCache,
+  useTeacherInvites,
+} from "./useTeacherInvites";
+export {
+  invalidateTeacherUnlocksCache,
+  useTeacherUnlocksForClass,
+  useTeacherUnlocksForContentItem,
+  useTeacherUnlocksForStudent,
+  useTeacherUnlocksForStudentInClass,
+} from "./useTeacherUnlocks";
+export {
+  invalidateClassContentCompletionsCache,
+  useClassContentCompletions,
+  useClassStudentContentCompletions,
+  useCompletionsByContentItem,
+  useIsContentComplete,
+} from "./useContentCompletions";
+export {
+  invalidateQuestionAttemptsCache,
+  invalidateQuestionsWithAttemptsCache,
+  invalidateSubmissionByIdCache,
+  invalidateSubmissionsCache,
+  usePublicSubmissionsForAssignment,
+  useQuestionAttempts,
+  useQuestionsWithAttempts,
+  useSubmissionById,
+  useSubmissionByStudentAndAssignment,
+  useSubmissionForSessionRestore,
+  useSubmissionsForAssignment,
+  useTranscript,
+  useTranscriptsForSubmission,
+} from "./useSubmissions";
+export {
+  invalidateSubmissionFilesCache,
+  useSubmissionFiles,
+} from "./useSubmissionFiles";
+export {
+  invalidateSurveyResponsesCache,
+  useSurveyResponses,
+} from "./useSurveyResponses";
+export {
+  invalidateStudentInvitesCache,
+  useStudentInvites,
+} from "./useStudentInvites";
+export {
+  invalidateStudentNotificationsCache,
+  useStudentNotifications,
+} from "./useNotifications";

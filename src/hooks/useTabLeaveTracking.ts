@@ -33,6 +33,11 @@ export function useTabLeaveTracking(params: {
    * Defaults to true.
    */
   active?: boolean;
+  /**
+   * When true, visibility/blur/focus handlers do not record leaves or show return warnings
+   * (e.g. while the browser microphone permission prompt is in flight).
+   */
+  suspendTabLeaveTracking?: boolean;
 }) {
   const {
     submissionId,
@@ -40,6 +45,7 @@ export function useTabLeaveTracking(params: {
     onAccessRevoked,
     integrityAccessRevoked,
     active = true,
+    suspendTabLeaveTracking = false,
   } = params;
   const [showTabWarning, setShowTabWarning] = useState(false);
   const [tabWarningQuota, setTabWarningQuota] = useState<TabWarningQuota | null>(
@@ -56,6 +62,11 @@ export function useTabLeaveTracking(params: {
     integrityAccessRevokedRef.current = !!integrityAccessRevoked;
   }, [integrityAccessRevoked]);
 
+  const suspendTabLeaveTrackingRef = useRef(!!suspendTabLeaveTracking);
+  useEffect(() => {
+    suspendTabLeaveTrackingRef.current = !!suspendTabLeaveTracking;
+  }, [suspendTabLeaveTracking]);
+
   /** Leave count after the most recent recorded leave. */
   const lastLeaveCountRef = useRef<number | null>(null);
   const lastLeaveRecordedAtRef = useRef(0);
@@ -70,6 +81,12 @@ export function useTabLeaveTracking(params: {
       blurGraceTimerRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    if (suspendTabLeaveTracking) {
+      cancelBlurGrace();
+    }
+  }, [suspendTabLeaveTracking, cancelBlurGrace]);
 
   const policy = getEffectiveTabSwitchPolicy(assignment);
   const maxLeaves = assignment.tab_switch_max_leaves ?? null;
@@ -161,6 +178,8 @@ export function useTabLeaveTracking(params: {
       const prev = lastVisibility;
       lastVisibility = current;
 
+      if (suspendTabLeaveTrackingRef.current) return;
+
       void (async () => {
         if (current === "hidden") {
           cancelBlurGrace();
@@ -174,6 +193,7 @@ export function useTabLeaveTracking(params: {
     };
 
     const handleWindowBlur = () => {
+      if (suspendTabLeaveTrackingRef.current) return;
       if (document.visibilityState !== "visible") return;
       cancelBlurGrace();
       blurGraceTimerRef.current = setTimeout(() => {
@@ -186,6 +206,7 @@ export function useTabLeaveTracking(params: {
     };
 
     const handleWindowFocus = () => {
+      if (suspendTabLeaveTrackingRef.current) return;
       if (document.visibilityState !== "visible") return;
       if (blurGraceTimerRef.current != null) {
         cancelBlurGrace();

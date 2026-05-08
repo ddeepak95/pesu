@@ -35,6 +35,28 @@ export async function listClassTeachers(classDbId: string): Promise<ClassTeacher
   return (data || []) as ClassTeacherWithUserInfo[];
 }
 
+/**
+ * Returns true when the given user is registered as a co-teacher for the
+ * class. Owner status is checked separately by callers.
+ */
+export async function isCoTeacherForClass(params: {
+  classDbId: string;
+  teacherId: string;
+}): Promise<boolean> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("class_teachers")
+    .select("id")
+    .eq("class_id", params.classDbId)
+    .eq("teacher_id", params.teacherId)
+    .maybeSingle();
+
+  if (error) {
+    return false;
+  }
+  return data !== null;
+}
+
 export async function removeCoTeacher(params: {
   classDbId: string;
   teacherId: string;
