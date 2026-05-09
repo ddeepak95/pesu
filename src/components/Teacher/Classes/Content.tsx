@@ -22,7 +22,11 @@ import { LearningContent } from "@/types/learningContent";
 import { Quiz } from "@/types/quiz";
 import { Survey } from "@/types/survey";
 import List from "@/components/ui/List";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  MutedPrimaryTabsList,
+  MutedPrimaryTabsTrigger,
+} from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -568,17 +572,13 @@ export default function Content({ classData }: ContentProps) {
         className="w-full"
       >
         <div className="flex items-center justify-between">
-          <TabsList className="bg-muted">
+          <MutedPrimaryTabsList>
             {groups.map((g) => (
-              <TabsTrigger
-                key={g.id}
-                value={g.id}
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
+              <MutedPrimaryTabsTrigger key={g.id} value={g.id}>
                 {g.name || `Group ${g.group_index + 1}`}
-              </TabsTrigger>
+              </MutedPrimaryTabsTrigger>
             ))}
-          </TabsList>
+          </MutedPrimaryTabsList>
           {!selectionMode && items.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

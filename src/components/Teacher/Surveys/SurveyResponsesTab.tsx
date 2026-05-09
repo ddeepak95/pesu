@@ -37,6 +37,11 @@ import {
   useTeacherUnlocksForContentItem,
 } from "@/hooks/swr";
 import { Download } from "lucide-react";
+import {
+  CSV_UTF8_BOM,
+  escapeCsvCell,
+  sanitizeFilenameSegment,
+} from "@/lib/csv";
 
 interface SurveyResponsesTabProps {
   survey: Survey;
@@ -60,18 +65,6 @@ function formatAnswerValue(
     return opt ? opt.text : String(value);
   }
   return String(value);
-}
-
-function escapeCsvCell(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function sanitizeFilenameSegment(segment: string): string {
-  const cleaned = segment.replace(/[/\\:*?"<>|]/g, "_").replace(/\s+/g, " ").trim();
-  return cleaned.slice(0, 80) || "survey";
 }
 
 function buildSurveyResponsesCsv(survey: Survey, items: SurveyRowItem[]): string {
@@ -114,12 +107,12 @@ function buildSurveyResponsesCsv(survey: Survey, items: SurveyRowItem[]): string
     lines.push(rowCells.map(escapeCsvCell).join(","));
   }
 
-  return `\uFEFF${lines.join("\r\n")}`;
+  return `${CSV_UTF8_BOM}${lines.join("\r\n")}`;
 }
 
 function surveyResponsesCsvFilename(survey: Survey): string {
   const date = new Date().toISOString().slice(0, 10);
-  const title = sanitizeFilenameSegment(survey.title);
+  const title = sanitizeFilenameSegment(survey.title, "survey");
   return `survey-responses-${survey.survey_id}-${title}-${date}.csv`;
 }
 

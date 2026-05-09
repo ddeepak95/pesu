@@ -95,6 +95,8 @@ interface SubmissionsTableProps {
   searchPlaceholder?: string;
   /** Rendered next to the student count on the right side of the toolbar */
   toolbarEndExtra?: ReactNode;
+  /** When true, table scrolls horizontally when wider than the container */
+  overflowTable?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +117,7 @@ export default function SubmissionsTable({
   emptyMessage = "No data available.",
   searchPlaceholder = "Search by student name...",
   toolbarEndExtra,
+  overflowTable = false,
 }: SubmissionsTableProps) {
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -321,8 +324,12 @@ export default function SubmissionsTable({
           </p>
         </div>
       ) : (
-        <div className="rounded-md border">
-          <table className="w-full">
+        <div
+          className={
+            overflowTable ? "max-w-full overflow-x-auto rounded-md border" : "rounded-md border"
+          }
+        >
+          <table className={overflowTable ? "w-full min-w-max" : "w-full"}>
             <thead>
               <tr className="border-b bg-muted/50">
                 {/* Name column (always first) */}

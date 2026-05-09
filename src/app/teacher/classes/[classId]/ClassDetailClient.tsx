@@ -38,6 +38,9 @@ export default function ClassDetailClient({
     const current = new URLSearchParams(searchParams.toString());
     current.delete("tab");
     current.delete("groupId");
+    if (nextTab === "content") {
+      current.delete("studentsTab");
+    }
 
     const ordered = new URLSearchParams();
     ordered.set("tab", nextTab);
