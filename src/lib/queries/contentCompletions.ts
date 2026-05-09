@@ -341,6 +341,10 @@ export interface StudentContentCompletionForStudent {
   requireTeacherUnlock: boolean;
   /** Ordering for rendering (matches `content_items.position`). */
   position: number;
+  /** Public route segment for teacher URLs (assignment_id, quiz_id, etc.). */
+  routeEntityId: string;
+  /** Content placement group for `groupId` query param; null for class-level feed. */
+  placementGroupId: string | null;
 }
 
 /**
@@ -398,10 +402,24 @@ export async function getClassStudentContentCompletions(params: {
   ]);
 
   const contentNameMap = new Map<string, string>();
-  for (const lc of learningContents) contentNameMap.set(lc.id, lc.title);
-  for (const a of assignments) contentNameMap.set(a.id, a.title);
-  for (const q of quizzes) contentNameMap.set(q.id, q.title);
-  for (const s of surveys) contentNameMap.set(s.id, s.title);
+  const routeEntityByRefId = new Map<string, string>();
+
+  for (const lc of learningContents) {
+    contentNameMap.set(lc.id, lc.title);
+    routeEntityByRefId.set(lc.id, lc.learning_content_id);
+  }
+  for (const a of assignments) {
+    contentNameMap.set(a.id, a.title);
+    routeEntityByRefId.set(a.id, a.assignment_id);
+  }
+  for (const q of quizzes) {
+    contentNameMap.set(q.id, q.title);
+    routeEntityByRefId.set(q.id, q.quiz_id);
+  }
+  for (const s of surveys) {
+    contentNameMap.set(s.id, s.title);
+    routeEntityByRefId.set(s.id, s.survey_id);
+  }
 
   const contentItemIds = scopedContentItems.map((ci) => ci.id);
   const { data: completionsData, error: completionsError } = await supabase
@@ -423,6 +441,8 @@ export async function getClassStudentContentCompletions(params: {
   const result: StudentContentCompletionForStudent[] = scopedContentItems.map(
     (contentItem) => {
       const completedAt = completionMap.get(contentItem.id) ?? null;
+      const routeEntityId =
+        routeEntityByRefId.get(contentItem.ref_id) ?? "";
       return {
         contentItemId: contentItem.id,
         contentName: contentNameMap.get(contentItem.ref_id) || "Unknown",
@@ -431,6 +451,8 @@ export async function getClassStudentContentCompletions(params: {
         completedAt,
         requireTeacherUnlock: !!contentItem.require_teacher_unlock,
         position: contentItem.position,
+        routeEntityId,
+        placementGroupId: contentItem.class_group_id ?? null,
       };
     }
   );

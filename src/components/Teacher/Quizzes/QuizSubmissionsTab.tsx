@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useCallback, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,6 +37,7 @@ import {
   useQuizSubmissionsForQuiz,
   useTeacherUnlocksForContentItem,
 } from "@/hooks/swr";
+import { useConsumeStudentIdDeepLink } from "@/hooks/useConsumeStudentIdDeepLink";
 
 interface QuizSubmissionsTabProps {
   quiz: Quiz;
@@ -260,6 +261,22 @@ export default function QuizSubmissionsTab({
     setViewSubmission(item);
     setViewDialogOpen(true);
   };
+
+  const openQuizSubmissionForStudent = useCallback(
+    (studentId: string) => {
+      const item = submissions.find((s) => s.student.student_id === studentId);
+      if (item?.submission) {
+        setViewSubmission(item);
+        setViewDialogOpen(true);
+      }
+    },
+    [submissions]
+  );
+
+  useConsumeStudentIdDeepLink({
+    ready: !loading && !error,
+    openForStudent: openQuizSubmissionForStudent,
+  });
 
   const handleToggleUnlock = async (
     studentId: string,

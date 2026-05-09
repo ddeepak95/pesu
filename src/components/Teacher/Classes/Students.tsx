@@ -19,6 +19,10 @@ import {
   escapeCsvCell,
   sanitizeFilenameSegment,
 } from "@/lib/csv";
+import {
+  clearIndividualProgressRestore,
+  readIndividualProgressRestore,
+} from "@/lib/individualProgressDialogRestore";
 import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
 import ChangeGroupDialog from "./ChangeGroupDialog";
@@ -220,6 +224,24 @@ export default function Students({ classData }: StudentsProps) {
       return;
     ensureProgressDataLoaded();
   }, [activeStudentsTab, ensureProgressDataLoaded]);
+
+  useEffect(() => {
+    if (!isTeacher || loading || error) return;
+    const sid = readIndividualProgressRestore(classData.id);
+    if (!sid) return;
+    const st = students.find((s) => s.student_id === sid);
+    if (!st) {
+      if (students.length > 0) {
+        clearIndividualProgressRestore(classData.id);
+      }
+      return;
+    }
+    window.setTimeout(() => {
+      setIndividualProgressStudent(st);
+      setIndividualProgressDialogOpen(true);
+      clearIndividualProgressRestore(classData.id);
+    }, 0);
+  }, [classData.id, error, isTeacher, loading, students]);
 
   const handleChangeGroup = useCallback((student: StudentWithInfo) => {
     setSelectedStudent(student);
@@ -719,6 +741,7 @@ export default function Students({ classData }: StudentsProps) {
           if (!newOpen) setIndividualProgressStudent(null);
         }}
         classDbId={classData.id}
+        classRouteId={classData.class_id}
         student={individualProgressStudent}
       />
     </div>

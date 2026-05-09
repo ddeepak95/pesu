@@ -1,8 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
+import {
+  buildTeacherDetailHrefWithTab,
+  resolveTeacherDetailTabParam,
+} from "@/lib/teacherDetailTabUrl";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
@@ -32,12 +36,15 @@ interface SurveyDetailClientProps {
   classId: string;
 }
 
+const SURVEY_DETAIL_TABS = ["questions", "responses"] as const;
+
 export default function SurveyDetailClient({
   initialSurvey,
   initialResponseCount,
   classId,
 }: SurveyDetailClientProps) {
   const router = useTrackedRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
@@ -49,6 +56,25 @@ export default function SurveyDetailClient({
     () => resolveTeacherPlacementGroupId(searchParams.get("groupId"), survey.class_group_id),
     [searchParams, survey.class_group_id]
   );
+
+  const activeSurveyTab = useMemo(
+    () =>
+      resolveTeacherDetailTabParam(searchParams.get("tab"), {
+        allowedTabs: SURVEY_DETAIL_TABS,
+        defaultTab: "questions",
+      }),
+    [searchParams]
+  );
+
+  const setSurveyTab = (value: string) => {
+    router.replace(
+      buildTeacherDetailHrefWithTab(pathname, searchParams, value, {
+        allowedTabs: SURVEY_DETAIL_TABS,
+        defaultTab: "questions",
+      }),
+      { scroll: false }
+    );
+  };
 
   const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
     survey.class_id,
@@ -179,7 +205,11 @@ export default function SurveyDetailClient({
             </DropdownMenu>
           </div>
 
-          <Tabs defaultValue="questions" className="w-full">
+          <Tabs
+            value={activeSurveyTab}
+            onValueChange={setSurveyTab}
+            className="w-full"
+          >
             <TabsList>
               <TabsTrigger value="questions">Questions</TabsTrigger>
               <TabsTrigger value="responses">Responses</TabsTrigger>

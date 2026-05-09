@@ -1,8 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
+import {
+  buildTeacherDetailHrefWithTab,
+  resolveTeacherDetailTabParam,
+} from "@/lib/teacherDetailTabUrl";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
@@ -32,11 +36,14 @@ interface QuizDetailClientProps {
   classId: string;
 }
 
+const QUIZ_DETAIL_TABS = ["questions", "submissions"] as const;
+
 export default function QuizDetailClient({
   initialQuiz,
   classId,
 }: QuizDetailClientProps) {
   const router = useTrackedRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
@@ -47,6 +54,25 @@ export default function QuizDetailClient({
     () => resolveTeacherPlacementGroupId(searchParams.get("groupId"), quiz.class_group_id),
     [searchParams, quiz.class_group_id]
   );
+
+  const activeQuizTab = useMemo(
+    () =>
+      resolveTeacherDetailTabParam(searchParams.get("tab"), {
+        allowedTabs: QUIZ_DETAIL_TABS,
+        defaultTab: "questions",
+      }),
+    [searchParams]
+  );
+
+  const setQuizTab = (value: string) => {
+    router.replace(
+      buildTeacherDetailHrefWithTab(pathname, searchParams, value, {
+        allowedTabs: QUIZ_DETAIL_TABS,
+        defaultTab: "questions",
+      }),
+      { scroll: false }
+    );
+  };
 
   const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
     quiz.class_id,
@@ -173,7 +199,11 @@ export default function QuizDetailClient({
             </div>
           )}
 
-          <Tabs defaultValue="questions" className="w-full">
+          <Tabs
+            value={activeQuizTab}
+            onValueChange={setQuizTab}
+            className="w-full"
+          >
             <TabsList>
               <TabsTrigger value="questions">Questions</TabsTrigger>
               <TabsTrigger value="submissions">Submissions</TabsTrigger>

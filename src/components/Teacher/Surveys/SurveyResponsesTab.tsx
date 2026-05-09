@@ -36,6 +36,7 @@ import {
   useSurveyResponses,
   useTeacherUnlocksForContentItem,
 } from "@/hooks/swr";
+import { useConsumeStudentIdDeepLink } from "@/hooks/useConsumeStudentIdDeepLink";
 import { Download } from "lucide-react";
 import {
   CSV_UTF8_BOM,
@@ -277,6 +278,22 @@ export default function SurveyResponsesTab({
     setViewResponse(item.response);
     setViewDialogOpen(true);
   };
+
+  const openSurveyResponseForStudent = useCallback(
+    (studentId: string) => {
+      const response = responseByStudentId.get(studentId);
+      if (response) {
+        setViewResponse(response);
+        setViewDialogOpen(true);
+      }
+    },
+    [responseByStudentId]
+  );
+
+  useConsumeStudentIdDeepLink({
+    ready: !loading && !error,
+    openForStudent: openSurveyResponseForStudent,
+  });
 
   const handleReset = useCallback(
     async (item: SurveyRowItem) => {

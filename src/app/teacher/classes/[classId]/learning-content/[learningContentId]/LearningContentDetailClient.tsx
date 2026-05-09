@@ -1,8 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
+import {
+  buildTeacherDetailHrefWithTab,
+  resolveTeacherDetailTabParam,
+} from "@/lib/teacherDetailTabUrl";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
@@ -34,11 +38,14 @@ interface LearningContentDetailClientProps {
   classId: string;
 }
 
+const LEARNING_DETAIL_TABS = ["content", "completions"] as const;
+
 export default function LearningContentDetailClient({
   initialContent,
   classId,
 }: LearningContentDetailClientProps) {
   const router = useTrackedRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
@@ -49,6 +56,25 @@ export default function LearningContentDetailClient({
     () => resolveTeacherPlacementGroupId(searchParams.get("groupId"), content.class_group_id),
     [searchParams, content.class_group_id]
   );
+
+  const activeLearningTab = useMemo(
+    () =>
+      resolveTeacherDetailTabParam(searchParams.get("tab"), {
+        allowedTabs: LEARNING_DETAIL_TABS,
+        defaultTab: "content",
+      }),
+    [searchParams]
+  );
+
+  const setLearningTab = (value: string) => {
+    router.replace(
+      buildTeacherDetailHrefWithTab(pathname, searchParams, value, {
+        allowedTabs: LEARNING_DETAIL_TABS,
+        defaultTab: "content",
+      }),
+      { scroll: false }
+    );
+  };
 
   const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
     content.class_id,
@@ -167,7 +193,11 @@ export default function LearningContentDetailClient({
             </DropdownMenu>
           </div>
 
-          <Tabs defaultValue="content" className="w-full">
+          <Tabs
+            value={activeLearningTab}
+            onValueChange={setLearningTab}
+            className="w-full"
+          >
             <TabsList>
               <TabsTrigger value="content">Content</TabsTrigger>
               <TabsTrigger value="completions">Completions</TabsTrigger>

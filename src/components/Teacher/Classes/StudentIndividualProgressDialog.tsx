@@ -8,9 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { CheckCircle2, Lock, Unlock, XCircle } from "lucide-react";
 import UnlockConfirmDialog from "@/components/Teacher/Shared/UnlockConfirmDialog";
+import type { StudentContentCompletionForStudent } from "@/lib/queries/contentCompletions";
 import { StudentWithInfo } from "@/lib/queries/students";
+import { rememberIndividualProgressReturn } from "@/lib/individualProgressDialogRestore";
+import { buildTeacherStudentSubmissionHref } from "@/lib/teacherStudentSubmissionLink";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import {
   lockContentForStudent,
   unlockContentForStudent,
@@ -27,6 +32,8 @@ interface StudentIndividualProgressDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   classDbId: string;
+  /** Route slug (`classes.class_id`), used for teacher URLs. */
+  classRouteId: string;
   student: StudentWithInfo | null;
 }
 
@@ -37,12 +44,59 @@ const CONTENT_TYPE_LABELS: Record<ContentItemType, string> = {
   survey: "Survey",
 };
 
+function TeacherSubmissionOpenLink({
+  row,
+  student,
+  classRouteId,
+  classDbId,
+  router,
+}: {
+  row: StudentContentCompletionForStudent;
+  student: StudentWithInfo;
+  classRouteId: string;
+  classDbId: string;
+  router: ReturnType<typeof useTrackedRouter>;
+}) {
+  const href = buildTeacherStudentSubmissionHref({
+    classRouteId,
+    contentType: row.contentType,
+    routeEntityId: row.routeEntityId,
+    placementGroupId: row.placementGroupId,
+    studentId: student.student_id,
+  });
+  if (!href) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    rememberIndividualProgressReturn(classDbId, student.student_id);
+    router.push(href);
+  };
+
+  return (
+    <Button variant="outline" size="sm" asChild>
+      <a
+        href={href}
+        onClick={handleClick}
+        title="Open in teacher view (right-click or Ctrl/Cmd-click for new tab)"
+      >
+        Open
+      </a>
+    </Button>
+  );
+}
+
 export default function StudentIndividualProgressDialog({
   open,
   onOpenChange,
   classDbId,
+  classRouteId,
   student,
 }: StudentIndividualProgressDialogProps) {
+  const router = useTrackedRouter();
   const fetchKey = open && student ? classDbId : null;
 
   const completionsQuery = useClassStudentContentCompletions({
@@ -144,6 +198,9 @@ export default function StudentIndividualProgressDialog({
                       Completed At
                     </th>
                     <th className="text-right p-3 font-medium text-sm sticky top-0 z-10 bg-muted/50">
+                      Open
+                    </th>
+                    <th className="text-right p-3 font-medium text-sm sticky top-0 z-10 bg-muted/50">
                       Access
                     </th>
                   </tr>
@@ -187,6 +244,31 @@ export default function StudentIndividualProgressDialog({
                             <span className="text-sm">{completionDate}</span>
                           ) : (
                             <span className="text-sm text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="p-3 text-right">
+                          {row.isComplete &&
+                          row.routeEntityId &&
+                          student ? (
+                            <TeacherSubmissionOpenLink
+                              row={row}
+                              student={student}
+                              classRouteId={classRouteId}
+                              classDbId={classDbId}
+                              router={router}
+                            />
+                          ) : (
+                            <span
+                              className="text-sm text-muted-foreground"
+                              title={
+                                row.isComplete
+                                  ? undefined
+                                  : "Available once the student completes this item"
+                              }
+                            >
                               —
                             </span>
                           )}

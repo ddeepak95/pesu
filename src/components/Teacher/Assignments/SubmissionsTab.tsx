@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useCallback, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -34,6 +34,7 @@ import {
   useSubmissionsForAssignment,
   useTeacherUnlocksForContentItem,
 } from "@/hooks/swr";
+import { useConsumeStudentIdDeepLink } from "@/hooks/useConsumeStudentIdDeepLink";
 
 interface SubmissionsTabProps {
   assignmentId: string;
@@ -148,6 +149,28 @@ export default function SubmissionsTab({
     setSelectedSubmission(item);
     setViewDialogOpen(true);
   };
+
+  const openClassSubmissionForStudent = useCallback(
+    (studentId: string) => {
+      const item = classSubmissions.find(
+        (s) => s.student.student_id === studentId
+      );
+      if (item) {
+        setSelectedSubmission(item);
+        setViewDialogOpen(true);
+      }
+    },
+    [classSubmissions]
+  );
+
+  useConsumeStudentIdDeepLink({
+    ready:
+      !classLoading &&
+      !classError &&
+      classDbId !== null &&
+      assignment !== null,
+    openForStudent: openClassSubmissionForStudent,
+  });
 
   const handleResetAttempts = async (
     item: StudentSubmissionStatus | PublicSubmissionStatus
