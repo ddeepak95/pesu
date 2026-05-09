@@ -208,6 +208,39 @@ export async function deleteContentCompletionForStudent(params: {
   }
 }
 
+export interface ClassStudentProgressSummaryRow {
+  student_id: string;
+  total: number;
+  completed: number;
+  last_completed_at: string | null;
+}
+
+/**
+ * Per-student completion aggregates for a class (teacher/co-teacher only).
+ * Group-scoped totals match `getClassContentCompletions` / Progress tab semantics.
+ */
+export async function getClassStudentProgressSummary(
+  classDbId: string
+): Promise<ClassStudentProgressSummaryRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("get_class_student_progress_summary", {
+    p_class_id: classDbId,
+  });
+  if (error) throw error;
+  type RpcRow = {
+    student_id: string;
+    total: number | string | null;
+    completed: number | string | null;
+    last_completed_at: string | null;
+  };
+  return ((data ?? []) as RpcRow[]).map((row) => ({
+    student_id: row.student_id,
+    total: Number(row.total ?? 0),
+    completed: Number(row.completed ?? 0),
+    last_completed_at: row.last_completed_at ?? null,
+  }));
+}
+
 /**
  * Get all content completions for a class (for teacher view)
  * Returns a flat list of student-content completion status for all students and content items
@@ -345,6 +378,8 @@ export interface StudentContentCompletionForStudent {
   routeEntityId: string;
   /** Content placement group for `groupId` query param; null for class-level feed. */
   placementGroupId: string | null;
+  /** Formative assignments only: submission feedback awaiting teacher approval. */
+  hasPendingApproval: boolean;
 }
 
 /**
@@ -422,11 +457,40 @@ export async function getClassStudentContentCompletions(params: {
   }
 
   const contentItemIds = scopedContentItems.map((ci) => ci.id);
-  const { data: completionsData, error: completionsError } = await supabase
-    .from("student_content_completions")
-    .select("content_item_id, completed_at")
-    .eq("student_id", studentId)
-    .in("content_item_id", contentItemIds);
+
+  // `submissions.assignment_id` stores `assignments.assignment_id` (short id),
+  // not `assignments.id` / `content_items.ref_id` (uuid).
+  const submissionAssignmentPublicIds = assignments.map((a) => a.assignment_id);
+
+  const pendingAssignmentPublicIdsPromise =
+    submissionAssignmentPublicIds.length === 0
+      ? Promise.resolve(new Set<string>())
+      : supabase
+          .from("submissions")
+          .select("assignment_id")
+          .eq("student_id", studentId)
+          .eq("has_pending_approvals", true)
+          .in("assignment_id", submissionAssignmentPublicIds)
+          .then(({ data, error }) => {
+            if (error) throw error;
+            const set = new Set<string>();
+            for (const row of data ?? []) {
+              const aid = row.assignment_id as string | null | undefined;
+              if (aid) set.add(aid);
+            }
+            return set;
+          });
+
+  const [completionsResult, pendingAssignmentPublicIds] = await Promise.all([
+    supabase
+      .from("student_content_completions")
+      .select("content_item_id, completed_at")
+      .eq("student_id", studentId)
+      .in("content_item_id", contentItemIds),
+    pendingAssignmentPublicIdsPromise,
+  ]);
+
+  const { data: completionsData, error: completionsError } = completionsResult;
 
   if (completionsError) {
     console.error("Error fetching completions:", completionsError);
@@ -443,6 +507,10 @@ export async function getClassStudentContentCompletions(params: {
       const completedAt = completionMap.get(contentItem.id) ?? null;
       const routeEntityId =
         routeEntityByRefId.get(contentItem.ref_id) ?? "";
+      const hasPendingApproval =
+        contentItem.type === "formative_assignment" &&
+        !!routeEntityId &&
+        pendingAssignmentPublicIds.has(routeEntityId);
       return {
         contentItemId: contentItem.id,
         contentName: contentNameMap.get(contentItem.ref_id) || "Unknown",
@@ -453,6 +521,7 @@ export async function getClassStudentContentCompletions(params: {
         position: contentItem.position,
         routeEntityId,
         placementGroupId: contentItem.class_group_id ?? null,
+        hasPendingApproval,
       };
     }
   );

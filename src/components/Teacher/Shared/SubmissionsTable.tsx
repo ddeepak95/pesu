@@ -326,14 +326,28 @@ export default function SubmissionsTable({
       ) : (
         <div
           className={
-            overflowTable ? "max-w-full overflow-x-auto rounded-md border" : "rounded-md border"
+            overflowTable
+              ? "max-w-full max-h-[min(560px,75vh)] overflow-auto rounded-md border"
+              : "rounded-md border"
           }
         >
-          <table className={overflowTable ? "w-full min-w-max" : "w-full"}>
+          <table
+            className={
+              overflowTable
+                ? "w-full min-w-max border-separate border-spacing-0"
+                : "w-full"
+            }
+          >
             <thead>
-              <tr className="border-b bg-muted/50">
+              <tr className="border-b">
                 {/* Name column (always first) */}
-                <th className="text-left p-4 font-medium text-sm">
+                <th
+                  className={`text-left p-4 font-medium text-sm bg-muted ${
+                    overflowTable
+                      ? "sticky left-0 top-0 z-30 border-b border-r border-border shadow-[4px_0_12px_-6px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_12px_-6px_rgba(0,0,0,0.35)]"
+                      : ""
+                  }`}
+                >
                   <button
                     className="flex items-center gap-1 hover:text-foreground"
                     onClick={() => handleSort("__name")}
@@ -345,7 +359,11 @@ export default function SubmissionsTable({
 
                 {/* Unlock column (optional) */}
                 {showUnlockColumn && (
-                  <th className="text-left p-4 font-medium text-sm">
+                  <th
+                    className={`text-left p-4 font-medium text-sm bg-muted ${
+                      overflowTable ? "sticky top-0 z-20 border-b border-border" : ""
+                    }`}
+                  >
                     <button
                       className="flex items-center gap-1 hover:text-foreground"
                       onClick={() => handleSort("__unlock")}
@@ -360,13 +378,13 @@ export default function SubmissionsTable({
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    className={`p-4 font-medium text-sm ${
+                    className={`p-4 font-medium text-sm bg-muted ${
                       col.align === "right"
                         ? "text-right"
                         : col.align === "center"
                         ? "text-center"
                         : "text-left"
-                    }`}
+                    } ${overflowTable ? "sticky top-0 z-20 border-b border-border" : ""}`}
                   >
                     {col.sortable !== false ? (
                       <button
@@ -385,9 +403,20 @@ export default function SubmissionsTable({
             </thead>
             <tbody>
               {sortedRows.map((row) => (
-                <tr key={row.id} className="border-b hover:bg-muted/30">
+                <tr
+                  key={row.id}
+                  className={`border-b group ${
+                    overflowTable ? "" : "hover:bg-neutral-50 dark:hover:bg-zinc-900"
+                  }`}
+                >
                   {/* Name cell */}
-                  <td className="p-4">
+                  <td
+                    className={`p-4 ${
+                      overflowTable
+                        ? "sticky left-0 z-10 border-r border-border bg-background shadow-[4px_0_12px_-6px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_12px_-6px_rgba(0,0,0,0.32)] group-hover:bg-neutral-50 dark:group-hover:bg-zinc-900"
+                        : ""
+                    }`}
+                  >
                     <div className="text-sm font-medium truncate max-w-[200px]">
                       {row.name}
                     </div>
@@ -416,7 +445,13 @@ export default function SubmissionsTable({
 
                   {/* Unlock cell */}
                   {showUnlockColumn && (
-                    <td className="p-4">
+                    <td
+                      className={`p-4 ${
+                        overflowTable
+                          ? "bg-background group-hover:bg-neutral-50 dark:group-hover:bg-zinc-900"
+                          : ""
+                      }`}
+                    >
                       <Button
                         variant="ghost"
                         size="sm"
@@ -447,6 +482,10 @@ export default function SubmissionsTable({
                     <td
                       key={col.key}
                       className={`p-4 ${
+                        overflowTable
+                          ? "bg-background group-hover:bg-neutral-50 dark:group-hover:bg-zinc-900"
+                          : ""
+                      } ${
                         col.align === "right"
                           ? "text-right"
                           : col.align === "center"

@@ -204,6 +204,8 @@ export function invalidateSubmissionsCache() {
       Array.isArray(key) &&
       typeof key[0] === "string" &&
       (key[0] === "submissionsForAssignment" ||
-        key[0] === "publicSubmissionsForAssignment")
+        key[0] === "publicSubmissionsForAssignment" ||
+        key[0] === "studentIdsPendingApprovalsByClass" ||
+        key[0] === "classStudentContentCompletions")
   );
 }

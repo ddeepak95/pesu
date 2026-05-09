@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Download } from "lucide-react";
 import { Class } from "@/types/class";
-import type { ProfileField } from "@/types/profileFields";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCoTeacherForClass } from "@/hooks/swr";
@@ -14,15 +13,7 @@ import {
   MutedPrimaryTabsList,
   MutedPrimaryTabsTrigger,
 } from "@/components/Teacher/Shared/MutedPrimaryTabs";
-import {
-  CSV_UTF8_BOM,
-  escapeCsvCell,
-  sanitizeFilenameSegment,
-} from "@/lib/csv";
-import {
-  clearIndividualProgressRestore,
-  readIndividualProgressRestore,
-} from "@/lib/individualProgressDialogRestore";
+import { sanitizeFilenameSegment } from "@/lib/csv";
 import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
 import ChangeGroupDialog from "./ChangeGroupDialog";
@@ -43,83 +34,15 @@ import {
   useClassStudentsData,
 } from "./hooks/useClassStudentsData";
 import StudentsAnalyticsTab from "./StudentsAnalyticsTab";
+import ClassStudentsCsvExportDialog from "./ClassStudentsCsvExportDialog";
+import {
+  buildClassStudentsInfoCsv,
+  buildClassStudentsProgressCsv,
+  getInfoCsvColumnOptions,
+  getProgressCsvColumnOptions,
+} from "./classStudentsCsvColumns";
 
 type StudentsSubTab = "info" | "progress" | "analytics";
-
-function buildClassStudentsInfoCsv(
-  rows: SubmissionsTableRow[],
-  visibleProfileFields: ProfileField[]
-): string {
-  const headerCells = [
-    "Name",
-    "Email",
-    ...visibleProfileFields.map((f) => f.field_name),
-    "Group",
-  ];
-  const lines = [headerCells.map(escapeCsvCell).join(",")];
-  for (const row of rows) {
-    const rowCells = [
-      row.name,
-      row.email ?? "",
-      ...visibleProfileFields.map((f) =>
-        (row.profileData?.[f.id] ?? "").trim()
-      ),
-      String((row.data?.groupDisplayName as string) ?? ""),
-    ];
-    lines.push(rowCells.map((c) => escapeCsvCell(String(c))).join(","));
-  }
-  return `${CSV_UTF8_BOM}${lines.join("\r\n")}`;
-}
-
-function formatProgressForCsv(row: SubmissionsTableRow): string {
-  const stats = row.data?.progressStats as
-    | {
-        completed: number;
-        total: number;
-        lastCompletedAt: string | null;
-      }
-    | undefined;
-  if (!stats || stats.total === 0) return "No content";
-  const pct = Math.round((stats.completed / stats.total) * 100);
-  return `${stats.completed}/${stats.total} (${pct}%)`;
-}
-
-function formatLastCompletedForCsv(row: SubmissionsTableRow): string {
-  const stats = row.data?.progressStats as
-    | { lastCompletedAt: string | null }
-    | undefined;
-  if (!stats?.lastCompletedAt) return "";
-  return new Date(stats.lastCompletedAt).toISOString().slice(0, 10);
-}
-
-function buildClassStudentsProgressCsv(
-  rows: SubmissionsTableRow[],
-  visibleProfileFields: ProfileField[]
-): string {
-  const headerCells = [
-    "Name",
-    "Email",
-    ...visibleProfileFields.map((f) => f.field_name),
-    "Group",
-    "Progress",
-    "Last completed",
-  ];
-  const lines = [headerCells.map(escapeCsvCell).join(",")];
-  for (const row of rows) {
-    const rowCells = [
-      row.name,
-      row.email ?? "",
-      ...visibleProfileFields.map((f) =>
-        (row.profileData?.[f.id] ?? "").trim()
-      ),
-      String((row.data?.groupDisplayName as string) ?? ""),
-      formatProgressForCsv(row),
-      formatLastCompletedForCsv(row),
-    ];
-    lines.push(rowCells.map((c) => escapeCsvCell(String(c))).join(","));
-  }
-  return `${CSV_UTF8_BOM}${lines.join("\r\n")}`;
-}
 
 function downloadCsvFile(csv: string, filename: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -174,6 +97,9 @@ export default function Students({ classData }: StudentsProps) {
   const [individualProgressStudent, setIndividualProgressStudent] =
     useState<StudentWithInfo | null>(null);
 
+  const [infoCsvExportOpen, setInfoCsvExportOpen] = useState(false);
+  const [progressCsvExportOpen, setProgressCsvExportOpen] = useState(false);
+
   const activeStudentsTab = useMemo((): StudentsSubTab => {
     const t = searchParams.get("studentsTab");
     if (t === "progress" || t === "analytics") return t;
@@ -210,6 +136,7 @@ export default function Students({ classData }: StudentsProps) {
     filterFieldIds,
     filterableFields,
     progressStatsMap,
+    pendingApprovalStudentIds,
     refreshBase,
     ensureProgressDataLoaded,
     buildGroupAnalyticsBuckets,
@@ -224,24 +151,6 @@ export default function Students({ classData }: StudentsProps) {
       return;
     ensureProgressDataLoaded();
   }, [activeStudentsTab, ensureProgressDataLoaded]);
-
-  useEffect(() => {
-    if (!isTeacher || loading || error) return;
-    const sid = readIndividualProgressRestore(classData.id);
-    if (!sid) return;
-    const st = students.find((s) => s.student_id === sid);
-    if (!st) {
-      if (students.length > 0) {
-        clearIndividualProgressRestore(classData.id);
-      }
-      return;
-    }
-    window.setTimeout(() => {
-      setIndividualProgressStudent(st);
-      setIndividualProgressDialogOpen(true);
-      clearIndividualProgressRestore(classData.id);
-    }, 0);
-  }, [classData.id, error, isTeacher, loading, students]);
 
   const handleChangeGroup = useCallback((student: StudentWithInfo) => {
     setSelectedStudent(student);
@@ -290,6 +199,15 @@ export default function Students({ classData }: StudentsProps) {
     if (displayFieldIds.size === 0) return [];
     return profileFields.filter((f) => displayFieldIds.has(f.id));
   }, [profileFields, displayFieldIds]);
+
+  const infoCsvColumns = useMemo(
+    () => getInfoCsvColumnOptions(visibleDisplayFields),
+    [visibleDisplayFields]
+  );
+  const progressCsvColumns = useMemo(
+    () => getProgressCsvColumnOptions(visibleDisplayFields),
+    [visibleDisplayFields]
+  );
 
   const tableColumns: SubmissionsTableColumn[] = useMemo(() => {
     const profileColumns: SubmissionsTableColumn[] = visibleDisplayFields.map(
@@ -376,12 +294,19 @@ export default function Students({ classData }: StudentsProps) {
         data: {
           groupDisplayName,
           progressStats: stats,
+          hasPendingApprovals: pendingApprovalStudentIds.has(s.student_id),
           _student: s,
           _groups: groups,
         },
       };
     });
-  }, [students, studentProfilesMap, groups, progressStatsMap]);
+  }, [
+    students,
+    studentProfilesMap,
+    groups,
+    progressStatsMap,
+    pendingApprovalStudentIds,
+  ]);
 
   const progressTableColumns: SubmissionsTableColumn[] = useMemo(() => {
     const profileColumns: SubmissionsTableColumn[] = visibleDisplayFields.map(
@@ -494,6 +419,20 @@ export default function Students({ classData }: StudentsProps) {
         },
       },
       {
+        key: "pending_approval",
+        label: "Approvals",
+        render: (row: SubmissionsTableRow) =>
+          row.data?.hasPendingApprovals ? (
+            <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              Pending
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          ),
+        sortValue: (row: SubmissionsTableRow) =>
+          row.data?.hasPendingApprovals ? 0 : 1,
+      },
+      {
         key: "actions",
         label: "",
         align: "right" as const,
@@ -515,33 +454,44 @@ export default function Students({ classData }: StudentsProps) {
     ];
   }, [handleViewIndividualProgress, visibleDisplayFields]);
 
-  const handleDownloadInfoCsv = useCallback(() => {
-    const csv = buildClassStudentsInfoCsv(tableRows, visibleDisplayFields);
-    const safeName = sanitizeFilenameSegment(classData.name, "class");
-    const stamp = csvFilenameDateTime();
-    downloadCsvFile(
-      csv,
-      `class-students-info-${classData.class_id}-${safeName}-${stamp}.csv`
-    );
-  }, [tableRows, visibleDisplayFields, classData.class_id, classData.name]);
+  const handleConfirmInfoCsvDownload = useCallback(
+    (selectedIds: Set<string>) => {
+      const csv = buildClassStudentsInfoCsv(
+        tableRows,
+        visibleDisplayFields,
+        selectedIds
+      );
+      const safeName = sanitizeFilenameSegment(classData.name, "class");
+      const stamp = csvFilenameDateTime();
+      downloadCsvFile(
+        csv,
+        `class-students-info-${classData.class_id}-${safeName}-${stamp}.csv`
+      );
+    },
+    [tableRows, visibleDisplayFields, classData.class_id, classData.name]
+  );
 
-  const handleDownloadProgressCsv = useCallback(() => {
-    const csv = buildClassStudentsProgressCsv(
+  const handleConfirmProgressCsvDownload = useCallback(
+    (selectedIds: Set<string>) => {
+      const csv = buildClassStudentsProgressCsv(
+        progressTableRows,
+        visibleDisplayFields,
+        selectedIds
+      );
+      const safeName = sanitizeFilenameSegment(classData.name, "class");
+      const stamp = csvFilenameDateTime();
+      downloadCsvFile(
+        csv,
+        `class-students-progress-${classData.class_id}-${safeName}-${stamp}.csv`
+      );
+    },
+    [
       progressTableRows,
-      visibleDisplayFields
-    );
-    const safeName = sanitizeFilenameSegment(classData.name, "class");
-    const stamp = csvFilenameDateTime();
-    downloadCsvFile(
-      csv,
-      `class-students-progress-${classData.class_id}-${safeName}-${stamp}.csv`
-    );
-  }, [
-    progressTableRows,
-    visibleDisplayFields,
-    classData.class_id,
-    classData.name,
-  ]);
+      visibleDisplayFields,
+      classData.class_id,
+      classData.name,
+    ]
+  );
 
   const infoToolbarExtra = useMemo(
     () => (
@@ -550,7 +500,7 @@ export default function Students({ classData }: StudentsProps) {
         variant="outline"
         size="sm"
         className="gap-1.5 shrink-0"
-        onClick={handleDownloadInfoCsv}
+        onClick={() => setInfoCsvExportOpen(true)}
         disabled={students.length === 0}
         title="Download roster as CSV"
         aria-label="Download student info table as CSV"
@@ -559,7 +509,7 @@ export default function Students({ classData }: StudentsProps) {
         CSV
       </Button>
     ),
-    [handleDownloadInfoCsv, students.length]
+    [students.length]
   );
 
   const progressToolbarExtra = useMemo(
@@ -569,7 +519,7 @@ export default function Students({ classData }: StudentsProps) {
         variant="outline"
         size="sm"
         className="gap-1.5 shrink-0"
-        onClick={handleDownloadProgressCsv}
+        onClick={() => setProgressCsvExportOpen(true)}
         disabled={students.length === 0}
         title="Download progress as CSV"
         aria-label="Download student progress table as CSV"
@@ -578,7 +528,7 @@ export default function Students({ classData }: StudentsProps) {
         CSV
       </Button>
     ),
-    [handleDownloadProgressCsv, students.length]
+    [students.length]
   );
 
   return (
@@ -743,6 +693,21 @@ export default function Students({ classData }: StudentsProps) {
         classDbId={classData.id}
         classRouteId={classData.class_id}
         student={individualProgressStudent}
+      />
+
+      <ClassStudentsCsvExportDialog
+        open={infoCsvExportOpen}
+        onOpenChange={setInfoCsvExportOpen}
+        title="Download student info (CSV)"
+        columns={infoCsvColumns}
+        onDownload={handleConfirmInfoCsvDownload}
+      />
+      <ClassStudentsCsvExportDialog
+        open={progressCsvExportOpen}
+        onOpenChange={setProgressCsvExportOpen}
+        title="Download student progress (CSV)"
+        columns={progressCsvColumns}
+        onDownload={handleConfirmProgressCsvDownload}
       />
     </div>
   );

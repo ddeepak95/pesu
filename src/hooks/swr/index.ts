@@ -68,10 +68,12 @@ export {
 export {
   invalidateClassContentCompletionsCache,
   useClassContentCompletions,
+  useClassStudentProgressSummary,
   useClassStudentContentCompletions,
   useCompletionsByContentItem,
   useIsContentComplete,
 } from "./useContentCompletions";
+export { useStudentIdsPendingApprovalsByClass } from "./useStudentIdsPendingApprovalsByClass";
 export {
   invalidateQuestionAttemptsCache,
   invalidateQuestionsWithAttemptsCache,

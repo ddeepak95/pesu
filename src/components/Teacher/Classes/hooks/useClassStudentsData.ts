@@ -6,14 +6,14 @@ import { Class } from "@/types/class";
 import { StudentWithInfo } from "@/lib/queries/students";
 import { ClassGroup } from "@/lib/queries/groups";
 import { ProfileField } from "@/types/profileFields";
-import { StudentContentCompletionWithDetails } from "@/types/contentCompletion";
 import {
   useAllStudentProfiles,
   useClassGroups,
   useClassStudents,
-  useClassContentCompletions,
+  useClassStudentProgressSummary,
   useProfileFieldsForClass,
   useProgressViewConfig,
+  useStudentIdsPendingApprovalsByClass,
 } from "@/hooks/swr";
 
 export type StudentProgressStatus =
@@ -55,9 +55,10 @@ interface UseClassStudentsDataReturn {
   displayFieldIds: Set<string>;
   filterFieldIds: Set<string>;
   filterableFields: ProfileField[];
-  progressData: StudentContentCompletionWithDetails[];
   progressLoaded: boolean;
   progressStatsMap: Map<string, StudentProgressStats>;
+  /** Students with any assignment awaiting approval (Progress tab only). */
+  pendingApprovalStudentIds: Set<string>;
   refreshBase: () => Promise<void>;
   ensureProgressDataLoaded: () => Promise<void>;
   buildGroupAnalyticsBuckets: () => StudentsAnalyticsBucket[];
@@ -89,7 +90,14 @@ export function useClassStudentsData({
   );
 
   const [progressEnabled, setProgressEnabled] = useState(false);
-  const progressQuery = useClassContentCompletions(classDbId, progressEnabled);
+  const progressSummaryQuery = useClassStudentProgressSummary(
+    classDbId,
+    progressEnabled
+  );
+  const pendingApprovalsQuery = useStudentIdsPendingApprovalsByClass(
+    classDbId,
+    progressEnabled
+  );
 
   // Reset on-demand progress when the class changes. Using the
   // "store information from previous render" pattern instead of an effect
@@ -143,12 +151,18 @@ export function useClassStudentsData({
     [savedConfig]
   );
 
-  const progressData = useMemo(
-    () => progressQuery.data ?? [],
-    [progressQuery.data]
+  const progressLoaded =
+    progressEnabled &&
+    progressSummaryQuery.data !== undefined &&
+    !pendingApprovalsQuery.isLoading;
+  const progressLoading =
+    progressEnabled &&
+    (progressSummaryQuery.isLoading || pendingApprovalsQuery.isLoading);
+
+  const pendingApprovalStudentIds = useMemo(
+    () => new Set(pendingApprovalsQuery.data ?? []),
+    [pendingApprovalsQuery.data]
   );
-  const progressLoaded = progressEnabled && progressQuery.data !== undefined;
-  const progressLoading = progressEnabled && progressQuery.isLoading;
 
   const refreshBase = useCallback(async () => {
     if (!isTeacher) return;
@@ -158,7 +172,12 @@ export function useClassStudentsData({
       profileFieldsQuery.mutate(),
       profilesQuery.mutate(),
       skipProgressView ? Promise.resolve() : progressViewQuery.mutate(),
-      progressEnabled ? progressQuery.mutate() : Promise.resolve(),
+      progressEnabled
+        ? Promise.all([
+            progressSummaryQuery.mutate(),
+            pendingApprovalsQuery.mutate(),
+          ])
+        : Promise.resolve(),
     ]);
   }, [
     isTeacher,
@@ -167,7 +186,8 @@ export function useClassStudentsData({
     profileFieldsQuery,
     profilesQuery,
     progressViewQuery,
-    progressQuery,
+    progressSummaryQuery,
+    pendingApprovalsQuery,
     progressEnabled,
     skipProgressView,
   ]);
@@ -176,7 +196,10 @@ export function useClassStudentsData({
     if (!isTeacher) return;
     setProgressEnabled(true);
     // If already enabled and cached, the SWR call is a no-op revalidation.
-    await mutate(["classContentCompletions", classData.id]);
+    await Promise.all([
+      mutate(["classStudentProgressSummary", classData.id]),
+      mutate(["studentIdsPendingApprovalsByClass", classData.id]),
+    ]);
   }, [classData.id, isTeacher]);
 
   const filterableFields = useMemo(() => {
@@ -192,54 +215,16 @@ export function useClassStudentsData({
 
   const progressStatsMap = useMemo(() => {
     const statsMap = new Map<string, StudentProgressStats>();
-    if (students.length === 0) return statsMap;
-
-    const contentByGroup = new Map<string, Set<string>>();
-    progressData.forEach((item) => {
-      const groupId = item.contentGroupId ?? "__none__";
-      if (!contentByGroup.has(groupId)) contentByGroup.set(groupId, new Set());
-      contentByGroup.get(groupId)?.add(item.contentItemId);
-    });
-
-    const studentCompletions = new Map<string, Set<string>>();
-    const studentCompletionDates = new Map<string, Map<string, string>>();
-    progressData.forEach((item) => {
-      if (!item.isComplete) return;
-
-      if (!studentCompletions.has(item.studentId)) {
-        studentCompletions.set(item.studentId, new Set());
-      }
-      studentCompletions.get(item.studentId)?.add(item.contentItemId);
-
-      if (item.completedAt) {
-        if (!studentCompletionDates.has(item.studentId)) {
-          studentCompletionDates.set(item.studentId, new Map<string, string>());
-        }
-        studentCompletionDates.get(item.studentId)?.set(item.contentItemId, item.completedAt);
-      }
-    });
+    const summaryRows = progressSummaryQuery.data ?? [];
+    const summaryByStudent = new Map(
+      summaryRows.map((row) => [row.student_id, row])
+    );
 
     students.forEach((student) => {
-      const groupId = student.group_id ?? "__none__";
-      const groupContentIds = contentByGroup.get(groupId);
-      const total = groupContentIds?.size ?? 0;
-      const completedIds = studentCompletions.get(student.student_id);
-      const completionDatesByContent = studentCompletionDates.get(student.student_id);
-      let completed = 0;
-      let lastCompletedAt: string | null = null;
-
-      if (completedIds && groupContentIds) {
-        groupContentIds.forEach((contentId) => {
-          if (completedIds.has(contentId)) completed += 1;
-          const completedAt = completionDatesByContent?.get(contentId);
-          if (
-            completedAt &&
-            (!lastCompletedAt || Date.parse(completedAt) > Date.parse(lastCompletedAt))
-          ) {
-            lastCompletedAt = completedAt;
-          }
-        });
-      }
+      const row = summaryByStudent.get(student.student_id);
+      const total = row?.total ?? 0;
+      const completed = row?.completed ?? 0;
+      const lastCompletedAt = row?.last_completed_at ?? null;
 
       const status: StudentProgressStatus =
         total === 0
@@ -259,7 +244,7 @@ export function useClassStudentsData({
     });
 
     return statsMap;
-  }, [progressData, students]);
+  }, [progressSummaryQuery.data, students]);
 
   const buildStudentsBucket = useCallback(
     (key: string, label: string, bucketStudents: StudentWithInfo[]) => {
@@ -342,9 +327,9 @@ export function useClassStudentsData({
     displayFieldIds,
     filterFieldIds,
     filterableFields,
-    progressData,
     progressLoaded,
     progressStatsMap,
+    pendingApprovalStudentIds,
     refreshBase,
     ensureProgressDataLoaded,
     buildGroupAnalyticsBuckets,

@@ -2,9 +2,11 @@ import useSWR, { mutate } from "swr";
 import {
   getClassContentCompletions,
   getClassStudentContentCompletions,
+  getClassStudentProgressSummary,
   getCompletionsByContentItem,
   isContentComplete,
   StudentContentCompletionForStudent,
+  ClassStudentProgressSummaryRow,
 } from "@/lib/queries/contentCompletions";
 import { StudentContentCompletionWithDetails } from "@/types/contentCompletion";
 
@@ -19,6 +21,20 @@ export function useClassContentCompletions(
   return useSWR<StudentContentCompletionWithDetails[]>(
     enabled && classDbId ? ["classContentCompletions", classDbId] : null,
     () => getClassContentCompletions(classDbId!)
+  );
+}
+
+/**
+ * Lightweight per-student progress aggregates (Progress / Analytics tab).
+ * Prefer over `useClassContentCompletions` when cell-level rows are not needed.
+ */
+export function useClassStudentProgressSummary(
+  classDbId: string | null,
+  enabled: boolean = true
+) {
+  return useSWR<ClassStudentProgressSummaryRow[]>(
+    enabled && classDbId ? ["classStudentProgressSummary", classDbId] : null,
+    () => getClassStudentProgressSummary(classDbId!)
   );
 }
 
@@ -80,6 +96,7 @@ export function invalidateClassContentCompletionsCache() {
       Array.isArray(key) &&
       typeof key[0] === "string" &&
       (key[0] === "classContentCompletions" ||
+        key[0] === "classStudentProgressSummary" ||
         key[0] === "classStudentContentCompletions" ||
         key[0] === "completionsByContentItem")
   );

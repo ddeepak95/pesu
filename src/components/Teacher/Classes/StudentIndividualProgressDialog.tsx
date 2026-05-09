@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,18 +9,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Lock, Unlock, XCircle } from "lucide-react";
+import { CheckCircle2, Lock, RefreshCw, Unlock, XCircle } from "lucide-react";
 import UnlockConfirmDialog from "@/components/Teacher/Shared/UnlockConfirmDialog";
 import type { StudentContentCompletionForStudent } from "@/lib/queries/contentCompletions";
 import { StudentWithInfo } from "@/lib/queries/students";
-import { rememberIndividualProgressReturn } from "@/lib/individualProgressDialogRestore";
 import { buildTeacherStudentSubmissionHref } from "@/lib/teacherStudentSubmissionLink";
-import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import {
   lockContentForStudent,
   unlockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
+import { cn } from "@/lib/utils";
 import type { ContentItemType } from "@/types/contentCompletion";
 import {
   invalidateTeacherUnlocksCache,
@@ -48,14 +47,10 @@ function TeacherSubmissionOpenLink({
   row,
   student,
   classRouteId,
-  classDbId,
-  router,
 }: {
   row: StudentContentCompletionForStudent;
   student: StudentWithInfo;
   classRouteId: string;
-  classDbId: string;
-  router: ReturnType<typeof useTrackedRouter>;
 }) {
   const href = buildTeacherStudentSubmissionHref({
     classRouteId,
@@ -68,20 +63,13 @@ function TeacherSubmissionOpenLink({
     return <span className="text-sm text-muted-foreground">—</span>;
   }
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (e.button !== 0) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    rememberIndividualProgressReturn(classDbId, student.student_id);
-    router.push(href);
-  };
-
   return (
     <Button variant="outline" size="sm" asChild>
       <a
         href={href}
-        onClick={handleClick}
-        title="Open in teacher view (right-click or Ctrl/Cmd-click for new tab)"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open submission in a new tab (keeps this page loaded)"
       >
         Open
       </a>
@@ -96,7 +84,6 @@ export default function StudentIndividualProgressDialog({
   classRouteId,
   student,
 }: StudentIndividualProgressDialogProps) {
-  const router = useTrackedRouter();
   const fetchKey = open && student ? classDbId : null;
 
   const completionsQuery = useClassStudentContentCompletions({
@@ -153,17 +140,45 @@ export default function StudentIndividualProgressDialog({
     onOpenChange(newOpen);
   };
 
+  const validating =
+    completionsQuery.isValidating || unlocksQuery.isValidating;
+
+  const handleRefreshStudentProgress = useCallback(async () => {
+    if (!open || !student) return;
+    await completionsQuery.mutate();
+    await unlocksQuery.mutate();
+  }, [open, student, completionsQuery, unlocksQuery]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-[90vw] max-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>
-            {studentName ? `Progress for ${studentName}` : "Student Progress"}
-          </DialogTitle>
-          <DialogDescription>
-            View completion status and completion dates for the selected
-            student.
-          </DialogDescription>
+        <DialogHeader className="sm:flex-row sm:justify-between sm:gap-4 sm:space-y-0 pr-10">
+          <div className="space-y-1.5">
+            <DialogTitle>
+              {studentName ? `Progress for ${studentName}` : "Student Progress"}
+            </DialogTitle>
+            <DialogDescription>
+              View completion status and completion dates for the selected
+              student.
+            </DialogDescription>
+          </div>
+          {student ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5 self-start"
+              disabled={validating}
+              title="Reload this student only (does not refresh the class Progress table)"
+              aria-label="Refresh student progress"
+              onClick={() => void handleRefreshStudentProgress()}
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", validating && "animate-spin")}
+              />
+              Refresh
+            </Button>
+          ) : null}
         </DialogHeader>
 
         <div className="flex-1 overflow-auto mt-3">
@@ -218,11 +233,20 @@ export default function StudentIndividualProgressDialog({
                     return (
                       <tr key={row.contentItemId} className="border-b">
                         <td className="p-3">
-                          <div className="text-sm font-medium">
-                            {row.contentName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {CONTENT_TYPE_LABELS[row.contentType]}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div>
+                              <div className="text-sm font-medium">
+                                {row.contentName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {CONTENT_TYPE_LABELS[row.contentType]}
+                              </div>
+                            </div>
+                            {row.hasPendingApproval ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 whitespace-nowrap">
+                                Pending Approval
+                              </span>
+                            ) : null}
                           </div>
                         </td>
 
@@ -257,8 +281,6 @@ export default function StudentIndividualProgressDialog({
                               row={row}
                               student={student}
                               classRouteId={classRouteId}
-                              classDbId={classDbId}
-                              router={router}
                             />
                           ) : (
                             <span

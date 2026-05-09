@@ -7,6 +7,8 @@ import {
   SubmissionTranscript,
 } from "@/types/submission";
 import { nanoid } from "nanoid";
+import { getAssignmentsByIdsForTeacher } from "./assignments";
+import { getContentItemsByClass } from "./contentItems";
 import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
 /** All columns for the submissions table (includes evaluations JSONB and activity metrics — use SUBMISSION_LIST_COLUMNS for list views) */
@@ -75,6 +77,43 @@ export function computeDenormalizedFields(evaluations: {
     questions_attempted_count: questionsAttemptedCount,
     has_pending_approvals: hasPendingApprovals,
   };
+}
+
+/**
+ * Students in `classDbId` with at least one formative assignment submission
+ * where `has_pending_approvals` is true (narrow read — `student_id` only).
+ */
+export async function getStudentIdsWithPendingApprovalsInClass(
+  classDbId: string
+): Promise<Set<string>> {
+  const contentItems = await getContentItemsByClass(classDbId);
+  const assignmentUuidRefs = contentItems
+    .filter((ci) => ci.type === "formative_assignment")
+    .map((ci) => ci.ref_id);
+  if (assignmentUuidRefs.length === 0) return new Set();
+
+  const assignments = await getAssignmentsByIdsForTeacher(assignmentUuidRefs);
+  const submissionAssignmentPublicIds = assignments.map((a) => a.assignment_id);
+  if (submissionAssignmentPublicIds.length === 0) return new Set();
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("student_id")
+    .eq("has_pending_approvals", true)
+    .in("assignment_id", submissionAssignmentPublicIds);
+
+  if (error) {
+    console.error("Error fetching pending approvals by class:", error);
+    throw error;
+  }
+
+  const out = new Set<string>();
+  for (const row of data ?? []) {
+    const sid = row.student_id as string | null | undefined;
+    if (sid) out.add(sid);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
