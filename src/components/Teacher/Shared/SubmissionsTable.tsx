@@ -23,6 +23,11 @@ import UnlockConfirmDialog from "./UnlockConfirmDialog";
 import ProfileFieldFilters, {
   ProfileFiltersState,
 } from "./ProfileFieldFilters";
+import { cn } from "@/lib/utils";
+import {
+  TeacherTablePanel,
+  TeacherWideTablePanel,
+} from "./TeacherTableSurfaces";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,8 +100,11 @@ interface SubmissionsTableProps {
   searchPlaceholder?: string;
   /** Rendered next to the student count on the right side of the toolbar */
   toolbarEndExtra?: ReactNode;
-  /** When true, table scrolls horizontally when wider than the container */
-  overflowTable?: boolean;
+  /**
+   * Class roster-style layout: {@link TeacherWideTablePanel}, `min-w-max` table,
+   * sticky header row + sticky first column, horizontal scroll (Students Info / Progress).
+   */
+  wideColumnScroll?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +125,7 @@ export default function SubmissionsTable({
   emptyMessage = "No data available.",
   searchPlaceholder = "Search by student name...",
   toolbarEndExtra,
-  overflowTable = false,
+  wideColumnScroll = false,
 }: SubmissionsTableProps) {
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -270,6 +278,9 @@ export default function SubmissionsTable({
     );
   }
 
+  const TableShell = wideColumnScroll ? TeacherWideTablePanel : TeacherTablePanel;
+  const stickyGrid = wideColumnScroll;
+
   return (
     <div className="space-y-4">
       {/* Toolbar: search + filters */}
@@ -289,7 +300,7 @@ export default function SubmissionsTable({
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-background text-foreground">
               <SelectItem value="all">All</SelectItem>
               {statusFilterOptions.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
@@ -324,29 +335,22 @@ export default function SubmissionsTable({
           </p>
         </div>
       ) : (
-        <div
-          className={
-            overflowTable
-              ? "max-w-full max-h-[min(560px,75vh)] overflow-auto rounded-md border"
-              : "rounded-md border"
-          }
-        >
+        <TableShell>
           <table
-            className={
-              overflowTable
-                ? "w-full min-w-max border-separate border-spacing-0"
-                : "w-full"
-            }
+            className={cn(
+              "w-full",
+              stickyGrid && "min-w-max border-separate border-spacing-0",
+            )}
           >
             <thead>
               <tr className="border-b">
                 {/* Name column (always first) */}
                 <th
-                  className={`text-left p-4 font-medium text-sm bg-muted ${
-                    overflowTable
-                      ? "sticky left-0 top-0 z-30 border-b border-r border-border shadow-[4px_0_12px_-6px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_12px_-6px_rgba(0,0,0,0.35)]"
-                      : ""
-                  }`}
+                  className={cn(
+                    "text-left p-4 font-medium text-sm bg-muted",
+                    stickyGrid &&
+                      "sticky left-0 top-0 z-40 border-b border-r border-border shadow-[4px_0_12px_-6px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_12px_-6px_rgba(0,0,0,0.35)]",
+                  )}
                 >
                   <button
                     className="flex items-center gap-1 hover:text-foreground"
@@ -360,9 +364,11 @@ export default function SubmissionsTable({
                 {/* Unlock column (optional) */}
                 {showUnlockColumn && (
                   <th
-                    className={`text-left p-4 font-medium text-sm bg-muted ${
-                      overflowTable ? "sticky top-0 z-20 border-b border-border" : ""
-                    }`}
+                    className={cn(
+                      "text-left p-4 font-medium text-sm bg-muted",
+                      stickyGrid &&
+                        "sticky top-0 z-30 border-b border-border shadow-[0_1px_0_0_var(--border)]",
+                    )}
                   >
                     <button
                       className="flex items-center gap-1 hover:text-foreground"
@@ -378,13 +384,16 @@ export default function SubmissionsTable({
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    className={`p-4 font-medium text-sm bg-muted ${
+                    className={cn(
+                      "p-4 font-medium text-sm bg-muted",
                       col.align === "right"
                         ? "text-right"
                         : col.align === "center"
-                        ? "text-center"
-                        : "text-left"
-                    } ${overflowTable ? "sticky top-0 z-20 border-b border-border" : ""}`}
+                          ? "text-center"
+                          : "text-left",
+                      stickyGrid &&
+                        "sticky top-0 z-30 border-b border-border shadow-[0_1px_0_0_var(--border)]",
+                    )}
                   >
                     {col.sortable !== false ? (
                       <button
@@ -405,17 +414,18 @@ export default function SubmissionsTable({
               {sortedRows.map((row) => (
                 <tr
                   key={row.id}
-                  className={`border-b group ${
-                    overflowTable ? "" : "hover:bg-neutral-50 dark:hover:bg-zinc-900"
-                  }`}
+                  className={cn(
+                    "border-b bg-background",
+                    stickyGrid ? "group" : "hover:bg-accent",
+                  )}
                 >
                   {/* Name cell */}
                   <td
-                    className={`p-4 ${
-                      overflowTable
-                        ? "sticky left-0 z-10 border-r border-border bg-background shadow-[4px_0_12px_-6px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_12px_-6px_rgba(0,0,0,0.32)] group-hover:bg-neutral-50 dark:group-hover:bg-zinc-900"
-                        : ""
-                    }`}
+                    className={cn(
+                      "p-4",
+                      stickyGrid &&
+                        "sticky left-0 z-10 border-r border-border bg-background shadow-[4px_0_12px_-6px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_12px_-6px_rgba(0,0,0,0.32)] group-hover:bg-accent",
+                    )}
                   >
                     <div className="text-sm font-medium truncate max-w-[200px]">
                       {row.name}
@@ -446,11 +456,10 @@ export default function SubmissionsTable({
                   {/* Unlock cell */}
                   {showUnlockColumn && (
                     <td
-                      className={`p-4 ${
-                        overflowTable
-                          ? "bg-background group-hover:bg-neutral-50 dark:group-hover:bg-zinc-900"
-                          : ""
-                      }`}
+                      className={cn(
+                        "p-4",
+                        stickyGrid && "bg-background group-hover:bg-accent",
+                      )}
                     >
                       <Button
                         variant="ghost"
@@ -481,17 +490,15 @@ export default function SubmissionsTable({
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`p-4 ${
-                        overflowTable
-                          ? "bg-background group-hover:bg-neutral-50 dark:group-hover:bg-zinc-900"
-                          : ""
-                      } ${
+                      className={cn(
+                        "p-4",
                         col.align === "right"
                           ? "text-right"
                           : col.align === "center"
-                          ? "text-center"
-                          : ""
-                      }`}
+                            ? "text-center"
+                            : "",
+                        stickyGrid && "bg-background group-hover:bg-accent",
+                      )}
                     >
                       {col.render(row)}
                     </td>
@@ -500,7 +507,7 @@ export default function SubmissionsTable({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
       )}
 
       {/* Unlock confirm dialog */}

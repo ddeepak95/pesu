@@ -42,6 +42,7 @@ a {
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
+  --color-canvas: var(--canvas);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -72,11 +73,15 @@ a {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-tabs-active: var(--tabs-active);
+  --color-tabs-active-foreground: var(--tabs-active-foreground);
 }
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  --background: #fafafa;
+  /* Viewport / body shell; tweak independently of --background (e.g. cards use bg-background). */
+  --canvas: #faf7f1;
   --foreground: oklch(0.145 0 0);
   --card: oklch(0.98 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -97,6 +102,18 @@ a {
   --color-pink-mist-800: #50162b;
   --color-pink-mist-900: #280b16;
   --color-pink-mist-950: #1c080f;
+
+  /* Warm beige / sand (segmented tabs, etc.) */
+  --color-beige-50: #faf7f1;
+  --color-beige-100: #f2eadf;
+  --color-beige-200: #e5d9c8;
+  --color-beige-300: #d1c2a8;
+  --color-beige-400: #b09b78;
+  --color-beige-500: #91795e;
+  --color-beige-600: #756049;
+  --color-beige-700: #5c4a3a;
+  --color-beige-800: #45382e;
+  --color-beige-900: #2e261f;
   
   /* Glaucous color palette */
   --color-glaucous-50: #eaedfa;
@@ -146,6 +163,13 @@ a {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Segmented tabs: rail uses bg-background; selected chip beige (not primary button) */
+  --tabs-active: var(--color-beige-100);
+  --tabs-active-foreground: var(--color-beige-900);
+  /* Class page Content / Students underline tabs (layout unchanged from default; colors only) */
+  --class-underline-tab-rule: var(--color-beige-500);
+  --class-underline-tab-active-accent: var(--color-beige-800);
+  --grain-opacity: 0.225;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -155,6 +179,7 @@ a {
 
   :root {
     --background: oklch(0.145 0 0);
+    --canvas: #040100;
     --foreground: oklch(1 0 0);
     --card: oklch(0.205 0 0);
     --card-foreground: oklch(1 0 0);
@@ -185,6 +210,11 @@ a {
     --sidebar-accent-foreground: oklch(1 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.7 0 0);
+    --tabs-active: var(--color-beige-700);
+    --tabs-active-foreground: var(--color-beige-50);
+    --class-underline-tab-rule: var(--color-beige-600);
+    --class-underline-tab-active-accent: var(--color-beige-300);
+    --grain-opacity: 0.25;
   }
 }
 
@@ -193,7 +223,21 @@ a {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-canvas text-foreground;
+    isolation: isolate;
+  }
+
+  /* Grain sits above body fill, below all page content (no overlay on text/cards). */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
   }
   input, select, textarea, button {
     @apply text-foreground;

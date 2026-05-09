@@ -167,7 +167,7 @@ export default function ProfileFieldFilters({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-[240px] max-h-[300px] overflow-y-auto p-2"
+              className="w-[240px] max-h-[300px] overflow-y-auto bg-background p-2 text-foreground"
             >
               <DropdownMenuLabel>{field.field_name}</DropdownMenuLabel>
               <DropdownMenuSeparator />

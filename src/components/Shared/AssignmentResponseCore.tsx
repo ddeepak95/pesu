@@ -423,7 +423,7 @@ export default function AssignmentResponseCore({
           if (!open) dismissTabWarning();
         }}
       />
-      <div className="w-full space-y-6">
+      <div className="w-full space-y-6 rounded-md border bg-background p-4 sm:p-6 md:p-8">
       {/* Assignment Title and Language Selector */}
       <PageTitle
         title={assignmentData.title}

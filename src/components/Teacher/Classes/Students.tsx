@@ -24,9 +24,7 @@ import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
-import {
-  StudentWithInfo,
-} from "@/lib/queries/students";
+import { StudentWithInfo } from "@/lib/queries/students";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import { ClassGroup } from "@/lib/queries/groups";
 import {
@@ -56,7 +54,11 @@ function downloadCsvFile(csv: string, filename: string) {
 
 /** UTC date + time, filesystem-safe (no `:`). */
 function csvFilenameDateTime(): string {
-  return new Date().toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-");
+  return new Date()
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", "_")
+    .replace(/:/g, "-");
 }
 
 interface StudentsProps {
@@ -72,7 +74,7 @@ export default function Students({ classData }: StudentsProps) {
   // Only fetch co-teacher membership when the user isn't already the owner.
   const { data: isCoTeacher } = useIsCoTeacherForClass(
     !isOwner && user?.id ? classData.id : null,
-    !isOwner ? user?.id ?? null : null
+    !isOwner ? (user?.id ?? null) : null,
   );
   const isTeacher = isOwner || isCoTeacher === true;
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
@@ -83,8 +85,7 @@ export default function Students({ classData }: StudentsProps) {
     useState<StudentWithInfo | null>(null);
 
   // Delete student dialog state
-  const [deleteStudentDialogOpen, setDeleteStudentDialogOpen] =
-    useState(false);
+  const [deleteStudentDialogOpen, setDeleteStudentDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] =
     useState<StudentWithInfo | null>(null);
 
@@ -121,7 +122,7 @@ export default function Students({ classData }: StudentsProps) {
       }
       router.replace(`${pathname}?${ordered.toString()}`);
     },
-    [pathname, router, searchParams]
+    [pathname, router, searchParams],
   );
 
   const {
@@ -162,7 +163,7 @@ export default function Students({ classData }: StudentsProps) {
       setIndividualProgressStudent(student);
       setIndividualProgressDialogOpen(true);
     },
-    []
+    [],
   );
 
   const handleGroupChanged = () => {
@@ -202,11 +203,11 @@ export default function Students({ classData }: StudentsProps) {
 
   const infoCsvColumns = useMemo(
     () => getInfoCsvColumnOptions(visibleDisplayFields),
-    [visibleDisplayFields]
+    [visibleDisplayFields],
   );
   const progressCsvColumns = useMemo(
     () => getProgressCsvColumnOptions(visibleDisplayFields),
-    [visibleDisplayFields]
+    [visibleDisplayFields],
   );
 
   const tableColumns: SubmissionsTableColumn[] = useMemo(() => {
@@ -289,8 +290,7 @@ export default function Students({ classData }: StudentsProps) {
         name: getStudentDisplayName(s),
         email: s.student_email,
         profileData: studentProfilesMap.get(s.student_id) ?? {},
-        status:
-          stats.status === "no_content" ? "not_started" : stats.status,
+        status: stats.status === "no_content" ? "not_started" : stats.status,
         data: {
           groupDisplayName,
           progressStats: stats,
@@ -396,9 +396,7 @@ export default function Students({ classData }: StudentsProps) {
               }
             | undefined;
           if (!stats || !stats.lastCompletedAt) {
-            return (
-              <span className="text-sm text-muted-foreground">—</span>
-            );
+            return <span className="text-sm text-muted-foreground">—</span>;
           }
           return (
             <span className="text-sm">
@@ -442,7 +440,7 @@ export default function Students({ classData }: StudentsProps) {
           if (!student) return null;
           return (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => handleViewIndividualProgress(student)}
             >
@@ -459,16 +457,16 @@ export default function Students({ classData }: StudentsProps) {
       const csv = buildClassStudentsInfoCsv(
         tableRows,
         visibleDisplayFields,
-        selectedIds
+        selectedIds,
       );
       const safeName = sanitizeFilenameSegment(classData.name, "class");
       const stamp = csvFilenameDateTime();
       downloadCsvFile(
         csv,
-        `class-students-info-${classData.class_id}-${safeName}-${stamp}.csv`
+        `class-students-info-${classData.class_id}-${safeName}-${stamp}.csv`,
       );
     },
-    [tableRows, visibleDisplayFields, classData.class_id, classData.name]
+    [tableRows, visibleDisplayFields, classData.class_id, classData.name],
   );
 
   const handleConfirmProgressCsvDownload = useCallback(
@@ -476,13 +474,13 @@ export default function Students({ classData }: StudentsProps) {
       const csv = buildClassStudentsProgressCsv(
         progressTableRows,
         visibleDisplayFields,
-        selectedIds
+        selectedIds,
       );
       const safeName = sanitizeFilenameSegment(classData.name, "class");
       const stamp = csvFilenameDateTime();
       downloadCsvFile(
         csv,
-        `class-students-progress-${classData.class_id}-${safeName}-${stamp}.csv`
+        `class-students-progress-${classData.class_id}-${safeName}-${stamp}.csv`,
       );
     },
     [
@@ -490,7 +488,7 @@ export default function Students({ classData }: StudentsProps) {
       visibleDisplayFields,
       classData.class_id,
       classData.name,
-    ]
+    ],
   );
 
   const infoToolbarExtra = useMemo(
@@ -506,10 +504,9 @@ export default function Students({ classData }: StudentsProps) {
         aria-label="Download student info table as CSV"
       >
         <Download className="h-4 w-4" />
-        CSV
       </Button>
     ),
-    [students.length]
+    [students.length],
   );
 
   const progressToolbarExtra = useMemo(
@@ -525,10 +522,9 @@ export default function Students({ classData }: StudentsProps) {
         aria-label="Download student progress table as CSV"
       >
         <Download className="h-4 w-4" />
-        CSV
       </Button>
     ),
-    [students.length]
+    [students.length],
   );
 
   return (
@@ -568,21 +564,30 @@ export default function Students({ classData }: StudentsProps) {
         <Tabs
           value={activeStudentsTab}
           onValueChange={(v) => setStudentsSubTabInUrl(v as StudentsSubTab)}
-          className="w-full"
+          className="w-full overflow-visible"
         >
           <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
-            <MutedPrimaryTabsTrigger value="info" className="rounded-sm px-4 py-2">
+            <MutedPrimaryTabsTrigger
+              value="info"
+              className="rounded-sm px-4 py-2"
+            >
               Info
             </MutedPrimaryTabsTrigger>
-            <MutedPrimaryTabsTrigger value="progress" className="rounded-sm px-4 py-2">
+            <MutedPrimaryTabsTrigger
+              value="progress"
+              className="rounded-sm px-4 py-2"
+            >
               Progress
             </MutedPrimaryTabsTrigger>
-            <MutedPrimaryTabsTrigger value="analytics" className="rounded-sm px-4 py-2">
+            <MutedPrimaryTabsTrigger
+              value="analytics"
+              className="rounded-sm px-4 py-2"
+            >
               Analytics
             </MutedPrimaryTabsTrigger>
           </MutedPrimaryTabsList>
 
-          <TabsContent value="info" className="mt-0">
+          <TabsContent value="info" className="mt-0 overflow-visible">
             {students.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <p>
@@ -603,12 +608,12 @@ export default function Students({ classData }: StudentsProps) {
                 emptyMessage="No students enrolled yet."
                 searchPlaceholder="Search by student name..."
                 toolbarEndExtra={infoToolbarExtra}
-                overflowTable
+                wideColumnScroll
               />
             )}
           </TabsContent>
 
-          <TabsContent value="progress" className="mt-0">
+          <TabsContent value="progress" className="mt-0 overflow-visible">
             {progressLoading ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">
@@ -636,7 +641,7 @@ export default function Students({ classData }: StudentsProps) {
                 emptyMessage="No students enrolled yet."
                 searchPlaceholder="Search by student name..."
                 toolbarEndExtra={progressToolbarExtra}
-                overflowTable
+                wideColumnScroll
               />
             )}
           </TabsContent>

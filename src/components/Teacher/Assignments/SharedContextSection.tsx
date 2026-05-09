@@ -21,7 +21,7 @@ export function SharedContextSection({
   loading,
 }: SharedContextSectionProps) {
   return (
-    <div className="space-y-3 p-4 border rounded-md">
+    <div className="space-y-3 rounded-md border bg-background p-4">
       <div className="flex items-center space-x-2">
         <Checkbox
           id="sharedContextEnabled"

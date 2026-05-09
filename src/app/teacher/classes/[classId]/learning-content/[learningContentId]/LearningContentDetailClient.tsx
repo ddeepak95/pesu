@@ -28,7 +28,11 @@ import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
 import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRemove";
 import { LearningContent } from "@/types/learningContent";
 import LearningContentViewer from "@/components/Shared/LearningContentViewer";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  MutedPrimaryTabsList,
+  MutedPrimaryTabsTrigger,
+} from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import LearningContentCompletionsTab from "@/components/Teacher/LearningContent/LearningContentCompletionsTab";
 import { showErrorToast } from "@/lib/toast";
 import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
@@ -198,10 +202,20 @@ export default function LearningContentDetailClient({
             onValueChange={setLearningTab}
             className="w-full"
           >
-            <TabsList>
-              <TabsTrigger value="content">Content</TabsTrigger>
-              <TabsTrigger value="completions">Completions</TabsTrigger>
-            </TabsList>
+            <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
+              <MutedPrimaryTabsTrigger
+                value="content"
+                className="rounded-sm px-4 py-2"
+              >
+                Content
+              </MutedPrimaryTabsTrigger>
+              <MutedPrimaryTabsTrigger
+                value="completions"
+                className="rounded-sm px-4 py-2"
+              >
+                Completions
+              </MutedPrimaryTabsTrigger>
+            </MutedPrimaryTabsList>
 
             <TabsContent value="content" className="py-6">
               <div className="space-y-6 pb-8">

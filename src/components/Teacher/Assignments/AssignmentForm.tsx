@@ -719,11 +719,11 @@ export default function AssignmentForm({
       />
 
       {/* More Options (with General & AI Bot subtabs) */}
-      <div className="border rounded-md">
+      <div className="rounded-md border bg-background">
         <button
           type="button"
           onClick={() => setIsMoreOptionsOpen(!isMoreOptionsOpen)}
-          className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
+          className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/50"
           disabled={loading}
         >
           <h3 className="text-sm font-semibold">More Options</h3>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Accordion,
   AccordionContent,
@@ -22,12 +23,18 @@ export function AssessmentQuestionCard({
   children,
   showRubric = true,
   showRubricPoints = true,
+  className,
 }: AssessmentQuestionCardProps) {
   const shouldShowRubric =
     showRubric && question.rubric && question.rubric.length > 0;
 
   return (
-    <Card className="w-full bg-gray-300/5">
+    <Card
+      className={cn(
+        "w-full bg-popover text-popover-foreground shadow-sm",
+        className,
+      )}
+    >
       <CardHeader className="p-4">
         <CardTitle className="text-base font-semibold">
           {question.prompt}

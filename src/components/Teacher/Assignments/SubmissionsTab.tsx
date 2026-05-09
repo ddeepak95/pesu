@@ -2,7 +2,11 @@
 
 import { useCallback, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  MutedPrimaryTabsList,
+  MutedPrimaryTabsTrigger,
+} from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import {
   StudentSubmissionStatus,
   PublicSubmissionStatus,
@@ -531,14 +535,22 @@ export default function SubmissionsTab({
       </div>
 
       <Tabs defaultValue="class-students" className="w-full">
-        <TabsList>
-          <TabsTrigger value="class-students">Class Students</TabsTrigger>
+        <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
+          <MutedPrimaryTabsTrigger
+            value="class-students"
+            className="rounded-sm px-4 py-2"
+          >
+            Class Students
+          </MutedPrimaryTabsTrigger>
           {isPublic && (
-            <TabsTrigger value="public-submissions">
+            <MutedPrimaryTabsTrigger
+              value="public-submissions"
+              className="rounded-sm px-4 py-2"
+            >
               Public Submissions
-            </TabsTrigger>
+            </MutedPrimaryTabsTrigger>
           )}
-        </TabsList>
+        </MutedPrimaryTabsList>
 
         <TabsContent value="class-students" className="mt-6">
           {classLoading ? (

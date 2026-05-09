@@ -17,7 +17,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  MutedPrimaryTabsList,
+  MutedPrimaryTabsTrigger,
+} from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateQuiz, deleteQuiz } from "@/lib/queries/quizzes";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
@@ -204,10 +208,20 @@ export default function QuizDetailClient({
             onValueChange={setQuizTab}
             className="w-full"
           >
-            <TabsList>
-              <TabsTrigger value="questions">Questions</TabsTrigger>
-              <TabsTrigger value="submissions">Submissions</TabsTrigger>
-            </TabsList>
+            <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
+              <MutedPrimaryTabsTrigger
+                value="questions"
+                className="rounded-sm px-4 py-2"
+              >
+                Questions
+              </MutedPrimaryTabsTrigger>
+              <MutedPrimaryTabsTrigger
+                value="submissions"
+                className="rounded-sm px-4 py-2"
+              >
+                Submissions
+              </MutedPrimaryTabsTrigger>
+            </MutedPrimaryTabsList>
 
             <TabsContent value="questions" className="space-y-4 py-6">
               {quiz.questions

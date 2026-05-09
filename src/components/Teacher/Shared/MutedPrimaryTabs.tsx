@@ -10,7 +10,10 @@ export function MutedPrimaryTabsList({
 }: React.ComponentProps<typeof TabsList>) {
   return (
     <TabsList
-      className={cn("bg-muted", className)}
+      className={cn(
+        "!bg-background text-muted-foreground [&_[role=tab][data-state=inactive]]:!text-foreground/70",
+        className,
+      )}
       {...props}
     />
   );
@@ -23,7 +26,8 @@ export function MutedPrimaryTabsTrigger({
   return (
     <TabsTrigger
       className={cn(
-        "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+        // ! overrides TabsTrigger's data-[state=active]:bg-background when tailwind-merge keeps both
+        "data-[state=active]:!bg-tabs-active data-[state=active]:!text-tabs-active-foreground data-[state=active]:!shadow-md data-[state=active]:!ring-1 data-[state=active]:!ring-[var(--color-beige-400)]/40 data-[state=active]:!ring-offset-0 data-[state=active]:!ring-offset-transparent",
         className
       )}
       {...props}

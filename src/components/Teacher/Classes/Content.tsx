@@ -571,10 +571,14 @@ export default function Content({ classData }: ContentProps) {
         }}
         className="w-full"
       >
-        <div className="flex items-center justify-between">
-          <MutedPrimaryTabsList>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <MutedPrimaryTabsList className="h-auto w-auto gap-1 rounded-md p-1">
             {groups.map((g) => (
-              <MutedPrimaryTabsTrigger key={g.id} value={g.id}>
+              <MutedPrimaryTabsTrigger
+                key={g.id}
+                value={g.id}
+                className="rounded-sm px-4 py-2"
+              >
                 {g.name || `Group ${g.group_index + 1}`}
               </MutedPrimaryTabsTrigger>
             ))}

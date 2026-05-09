@@ -36,7 +36,7 @@ export function FileSubmissionSection({
     fileAllowedTypes.length === 1 && fileAllowedTypes[0] === ".pdf";
 
   return (
-    <div className="space-y-3 p-4 border rounded-md">
+    <div className="space-y-3 rounded-md border bg-background p-4">
       <div className="flex items-center space-x-2">
         <Checkbox
           id="fileSubmissionEnabled"

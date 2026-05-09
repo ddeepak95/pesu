@@ -33,7 +33,7 @@ export default function ClassDetailClient({
 
   const replaceQuery = (
     nextTab: "content" | "students",
-    nextGroupId?: string | null
+    nextGroupId?: string | null,
   ) => {
     const current = new URLSearchParams(searchParams.toString());
     current.delete("tab");
@@ -90,21 +90,21 @@ export default function ClassDetailClient({
               const nextTab = v === "students" ? "students" : "content";
               replaceQuery(
                 nextTab,
-                nextTab === "content" ? searchParams.get("groupId") : null
+                nextTab === "content" ? searchParams.get("groupId") : null,
               );
             }}
-            className="w-full"
+            className="w-full overflow-visible"
           >
-            <TabsList className="h-auto w-full justify-start rounded-none border-b bg-transparent p-0">
+            <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
               <TabsTrigger
                 value="content"
-                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
               >
                 Content
               </TabsTrigger>
               <TabsTrigger
                 value="students"
-                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
               >
                 Students
               </TabsTrigger>
@@ -114,7 +114,7 @@ export default function ClassDetailClient({
               <Content classData={classData} />
             </TabsContent>
 
-            <TabsContent value="students">
+            <TabsContent value="students" className="overflow-visible">
               <Students classData={classData} />
             </TabsContent>
           </Tabs>

@@ -376,7 +376,7 @@ const PublicAssignmentResponse = forwardRef<
   if (phase === "info") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md bg-background">
           <CardHeader>
             <CardTitle className="text-center text-2xl">
               {assignmentData.title}
