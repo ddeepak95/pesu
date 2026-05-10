@@ -827,16 +827,16 @@ export default function LandingPage() {
                   <Image
                     src="/home/supported_by/cornell_logo 1.png"
                     alt="Cornell University"
-                    width={120}
-                    height={32}
-                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                    width={563}
+                    height={90}
+                    className="h-8 sm:h-9 md:h-10 w-auto object-contain opacity-100 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                   />
                   <Image
                     src="/home/supported_by/cartesia_logo 1.png"
                     alt="Cartesia"
-                    width={120}
-                    height={32}
-                    className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                    width={403}
+                    height={90}
+                    className="h-6 sm:h-7 md:h-8 w-auto object-contain opacity-100 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                   />
                   {/* Duplicate set for seamless scrolling - only render if scrolling is needed */}
                   {needsScrolling && (
@@ -844,16 +844,16 @@ export default function LandingPage() {
                       <Image
                         src="/home/supported_by/cornell_logo 1.png"
                         alt="Cornell University"
-                        width={120}
-                        height={32}
-                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                        width={563}
+                        height={90}
+                        className="h-8 sm:h-9 md:h-10 w-auto object-contain opacity-100 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                       />
                       <Image
                         src="/home/supported_by/cartesia_logo 1.png"
                         alt="Cartesia"
-                        width={120}
-                        height={32}
-                        className="max-h-6 sm:max-h-7 md:max-h-8 h-auto object-contain opacity-70 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
+                        width={403}
+                        height={90}
+                        className="h-6 sm:h-7 md:h-8 w-auto object-contain opacity-100 hover:opacity-100 transition-opacity duration-300 grayscale hover:grayscale-0 flex-shrink-0"
                       />
                     </>
                   )}
