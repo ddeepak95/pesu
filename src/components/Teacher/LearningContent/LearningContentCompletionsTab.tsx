@@ -10,6 +10,7 @@ import {
   lockContentForStudent,
 } from "@/lib/queries/teacherUnlocks";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
+import { Pill } from "@/components/ui/pill";
 import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
@@ -130,17 +131,20 @@ export default function LearningContentCompletionsTab({
       {
         key: "status",
         label: "Status",
-        render: (row) => (
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
-              row.data?.status === "Completed"
-                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-            }`}
-          >
-            {(row.data?.status as string) ?? "Not completed"}
-          </span>
-        ),
+        render: (row) => {
+          const status = (row.data?.status as string) ?? "Not completed";
+          const completed = status === "Completed";
+          return (
+            <Pill
+              purpose={
+                completed ? "submissionCompleted" : "submissionNotStarted"
+              }
+              size="md"
+            >
+              {status}
+            </Pill>
+          );
+        },
         sortValue: (row) =>
           (row.data?.status as string) === "Completed" ? 0 : 1,
       },
