@@ -32,7 +32,10 @@ export function InfoTooltip({
             aria-label={ariaLabel}
           />
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs">
+        <TooltipContent
+          side="top"
+          className="max-w-xs border border-border bg-muted text-secondary-foreground shadow-md"
+        >
           <p>{text}</p>
         </TooltipContent>
       </Tooltip>

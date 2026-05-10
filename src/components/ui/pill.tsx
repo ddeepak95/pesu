@@ -66,7 +66,7 @@ export function pillPurposeStyle(purpose: PillPurpose): React.CSSProperties {
 }
 
 const pillVariants = cva(
-  "inline-flex max-w-full shrink-0 items-center gap-1 border border-solid leading-none transition-colors [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex max-w-full shrink-0 items-center gap-1 border border-solid leading-none transition-colors [&_svg]:shrink-0",
   {
     variants: {
       size: {
