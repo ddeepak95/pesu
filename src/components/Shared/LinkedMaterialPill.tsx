@@ -3,6 +3,7 @@
 import { Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import InfoCallout from "@/components/Shared/InfoCallout";
+import { Pill } from "@/components/ui/pill";
 import {
   Tooltip,
   TooltipContent,
@@ -10,10 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export const linkedMaterialPillClassName =
-  "inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-xs text-sky-700 dark:text-sky-300";
-
-/** Sky “linked” pill with link icon (labels row, title row, etc.). */
+/** “Linked across groups” pill with link icon (labels row, title row, etc.). */
 export function LinkedMaterialPill({
   className,
   iconClassName,
@@ -22,9 +20,9 @@ export function LinkedMaterialPill({
   iconClassName?: string;
 }) {
   return (
-    <span className={cn(linkedMaterialPillClassName, className)}>
-      <Link2 className={cn("h-3 w-3 shrink-0", iconClassName)} aria-hidden />
-    </span>
+    <Pill purpose="linkedMaterial" className={className}>
+      <Link2 className={cn("shrink-0", iconClassName)} aria-hidden />
+    </Pill>
   );
 }
 

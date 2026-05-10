@@ -30,6 +30,7 @@ import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
 import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRemove";
 import { Survey } from "@/types/survey";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill, type PillPurpose } from "@/components/ui/pill";
 import SurveyResponsesTab from "@/components/Teacher/Surveys/SurveyResponsesTab";
 import { showErrorToast } from "@/lib/toast";
 import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
@@ -260,29 +261,25 @@ export default function SurveyDetailClient({
                     }
 
                     questionNumber++;
-                    const badgeClass =
+                    const badgePurpose: PillPurpose =
                       q.type === "likert"
-                        ? "bg-blue-100 text-blue-700"
+                        ? "surveyLikert"
                         : q.type === "dropdown"
-                        ? "bg-purple-100 text-purple-700"
-                        : "bg-green-100 text-green-700";
+                          ? "surveyDropdown"
+                          : "surveyOpenEnded";
                     const badgeLabel =
                       q.type === "likert"
                         ? "Likert Scale"
                         : q.type === "dropdown"
-                        ? "Dropdown"
-                        : "Open-Ended";
+                          ? "Dropdown"
+                          : "Open-Ended";
 
                     return (
                       <Card key={idx}>
                         <CardHeader>
                           <CardTitle className="text-lg flex items-center gap-2">
                             Question {questionNumber}
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded ${badgeClass}`}
-                            >
-                              {badgeLabel}
-                            </span>
+                            <Pill purpose={badgePurpose}>{badgeLabel}</Pill>
                             {q.required && (
                               <span className="text-xs text-red-500">
                                 Required

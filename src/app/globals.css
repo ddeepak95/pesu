@@ -2,8 +2,6 @@
 
 @plugin "tailwindcss-animate";
 
-@custom-variant dark (&:is(.dark *));
-
 * {
   box-sizing: border-box;
 }
@@ -174,6 +172,96 @@ a {
   --class-underline-tab-rule: var(--color-beige-500);
   --class-underline-tab-active-accent: var(--color-beige-800);
   --grain-opacity: 0.225;
+
+  /* Purpose-keyed pills — literals only here (see components/ui/pill.tsx) */
+  --pill-content-type-bg: transparent;
+  --pill-content-type-fg: var(--muted-foreground);
+  --pill-content-type-border: var(--border);
+
+  --pill-assessment-mode-bg: color-mix(in srgb, var(--primary) 6%, transparent);
+  --pill-assessment-mode-fg: var(--primary);
+  --pill-assessment-mode-border: color-mix(in srgb, var(--primary) 28%, transparent);
+
+  --pill-language-bg: color-mix(in srgb, var(--color-pink-mist-400) 10%, transparent);
+  --pill-language-fg: var(--color-pink-mist-700);
+  --pill-language-border: color-mix(in srgb, var(--color-pink-mist-500) 28%, transparent);
+
+  --pill-draft-bg: color-mix(in srgb, var(--color-beige-500) 14%, transparent);
+  --pill-draft-fg: var(--color-beige-800);
+  --pill-draft-border: color-mix(in srgb, var(--color-beige-600) 32%, transparent);
+
+  --pill-linked-material-bg: color-mix(in srgb, var(--primary) 10%, transparent);
+  --pill-linked-material-fg: var(--color-glaucous-700);
+  --pill-linked-material-border: color-mix(in srgb, var(--primary) 30%, transparent);
+
+  --pill-lock-after-complete-bg: color-mix(in srgb, var(--muted-foreground) 8%, transparent);
+  --pill-lock-after-complete-fg: var(--muted-foreground);
+  --pill-lock-after-complete-border: color-mix(in srgb, var(--muted-foreground) 25%, transparent);
+
+  --pill-teacher-unlock-required-bg: color-mix(in srgb, var(--primary) 8%, transparent);
+  --pill-teacher-unlock-required-fg: var(--color-glaucous-600);
+  --pill-teacher-unlock-required-border: color-mix(in srgb, var(--primary) 30%, transparent);
+
+  --pill-scheduled-unlock-bg: color-mix(in srgb, var(--color-electric-aqua-500) 12%, transparent);
+  --pill-scheduled-unlock-fg: var(--color-electric-aqua-800);
+  --pill-scheduled-unlock-border: color-mix(in srgb, var(--color-electric-aqua-500) 30%, transparent);
+
+  --pill-submission-completed-bg: color-mix(in srgb, var(--color-electric-aqua-500) 14%, transparent);
+  --pill-submission-completed-fg: var(--color-electric-aqua-900);
+  --pill-submission-completed-border: color-mix(in srgb, var(--color-electric-aqua-600) 35%, transparent);
+
+  --pill-submission-in-progress-bg: color-mix(in srgb, var(--color-beige-500) 18%, transparent);
+  --pill-submission-in-progress-fg: var(--color-beige-900);
+  --pill-submission-in-progress-border: color-mix(in srgb, var(--color-beige-600) 35%, transparent);
+
+  --pill-submission-not-started-bg: color-mix(in srgb, var(--muted-foreground) 10%, transparent);
+  --pill-submission-not-started-fg: var(--foreground);
+  --pill-submission-not-started-border: color-mix(in srgb, var(--muted-foreground) 22%, transparent);
+
+  --pill-pending-approval-bg: color-mix(in srgb, var(--color-beige-500) 20%, transparent);
+  --pill-pending-approval-fg: var(--color-beige-900);
+  --pill-pending-approval-border: color-mix(in srgb, var(--color-beige-600) 38%, transparent);
+
+  --pill-survey-likert-bg: color-mix(in srgb, var(--primary) 10%, transparent);
+  --pill-survey-likert-fg: var(--color-glaucous-700);
+  --pill-survey-likert-border: color-mix(in srgb, var(--primary) 28%, transparent);
+
+  --pill-survey-dropdown-bg: color-mix(in srgb, var(--color-pink-mist-400) 12%, transparent);
+  --pill-survey-dropdown-fg: var(--color-pink-mist-800);
+  --pill-survey-dropdown-border: color-mix(in srgb, var(--color-pink-mist-500) 30%, transparent);
+
+  --pill-survey-open-ended-bg: color-mix(in srgb, var(--color-electric-aqua-500) 12%, transparent);
+  --pill-survey-open-ended-fg: var(--color-electric-aqua-900);
+  --pill-survey-open-ended-border: color-mix(in srgb, var(--color-electric-aqua-600) 32%, transparent);
+
+  --pill-dynamic-question-bg: color-mix(in srgb, var(--primary) 10%, transparent);
+  --pill-dynamic-question-fg: var(--primary);
+  --pill-dynamic-question-border: color-mix(in srgb, var(--primary) 30%, transparent);
+
+  --pill-dynamic-rubric-bg: color-mix(in srgb, var(--primary) 10%, transparent);
+  --pill-dynamic-rubric-fg: var(--primary);
+  --pill-dynamic-rubric-border: color-mix(in srgb, var(--primary) 30%, transparent);
+
+  --pill-content-completed-bg: color-mix(in srgb, var(--color-electric-aqua-500) 12%, transparent);
+  --pill-content-completed-fg: var(--color-electric-aqua-900);
+  --pill-content-completed-border: color-mix(in srgb, var(--color-electric-aqua-600) 32%, transparent);
+
+  --pill-content-locked-bg: color-mix(in srgb, var(--muted-foreground) 10%, transparent);
+  --pill-content-locked-fg: var(--muted-foreground);
+  --pill-content-locked-border: color-mix(in srgb, var(--muted-foreground) 28%, transparent);
+
+  /* Teacher assignment detail — configuration row */
+  --pill-assignment-activity-type-bg: color-mix(in srgb, var(--color-glaucous-300) 18%, transparent);
+  --pill-assignment-activity-type-fg: var(--color-glaucous-800);
+  --pill-assignment-activity-type-border: color-mix(in srgb, var(--color-glaucous-500) 32%, transparent);
+
+  --pill-assignment-meta-bg: var(--muted);
+  --pill-assignment-meta-fg: var(--foreground);
+  --pill-assignment-meta-border: var(--border);
+
+  --pill-assignment-public-access-bg: color-mix(in srgb, var(--color-electric-aqua-500) 14%, transparent);
+  --pill-assignment-public-access-fg: var(--color-electric-aqua-900);
+  --pill-assignment-public-access-border: color-mix(in srgb, var(--color-electric-aqua-600) 35%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -226,6 +314,94 @@ a {
     --class-underline-tab-rule: var(--color-beige-600);
     --class-underline-tab-active-accent: var(--color-beige-300);
     --grain-opacity: 0.35;
+
+    --pill-content-type-bg: oklch(1 0 0 / 0.06);
+    --pill-content-type-fg: var(--muted-foreground);
+    --pill-content-type-border: var(--border);
+
+    --pill-assessment-mode-bg: color-mix(in srgb, var(--primary) 22%, transparent);
+    --pill-assessment-mode-fg: var(--color-glaucous-200);
+    --pill-assessment-mode-border: color-mix(in srgb, var(--primary) 45%, transparent);
+
+    --pill-language-bg: color-mix(in srgb, var(--color-pink-mist-400) 22%, transparent);
+    --pill-language-fg: var(--color-pink-mist-100);
+    --pill-language-border: color-mix(in srgb, var(--color-pink-mist-400) 45%, transparent);
+
+    --pill-draft-bg: color-mix(in srgb, var(--color-beige-400) 28%, transparent);
+    --pill-draft-fg: var(--color-beige-100);
+    --pill-draft-border: color-mix(in srgb, var(--color-beige-500) 42%, transparent);
+
+    --pill-linked-material-bg: color-mix(in srgb, var(--primary) 20%, transparent);
+    --pill-linked-material-fg: var(--color-glaucous-200);
+    --pill-linked-material-border: color-mix(in srgb, var(--primary) 45%, transparent);
+
+    --pill-lock-after-complete-bg: oklch(1 0 0 / 0.08);
+    --pill-lock-after-complete-fg: var(--muted-foreground);
+    --pill-lock-after-complete-border: oklch(1 0 0 / 0.18);
+
+    --pill-teacher-unlock-required-bg: color-mix(in srgb, var(--primary) 18%, transparent);
+    --pill-teacher-unlock-required-fg: var(--color-glaucous-200);
+    --pill-teacher-unlock-required-border: color-mix(in srgb, var(--primary) 42%, transparent);
+
+    --pill-scheduled-unlock-bg: color-mix(in srgb, var(--color-electric-aqua-500) 22%, transparent);
+    --pill-scheduled-unlock-fg: var(--color-electric-aqua-100);
+    --pill-scheduled-unlock-border: color-mix(in srgb, var(--color-electric-aqua-400) 48%, transparent);
+
+    --pill-submission-completed-bg: color-mix(in srgb, var(--color-electric-aqua-500) 22%, transparent);
+    --pill-submission-completed-fg: var(--color-electric-aqua-100);
+    --pill-submission-completed-border: color-mix(in srgb, var(--color-electric-aqua-400) 48%, transparent);
+
+    --pill-submission-in-progress-bg: color-mix(in srgb, var(--color-beige-500) 28%, transparent);
+    --pill-submission-in-progress-fg: var(--color-beige-50);
+    --pill-submission-in-progress-border: color-mix(in srgb, var(--color-beige-400) 42%, transparent);
+
+    --pill-submission-not-started-bg: oklch(1 0 0 / 0.08);
+    --pill-submission-not-started-fg: var(--muted-foreground);
+    --pill-submission-not-started-border: oklch(1 0 0 / 0.16);
+
+    --pill-pending-approval-bg: color-mix(in srgb, var(--color-beige-500) 28%, transparent);
+    --pill-pending-approval-fg: var(--color-beige-50);
+    --pill-pending-approval-border: color-mix(in srgb, var(--color-beige-400) 42%, transparent);
+
+    --pill-survey-likert-bg: color-mix(in srgb, var(--primary) 20%, transparent);
+    --pill-survey-likert-fg: var(--color-glaucous-200);
+    --pill-survey-likert-border: color-mix(in srgb, var(--primary) 42%, transparent);
+
+    --pill-survey-dropdown-bg: color-mix(in srgb, var(--color-pink-mist-500) 24%, transparent);
+    --pill-survey-dropdown-fg: var(--color-pink-mist-100);
+    --pill-survey-dropdown-border: color-mix(in srgb, var(--color-pink-mist-400) 45%, transparent);
+
+    --pill-survey-open-ended-bg: color-mix(in srgb, var(--color-electric-aqua-500) 22%, transparent);
+    --pill-survey-open-ended-fg: var(--color-electric-aqua-100);
+    --pill-survey-open-ended-border: color-mix(in srgb, var(--color-electric-aqua-400) 46%, transparent);
+
+    --pill-dynamic-question-bg: color-mix(in srgb, var(--primary) 20%, transparent);
+    --pill-dynamic-question-fg: var(--color-glaucous-200);
+    --pill-dynamic-question-border: color-mix(in srgb, var(--primary) 42%, transparent);
+
+    --pill-dynamic-rubric-bg: color-mix(in srgb, var(--primary) 20%, transparent);
+    --pill-dynamic-rubric-fg: var(--color-glaucous-200);
+    --pill-dynamic-rubric-border: color-mix(in srgb, var(--primary) 42%, transparent);
+
+    --pill-content-completed-bg: color-mix(in srgb, var(--color-electric-aqua-500) 22%, transparent);
+    --pill-content-completed-fg: var(--color-electric-aqua-100);
+    --pill-content-completed-border: color-mix(in srgb, var(--color-electric-aqua-400) 46%, transparent);
+
+    --pill-content-locked-bg: oklch(1 0 0 / 0.08);
+    --pill-content-locked-fg: var(--muted-foreground);
+    --pill-content-locked-border: oklch(1 0 0 / 0.18);
+
+    --pill-assignment-activity-type-bg: color-mix(in srgb, var(--color-glaucous-400) 28%, transparent);
+    --pill-assignment-activity-type-fg: var(--color-glaucous-100);
+    --pill-assignment-activity-type-border: color-mix(in srgb, var(--primary) 42%, transparent);
+
+    --pill-assignment-meta-bg: oklch(1 0 0 / 0.08);
+    --pill-assignment-meta-fg: var(--foreground);
+    --pill-assignment-meta-border: oklch(1 0 0 / 0.14);
+
+    --pill-assignment-public-access-bg: color-mix(in srgb, var(--color-electric-aqua-500) 22%, transparent);
+    --pill-assignment-public-access-fg: var(--color-electric-aqua-100);
+    --pill-assignment-public-access-border: color-mix(in srgb, var(--color-electric-aqua-400) 46%, transparent);
   }
 }
 

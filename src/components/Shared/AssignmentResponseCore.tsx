@@ -17,6 +17,7 @@ import {
 import { getEffectiveAllowCopyPaste } from "@/lib/integrity/assignmentPolicy";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import PageTitle from "@/components/Shared/PageTitle";
+import { Pill } from "@/components/ui/pill";
 import { TabSwitchWarningDialog } from "@/components/Shared/Integrity/TabSwitchWarningDialog";
 import { useTabLeaveTracking } from "@/hooks/useTabLeaveTracking";
 import { showWarningToast } from "@/lib/toast";
@@ -429,9 +430,9 @@ export default function AssignmentResponseCore({
         title={assignmentData.title}
         badge={
           isComplete ? (
-            <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
+            <Pill purpose="contentCompleted" className="w-fit">
               Completed
-            </span>
+            </Pill>
           ) : null
         }
       />

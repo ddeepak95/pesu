@@ -20,6 +20,7 @@ import { deleteContentCompletionForStudent } from "@/lib/queries/contentCompleti
 import SubmissionViewDialog from "./SubmissionViewDialog";
 import { IntegrityLockBadge } from "@/components/Shared/Integrity/IntegrityLockBadge";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
+import { Pill } from "@/components/ui/pill";
 import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
@@ -229,31 +230,24 @@ export default function SubmissionsTab({
   };
 
   const getStatusBadge = (status: "completed" | "started" | "not_started") => {
-    const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
     switch (status) {
       case "completed":
         return (
-          <span
-            className={`${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200`}
-          >
+          <Pill purpose="submissionCompleted" size="md">
             Completed
-          </span>
+          </Pill>
         );
       case "started":
         return (
-          <span
-            className={`${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200`}
-          >
+          <Pill purpose="submissionInProgress" size="md">
             In Progress
-          </span>
+          </Pill>
         );
       case "not_started":
         return (
-          <span
-            className={`${baseClasses} bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200`}
-          >
+          <Pill purpose="submissionNotStarted" size="md">
             Not Started
-          </span>
+          </Pill>
         );
     }
   };
@@ -286,9 +280,9 @@ export default function SubmissionsTab({
               reasonCode={row.data?.integrityRevokedReason as string | undefined}
             />
             {!!(row.data?.hasPendingApprovals) && (
-              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              <Pill purpose="pendingApproval" size="md">
                 Pending Approval
-              </span>
+              </Pill>
             )}
           </div>
         ),
@@ -412,9 +406,9 @@ export default function SubmissionsTab({
               reasonCode={row.data?.integrityRevokedReason as string | undefined}
             />
             {!!(row.data?.hasPendingApprovals) && (
-              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              <Pill purpose="pendingApproval" size="md">
                 Pending Approval
-              </span>
+              </Pill>
             )}
           </div>
         ),

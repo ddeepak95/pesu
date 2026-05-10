@@ -6,6 +6,7 @@ import CloseButton from "@/components/ui/close-button";
 import GoToClassButton from "@/components/ui/go-to-class-button";
 import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
+import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,9 +184,9 @@ function SurveyInner({
               title={survey.title}
               badge={
                 isSubmitted ? (
-                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
+                  <Pill purpose="contentCompleted" className="w-fit">
                     Completed
-                  </span>
+                  </Pill>
                 ) : null
               }
             />

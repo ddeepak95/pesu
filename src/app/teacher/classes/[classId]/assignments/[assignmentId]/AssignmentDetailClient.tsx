@@ -32,6 +32,7 @@ import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
+import { Pill } from "@/components/ui/pill";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
 import {
   Share2,
@@ -296,14 +297,14 @@ export default function AssignmentDetailClient({
           {/* Assignment Configuration */}
           <div className="flex flex-wrap items-center gap-3 mb-6">
             {/* Activity Type */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-sm font-medium">
+            <Pill purpose="assignmentActivityType" size="lg">
               <BookOpen className="h-4 w-4" />
               <span>
                 {assignmentData.activity_type === "assessment"
                   ? "Assessment"
                   : "Learning"}
               </span>
-            </div>
+            </Pill>
 
             {/* Interaction Type */}
             {(() => {
@@ -312,15 +313,15 @@ export default function AssignmentDetailClient({
               );
               const ModeIcon = modeInfo.icon;
               return (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                <Pill purpose="assessmentMode" size="lg">
                   <ModeIcon className="h-4 w-4" />
                   <span>{modeInfo.label}</span>
-                </div>
+                </Pill>
               );
             })()}
 
             {/* Language */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full text-sm">
+            <Pill purpose="assignmentMeta" size="lg">
               <span>
                 {supportedLanguages.find(
                   (lang) => lang.code === assignmentData.preferred_language
@@ -329,10 +330,10 @@ export default function AssignmentDetailClient({
               {assignmentData.lock_language && (
                 <Lock className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-            </div>
+            </Pill>
 
             {/* Max Attempts */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full text-sm">
+            <Pill purpose="assignmentMeta" size="lg">
               <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
               <span>
                 {assignmentData.max_attempts ?? 1}{" "}
@@ -340,14 +341,14 @@ export default function AssignmentDetailClient({
                   ? "attempt"
                   : "attempts"}
               </span>
-            </div>
+            </Pill>
 
             {/* Public Access */}
             {assignmentData.is_public && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm">
+              <Pill purpose="assignmentPublicAccess" size="lg">
                 <Globe className="h-3.5 w-3.5" />
                 <span>Public</span>
-              </div>
+              </Pill>
             )}
           </div>
 

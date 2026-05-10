@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Pill } from "@/components/ui/pill";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 export default function ContentCard({
@@ -184,18 +185,14 @@ export default function ContentCard({
         <div className="flex-1 min-w-0 space-y-1.5">
           {/* Labels row */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs rounded-full border px-2 py-0.5 text-muted-foreground">
-              {labelForType(item.type)}
-            </span>
+            <Pill purpose="contentType">{labelForType(item.type)}</Pill>
             {item.type === "formative_assignment" && assessmentMode && (
-              <span className="text-xs rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-primary">
+              <Pill purpose="assessmentMode">
                 {labelForAssessmentMode(assessmentMode)}
-              </span>
+              </Pill>
             )}
             {item.status === "draft" && (
-              <span className="text-xs rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-600 dark:text-amber-400">
-                Draft
-              </span>
+              <Pill purpose="draft">Draft</Pill>
             )}
             {isLinked && (
               <span className="pointer-events-auto">
@@ -203,28 +200,28 @@ export default function ContentCard({
               </span>
             )}
             {language && (
-              <span className="text-xs rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-400">
+              <Pill purpose="language">
                 {supportedLanguages.find((l) => l.code === language)?.name ||
                   language}
-              </span>
+              </Pill>
             )}
             {item.lock_after_complete && (
-              <span className="text-xs rounded-full border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 text-gray-600 dark:text-gray-400 flex items-center gap-1">
+              <Pill purpose="lockAfterComplete">
                 <Lock className="w-3 h-3" />
                 Locks After Complete
-              </span>
+              </Pill>
             )}
             {item.require_teacher_unlock && (
-              <span className="text-xs rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+              <Pill purpose="teacherUnlockRequired">
                 <KeyRound className="w-3 h-3" />
                 Teacher Unlock
-              </span>
+              </Pill>
             )}
             {(item.unlock_days_after_previous ?? 0) > 0 && (
-              <span className="text-xs rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <Pill purpose="scheduledUnlock">
                 <CalendarClock className="w-3 h-3" />
                 Unlocks {item.unlock_days_after_previous} days after previous
-              </span>
+              </Pill>
             )}
           </div>
 

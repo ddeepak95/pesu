@@ -23,6 +23,7 @@ import { showErrorToast } from "@/lib/toast";
 import { deleteQuizCompletionForStudent } from "@/lib/queries/quizzes";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import type { StudentWithInfo } from "@/lib/queries/students";
+import { Pill } from "@/components/ui/pill";
 import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
@@ -334,17 +335,20 @@ export default function SurveyResponsesTab({
       {
         key: "status",
         label: "Status",
-        render: (row) => (
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
-              row.data?.status === "Submitted"
-                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-            }`}
-          >
-            {(row.data?.status as string) ?? "Not submitted"}
-          </span>
-        ),
+        render: (row) => {
+          const status = (row.data?.status as string) ?? "Not submitted";
+          const submitted = status === "Submitted";
+          return (
+            <Pill
+              purpose={
+                submitted ? "submissionCompleted" : "submissionNotStarted"
+              }
+              size="md"
+            >
+              {status}
+            </Pill>
+          );
+        },
         sortValue: (row) =>
           (row.data?.status as string) === "Submitted" ? 0 : 1,
       },

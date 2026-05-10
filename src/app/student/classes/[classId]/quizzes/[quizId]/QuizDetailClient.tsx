@@ -6,6 +6,7 @@ import CloseButton from "@/components/ui/close-button";
 import GoToClassButton from "@/components/ui/go-to-class-button";
 import NextItemButton from "@/components/ui/next-item-button";
 import PageTitle from "@/components/Shared/PageTitle";
+import { Pill } from "@/components/ui/pill";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ActivityTrackingProvider,
@@ -164,9 +165,9 @@ function QuizInner({
               title={quiz.title}
               badge={
                 isComplete ? (
-                  <span className="text-xs rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-green-600 dark:text-green-400 w-fit">
+                  <Pill purpose="contentCompleted" className="w-fit">
                     Completed
-                  </span>
+                  </Pill>
                 ) : null
               }
             />

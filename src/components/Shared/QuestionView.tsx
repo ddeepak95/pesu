@@ -2,6 +2,7 @@
 
 import { Question, teacherPromptOrFocus } from "@/types/assignment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   Accordion,
@@ -49,24 +50,24 @@ export default function QuestionView({
           (question.dynamic_prompt || question.dynamic_rubric) && (
             <div className="flex flex-wrap gap-2 justify-start text-xs">
               {question.dynamic_prompt && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 pl-2 pr-1 py-0.5 text-primary">
+                <Pill purpose="dynamicQuestion" className="pl-2 pr-1">
                   <span>Dynamic question</span>
                   <InfoTooltip
                     text={DYNAMIC_QUESTION_BADGE_INFO}
-                    iconClassName="h-3.5 w-3.5 text-primary"
+                    iconClassName="h-3.5 w-3.5 text-current"
                     ariaLabel="About dynamic question"
                   />
-                </span>
+                </Pill>
               )}
               {question.dynamic_rubric && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 pl-2 pr-1 py-0.5 text-primary">
+                <Pill purpose="dynamicRubric" className="pl-2 pr-1">
                   <span>Dynamic rubric</span>
                   <InfoTooltip
                     text={DYNAMIC_RUBRIC_BADGE_INFO}
-                    iconClassName="h-3.5 w-3.5 text-primary"
+                    iconClassName="h-3.5 w-3.5 text-current"
                     ariaLabel="About dynamic rubric"
                   />
-                </span>
+                </Pill>
               )}
             </div>
           )}
