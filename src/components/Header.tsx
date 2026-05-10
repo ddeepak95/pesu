@@ -42,18 +42,18 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
             alt={t("toolName")}
             className="h-8 w-auto md:hidden"
           />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/convoed-logo.svg"
-            alt={t("toolName")}
-            className="hidden h-7 w-auto md:block dark:hidden"
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/convoed-logo-dark.svg"
-            alt={t("toolName")}
-            className="hidden h-7 w-auto dark:md:block"
-          />
+          <picture className="hidden md:block">
+            <source
+              srcSet="/convoed-logo-dark.svg"
+              media="(prefers-color-scheme: dark)"
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/convoed-logo.svg"
+              alt={t("toolName")}
+              className="h-7 w-auto"
+            />
+          </picture>
         </div>
         {hasUserMenu && (
           <div className="flex items-center gap-2">

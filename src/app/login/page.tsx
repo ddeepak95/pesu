@@ -3,23 +3,28 @@ import Link from "next/link";
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="flex flex-col items-center gap-8 w-full max-w-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/convoed-logo.svg"
-          alt="ConvoEd Logo"
-          className="h-12 w-auto dark:hidden"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/convoed-logo-dark.svg"
-          alt="ConvoEd Logo"
-          className="h-12 w-auto hidden dark:block"
-        />
+        <picture>
+          <source
+            srcSet="/convoed-logo-dark.svg"
+            media="(prefers-color-scheme: dark)"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/convoed-logo.svg"
+            alt="ConvoEd Logo"
+            className="h-12 w-auto"
+          />
+        </picture>
 
         <div className="flex flex-col gap-4 w-full">
-          <Button asChild size="lg" className="w-full text-lg py-6">
+          <Button
+            asChild
+            size="lg"
+            className="w-full text-lg py-6"
+            style={{ color: "#fff" }}
+          >
             <Link href="/student/classes">Student Login</Link>
           </Button>
 

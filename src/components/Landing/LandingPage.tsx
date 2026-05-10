@@ -63,6 +63,36 @@ export default function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Force light color-scheme + light --canvas/--grain-opacity on <html> for the
+  // page's lifetime. This makes native UI (scrollbars, form widgets, portalled
+  // popovers) follow the forced-light intent even when the OS prefers dark,
+  // and lets the body's existing canvas + grain ::before render with the
+  // light-mode warm beige and light-intensity grain underneath this page.
+  useEffect(() => {
+    const html = document.documentElement;
+    const previousColorScheme = html.style.colorScheme;
+    const previousCanvas = html.style.getPropertyValue("--canvas");
+    const previousGrainOpacity = html.style.getPropertyValue("--grain-opacity");
+
+    html.style.colorScheme = "light";
+    html.style.setProperty("--canvas", "#faf7f1");
+    html.style.setProperty("--grain-opacity", "0.225");
+
+    return () => {
+      html.style.colorScheme = previousColorScheme;
+      if (previousCanvas) {
+        html.style.setProperty("--canvas", previousCanvas);
+      } else {
+        html.style.removeProperty("--canvas");
+      }
+      if (previousGrainOpacity) {
+        html.style.setProperty("--grain-opacity", previousGrainOpacity);
+      } else {
+        html.style.removeProperty("--grain-opacity");
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const checkScrollNeeded = () => {
       if (containerRef.current && contentRef.current) {
@@ -106,14 +136,18 @@ export default function LandingPage() {
 
   return (
     <div
-      className="min-h-screen bg-background font-rubik"
+      className="min-h-screen font-rubik"
       style={
         {
-          // Force light mode by overriding CSS variables
-          "--background": "oklch(1 0 0)",
+          // Force light mode by mirroring the light-theme tokens from globals.css :root
+          colorScheme: "light",
+          "--background": "#fafafa",
+          "--canvas": "#faf7f1",
           "--foreground": "oklch(0.145 0 0)",
-          "--card": "oklch(1 0 0)",
+          "--card": "oklch(0.98 0 0)",
           "--card-foreground": "oklch(0.145 0 0)",
+          "--card-shadow":
+            "inset 0 1px 0 oklch(1 0 0 / 55%), inset 0 -1px 0 oklch(0 0 0 / 6%), 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.08)",
           "--popover": "oklch(1 0 0)",
           "--popover-foreground": "oklch(0.145 0 0)",
           "--primary": "#6A7FDB",
@@ -267,11 +301,8 @@ export default function LandingPage() {
                 <Button
                   asChild
                   size="lg"
-                  className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
-                  style={{
-                    background: `linear-gradient(135deg, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
-                    backgroundSize: "200% 200%",
-                  }}
+                  className="text-lg px-8 py-6"
+                  style={{ color: "#fff" }}
                 >
                   <Link href="/login">Login</Link>
                 </Button>
@@ -282,7 +313,7 @@ export default function LandingPage() {
       </section>
 
       {/* Bridge strip */}
-      <section className="py-12 sm:py-14 bg-muted/40">
+      <section className="py-12 sm:py-14 bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center space-y-5">
             <p className="text-xl sm:text-2xl font-semibold text-foreground leading-snug">
@@ -847,11 +878,8 @@ export default function LandingPage() {
             <Button
               asChild
               size="lg"
-              className="text-lg px-8 py-6 text-white hover:opacity-90 hover:scale-105 transition-all duration-300 shadow-lg animate-gradient"
-              style={{
-                background: `linear-gradient(135deg, ${colors["glaucous-light"].base}, ${colors.glaucous.base})`,
-                backgroundSize: "200% 200%",
-              }}
+              className="text-lg px-8 py-6"
+              style={{ color: "#fff" }}
             >
               <Link href="/login">Login</Link>
             </Button>

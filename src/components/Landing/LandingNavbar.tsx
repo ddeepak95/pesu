@@ -109,8 +109,8 @@ export default function LandingNavbar() {
                   size="lg"
                   className="border-foreground"
                   style={{
-                    color: "oklch(0.145 0 0)",
-                    borderColor: "oklch(0.145 0 0)",
+                    color: "var(--foreground)",
+                    borderColor: "var(--foreground)",
                   }}
                 >
                   <Link
@@ -121,15 +121,7 @@ export default function LandingNavbar() {
                     Try Sample Activity
                   </Link>
                 </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  className="text-white hover:opacity-90 transition-all duration-300 shadow-lg animate-gradient"
-                  style={{
-                    background: `linear-gradient(135deg, #8495e1, #6A7FDB)`,
-                    backgroundSize: "200% 200%",
-                  }}
-                >
+                <Button asChild size="lg" style={{ color: "#fff" }}>
                   <Link href="/login">Login</Link>
                 </Button>
               </div>
@@ -173,8 +165,8 @@ export default function LandingNavbar() {
               size="lg"
               className="border-foreground"
               style={{
-                color: "oklch(0.145 0 0)",
-                borderColor: "oklch(0.145 0 0)",
+                color: "var(--foreground)",
+                borderColor: "var(--foreground)",
               }}
             >
               <Link
@@ -186,15 +178,7 @@ export default function LandingNavbar() {
                 Try Sample Activity
               </Link>
             </Button>
-            <Button
-              asChild
-              size="lg"
-              className="text-white hover:opacity-90 transition-all duration-300 shadow-lg animate-gradient"
-              style={{
-                background: `linear-gradient(135deg, #8495e1, #6A7FDB)`,
-                backgroundSize: "200% 200%",
-              }}
-            >
+            <Button asChild size="lg" style={{ color: "#fff" }}>
               <Link href="/login" onClick={closeMenu}>
                 Login
               </Link>
