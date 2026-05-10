@@ -33,7 +33,7 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
   const hasUserMenu = user || onLogoutSubmission;
 
   return (
-    <header className="w-full border-b bg-secondary drop-shadow-md">
+    <header className="w-full border-b bg-secondary shadow-[var(--card-shadow)]">
       <div className="flex items-center justify-between px-8 py-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -62,7 +62,9 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
                     />
                   </svg>
                   {/* Name hidden on mobile — shown in the dropdown instead */}
-                  <span className="hidden sm:inline text-base font-medium">{displayName}</span>
+                  <span className="hidden sm:inline text-base font-medium">
+                    {displayName}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -80,7 +82,10 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
                   </>
                 )}
                 {onLogoutSubmission ? (
-                  <DropdownMenuItem onClick={onLogoutSubmission} className="cursor-pointer">
+                  <DropdownMenuItem
+                    onClick={onLogoutSubmission}
+                    className="cursor-pointer"
+                  >
                     <svg
                       className="w-4 h-4 mr-2"
                       fill="none"
@@ -98,7 +103,10 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
                   </DropdownMenuItem>
                 ) : (
                   user && (
-                    <DropdownMenuItem onClick={signOut} className="cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={signOut}
+                      className="cursor-pointer"
+                    >
                       <svg
                         className="w-4 h-4 mr-2"
                         fill="none"

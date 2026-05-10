@@ -85,6 +85,10 @@ a {
   --foreground: oklch(0.145 0 0);
   --card: oklch(0.98 0 0);
   --card-foreground: oklch(0.145 0 0);
+  /* Used by `Card` via shadow-[var(--card-shadow)] — inset pair reads as slight raised bevel */
+  --card-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 55%), inset 0 -1px 0 oklch(0 0 0 / 6%),
+    0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.08);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: #6A7FDB;
@@ -181,20 +185,27 @@ a {
     --background: oklch(0.145 0 0);
     --canvas: #040100;
     --foreground: oklch(1 0 0);
-    --card: oklch(0.205 0 0);
+    /* Slightly lighter than canvas so lifted shadow reads clearly */
+    --card: #121010;
     --card-foreground: oklch(1 0 0);
-    --popover: oklch(0.205 0 0);
+    --popover: oklch(0.218 0 0);
+    /* Bevel + tight outer shadows (small blur so halo stays near the card) */
+    --card-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 5%), inset 0 -1px 0px rgba(193, 191, 191, 0.116),
+      inset 0 -2px 2px -2px oklch(0 0 0 / 38%),
+      0 2px 5px rgb(0 0 0 / 0.5), 0 6px 14px rgb(0 0 0 / 0.52),
+      0 0 0 1px oklch(1 0 0 / 13%);
     --popover-foreground: oklch(1 0 0);
     --primary: #6A7FDB;
     --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.269 0 0);
+    --secondary: #0e0d0d;
     --secondary-foreground: oklch(1 0 0);
     --muted: oklch(0.269 0 0);
     --muted-foreground: oklch(0.8 0 0);
-    --accent: oklch(0.269 0 0);
+    --accent: #0f0c0c;
     --accent-foreground: oklch(1 0 0);
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 30%);
+    --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 20%);
     --ring: oklch(0.7 0 0);
     --chart-1: oklch(0.488 0.243 264.376);
@@ -214,7 +225,7 @@ a {
     --tabs-active-foreground: var(--color-beige-50);
     --class-underline-tab-rule: var(--color-beige-600);
     --class-underline-tab-active-accent: var(--color-beige-300);
-    --grain-opacity: 0.25;
+    --grain-opacity: 0.35;
   }
 }
 
