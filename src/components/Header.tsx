@@ -35,12 +35,26 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
   return (
     <header className="w-full border-b bg-secondary shadow-[var(--card-shadow)]">
       <div className="flex items-center justify-between px-8 py-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/convoed-symbol.svg"
-          alt={t("toolName")}
-          className="h-8 w-auto"
-        />
+        <div className="flex shrink-0 items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/convoed-symbol.svg"
+            alt={t("toolName")}
+            className="h-8 w-auto md:hidden"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/convoed-logo.svg"
+            alt={t("toolName")}
+            className="hidden h-7 w-auto md:block dark:hidden"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/convoed-logo-dark.svg"
+            alt={t("toolName")}
+            className="hidden h-7 w-auto dark:md:block"
+          />
+        </div>
         {hasUserMenu && (
           <div className="flex items-center gap-2">
             {/* Show notification bell for authenticated students (not anonymous submission flow) */}
