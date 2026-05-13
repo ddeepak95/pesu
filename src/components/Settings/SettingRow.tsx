@@ -72,24 +72,65 @@ function InstitutionSettingRow({
   // symmetric with class-level controls.
   const parentValue = def.default;
 
-  const [draft, setDraft] = useState<unknown>(effective.value);
+  const [draftValue, setDraftValue] = useState<unknown>(effective.value);
+  const [draftAllowAdminEdit, setDraftAllowAdminEdit] = useState(
+    effective.institutionLocks.allowAdminEdit
+  );
+  const [draftAllowChildOverride, setDraftAllowChildOverride] = useState(
+    effective.institutionLocks.allowChildOverride
+  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  const hasChanges = JSON.stringify(draft) !== JSON.stringify(effective.value);
+  const valueChanged =
+    JSON.stringify(draftValue) !== JSON.stringify(effective.value);
+  const adminEditChanged =
+    draftAllowAdminEdit !== effective.institutionLocks.allowAdminEdit;
+  const childOverrideChanged =
+    draftAllowChildOverride !== effective.institutionLocks.allowChildOverride;
+  const hasChanges = valueChanged || adminEditChanged || childOverrideChanged;
 
   const handleSave = () => {
     setError(null);
     startTransition(async () => {
-      const result = await upsertInstitutionSettingAction({
-        institutionId,
-        key: def.key,
-        value: draft,
-      });
-      if (!result.ok) {
-        setError(result.error ?? "Failed to save");
-        return;
+      // Save value first so capability checks for subsequent lock writes still
+      // see the pre-existing lock state. Order matters less for super admins
+      // (who can always edit), but keeps the contract predictable.
+      if (valueChanged) {
+        const result = await upsertInstitutionSettingAction({
+          institutionId,
+          key: def.key,
+          value: draftValue,
+        });
+        if (!result.ok) {
+          setError(result.error ?? "Failed to save");
+          return;
+        }
+      }
+      if (adminEditChanged) {
+        const result = await setInstitutionSettingLockAction({
+          institutionId,
+          key: def.key,
+          lock: "allow_admin_edit",
+          enabled: draftAllowAdminEdit,
+        });
+        if (!result.ok) {
+          setError(result.error ?? "Failed to save lock");
+          return;
+        }
+      }
+      if (childOverrideChanged) {
+        const result = await setInstitutionSettingLockAction({
+          institutionId,
+          key: def.key,
+          lock: "allow_child_override",
+          enabled: draftAllowChildOverride,
+        });
+        if (!result.ok) {
+          setError(result.error ?? "Failed to save lock");
+          return;
+        }
       }
       invalidateSettingsCache();
       setSavedAt(Date.now());
@@ -97,57 +138,47 @@ function InstitutionSettingRow({
     });
   };
 
-  const handleLockToggle = (
-    lock: "allow_admin_edit" | "allow_child_override",
-    next: boolean
-  ) => {
-    setError(null);
-    startTransition(async () => {
-      const result = await setInstitutionSettingLockAction({
-        institutionId,
-        key: def.key,
-        lock,
-        enabled: next,
-      });
-      if (!result.ok) {
-        setError(result.error ?? "Failed to save lock");
-        return;
-      }
-      invalidateSettingsCache();
-    });
-  };
+  // The Save button is meaningful whenever the viewer can change any field on
+  // this row (value or either lock). For institution admins this means the
+  // button is enabled even when they can only toggle `allow_child_override`.
+  const canSave =
+    caps.canEditInstitutionValue ||
+    caps.canToggleAllowAdminEdit ||
+    caps.canToggleAllowChildOverride;
 
   return (
     <SettingRowShell definition={def} sourceLabel={sourceLabel(effective)}>
       <SettingControl
-        value={draft}
-        onChange={setDraft}
+        value={draftValue}
+        onChange={setDraftValue}
         parentValue={parentValue}
         disabled={!caps.canEditInstitutionValue || pending}
         definition={def}
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-        <LockToggle
-          id={`${def.key}-allow-admin-edit`}
-          label="Allow institution admin to override"
-          tooltip="When off, only platform super admins may override the platform default."
-          checked={effective.institutionLocks.allowAdminEdit}
-          disabled={!caps.canToggleAllowAdminEdit || pending}
-          onChange={(next) => handleLockToggle("allow_admin_edit", next)}
-        />
+        {caps.canToggleAllowAdminEdit && (
+          <LockToggle
+            id={`${def.key}-allow-admin-edit`}
+            label="Allow institution admin to override"
+            tooltip="When off, only platform super admins may override the platform default."
+            checked={draftAllowAdminEdit}
+            disabled={pending}
+            onChange={setDraftAllowAdminEdit}
+          />
+        )}
         <LockToggle
           id={`${def.key}-allow-child-override`}
           label="Allow class admin to override"
           tooltip="When off, class admins cannot override the institution value."
-          checked={effective.institutionLocks.allowChildOverride}
+          checked={draftAllowChildOverride}
           disabled={!caps.canToggleAllowChildOverride || pending}
-          onChange={(next) => handleLockToggle("allow_child_override", next)}
+          onChange={setDraftAllowChildOverride}
         />
       </div>
 
       <RowFooter
-        canSave={caps.canEditInstitutionValue}
+        canSave={canSave}
         hasChanges={hasChanges}
         pending={pending}
         savedAt={savedAt}

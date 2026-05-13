@@ -51,36 +51,39 @@ export async function createInstitutionAction(
   redirect(buildNoticeUrl("/platform", { ok: "Institution created" }));
 }
 
-export async function addInstitutionAdminAction(
-  formData: FormData
-): Promise<void> {
+export interface AddAdminResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Add an institution admin by email and return a Result so callers (dialog
+ * UIs) can surface errors without a redirect-and-banner round-trip. Useful
+ * when the email doesn't resolve to an existing auth user.
+ */
+export async function addInstitutionAdminRequestAction(input: {
+  institutionId: string;
+  email: string;
+}): Promise<AddAdminResult> {
   const { supabase } = await requireSuperAdmin();
 
-  const institutionId = formString(formData, "institutionId");
-  const email = formString(formData, "email");
-  const detailPath = institutionId
-    ? `/platform/institutions/${institutionId}`
-    : "/platform";
+  const institutionId = input.institutionId?.trim() ?? "";
+  const email = input.email?.trim() ?? "";
+  if (!institutionId)
+    return { ok: false, error: "Missing institution id" };
+  if (!email) return { ok: false, error: "Email is required" };
 
-  if (!institutionId) {
-    redirect(buildNoticeUrl("/platform", { error: "Missing institution id" }));
-  }
-  if (!email) {
-    redirect(buildNoticeUrl(detailPath, { error: "Email is required" }));
-  }
-
-  let errorMessage: string | null = null;
   try {
     await addInstitutionAdminByEmail(supabase, institutionId, email);
+    revalidatePath(`/platform/institutions/${institutionId}`);
+    revalidatePath(`/admin/institutions/${institutionId}`);
+    return { ok: true };
   } catch (err) {
-    errorMessage = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
-  if (errorMessage) {
-    redirect(buildNoticeUrl(detailPath, { error: errorMessage }));
-  }
-
-  revalidatePath(detailPath);
-  redirect(buildNoticeUrl(detailPath, { ok: `Added ${email} as admin` }));
 }
 
 export async function removeInstitutionAdminAction(

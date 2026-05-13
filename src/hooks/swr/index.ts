@@ -59,6 +59,10 @@ export {
   useTeacherInvites,
 } from "./useTeacherInvites";
 export {
+  invalidateInstitutionAdminInviteCache,
+  useInstitutionAdminInvite,
+} from "./useInstitutionAdminInvite";
+export {
   invalidateTeacherUnlocksCache,
   useTeacherUnlocksForClass,
   useTeacherUnlocksForContentItem,

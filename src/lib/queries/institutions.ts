@@ -207,6 +207,28 @@ export async function getUserEmailsByIds(
   return out;
 }
 
+/**
+ * Resolve emails for the current admins of a single institution. Unlike
+ * `getUserEmailsByIds` (super-admin-only), this RPC is also callable by an
+ * institution admin of the same institution and only returns members of
+ * that institution — no arbitrary user resolution.
+ */
+export async function getInstitutionMemberEmails(
+  supabase: SupabaseClient,
+  institutionId: string
+): Promise<Map<string, string>> {
+  const { data, error } = await supabase.rpc(
+    "get_institution_member_emails",
+    { p_institution_id: institutionId }
+  );
+  if (error) throw error;
+  const out = new Map<string, string>();
+  for (const row of (data ?? []) as { id: string; email: string }[]) {
+    out.set(row.id, row.email);
+  }
+  return out;
+}
+
 export async function listClassMoves(
   supabase: SupabaseClient,
   options: { classDbId?: string; institutionId?: string; limit?: number } = {}

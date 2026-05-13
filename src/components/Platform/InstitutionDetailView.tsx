@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import InstitutionSettingsForm from "@/components/Settings/InstitutionSettingsForm";
 import InstitutionClassCard from "@/components/Platform/InstitutionClassCard";
+import ManageInstitutionAdminInvite from "@/components/Platform/ManageInstitutionAdminInvite";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -14,7 +17,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { showSuccessToast } from "@/lib/toast";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type {
   ClassInstitutionMove,
@@ -25,7 +37,7 @@ import type { Class } from "@/types/class";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
 
 import {
-  addInstitutionAdminAction,
+  addInstitutionAdminRequestAction,
   removeInstitutionAdminAction,
 } from "@/app/platform/actions";
 
@@ -42,9 +54,13 @@ export interface InstitutionDetailViewProps {
   /** `[institution_id, name]` entry list for displaying move sources/targets. */
   institutionNameEntries: Array<[string, string]>;
   viewerRole: ViewerRole;
-  /** Where to send back-link clicks. */
-  backHref: string;
-  backLabel: string;
+  /**
+   * Optional back-link target. When both `backHref` and `backLabel` are
+   * provided the header renders the link; otherwise it's omitted (e.g. the
+   * single-institution admin case where there's nowhere meaningful to go).
+   */
+  backHref?: string;
+  backLabel?: string;
   effectiveSettings: EffectiveSettings;
   /**
    * Base href used by the Classes tab to link into the per-class override
@@ -123,12 +139,14 @@ export default function InstitutionDetailView({
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <Link
-          href={backHref}
-          className="text-muted-foreground hover:text-foreground text-sm"
-        >
-          &larr; {backLabel}
-        </Link>
+        {backHref && backLabel && (
+          <Link
+            href={backHref}
+            className="text-muted-foreground hover:text-foreground text-sm"
+          >
+            &larr; {backLabel}
+          </Link>
+        )}
         <h1 className="text-2xl font-semibold">{institution.name}</h1>
         <p className="text-muted-foreground text-sm">
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
@@ -327,36 +345,80 @@ function AdminsCard({
           </table>
         </div>
 
-        {isSuper && (
-          <form
-            action={addInstitutionAdminAction}
-            className="flex flex-wrap items-end gap-3 rounded border p-4"
-          >
-            <input
-              type="hidden"
-              name="institutionId"
-              value={institutionId}
-            />
-            <label className="flex flex-1 min-w-64 flex-col text-sm">
-              <span className="mb-1">Add admin by email</span>
-              <input
-                name="email"
-                type="email"
-                required
-                className="rounded border px-2 py-1.5 text-sm"
-                placeholder="user@example.com"
-              />
-            </label>
-            <button
-              type="submit"
-              className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-            >
-              Add admin
-            </button>
-          </form>
-        )}
+        {isSuper && <AddAdminForm institutionId={institutionId} />}
+
+        <ManageInstitutionAdminInvite institutionId={institutionId} />
       </CardContent>
     </Card>
+  );
+}
+
+function AddAdminForm({ institutionId }: { institutionId: string }) {
+  const router = useTrackedRouter();
+  const [email, setEmail] = useState("");
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      const result = await addInstitutionAdminRequestAction({
+        institutionId,
+        email: trimmed,
+      });
+      if (!result.ok) {
+        setErrorMessage(result.error ?? "Failed to add admin");
+        setErrorOpen(true);
+        return;
+      }
+      showSuccessToast(`Added ${trimmed} as admin`);
+      setEmail("");
+      router.refresh();
+    });
+  };
+
+  return (
+    <>
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-wrap items-end gap-3 rounded border p-4"
+      >
+        <label className="flex flex-1 min-w-64 flex-col text-sm">
+          <span className="mb-1">Add admin by email</span>
+          <input
+            name="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={isPending}
+            className="rounded border px-2 py-1.5 text-sm"
+            placeholder="user@example.com"
+          />
+        </label>
+        <Button type="submit" disabled={isPending || !email.trim()}>
+          {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isPending ? "Adding…" : "Add admin"}
+        </Button>
+      </form>
+
+      <Dialog open={errorOpen} onOpenChange={setErrorOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Could not add admin</DialogTitle>
+            <DialogDescription>{errorMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setErrorOpen(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

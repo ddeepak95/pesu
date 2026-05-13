@@ -5,6 +5,7 @@ import InstitutionDetailView from "@/components/Platform/InstitutionDetailView";
 import { requireInstitutionAdminOrSuper } from "@/lib/dal";
 import {
   getInstitution,
+  getInstitutionMemberEmails,
   getUserEmailsByIds,
   listClassesInInstitution,
   listClassMoves,
@@ -49,12 +50,14 @@ export default async function AdminInstitutionPage({
   const memberIds = members.map((m) => m.user_id);
   const moverIds = moves.map((m) => m.moved_by);
   const allUserIds = Array.from(new Set([...memberIds, ...moverIds]));
-  // get_users_by_ids is super-admin-only; institution admins cannot resolve
-  // emails. Fall back to an empty map to keep the page rendering.
+  // Super admins use the unrestricted `get_users_by_ids` RPC (covers members
+  // and move audit rows). Institution admins fall back to the per-institution
+  // member-email RPC, which is gated to the same institution and only
+  // resolves emails for its own members — sufficient for the admins table.
   const userEmails =
     viewerRole === "super_admin"
       ? await getUserEmailsByIds(supabase, allUserIds)
-      : new Map<string, string>();
+      : await getInstitutionMemberEmails(supabase, id);
 
   const userEmailEntries: Array<[string, string]> = Array.from(
     userEmails.entries(),
@@ -62,6 +65,13 @@ export default async function AdminInstitutionPage({
   const institutionNameEntries: Array<[string, string]> = allInstitutions.map(
     (inst) => [inst.id, inst.name],
   );
+
+  // Only render the back link when the viewer has somewhere meaningful to go.
+  // Single-institution admins are auto-redirected from `/admin` to here, so
+  // pointing back there would just bounce them right back; omit the link in
+  // that case. Multi-institution admins and super admins get a back link to
+  // the `/admin` grid (super admins can also reach `/platform` via direct nav).
+  const showBackLink = allInstitutions.length > 1;
 
   return (
     <PageLayout>
@@ -73,8 +83,8 @@ export default async function AdminInstitutionPage({
         userEmailEntries={userEmailEntries}
         institutionNameEntries={institutionNameEntries}
         viewerRole={viewerRole}
-        backHref="/teacher"
-        backLabel="Back to teacher dashboard"
+        backHref={showBackLink ? "/admin" : undefined}
+        backLabel={showBackLink ? "Back to institutions" : undefined}
         effectiveSettings={effectiveSettings}
         classOverrideHrefBase={`/admin/institutions/${id}/classes`}
         notice={{ ok, error }}

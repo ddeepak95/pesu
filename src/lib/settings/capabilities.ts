@@ -6,9 +6,15 @@
  *   Viewer role          | Edit inst value | Toggle adminEdit | Toggle childOverride | Edit class override
  *   ---------------------|-----------------|------------------|----------------------|--------------------
  *   super_admin          | always          | always           | always               | always (when scope=class)
- *   institution_admin    | iff adminEdit   | never            | always               | iff childOverride
+ *   institution_admin    | iff adminEdit   | never            | iff adminEdit        | iff childOverride
  *   class_owner          | never           | never            | never                | iff childOverride
  *   viewer               | never           | never            | never                | never
+ *
+ * Note: `adminEdit` (super-admin-controlled) is the master gate for the
+ * institution admin's authority on a row. When `adminEdit` is off, the
+ * institution admin can neither change the value nor flip `childOverride`,
+ * so super admins can fully lock a setting at the institution level without
+ * leaving a back door for class-level overrides.
  */
 import type { AnySettingDefinition } from "./registry";
 import type { InstitutionLocks } from "./resolve";
@@ -65,7 +71,12 @@ export function settingCapabilities({
       canEditInstitutionValue:
         institutionEditable && institutionLocks.allowAdminEdit,
       canToggleAllowAdminEdit: false,
-      canToggleAllowChildOverride: institutionEditable,
+      // `allow_child_override` is gated by `allowAdminEdit` so super admins
+      // can fully lock a setting at the institution level: if the institution
+      // admin can't edit the value, they also can't grant class admins the
+      // right to override it.
+      canToggleAllowChildOverride:
+        institutionEditable && institutionLocks.allowAdminEdit,
       canEditClassOverride:
         classEditable && institutionLocks.allowChildOverride,
       canClearClassOverride:
