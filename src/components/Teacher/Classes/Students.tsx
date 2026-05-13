@@ -70,13 +70,11 @@ export default function Students({ classData }: StudentsProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const isOwner = user?.id === classData.created_by;
-  // Only fetch co-teacher membership when the user isn't already the owner.
-  const { data: isCoTeacher } = useIsCoTeacherForClass(
-    !isOwner && user?.id ? classData.id : null,
-    !isOwner ? (user?.id ?? null) : null,
+  const { data: isTeacher } = useIsCoTeacherForClass(
+    user?.id ? classData.id : null,
+    user?.id ?? null,
   );
-  const isTeacher = isOwner || isCoTeacher === true;
+  const isStaffTeacher = isTeacher === true;
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
 
   // Change group dialog state
@@ -144,7 +142,7 @@ export default function Students({ classData }: StudentsProps) {
     buildProfileAnalyticsBuckets,
   } = useClassStudentsData({
     classData,
-    isTeacher,
+    isTeacher: isStaffTeacher,
   });
 
   useEffect(() => {
@@ -531,7 +529,7 @@ export default function Students({ classData }: StudentsProps) {
     <div className="py-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Students</h2>
-        {isTeacher && (
+        {isStaffTeacher && (
           <div className="flex gap-2">
             {false && (
               <Button
@@ -548,9 +546,9 @@ export default function Students({ classData }: StudentsProps) {
         )}
       </div>
 
-      {!isTeacher ? (
+      {!isStaffTeacher ? (
         <div className="text-center py-12 text-muted-foreground">
-          <p>Only class owners and co-teachers can view students.</p>
+          <p>Only teachers on this class roster can view students.</p>
         </div>
       ) : loading ? (
         <div className="text-center py-12">

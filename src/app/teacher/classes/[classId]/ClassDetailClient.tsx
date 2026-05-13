@@ -11,20 +11,24 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings } from "lucide-react";
 import { Class } from "@/types/class";
+import { useMyClassTeacherRole } from "@/hooks/swr";
+import { canConfigureClassSettings } from "@/lib/classTeacherAccess";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ClassDetailClientProps {
   classData: Class;
-  userId: string;
   classId: string;
 }
 
 export default function ClassDetailClient({
   classData,
-  userId,
   classId,
 }: ClassDetailClientProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const { data: myRole } = useMyClassTeacherRole(classData.id, user?.id ?? null);
+  const showSettingsLink = canConfigureClassSettings(myRole ?? null);
 
   const activeTab = useMemo(() => {
     const t = searchParams.get("tab");
@@ -74,7 +78,7 @@ export default function ClassDetailClient({
           </div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">{classData.name}</h1>
-            {userId === classData.created_by && (
+            {showSettingsLink && (
               <Button variant="outline" className="gap-2" asChild>
                 <Link href={`/teacher/classes/${classId}/settings`}>
                   <Settings className="h-4 w-4" />

@@ -19,9 +19,10 @@ import {
   revokeStudentInvite,
 } from "@/lib/queries/studentInvites";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { canManageClassRoster } from "@/lib/classTeacherAccess";
 import {
   invalidateStudentInvitesCache,
-  useIsCoTeacherForClass,
+  useMyClassTeacherRole,
   useStudentInvites,
 } from "@/hooks/swr";
 
@@ -35,13 +36,13 @@ export default function ManageStudentsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { user } = useAuth();
-  const isOwner = user?.id === classData.created_by;
-
-  const coTeacherQuery = useIsCoTeacherForClass(
-    open && user && !isOwner ? classData.id : null,
+  const roleQuery = useMyClassTeacherRole(
+    open ? classData.id : null,
     user?.id ?? null
   );
-  const isTeacher = isOwner || !!coTeacherQuery.data;
+  const myRole = roleQuery.data ?? null;
+  const roleResolved = roleQuery.data !== undefined;
+  const canManageInvites = canManageClassRoster(myRole);
 
   const invitesQuery = useStudentInvites(open ? classData.id : null);
   const invites = useMemo(
@@ -85,7 +86,7 @@ export default function ManageStudentsDialog({
   };
 
   const handleGenerateInvite = async () => {
-    if (!isTeacher) return;
+    if (!canManageInvites) return;
     setBusy(true);
     try {
       const token = await createStudentInvite({
@@ -109,7 +110,7 @@ export default function ManageStudentsDialog({
   };
 
   const handleRevokeInvite = async (inviteId: string) => {
-    if (!isTeacher) return;
+    if (!canManageInvites) return;
     const confirmed = window.confirm("Revoke this invite link?");
     if (!confirmed) return;
 
@@ -137,9 +138,15 @@ export default function ManageStudentsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {!isTeacher && (
+        {!canManageInvites && myRole !== null && (
           <div className="rounded-md border p-3 text-sm text-muted-foreground">
-            Only class owners and co-teachers can manage students.
+            Only class owners, co-owners, and class admins can create or revoke
+            student invites.
+          </div>
+        )}
+        {roleResolved && myRole === null && user && (
+          <div className="rounded-md border p-3 text-sm text-muted-foreground">
+            You must be on the class roster to manage student invites.
           </div>
         )}
 
@@ -171,16 +178,16 @@ export default function ManageStudentsDialog({
           </div>
 
           <div className="flex gap-2">
-            {((isTeacher && !activeInvite) || (isOwner && activeInvite)) && (
+            {canManageInvites && (
               <Button
                 type="button"
                 onClick={handleGenerateInvite}
-                disabled={busy || (activeInvite ? !isOwner : !isTeacher)}
+                disabled={busy}
               >
                 {activeInvite ? "Regenerate invite" : "Generate invite"}
               </Button>
             )}
-            {activeInvite && isOwner && (
+            {activeInvite && canManageInvites && (
               <Button
                 type="button"
                 variant="destructive"

@@ -43,7 +43,6 @@ export default async function PlatformClassSettingsPage({
     <ClassSettingsClient
       classData={cls}
       classId={cls.class_id}
-      isOwner={false}
       viewerRole="super_admin"
       backHref={`/platform/institutions/${id}?tab=classes`}
       backLabel={`Back to ${institution.name}`}

@@ -52,6 +52,7 @@ export {
   invalidateClassTeachersCache,
   useClassTeachers,
   useIsCoTeacherForClass,
+  useMyClassTeacherRole,
 } from "./useClassTeachers";
 export {
   invalidateTeacherInvitesCache,

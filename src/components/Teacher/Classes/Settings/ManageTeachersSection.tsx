@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Class } from "@/types/class";
+import { useMemo, useState } from "react";
+import { Class, type ClassTeacherRole } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,9 +12,19 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import List from "@/components/ui/List";
-import { useAuth } from "@/contexts/AuthContext";
-import { removeCoTeacher } from "@/lib/queries/classTeachers";
+import {
+  removeCoTeacher,
+  updateClassTeacherRole,
+  type ClassTeacherWithUserInfo,
+} from "@/lib/queries/classTeachers";
 import {
   createTeacherInvite,
   revokeTeacherInvite,
@@ -27,17 +37,41 @@ import {
   useTeacherInvites,
 } from "@/hooks/swr";
 
+function roleLabel(role: ClassTeacherRole): string {
+  switch (role) {
+    case "owner":
+      return "Primary owner";
+    case "co-owner":
+      return "Co-owner";
+    case "admin":
+      return "Class admin";
+    case "co-teacher":
+      return "Co-teacher";
+    default:
+      return role;
+  }
+}
+
+function roleOptionsForRow(
+  row: ClassTeacherWithUserInfo,
+  assignableRoles: ClassTeacherRole[]
+): ClassTeacherRole[] {
+  const s = new Set<ClassTeacherRole>(assignableRoles);
+  s.add(row.role);
+  return Array.from(s);
+}
+
 interface ManageTeachersSectionProps {
   classData: Class;
-  isOwner: boolean;
+  canManageRoster: boolean;
+  canPromoteCoOwner: boolean;
 }
 
 export default function ManageTeachersSection({
   classData,
-  isOwner,
+  canManageRoster,
+  canPromoteCoOwner,
 }: ManageTeachersSectionProps) {
-  const { user: _user } = useAuth();
-
   const teachersQuery = useClassTeachers(classData.id);
   const invitesQuery = useTeacherInvites(classData.id);
 
@@ -52,6 +86,13 @@ export default function ManageTeachersSection({
 
   const [busy, setBusy] = useState(false);
   const [newInviteLink, setNewInviteLink] = useState<string>("");
+  const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
+
+  const assignableRoles = useMemo((): ClassTeacherRole[] => {
+    const r: ClassTeacherRole[] = ["co-teacher", "admin"];
+    if (canPromoteCoOwner) r.push("co-owner");
+    return r;
+  }, [canPromoteCoOwner]);
 
   const error = useMemo<string | null>(() => {
     const err = (teachersQuery.error || invitesQuery.error) as
@@ -81,7 +122,7 @@ export default function ManageTeachersSection({
   }, [activeInvite, newInviteLink]);
 
   const handleGenerateInvite = async () => {
-    if (!isOwner) return;
+    if (!canManageRoster) return;
     setBusy(true);
     try {
       const token = await createTeacherInvite({
@@ -104,7 +145,7 @@ export default function ManageTeachersSection({
   };
 
   const handleRevokeInvite = async (inviteId: string) => {
-    if (!isOwner) return;
+    if (!canManageRoster) return;
     const confirmed = window.confirm("Revoke this invite link?");
     if (!confirmed) return;
 
@@ -122,8 +163,8 @@ export default function ManageTeachersSection({
   };
 
   const handleRemoveTeacher = async (teacherId: string) => {
-    if (!isOwner) return;
-    const confirmed = window.confirm("Remove this co-teacher from the class?");
+    if (!canManageRoster) return;
+    const confirmed = window.confirm("Remove this teacher from the class?");
     if (!confirmed) return;
 
     setBusy(true);
@@ -132,9 +173,36 @@ export default function ManageTeachersSection({
       await invalidateClassTeachersCache();
     } catch (err) {
       console.error("Error removing teacher:", err);
-      showErrorToast("Failed to remove co-teacher.");
+      showErrorToast("Failed to remove teacher.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleRoleChange = async (
+    teacherId: string,
+    next: ClassTeacherRole,
+    row: ClassTeacherWithUserInfo
+  ) => {
+    if (!canManageRoster || row.role === "owner") return;
+    if (next === row.role) return;
+    if (!canPromoteCoOwner && (next === "co-owner" || row.role === "co-owner")) {
+      showErrorToast("You cannot change co-owner roles.");
+      return;
+    }
+    setRoleBusyId(teacherId);
+    try {
+      await updateClassTeacherRole({
+        classDbId: classData.id,
+        teacherId,
+        role: next,
+      });
+      await invalidateClassTeachersCache();
+    } catch (err) {
+      console.error("Error updating role:", err);
+      showErrorToast("Failed to update role.");
+    } finally {
+      setRoleBusyId(null);
     }
   };
 
@@ -150,14 +218,14 @@ export default function ManageTeachersSection({
       <CardHeader>
         <CardTitle>Teachers</CardTitle>
         <CardDescription>
-          Add co-teachers via a single reusable invite link, and remove existing
-          co-teachers.
+          Invite teachers with a reusable link, assign roles, and remove
+          teachers who should no longer access this class.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {!isOwner && (
+        {!canManageRoster && (
           <div className="rounded-md border p-3 text-sm text-muted-foreground">
-            Only the class owner can manage teachers.
+            Only class owners, co-owners, and class admins can manage teachers.
           </div>
         )}
 
@@ -192,7 +260,7 @@ export default function ManageTeachersSection({
             <Button
               type="button"
               onClick={handleGenerateInvite}
-              disabled={!isOwner || busy}
+              disabled={!canManageRoster || busy}
             >
               {activeInvite ? "Regenerate invite" : "Generate invite"}
             </Button>
@@ -209,7 +277,7 @@ export default function ManageTeachersSection({
                 type="button"
                 variant="destructive"
                 onClick={() => handleRevokeInvite(activeInvite.id)}
-                disabled={!isOwner || busy}
+                disabled={!canManageRoster || busy}
               >
                 Revoke
               </Button>
@@ -229,7 +297,8 @@ export default function ManageTeachersSection({
             </div>
           ) : (
             <div className="rounded-md border p-3 text-sm text-muted-foreground">
-              No active invite. Generate one to invite co-teachers.
+              No active invite. Generate one to invite co-teachers (they join as
+              co-teachers; you can promote them afterward).
             </div>
           )}
         </div>
@@ -245,9 +314,14 @@ export default function ManageTeachersSection({
               const showEmailUnderName =
                 t.teacher_email && t.teacher_display_name;
 
+              const creatorNote =
+                t.teacher_id === classData.created_by ? " · Creator" : "";
+
+              const opts = roleOptionsForRow(t, assignableRoles);
+
               return (
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div className="min-w-0">
+                <div className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium truncate">
                       {displayName}
                     </div>
@@ -256,18 +330,47 @@ export default function ManageTeachersSection({
                         {t.teacher_email}
                       </div>
                     )}
-                    <div className="text-xs text-muted-foreground capitalize">
-                      {t.role}
+                    <div className="text-xs text-muted-foreground">
+                      {roleLabel(t.role)}
+                      {creatorNote}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {t.role === "co-teacher" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {t.role !== "owner" && canManageRoster && (
+                      <Select
+                        value={t.role}
+                        onValueChange={(v) =>
+                          handleRoleChange(
+                            t.teacher_id,
+                            v as ClassTeacherRole,
+                            t
+                          )
+                        }
+                        disabled={
+                          busy ||
+                          roleBusyId === t.teacher_id ||
+                          (!canPromoteCoOwner && t.role === "co-owner")
+                        }
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {opts.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {roleLabel(r)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {t.role !== "owner" && (
                       <Button
                         type="button"
                         variant="destructive"
                         size="sm"
                         onClick={() => handleRemoveTeacher(t.teacher_id)}
-                        disabled={!isOwner || busy}
+                        disabled={!canManageRoster || busy}
                       >
                         Remove
                       </Button>

@@ -21,7 +21,7 @@ export default async function ClassDetailPage({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
-  const { user, supabase } = await verifySession("/teacher/login");
+  const { supabase } = await verifySession("/teacher/login");
 
   const { data: classData } = await supabase
     .from("classes")
@@ -34,11 +34,7 @@ export default async function ClassDetailPage({
 
   return (
     <Suspense fallback={<ClassDetailFallback />}>
-      <ClassDetailClient
-        classData={classData}
-        userId={user.id}
-        classId={classId}
-      />
+      <ClassDetailClient classData={classData} classId={classId} />
     </Suspense>
   );
 }

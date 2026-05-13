@@ -20,7 +20,6 @@ import { Class } from "@/types/class";
 interface ClassSettingsClientProps {
   classData: Class;
   classId: string;
-  isOwner: boolean;
   viewerRole: ViewerRole;
   /**
    * Optional explicit back-link target. When provided, replaces the default
@@ -35,7 +34,6 @@ interface ClassSettingsClientProps {
 export default function ClassSettingsClient({
   classData: initialClassData,
   classId,
-  isOwner,
   viewerRole,
   backHref,
   backLabel,
@@ -46,16 +44,23 @@ export default function ClassSettingsClient({
     router.refresh();
   }, [router]);
 
-  // "Can manage" is the union of class ownership and institution/super-admin
-  // access. The owner-only sections were previously gated by `isOwner`; they
-  // now show whenever the viewer is allowed to administer the class. The
-  // `isOwner` prop on each section keeps its current name but receives the
-  // broader value — sections still read it as "is the viewer permitted to
-  // make changes here?", which is the contract we want.
-  const canManage =
-    isOwner ||
+  const canConfigureSettings =
+    viewerRole === "class_owner" ||
+    viewerRole === "class_teacher_co_owner" ||
+    viewerRole === "class_teacher_admin" ||
     viewerRole === "institution_admin" ||
     viewerRole === "super_admin";
+
+  const hasFullClassControlView =
+    viewerRole === "class_owner" ||
+    viewerRole === "class_teacher_co_owner" ||
+    viewerRole === "institution_admin" ||
+    viewerRole === "super_admin";
+
+  const canPromoteCoOwner = hasFullClassControlView;
+
+  /** Legacy prop name on settings sections: permitted to change settings here. */
+  const sectionMayEdit = canConfigureSettings;
 
   return (
     <PageLayout>
@@ -78,33 +83,34 @@ export default function ClassSettingsClient({
         </p>
 
         <div className="space-y-6">
-          {canManage && (
+          {canConfigureSettings && (
             <>
               <GeneralSettingsSection
                 classData={initialClassData}
-                isOwner={canManage}
+                isOwner={sectionMayEdit}
                 onUpdated={handleUpdated}
               />
 
               <ManageTeachersSection
                 classData={initialClassData}
-                isOwner={canManage}
+                canManageRoster={sectionMayEdit}
+                canPromoteCoOwner={canPromoteCoOwner}
               />
 
               <GroupSettingsSection
                 classData={initialClassData}
-                isOwner={canManage}
+                isOwner={sectionMayEdit}
                 onUpdated={handleUpdated}
               />
 
               <ProfileFieldsSection
                 classData={initialClassData}
-                isOwner={canManage}
+                isOwner={sectionMayEdit}
               />
 
               <ProgressiveUnlockSection
                 classData={initialClassData}
-                isOwner={canManage}
+                isOwner={sectionMayEdit}
                 onUpdated={handleUpdated}
               />
             </>
@@ -116,22 +122,22 @@ export default function ClassSettingsClient({
             viewerRole={viewerRole}
           />
 
-          {canManage && (
+          {canConfigureSettings && (
             <>
               <ResetProgressSection
                 classId={initialClassData.id}
-                isOwner={canManage}
+                isOwner={sectionMayEdit}
               />
 
               <DuplicateClassSection
                 classData={initialClassData}
-                isOwner={canManage}
+                isOwner={sectionMayEdit}
                 onDuplicated={handleUpdated}
               />
 
               <DangerZoneSection
                 classData={initialClassData}
-                isOwner={canManage}
+                canDeleteClass={hasFullClassControlView}
               />
             </>
           )}

@@ -3,12 +3,15 @@
  * setting. Used by both the UI (to hide/disable controls) and server actions
  * (to refuse forbidden writes), guaranteeing the two stay in sync.
  *
- *   Viewer role          | Edit inst value | Toggle adminEdit | Toggle childOverride | Edit class override
- *   ---------------------|-----------------|------------------|----------------------|--------------------
- *   super_admin          | always          | always           | always               | always (when scope=class)
- *   institution_admin    | iff adminEdit   | never            | iff adminEdit        | iff childOverride
- *   class_owner          | never           | never            | never                | iff childOverride
- *   viewer               | never           | never            | never                | never
+ *   Viewer role             | Edit inst value | Toggle adminEdit | Toggle childOverride | Edit class override
+ *   ------------------------|-----------------|------------------|----------------------|--------------------
+ *   super_admin             | always          | always           | always               | always (when scope=class)
+ *   institution_admin       | iff adminEdit   | never            | iff adminEdit        | iff childOverride
+ *   class_owner             | never           | never            | never                | iff childOverride
+ *   class_teacher_co_owner  | (same as owner) | (same)           | (same)               | iff childOverride
+ *   class_teacher_admin     | (same as owner) | (same)           | (same)               | iff childOverride
+ *   class_co_teacher        | never           | never            | never                | never
+ *   viewer                  | never           | never            | never                | never
  *
  * Note: `adminEdit` (super-admin-controlled) is the master gate for the
  * institution admin's authority on a row. When `adminEdit` is off, the
@@ -23,6 +26,9 @@ export type ViewerRole =
   | "super_admin"
   | "institution_admin"
   | "class_owner"
+  | "class_teacher_co_owner"
+  | "class_teacher_admin"
+  | "class_co_teacher"
   | "viewer";
 
 export interface SettingCapabilities {
@@ -84,7 +90,11 @@ export function settingCapabilities({
     };
   }
 
-  if (viewerRole === "class_owner") {
+  if (
+    viewerRole === "class_owner" ||
+    viewerRole === "class_teacher_co_owner" ||
+    viewerRole === "class_teacher_admin"
+  ) {
     return {
       canEditInstitutionValue: false,
       canToggleAllowAdminEdit: false,

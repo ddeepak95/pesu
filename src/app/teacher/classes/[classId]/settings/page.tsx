@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { verifySession } from "@/lib/dal";
-import type { ViewerRole } from "@/lib/settings/capabilities";
+import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 
 import ClassSettingsClient from "./ClassSettingsClient";
 
@@ -25,40 +25,20 @@ export default async function ClassSettingsPage({
 
   if (!classData) notFound();
 
-  const isOwner = user.id === classData.created_by;
+  const { viewerRole } = await resolveClassSettingsViewer(
+    supabase,
+    user.id,
+    classData.id
+  );
 
-  // Institution-admin / super-admin viewers also gain access (so they can
-  // manage inherited-setting overrides). Owner-only sections stay gated by
-  // `isOwner` inside the client component.
-  let viewerRole: ViewerRole = isOwner ? "class_owner" : "viewer";
-  const institutionId = (classData.institution_id as string | null) ?? null;
+  const mayConfigureClass =
+    viewerRole === "class_owner" ||
+    viewerRole === "class_teacher_co_owner" ||
+    viewerRole === "class_teacher_admin" ||
+    viewerRole === "institution_admin" ||
+    viewerRole === "super_admin";
 
-  if (!isOwner) {
-    const [superRes, memberRes] = await Promise.all([
-      supabase
-        .from("platform_super_admins")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      institutionId
-        ? supabase
-            .from("institution_members")
-            .select("user_id")
-            .eq("institution_id", institutionId)
-            .eq("user_id", user.id)
-            .eq("role", "admin")
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-    ]);
-
-    if (!superRes.error && superRes.data) {
-      viewerRole = "super_admin";
-    } else if (!memberRes.error && memberRes.data) {
-      viewerRole = "institution_admin";
-    }
-  }
-
-  if (viewerRole === "viewer") {
+  if (!mayConfigureClass) {
     redirect(`/teacher/classes/${classId}`);
   }
 
@@ -66,7 +46,6 @@ export default async function ClassSettingsPage({
     <ClassSettingsClient
       classData={classData}
       classId={classId}
-      isOwner={isOwner}
       viewerRole={viewerRole}
     />
   );

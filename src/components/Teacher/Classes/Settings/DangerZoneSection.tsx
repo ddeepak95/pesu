@@ -17,19 +17,19 @@ import { showErrorToast } from "@/lib/toast";
 
 interface DangerZoneSectionProps {
   classData: Class;
-  isOwner: boolean;
+  canDeleteClass: boolean;
 }
 
 export default function DangerZoneSection({
   classData,
-  isOwner,
+  canDeleteClass,
 }: DangerZoneSectionProps) {
   const { user } = useAuth();
   const router = useTrackedRouter();
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!user || !isOwner) return;
+    if (!user || !canDeleteClass) return;
 
     const confirmed = window.confirm(
       "Are you sure you want to delete this class? This action cannot be undone."
@@ -69,7 +69,7 @@ export default function DangerZoneSection({
             type="button"
             variant="destructive"
             onClick={handleDelete}
-            disabled={!isOwner || deleting}
+            disabled={!canDeleteClass || deleting}
           >
             {deleting ? "Deleting..." : "Delete Class"}
           </Button>

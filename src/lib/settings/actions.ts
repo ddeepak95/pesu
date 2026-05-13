@@ -26,6 +26,7 @@ import {
   type SettingRow,
 } from "./resolve";
 import type { ViewerRole } from "./capabilities";
+import { resolveClassSettingsViewer } from "./classViewerRole";
 
 // ---------------------------------------------------------------------------
 // Authorization helpers
@@ -65,44 +66,7 @@ async function resolveViewerForClass(
   userId: string,
   classDbId: string
 ): Promise<ClassViewerContext> {
-  const { data: classRow, error: classErr } = await supabase
-    .from("classes")
-    .select("id, created_by, institution_id")
-    .eq("id", classDbId)
-    .maybeSingle();
-  if (classErr) throw classErr;
-  if (!classRow) {
-    throw new Error("Class not found");
-  }
-  const institutionId = (classRow.institution_id as string | null) ?? "";
-
-  const [superRes, memberRes] = await Promise.all([
-    supabase
-      .from("platform_super_admins")
-      .select("user_id")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    institutionId
-      ? supabase
-          .from("institution_members")
-          .select("user_id")
-          .eq("institution_id", institutionId)
-          .eq("user_id", userId)
-          .eq("role", "admin")
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ]);
-
-  if (!superRes.error && superRes.data) {
-    return { viewerRole: "super_admin", institutionId };
-  }
-  if (!memberRes.error && memberRes.data) {
-    return { viewerRole: "institution_admin", institutionId };
-  }
-  if (classRow.created_by === userId) {
-    return { viewerRole: "class_owner", institutionId };
-  }
-  return { viewerRole: "viewer", institutionId };
+  return resolveClassSettingsViewer(supabase, userId, classDbId);
 }
 
 async function getInstitutionLocksForKey(

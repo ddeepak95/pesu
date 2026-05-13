@@ -19,11 +19,13 @@ export interface Class {
   institution_id: string;
 }
 
+export type ClassTeacherRole = "owner" | "co-owner" | "admin" | "co-teacher";
+
 export interface ClassTeacher {
   id: string;
   class_id: string;
   teacher_id: string;
-  role: "owner" | "co-teacher";
+  role: ClassTeacherRole;
   joined_at: string;
 }
 

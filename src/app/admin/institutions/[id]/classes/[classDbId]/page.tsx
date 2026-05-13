@@ -46,7 +46,6 @@ export default async function AdminClassSettingsPage({
     <ClassSettingsClient
       classData={cls}
       classId={cls.class_id}
-      isOwner={false}
       viewerRole={viewerRole}
       backHref={`/admin/institutions/${id}?tab=classes`}
       backLabel={`Back to ${institution.name}`}

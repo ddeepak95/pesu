@@ -23,59 +23,40 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
 
   console.log("Fetching classes for user:", userId);
 
-  // Avoid relying on join/or syntax across embedded relationships.
-  // Fetch owned classes + co-taught classes via class_teachers, then merge.
+  const CLASS_COLUMNS =
+    "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
 
-  const CLASS_COLUMNS = "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
-
-  const ownedQuery = supabase
-    .from("classes")
-    .select(CLASS_COLUMNS)
-    .eq("created_by", userId)
-    .eq("status", "active");
-
-  const coTeachIdsQuery = supabase
+  const { data: teachRows, error: teachError } = await supabase
     .from("class_teachers")
     .select("class_id")
     .eq("teacher_id", userId);
 
-  const [{ data: owned, error: ownedError }, { data: teachRows, error: teachError }] =
-    await Promise.all([ownedQuery, coTeachIdsQuery]);
-
-  if (ownedError) {
-    console.error("Error fetching owned classes:", ownedError);
-    throw ownedError;
-  }
-
-  let coTaught: Class[] = [];
   if (teachError) {
-    // If class_teachers isn't available yet (or RLS blocks it), fall back to owned classes only.
     console.error("Error fetching class_teachers rows:", teachError);
-  } else {
-    const classDbIds = Array.from(
-      new Set((teachRows || []).map((r) => (r as { class_id: string }).class_id))
-    ).filter(Boolean);
-
-    if (classDbIds.length > 0) {
-      const { data: taught, error: taughtError } = await supabase
-        .from("classes")
-        .select(CLASS_COLUMNS)
-        .in("id", classDbIds)
-        .eq("status", "active");
-
-      if (taughtError) {
-        console.error("Error fetching co-taught classes:", taughtError);
-      } else {
-        coTaught = (taught || []) as Class[];
-      }
-    }
+    throw teachError;
   }
 
-  const mergedById = new Map<string, Class>();
-  for (const c of (owned || []) as Class[]) mergedById.set(c.id, c);
-  for (const c of coTaught) mergedById.set(c.id, c);
+  const classDbIds = Array.from(
+    new Set((teachRows || []).map((r) => (r as { class_id: string }).class_id))
+  ).filter(Boolean);
 
-  const merged = Array.from(mergedById.values()).sort((a, b) =>
+  if (classDbIds.length === 0) {
+    console.log("Classes on roster: 0");
+    return [];
+  }
+
+  const { data: classes, error: classesError } = await supabase
+    .from("classes")
+    .select(CLASS_COLUMNS)
+    .in("id", classDbIds)
+    .eq("status", "active");
+
+  if (classesError) {
+    console.error("Error fetching classes for teacher:", classesError);
+    throw classesError;
+  }
+
+  const merged = ((classes || []) as Class[]).sort((a, b) =>
     b.created_at.localeCompare(a.created_at)
   );
 

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase";
-import { ClassTeacher } from "@/types/class";
+import { ClassTeacher, type ClassTeacherRole } from "@/types/class";
 
 export interface ClassTeacherWithUserInfo extends ClassTeacher {
   teacher_email?: string;
@@ -9,22 +9,18 @@ export interface ClassTeacherWithUserInfo extends ClassTeacher {
 export async function listClassTeachers(classDbId: string): Promise<ClassTeacherWithUserInfo[]> {
   const supabase = createClient();
 
-  // Try to get user info via a database function
-  // If the function doesn't exist, fall back to basic query
   try {
-    const { data, error } = await supabase.rpc('get_class_teachers_with_user_info', {
-      p_class_id: classDbId
+    const { data, error } = await supabase.rpc("get_class_teachers_with_user_info", {
+      p_class_id: classDbId,
     });
-    
+
     if (!error && data) {
       return data as ClassTeacherWithUserInfo[];
     }
   } catch {
-    // Function doesn't exist, fall back to basic query
     console.log("Database function not available, using basic query");
   }
 
-  // Fallback: basic query without user info
   const { data, error } = await supabase
     .from("class_teachers")
     .select("id, class_id, teacher_id, role, joined_at")
@@ -35,9 +31,34 @@ export async function listClassTeachers(classDbId: string): Promise<ClassTeacher
   return (data || []) as ClassTeacherWithUserInfo[];
 }
 
+export async function getMyClassTeacherRole(params: {
+  classDbId: string;
+  teacherId: string;
+}): Promise<ClassTeacherRole | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("class_teachers")
+    .select("role")
+    .eq("class_id", params.classDbId)
+    .eq("teacher_id", params.teacherId)
+    .maybeSingle();
+
+  if (error) throw error;
+  const r = data?.role;
+  if (
+    r === "owner" ||
+    r === "co-owner" ||
+    r === "admin" ||
+    r === "co-teacher"
+  ) {
+    return r;
+  }
+  return null;
+}
+
 /**
- * Returns true when the given user is registered as a co-teacher for the
- * class. Owner status is checked separately by callers.
+ * Returns true when the user has any `class_teachers` row for the class
+ * (owner, co-owner, admin, or co-teacher).
  */
 export async function isCoTeacherForClass(params: {
   classDbId: string;
@@ -57,6 +78,23 @@ export async function isCoTeacherForClass(params: {
   return data !== null;
 }
 
+export async function updateClassTeacherRole(params: {
+  classDbId: string;
+  teacherId: string;
+  role: ClassTeacherRole;
+}): Promise<void> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("class_teachers")
+    .update({ role: params.role })
+    .eq("class_id", params.classDbId)
+    .eq("teacher_id", params.teacherId)
+    .neq("role", "owner");
+
+  if (error) throw error;
+}
+
 export async function removeCoTeacher(params: {
   classDbId: string;
   teacherId: string;
@@ -68,9 +106,7 @@ export async function removeCoTeacher(params: {
     .delete()
     .eq("class_id", params.classDbId)
     .eq("teacher_id", params.teacherId)
-    .eq("role", "co-teacher");
+    .neq("role", "owner");
 
   if (error) throw error;
 }
-
-
