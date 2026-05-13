@@ -189,6 +189,7 @@ CREATE OR REPLACE FUNCTION public.accept_student_invite(p_token TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_hash TEXT;

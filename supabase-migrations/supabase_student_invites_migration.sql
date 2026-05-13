@@ -128,6 +128,7 @@ CREATE OR REPLACE FUNCTION create_student_invite(
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_is_owner BOOLEAN;
@@ -210,6 +211,7 @@ CREATE OR REPLACE FUNCTION accept_student_invite(p_token TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_hash TEXT;

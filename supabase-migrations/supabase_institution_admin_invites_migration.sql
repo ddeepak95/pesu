@@ -104,6 +104,7 @@ CREATE OR REPLACE FUNCTION public.create_institution_admin_invite(
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_token TEXT;
@@ -196,6 +197,7 @@ CREATE OR REPLACE FUNCTION public.accept_institution_admin_invite(p_token TEXT)
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_hash TEXT;

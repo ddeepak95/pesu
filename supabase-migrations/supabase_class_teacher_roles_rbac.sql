@@ -361,7 +361,7 @@ CREATE OR REPLACE FUNCTION public.create_teacher_invite(
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_token TEXT;
@@ -418,7 +418,7 @@ CREATE OR REPLACE FUNCTION public.accept_teacher_invite(p_token TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_hash TEXT;
@@ -599,7 +599,7 @@ CREATE OR REPLACE FUNCTION public.create_student_invite(
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_token TEXT;

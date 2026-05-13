@@ -110,6 +110,7 @@ CREATE OR REPLACE FUNCTION create_teacher_invite(
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_owner UUID;
@@ -176,6 +177,7 @@ CREATE OR REPLACE FUNCTION accept_teacher_invite(p_token TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_hash TEXT;

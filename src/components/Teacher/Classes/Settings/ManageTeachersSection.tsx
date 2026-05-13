@@ -38,6 +38,10 @@ import {
   createTeacherInvite,
   revokeTeacherInvite,
 } from "@/lib/queries/teacherInvites";
+import {
+  logPostgrestError,
+  userFacingPostgrestMessage,
+} from "@/lib/postgrestError";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import {
   invalidateClassTeachersCache,
@@ -153,8 +157,10 @@ export default function ManageTeachersSection({
       setNewInviteLink(token);
       await invalidateTeacherInvitesCache();
     } catch (err) {
-      console.error("Error creating invite:", err);
-      showErrorToast("Failed to create invite.");
+      logPostgrestError("Error creating invite", err);
+      showErrorToast(
+        userFacingPostgrestMessage(err, "Failed to create invite."),
+      );
     } finally {
       setBusy(false);
     }
@@ -177,8 +183,10 @@ export default function ManageTeachersSection({
       setNewInviteLink("");
       await invalidateTeacherInvitesCache();
     } catch (err) {
-      console.error("Error revoking invite:", err);
-      showErrorToast("Failed to revoke invite.");
+      logPostgrestError("Error revoking invite", err);
+      showErrorToast(
+        userFacingPostgrestMessage(err, "Failed to revoke invite."),
+      );
     } finally {
       setBusy(false);
     }
