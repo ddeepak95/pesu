@@ -3,7 +3,6 @@ export {
   useClassData,
   useClassesByUser,
   useClassesByStudent,
-  useIsTeacherApproved,
   useProgressViewConfig,
 } from "./useClasses";
 export { useClassGroups, useStudentGroupForClass } from "./useGroups";

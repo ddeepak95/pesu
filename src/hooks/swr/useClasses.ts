@@ -4,7 +4,6 @@ import {
   getClassesByUser,
   getClassesByStudent,
   getProgressViewConfig,
-  isTeacherApproved,
 } from "@/lib/queries/classes";
 import { Class, ProgressViewConfig } from "@/types/class";
 
@@ -35,16 +34,6 @@ export function useClassesByStudent(studentId: string | null) {
   return useSWR<Class[]>(
     studentId ? ["classesByStudent", studentId] : null,
     () => getClassesByStudent(studentId!)
-  );
-}
-
-/**
- * Check if a teacher email is approved
- */
-export function useIsTeacherApproved(email: string | null) {
-  return useSWR<boolean>(
-    email ? ["teacherApproved", email] : null,
-    () => isTeacherApproved(email!)
   );
 }
 

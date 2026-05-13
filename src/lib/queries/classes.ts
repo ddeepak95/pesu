@@ -8,19 +8,6 @@ import { duplicateContentItems } from "@/lib/queries/duplicateContent";
 import type { ContentItem } from "@/types/contentItem";
 
 /**
- * Check if a teacher is approved to create classes
- */
-export async function isTeacherApproved(email: string): Promise<boolean> {
-  const supabase = createClient();
-  const { data } = await supabase
-    .from("approved_teachers")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-  return !!data;
-}
-
-/**
  * Generate a unique short class ID
  */
 function generateClassId(): string {
