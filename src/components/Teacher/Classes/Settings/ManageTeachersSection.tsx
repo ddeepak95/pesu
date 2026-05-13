@@ -10,6 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,6 +30,7 @@ import {
 import List from "@/components/ui/List";
 import {
   removeCoTeacher,
+  transferClassPrimaryOwner,
   updateClassTeacherRole,
   type ClassTeacherWithUserInfo,
 } from "@/lib/queries/classTeachers";
@@ -54,7 +63,7 @@ function roleLabel(role: ClassTeacherRole): string {
 
 function roleOptionsForRow(
   row: ClassTeacherWithUserInfo,
-  assignableRoles: ClassTeacherRole[]
+  assignableRoles: ClassTeacherRole[],
 ): ClassTeacherRole[] {
   const s = new Set<ClassTeacherRole>(assignableRoles);
   s.add(row.role);
@@ -65,34 +74,47 @@ interface ManageTeachersSectionProps {
   classData: Class;
   canManageRoster: boolean;
   canPromoteCoOwner: boolean;
+  /** Platform super admin or institution admin: transfer `class_teachers.owner`. */
+  canTransferPrimaryOwnership?: boolean;
+  onTeachersChanged?: () => void;
 }
 
 export default function ManageTeachersSection({
   classData,
   canManageRoster,
   canPromoteCoOwner,
+  canTransferPrimaryOwnership = false,
+  onTeachersChanged,
 }: ManageTeachersSectionProps) {
   const teachersQuery = useClassTeachers(classData.id);
   const invitesQuery = useTeacherInvites(classData.id);
 
   const teachers = useMemo(
     () => teachersQuery.data ?? [],
-    [teachersQuery.data]
+    [teachersQuery.data],
   );
-  const invites = useMemo(
-    () => invitesQuery.data ?? [],
-    [invitesQuery.data]
-  );
+  const invites = useMemo(() => invitesQuery.data ?? [], [invitesQuery.data]);
 
   const [busy, setBusy] = useState(false);
   const [newInviteLink, setNewInviteLink] = useState<string>("");
   const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
+  const [transferBusyId, setTransferBusyId] = useState<string | null>(null);
+  const [pendingPrimaryTransfer, setPendingPrimaryTransfer] = useState<{
+    teacherId: string;
+    displayLabel: string;
+  } | null>(null);
 
   const assignableRoles = useMemo((): ClassTeacherRole[] => {
     const r: ClassTeacherRole[] = ["co-teacher", "admin"];
     if (canPromoteCoOwner) r.push("co-owner");
     return r;
   }, [canPromoteCoOwner]);
+
+  const currentPrimaryOwnerLabel = useMemo(() => {
+    const row = teachers.find((t) => t.role === "owner");
+    if (!row) return "the current primary owner";
+    return row.teacher_display_name || row.teacher_email || row.teacher_id;
+  }, [teachers]);
 
   const error = useMemo<string | null>(() => {
     const err = (teachersQuery.error || invitesQuery.error) as
@@ -110,7 +132,7 @@ export default function ManageTeachersSection({
     const now = Date.now();
     return (
       invites.find(
-        (i) => !i.revoked_at && new Date(i.expires_at).getTime() > now
+        (i) => !i.revoked_at && new Date(i.expires_at).getTime() > now,
       ) ?? null
     );
   }, [invites]);
@@ -182,11 +204,14 @@ export default function ManageTeachersSection({
   const handleRoleChange = async (
     teacherId: string,
     next: ClassTeacherRole,
-    row: ClassTeacherWithUserInfo
+    row: ClassTeacherWithUserInfo,
   ) => {
     if (!canManageRoster || row.role === "owner") return;
     if (next === row.role) return;
-    if (!canPromoteCoOwner && (next === "co-owner" || row.role === "co-owner")) {
+    if (
+      !canPromoteCoOwner &&
+      (next === "co-owner" || row.role === "co-owner")
+    ) {
       showErrorToast("You cannot change co-owner roles.");
       return;
     }
@@ -203,6 +228,36 @@ export default function ManageTeachersSection({
       showErrorToast("Failed to update role.");
     } finally {
       setRoleBusyId(null);
+    }
+  };
+
+  const openPrimaryTransferDialog = (
+    teacherId: string,
+    displayLabel: string,
+  ) => {
+    if (!canTransferPrimaryOwnership) return;
+    setPendingPrimaryTransfer({ teacherId, displayLabel });
+  };
+
+  const confirmPrimaryTransfer = async () => {
+    if (!pendingPrimaryTransfer || !canTransferPrimaryOwnership) return;
+    const { teacherId } = pendingPrimaryTransfer;
+    setTransferBusyId(teacherId);
+    try {
+      await transferClassPrimaryOwner({
+        classDbId: classData.id,
+        newOwnerTeacherId: teacherId,
+        demotePreviousTo: "co-owner",
+      });
+      await invalidateClassTeachersCache();
+      showSuccessToast("Primary owner updated.");
+      setPendingPrimaryTransfer(null);
+      onTeachersChanged?.();
+    } catch (err) {
+      console.error("Error transferring primary owner:", err);
+      showErrorToast("Failed to transfer primary owner.");
+    } finally {
+      setTransferBusyId(null);
     }
   };
 
@@ -336,6 +391,25 @@ export default function ManageTeachersSection({
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {t.role !== "owner" && canTransferPrimaryOwnership && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          openPrimaryTransferDialog(t.teacher_id, displayName)
+                        }
+                        disabled={
+                          busy ||
+                          transferBusyId !== null ||
+                          roleBusyId === t.teacher_id
+                        }
+                      >
+                        {transferBusyId === t.teacher_id
+                          ? "Working…"
+                          : "Make primary owner"}
+                      </Button>
+                    )}
                     {t.role !== "owner" && canManageRoster && (
                       <Select
                         value={t.role}
@@ -343,7 +417,7 @@ export default function ManageTeachersSection({
                           handleRoleChange(
                             t.teacher_id,
                             v as ClassTeacherRole,
-                            t
+                            t,
                           )
                         }
                         disabled={
@@ -381,6 +455,59 @@ export default function ManageTeachersSection({
             }}
           />
         </div>
+
+        <Dialog
+          open={pendingPrimaryTransfer !== null}
+          onOpenChange={(next) => {
+            if (!next && transferBusyId === null) {
+              setPendingPrimaryTransfer(null);
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Transfer primary owner?</DialogTitle>
+              <DialogDescription className="space-y-2">
+                <span className="block">
+                  {pendingPrimaryTransfer ? (
+                    <>
+                      <strong className="font-medium text-foreground">
+                        {pendingPrimaryTransfer.displayLabel}
+                      </strong>{" "}
+                      will become the primary owner, and{" "}
+                      <strong className="font-medium text-foreground">
+                        {currentPrimaryOwnerLabel}
+                      </strong>{" "}
+                      will become a co-owner.
+                    </>
+                  ) : null}
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPendingPrimaryTransfer(null)}
+                disabled={transferBusyId !== null}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void confirmPrimaryTransfer()}
+                disabled={
+                  transferBusyId !== null || pendingPrimaryTransfer === null
+                }
+              >
+                {pendingPrimaryTransfer &&
+                transferBusyId === pendingPrimaryTransfer.teacherId
+                  ? "Working…"
+                  : "Confirm"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

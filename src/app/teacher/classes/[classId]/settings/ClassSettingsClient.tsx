@@ -59,6 +59,9 @@ export default function ClassSettingsClient({
 
   const canPromoteCoOwner = hasFullClassControlView;
 
+  const canTransferPrimaryOwnership =
+    viewerRole === "institution_admin" || viewerRole === "super_admin";
+
   /** Legacy prop name on settings sections: permitted to change settings here. */
   const sectionMayEdit = canConfigureSettings;
 
@@ -95,6 +98,8 @@ export default function ClassSettingsClient({
                 classData={initialClassData}
                 canManageRoster={sectionMayEdit}
                 canPromoteCoOwner={canPromoteCoOwner}
+                canTransferPrimaryOwnership={canTransferPrimaryOwnership}
+                onTeachersChanged={handleUpdated}
               />
 
               <GroupSettingsSection

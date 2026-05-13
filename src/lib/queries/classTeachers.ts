@@ -110,3 +110,23 @@ export async function removeCoTeacher(params: {
 
   if (error) throw error;
 }
+
+export type DemotePreviousPrimaryTo = "co-owner" | "co-teacher";
+
+/**
+ * Institution admin or platform super admin only (enforced in DB).
+ * Demotes the current `owner` row and promotes `newOwnerTeacherId` to `owner`.
+ */
+export async function transferClassPrimaryOwner(params: {
+  classDbId: string;
+  newOwnerTeacherId: string;
+  demotePreviousTo?: DemotePreviousPrimaryTo;
+}): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("transfer_class_primary_owner", {
+    p_class_id: params.classDbId,
+    p_new_owner_teacher_id: params.newOwnerTeacherId,
+    p_demote_previous_to: params.demotePreviousTo ?? "co-owner",
+  });
+  if (error) throw error;
+}
