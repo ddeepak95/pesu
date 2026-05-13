@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import PageLayout from "@/components/PageLayout";
 import InstitutionDetailView from "@/components/Platform/InstitutionDetailView";
-import { requireSuperAdmin } from "@/lib/dal";
+import { requireInstitutionAdminOrSuper } from "@/lib/dal";
 import {
   getInstitution,
   getUserEmailsByIds,
@@ -14,10 +14,16 @@ import {
 import { getEffectiveSettingsForInstitution } from "@/lib/queries/settings";
 
 export const metadata = {
-  title: "Institution",
+  title: "Institution admin",
 };
 
-export default async function InstitutionDetailPage({
+/**
+ * Institution-admin landing page. Renders the same `InstitutionDetailView`
+ * as `/platform/institutions/[id]` but with `viewerRole="institution_admin"`
+ * (or `"super_admin"` when a platform super admin lands here, since they
+ * always pass the institution-admin gate).
+ */
+export default async function AdminInstitutionPage({
   params,
   searchParams,
 }: {
@@ -26,7 +32,7 @@ export default async function InstitutionDetailPage({
 }) {
   const { id } = await params;
   const { ok, error } = await searchParams;
-  const { supabase } = await requireSuperAdmin();
+  const { supabase, viewerRole } = await requireInstitutionAdminOrSuper(id);
 
   const institution = await getInstitution(supabase, id);
   if (!institution) notFound();
@@ -43,7 +49,12 @@ export default async function InstitutionDetailPage({
   const memberIds = members.map((m) => m.user_id);
   const moverIds = moves.map((m) => m.moved_by);
   const allUserIds = Array.from(new Set([...memberIds, ...moverIds]));
-  const userEmails = await getUserEmailsByIds(supabase, allUserIds);
+  // get_users_by_ids is super-admin-only; institution admins cannot resolve
+  // emails. Fall back to an empty map to keep the page rendering.
+  const userEmails =
+    viewerRole === "super_admin"
+      ? await getUserEmailsByIds(supabase, allUserIds)
+      : new Map<string, string>();
 
   const userEmailEntries: Array<[string, string]> = Array.from(
     userEmails.entries(),
@@ -61,11 +72,11 @@ export default async function InstitutionDetailPage({
         moves={moves}
         userEmailEntries={userEmailEntries}
         institutionNameEntries={institutionNameEntries}
-        viewerRole="super_admin"
-        backHref="/platform"
-        backLabel="Back to platform admin"
+        viewerRole={viewerRole}
+        backHref="/teacher"
+        backLabel="Back to teacher dashboard"
         effectiveSettings={effectiveSettings}
-        classOverrideHrefBase={`/platform/institutions/${id}/classes`}
+        classOverrideHrefBase={`/admin/institutions/${id}/classes`}
         notice={{ ok, error }}
       />
     </PageLayout>

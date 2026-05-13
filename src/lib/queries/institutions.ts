@@ -123,6 +123,26 @@ export async function listClassesInInstitution(
 }
 
 /**
+ * Count active classes per institution. Used by the institution card grid.
+ * One round-trip; group on the client.
+ */
+export async function countActiveClassesByInstitution(
+  supabase: SupabaseClient
+): Promise<Map<string, number>> {
+  const { data, error } = await supabase
+    .from("classes")
+    .select("institution_id")
+    .eq("status", "active");
+  if (error) throw error;
+  const out = new Map<string, number>();
+  for (const row of (data ?? []) as { institution_id: string | null }[]) {
+    if (!row.institution_id) continue;
+    out.set(row.institution_id, (out.get(row.institution_id) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
  * Add an institution admin by email.
  *
  * Looks up the user via the SECURITY DEFINER `find_user_id_by_email` RPC

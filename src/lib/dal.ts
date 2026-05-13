@@ -55,6 +55,48 @@ export const requireSuperAdmin = cache(
   }
 );
 
+/**
+ * Verify the user is either a platform super admin OR an admin of the
+ * supplied institution.
+ *
+ * Returns `notFound()` (consistent with `requireSuperAdmin`) when the viewer
+ * has neither role. The returned `viewerRole` lets server components pass the
+ * right capability tier into the shared UI components without re-querying.
+ */
+export const requireInstitutionAdminOrSuper = cache(
+  async (institutionId: string, loginPath = "/teacher/login") => {
+    const { user, supabase } = await verifySession(loginPath);
+
+    const [superRes, memberRes] = await Promise.all([
+      supabase
+        .from("platform_super_admins")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("institution_members")
+        .select("user_id, role")
+        .eq("institution_id", institutionId)
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle(),
+    ]);
+
+    const isSuper = !superRes.error && !!superRes.data;
+    const isInstitutionAdmin = !memberRes.error && !!memberRes.data;
+
+    if (!isSuper && !isInstitutionAdmin) {
+      notFound();
+    }
+
+    const viewerRole: "super_admin" | "institution_admin" = isSuper
+      ? "super_admin"
+      : "institution_admin";
+
+    return { user, supabase, viewerRole };
+  }
+);
+
 // ---------------------------------------------------------------------------
 // Shared server-side helper: content item + progressive unlock state
 // ---------------------------------------------------------------------------

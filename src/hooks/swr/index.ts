@@ -105,3 +105,8 @@ export {
   invalidateStudentNotificationsCache,
   useStudentNotifications,
 } from "./useNotifications";
+export {
+  invalidateSettingsCache,
+  useEffectiveInstitutionSettings,
+  useEffectiveClassSettings,
+} from "./useSettings";

@@ -36,11 +36,10 @@ export async function createInstitutionAction(
   if (!name) {
     redirect(buildNoticeUrl("/platform", { error: "Name is required" }));
   }
-  const slugRaw = formString(formData, "slug");
 
   let errorMessage: string | null = null;
   try {
-    await createInstitution(supabase, { name, slug: slugRaw || null });
+    await createInstitution(supabase, { name });
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err);
   }
@@ -117,46 +116,51 @@ export async function removeInstitutionAdminAction(
   redirect(buildNoticeUrl(detailPath, { ok: "Admin removed" }));
 }
 
-export async function moveClassAction(formData: FormData): Promise<void> {
+export interface MoveClassResult {
+  ok: boolean;
+  error?: string;
+  /**
+   * UUID of the `class_institution_moves` audit row. `null` when the class
+   * was already in the target institution (RPC short-circuits).
+   */
+  auditId?: string | null;
+}
+
+/**
+ * Move a class to another institution via the audited RPC.
+ *
+ * Returns a Result object so callers (e.g. dialog UIs) can show inline errors
+ * and stay on the current page instead of being redirected. The platform and
+ * target-institution pages are revalidated server-side; the caller is expected
+ * to `router.refresh()` to repaint the source institution view.
+ */
+export async function moveClassRequestAction(input: {
+  classDbId: string;
+  targetInstitutionId: string;
+  reason?: string | null;
+}): Promise<MoveClassResult> {
   const { supabase } = await requireSuperAdmin();
 
-  const classDbId = formString(formData, "classDbId");
-  const targetInstitutionId = formString(formData, "targetInstitutionId");
-  const reasonRaw = formString(formData, "reason");
+  const classDbId = input.classDbId?.trim() ?? "";
+  const targetInstitutionId = input.targetInstitutionId?.trim() ?? "";
+  if (!classDbId) return { ok: false, error: "Class id is required" };
+  if (!targetInstitutionId)
+    return { ok: false, error: "Target institution is required" };
 
-  if (!classDbId) {
-    redirect(buildNoticeUrl("/platform", { error: "Class id is required" }));
-  }
-  if (!targetInstitutionId) {
-    redirect(
-      buildNoticeUrl("/platform", {
-        error: "Target institution id is required",
-      })
-    );
-  }
-
-  let errorMessage: string | null = null;
-  let auditId: string | null = null;
   try {
     const { data, error } = await supabase.rpc("move_class_to_institution", {
       p_class_id: classDbId,
       p_target_institution_id: targetInstitutionId,
-      p_reason: reasonRaw || null,
+      p_reason: input.reason?.trim() || null,
     });
     if (error) throw error;
-    auditId = (data as string | null) ?? null;
+    revalidatePath("/platform");
+    revalidatePath(`/platform/institutions/${targetInstitutionId}`);
+    return { ok: true, auditId: (data as string | null) ?? null };
   } catch (err) {
-    errorMessage = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
-  if (errorMessage) {
-    redirect(buildNoticeUrl("/platform", { error: errorMessage }));
-  }
-
-  revalidatePath("/platform");
-  revalidatePath(`/platform/institutions/${targetInstitutionId}`);
-  redirect(
-    buildNoticeUrl("/platform", {
-      ok: auditId ? "Class moved" : "Class already in target institution",
-    })
-  );
 }

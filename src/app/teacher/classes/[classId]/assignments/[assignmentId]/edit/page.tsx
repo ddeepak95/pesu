@@ -247,6 +247,7 @@ export default function EditAssignmentPage() {
         <AssignmentForm
           mode="edit"
           classId={classId}
+          classDbId={assignmentClassId}
           assignmentId={assignmentId}
           initialTitle={title}
           initialQuestions={questions}

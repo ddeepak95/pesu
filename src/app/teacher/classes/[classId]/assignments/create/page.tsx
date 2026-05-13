@@ -214,6 +214,7 @@ export default function CreateAssignmentPage() {
         <AssignmentForm
           mode="create"
           classId={classId}
+          classDbId={classDbId}
           initialLanguage={classLanguage}
           onSubmit={handleSubmit}
         />

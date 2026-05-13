@@ -1,5 +1,8 @@
-import { verifySession } from "@/lib/dal";
 import { notFound, redirect } from "next/navigation";
+
+import { verifySession } from "@/lib/dal";
+import type { ViewerRole } from "@/lib/settings/capabilities";
+
 import ClassSettingsClient from "./ClassSettingsClient";
 
 const CLASS_COLUMNS =
@@ -22,10 +25,49 @@ export default async function ClassSettingsPage({
 
   if (!classData) notFound();
 
-  // Only the class owner can access settings
-  if (user.id !== classData.created_by) {
+  const isOwner = user.id === classData.created_by;
+
+  // Institution-admin / super-admin viewers also gain access (so they can
+  // manage inherited-setting overrides). Owner-only sections stay gated by
+  // `isOwner` inside the client component.
+  let viewerRole: ViewerRole = isOwner ? "class_owner" : "viewer";
+  const institutionId = (classData.institution_id as string | null) ?? null;
+
+  if (!isOwner) {
+    const [superRes, memberRes] = await Promise.all([
+      supabase
+        .from("platform_super_admins")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      institutionId
+        ? supabase
+            .from("institution_members")
+            .select("user_id")
+            .eq("institution_id", institutionId)
+            .eq("user_id", user.id)
+            .eq("role", "admin")
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    if (!superRes.error && superRes.data) {
+      viewerRole = "super_admin";
+    } else if (!memberRes.error && memberRes.data) {
+      viewerRole = "institution_admin";
+    }
+  }
+
+  if (viewerRole === "viewer") {
     redirect(`/teacher/classes/${classId}`);
   }
 
-  return <ClassSettingsClient classData={classData} classId={classId} />;
+  return (
+    <ClassSettingsClient
+      classData={classData}
+      classId={classId}
+      isOwner={isOwner}
+      viewerRole={viewerRole}
+    />
+  );
 }

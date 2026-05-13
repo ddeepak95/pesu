@@ -12,20 +12,25 @@ import ProgressiveUnlockSection from "@/components/Teacher/Classes/Settings/Prog
 import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetProgressSection";
 import DuplicateClassSection from "@/components/Teacher/Classes/Settings/DuplicateClassSection";
 import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneSection";
+import ClassInheritedSettingsSection from "@/components/Settings/ClassInheritedSettingsSection";
+import type { ViewerRole } from "@/lib/settings/capabilities";
 import { Class } from "@/types/class";
 
 interface ClassSettingsClientProps {
   classData: Class;
   classId: string;
+  isOwner: boolean;
+  viewerRole: ViewerRole;
 }
 
 export default function ClassSettingsClient({
   classData: initialClassData,
-  classId: _classId,
+  classId,
+  isOwner,
+  viewerRole,
 }: ClassSettingsClientProps) {
   const router = useTrackedRouter();
 
-  // After a settings update, refresh server data via router.refresh()
   const handleUpdated = useCallback(() => {
     router.refresh();
   }, [router]);
@@ -42,49 +47,63 @@ export default function ClassSettingsClient({
         </p>
 
         <div className="space-y-6">
-          <GeneralSettingsSection
-            classData={initialClassData}
-            isOwner={true}
-            onUpdated={handleUpdated}
+          {isOwner && (
+            <>
+              <GeneralSettingsSection
+                classData={initialClassData}
+                isOwner={isOwner}
+                onUpdated={handleUpdated}
+              />
+
+              <ManageTeachersSection
+                classData={initialClassData}
+                isOwner={isOwner}
+              />
+
+              <GroupSettingsSection
+                classData={initialClassData}
+                isOwner={isOwner}
+                onUpdated={handleUpdated}
+              />
+
+              <ProfileFieldsSection
+                classData={initialClassData}
+                isOwner={isOwner}
+              />
+
+              <ProgressiveUnlockSection
+                classData={initialClassData}
+                isOwner={isOwner}
+                onUpdated={handleUpdated}
+              />
+            </>
+          )}
+
+          <ClassInheritedSettingsSection
+            classDbId={initialClassData.id}
+            classShortId={classId}
+            viewerRole={viewerRole}
           />
 
-          <ManageTeachersSection
-            classData={initialClassData}
-            isOwner={true}
-          />
+          {isOwner && (
+            <>
+              <ResetProgressSection
+                classId={initialClassData.id}
+                isOwner={isOwner}
+              />
 
-          <GroupSettingsSection
-            classData={initialClassData}
-            isOwner={true}
-            onUpdated={handleUpdated}
-          />
+              <DuplicateClassSection
+                classData={initialClassData}
+                isOwner={isOwner}
+                onDuplicated={handleUpdated}
+              />
 
-          <ProfileFieldsSection
-            classData={initialClassData}
-            isOwner={true}
-          />
-
-          <ProgressiveUnlockSection
-            classData={initialClassData}
-            isOwner={true}
-            onUpdated={handleUpdated}
-          />
-
-          <ResetProgressSection
-            classId={initialClassData.id}
-            isOwner={true}
-          />
-
-          <DuplicateClassSection
-            classData={initialClassData}
-            isOwner={true}
-            onDuplicated={handleUpdated}
-          />
-
-          <DangerZoneSection
-            classData={initialClassData}
-            isOwner={true}
-          />
+              <DangerZoneSection
+                classData={initialClassData}
+                isOwner={isOwner}
+              />
+            </>
+          )}
         </div>
       </div>
     </PageLayout>

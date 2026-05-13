@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
@@ -44,12 +44,28 @@ import {
   buildDefaultDynamicGenerationPrompt,
   type ActivityType,
 } from "@/lib/promptTemplates";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Lock } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { showSuccessToast } from "@/lib/toast";
+import { useEffectiveClassSettings } from "@/hooks/swr/useSettings";
+import {
+  ASSESSMENT_MODE_OPTIONS,
+  type AssessmentMode,
+} from "@/lib/settings/registry";
 
 interface AssignmentFormProps {
   mode: "create" | "edit";
   classId: string;
+  /**
+   * Class database id (UUID). When provided, the assessment-mode dropdown is
+   * filtered to the institution/class's effective `allowed_assessment_modes`.
+   */
+  classDbId?: string | null;
   assignmentId?: string;
   initialTitle?: string;
   initialQuestions?: Question[];
@@ -116,6 +132,7 @@ interface AssignmentFormProps {
 export default function AssignmentForm({
   mode,
   classId,
+  classDbId = null,
   assignmentId: _assignmentId,
   initialTitle = "",
   initialQuestions = [
@@ -173,6 +190,50 @@ export default function AssignmentForm({
   const [assessmentMode, setAssessmentMode] = useState<
     "voice" | "text_chat" | "static_text"
   >(initialAssessmentMode);
+
+  // Pull the class's effective allowed assessment modes (institution → class).
+  // Modes outside the allow list are disabled in the dropdown but the current
+  // value remains visible so existing assignments stay editable.
+  const { data: effectiveClassSettings } = useEffectiveClassSettings(
+    classDbId ?? null,
+  );
+  const allowedAssessmentModes = useMemo<Set<AssessmentMode>>(() => {
+    const setting = effectiveClassSettings?.allowed_assessment_modes;
+    if (!setting) {
+      return new Set(ASSESSMENT_MODE_OPTIONS.map((o) => o.value));
+    }
+    return new Set((setting.value as AssessmentMode[]) ?? []);
+  }, [effectiveClassSettings]);
+
+  // What the dropdown actually renders. In create mode we project the
+  // user-/default-state to the first allowed mode when the raw state is
+  // restricted, so the trigger never shows a blank value. Edit mode keeps the
+  // existing value visible so historic assignments stay editable.
+  const currentAssessmentMode = useMemo<
+    "voice" | "text_chat" | "static_text"
+  >(() => {
+    if (mode === "edit") return assessmentMode;
+    if (allowedAssessmentModes.has(assessmentMode)) return assessmentMode;
+    const first = ASSESSMENT_MODE_OPTIONS.find((o) =>
+      allowedAssessmentModes.has(o.value),
+    );
+    return (first?.value ?? assessmentMode) as
+      | "voice"
+      | "text_chat"
+      | "static_text";
+  }, [mode, assessmentMode, allowedAssessmentModes]);
+
+  // Keep the underlying state aligned with what the dropdown is showing so
+  // form submission and downstream reads (bot prompt, AI panel) all agree.
+  useEffect(() => {
+    if (currentAssessmentMode === assessmentMode) return;
+    setAssessmentMode(currentAssessmentMode);
+    setBotPromptConfig(
+      buildDefaultBotPromptConfig(activityType, currentAssessmentMode),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentAssessmentMode]);
+
   const [maxAttempts, setMaxAttempts] = useState(initialMaxAttempts);
   const [responderFieldsConfig, setResponderFieldsConfig] = useState<
     ResponderFieldConfig[]
@@ -537,7 +598,7 @@ export default function AssignmentForm({
         lockLanguage,
         isPublic,
         activityType,
-        assessmentMode,
+        assessmentMode: currentAssessmentMode,
         isDraft: draft,
         responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
         maxAttempts,
@@ -645,7 +706,7 @@ export default function AssignmentForm({
               const newType = value as ActivityType;
               setActivityType(newType);
               setBotPromptConfig(
-                buildDefaultBotPromptConfig(newType, assessmentMode),
+                buildDefaultBotPromptConfig(newType, currentAssessmentMode),
               );
               setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
             }}
@@ -666,7 +727,7 @@ export default function AssignmentForm({
             Interaction Type <span className="text-destructive">*</span>
           </Label>
           <Select
-            value={assessmentMode}
+            value={currentAssessmentMode}
             onValueChange={(value) => {
               const newMode = value as "voice" | "text_chat" | "static_text";
               setAssessmentMode(newMode);
@@ -680,9 +741,41 @@ export default function AssignmentForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="voice">Voice</SelectItem>
-              <SelectItem value="text_chat">Text Chat</SelectItem>
-              <SelectItem value="static_text">Static Text</SelectItem>
+              {ASSESSMENT_MODE_OPTIONS.map((opt) => {
+                const isAllowed = allowedAssessmentModes.has(opt.value);
+                const isCurrent = opt.value === currentAssessmentMode;
+                // Disabled if the institution restricts it, unless this is the
+                // current value (so existing assignments remain editable).
+                if (!isAllowed && !isCurrent) {
+                  return (
+                    <SelectItem key={opt.value} value={opt.value} disabled>
+                      <span className="flex w-full items-center justify-between gap-3">
+                        <span>{opt.label}</span>
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="pointer-events-auto inline-flex">
+                                <Lock
+                                  className="h-3.5 w-3.5 text-muted-foreground"
+                                  aria-label="Restricted"
+                                />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              This interaction type isn&apos;t allowed for this class. Contact your admin to enable it.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
+                    </SelectItem>
+                  );
+                }
+                return (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -778,7 +871,7 @@ export default function AssignmentForm({
 
               <TabsContent value="aibot">
                 <MoreOptionsAIBot
-                  assessmentMode={assessmentMode}
+                  assessmentMode={currentAssessmentMode}
                   showBotPreview={showBotPreview}
                   setShowBotPreview={setShowBotPreview}
                   previewQuestionOrder={previewQuestionOrder}
@@ -828,7 +921,8 @@ export default function AssignmentForm({
             studentInstructions={studentInstructions}
             contextForAI={sharedContext}
             showBotOverride={
-              assessmentMode === "voice" || assessmentMode === "text_chat"
+              currentAssessmentMode === "voice" ||
+              currentAssessmentMode === "text_chat"
             }
             questionOverride={
               botPromptConfig.question_overrides?.[question.order]
