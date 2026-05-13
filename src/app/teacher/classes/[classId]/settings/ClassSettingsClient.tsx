@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import Link from "next/link";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
@@ -21,6 +22,14 @@ interface ClassSettingsClientProps {
   classId: string;
   isOwner: boolean;
   viewerRole: ViewerRole;
+  /**
+   * Optional explicit back-link target. When provided, replaces the default
+   * history-based `<BackButton />`. Used by the institution/super-admin
+   * drill-down routes so the back arrow returns to the institution detail
+   * page on the correct tab.
+   */
+  backHref?: string;
+  backLabel?: string;
 }
 
 export default function ClassSettingsClient({
@@ -28,6 +37,8 @@ export default function ClassSettingsClient({
   classId,
   isOwner,
   viewerRole,
+  backHref,
+  backLabel,
 }: ClassSettingsClientProps) {
   const router = useTrackedRouter();
 
@@ -35,11 +46,31 @@ export default function ClassSettingsClient({
     router.refresh();
   }, [router]);
 
+  // "Can manage" is the union of class ownership and institution/super-admin
+  // access. The owner-only sections were previously gated by `isOwner`; they
+  // now show whenever the viewer is allowed to administer the class. The
+  // `isOwner` prop on each section keeps its current name but receives the
+  // broader value — sections still read it as "is the viewer permitted to
+  // make changes here?", which is the contract we want.
+  const canManage =
+    isOwner ||
+    viewerRole === "institution_admin" ||
+    viewerRole === "super_admin";
+
   return (
     <PageLayout>
       <div>
         <div className="mb-4">
-          <BackButton />
+          {backHref && backLabel ? (
+            <Link
+              href={backHref}
+              className="text-muted-foreground hover:text-foreground text-sm"
+            >
+              &larr; {backLabel}
+            </Link>
+          ) : (
+            <BackButton />
+          )}
         </div>
         <h1 className="text-3xl font-bold mb-2">{initialClassData.name}</h1>
         <p className="text-muted-foreground mb-8">
@@ -47,33 +78,33 @@ export default function ClassSettingsClient({
         </p>
 
         <div className="space-y-6">
-          {isOwner && (
+          {canManage && (
             <>
               <GeneralSettingsSection
                 classData={initialClassData}
-                isOwner={isOwner}
+                isOwner={canManage}
                 onUpdated={handleUpdated}
               />
 
               <ManageTeachersSection
                 classData={initialClassData}
-                isOwner={isOwner}
+                isOwner={canManage}
               />
 
               <GroupSettingsSection
                 classData={initialClassData}
-                isOwner={isOwner}
+                isOwner={canManage}
                 onUpdated={handleUpdated}
               />
 
               <ProfileFieldsSection
                 classData={initialClassData}
-                isOwner={isOwner}
+                isOwner={canManage}
               />
 
               <ProgressiveUnlockSection
                 classData={initialClassData}
-                isOwner={isOwner}
+                isOwner={canManage}
                 onUpdated={handleUpdated}
               />
             </>
@@ -85,22 +116,22 @@ export default function ClassSettingsClient({
             viewerRole={viewerRole}
           />
 
-          {isOwner && (
+          {canManage && (
             <>
               <ResetProgressSection
                 classId={initialClassData.id}
-                isOwner={isOwner}
+                isOwner={canManage}
               />
 
               <DuplicateClassSection
                 classData={initialClassData}
-                isOwner={isOwner}
+                isOwner={canManage}
                 onDuplicated={handleUpdated}
               />
 
               <DangerZoneSection
                 classData={initialClassData}
-                isOwner={isOwner}
+                isOwner={canManage}
               />
             </>
           )}

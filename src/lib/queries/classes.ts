@@ -168,11 +168,14 @@ export async function updateClass(
       updateData.preferred_language = preferredLanguage;
     }
 
+    // Authorization is enforced by RLS (phase-D: owners, institution admins,
+    // and super admins). The `userId` parameter is retained for call-site
+    // compatibility and may be used for audit fields if needed.
+    void userId;
     const { data, error } = await supabase
       .from("classes")
       .update(updateData)
       .eq("id", classId)
-      .eq("created_by", userId!) // Ensure user owns the class
       .select()
       .single();
 
@@ -203,22 +206,26 @@ export async function updateClass(
 }
 
 /**
- * Soft delete a class (sets status to 'deleted' instead of removing from database)
+ * Soft delete a class (sets status to 'deleted' instead of removing from database).
+ *
+ * Authorization is delegated to RLS (phase-D policies allow class owners,
+ * institution admins for the class's institution, and platform super
+ * admins). The `userId` parameter is retained for call-site compatibility.
  */
 export async function deleteClass(
   classId: string,
   userId: string
 ): Promise<void> {
   const supabase = createClient();
+  void userId;
 
   const { error } = await supabase
     .from("classes")
-    .update({ 
+    .update({
       status: "deleted",
-      updated_at: new Date().toISOString() 
+      updated_at: new Date().toISOString(),
     })
-    .eq("id", classId)
-    .eq("created_by", userId); // Ensure user owns the class
+    .eq("id", classId);
 
   if (error) {
     console.error("Error deleting class:", error);
@@ -386,9 +393,11 @@ export async function duplicateClass(
   }
 
   const source = sourceClass as Class;
-  if (source.created_by !== userId) {
-    throw new Error("Only the class owner can duplicate the class");
-  }
+  // Authorization is delegated to RLS for both the source SELECT (above) and
+  // the insert below. The new class is created with `created_by = userId`,
+  // so the caller becomes the owner of the duplicate regardless of whether
+  // they owned the source (institution and super admins are explicitly
+  // allowed to duplicate a class on behalf of an institution).
 
   const newClassId = generateClassId();
   const insertPayload = {
