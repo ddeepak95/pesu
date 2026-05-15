@@ -11,8 +11,13 @@ import {
 } from "@/components/ui/select";
 import {
   AI_PROVIDERS,
+  defaultModelIdForProvider,
+  modelsForProvider,
+  resolveAiProvider,
+  resolveGoogleModelId,
   type AiCapabilityDefinition,
   type AiProvider,
+  type GoogleModelId,
 } from "@/lib/ai/capabilities/registry";
 
 export interface AiCapabilityConfigEditorValues {
@@ -38,7 +43,12 @@ export default function AiCapabilityConfigEditor({
   allowEmptyKey = false,
   existingKeyHint,
 }: AiCapabilityConfigEditorProps) {
-  const placeholder = definition.modelPlaceholders[values.provider];
+  const provider = resolveAiProvider(values.provider);
+  const modelOptions = modelsForProvider(provider);
+  const modelId = resolveGoogleModelId(
+    values.modelId,
+    defaultModelIdForProvider(provider, definition),
+  ) as GoogleModelId;
 
   return (
     <div className="space-y-3">
@@ -46,14 +56,15 @@ export default function AiCapabilityConfigEditor({
         <div className="space-y-2">
           <Label>Provider</Label>
           <Select
-            value={values.provider}
-            onValueChange={(v) =>
+            value={provider}
+            onValueChange={(v) => {
+              const nextProvider = v as AiProvider;
               onChange({
                 ...values,
-                provider: v as AiProvider,
-                modelId: definition.modelPlaceholders[v as AiProvider],
-              })
-            }
+                provider: nextProvider,
+                modelId: defaultModelIdForProvider(nextProvider, definition),
+              });
+            }}
             disabled={disabled}
           >
             <SelectTrigger>
@@ -69,13 +80,29 @@ export default function AiCapabilityConfigEditor({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Model ID</Label>
-          <Input
-            value={values.modelId}
-            onChange={(e) => onChange({ ...values, modelId: e.target.value })}
-            placeholder={placeholder}
+          <Label>Model</Label>
+          <Select
+            value={modelId}
+            onValueChange={(v) =>
+              onChange({
+                ...values,
+                provider,
+                modelId: v,
+              })
+            }
             disabled={disabled}
-          />
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {modelOptions.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="space-y-2">
@@ -84,7 +111,7 @@ export default function AiCapabilityConfigEditor({
           type="password"
           autoComplete="off"
           value={values.apiKey}
-          onChange={(e) => onChange({ ...values, apiKey: e.target.value })}
+          onChange={(e) => onChange({ ...values, provider, apiKey: e.target.value })}
           placeholder={
             allowEmptyKey && existingKeyHint
               ? `Leave blank to keep ••••${existingKeyHint}`

@@ -1,7 +1,13 @@
 import "server-only";
 
 import type { AiProvider } from "@/lib/ai/capabilities/registry";
-import { AI_PROVIDERS, asAiCapabilityKey } from "@/lib/ai/capabilities/registry";
+import {
+  AI_PROVIDERS,
+  asAiCapabilityKey,
+  DEFAULT_GOOGLE_MODEL,
+  isValidGoogleModelId,
+  resolveGoogleModelId,
+} from "@/lib/ai/capabilities/registry";
 import { aiConfigCapabilities } from "@/lib/ai/credentials/capabilities";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type {
@@ -38,10 +44,18 @@ export function validateUpsertPayload(
   if (!payload.provider) {
     throw new Error("Provider is required for custom configuration");
   }
+  const modelId = resolveGoogleModelId(
+    payload.modelId,
+    DEFAULT_GOOGLE_MODEL,
+  );
+  if (payload.modelId?.trim() && !isValidGoogleModelId(payload.modelId.trim())) {
+    throw new Error("Invalid model");
+  }
+
   return {
     usePlatformDefault: false,
     provider: assertProvider(payload.provider),
-    modelId: payload.modelId?.trim() || undefined,
+    modelId,
     apiKey: payload.apiKey?.trim() || undefined,
   };
 }

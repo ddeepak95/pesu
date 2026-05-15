@@ -16,7 +16,8 @@ import {
   getAiCapabilityDefinition,
   TEXT_CAPABILITY_KEY,
   type AiCapabilityDefinition,
-  type AiProvider,
+  resolveAiProvider,
+  resolveGoogleModelId,
 } from "@/lib/ai/capabilities/registry";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type {
@@ -45,10 +46,10 @@ function initialEditorValues(
   def: AiCapabilityDefinition,
   meta: EffectiveAiCapabilityMeta,
 ): AiCapabilityConfigEditorValues {
-  const provider = meta.provider ?? ("google" as AiProvider);
+  const provider = resolveAiProvider(meta.provider);
   return {
     provider,
-    modelId: meta.modelId ?? def.modelPlaceholders[provider],
+    modelId: resolveGoogleModelId(meta.modelId, def.defaultModelId),
     apiKey: "",
   };
 }

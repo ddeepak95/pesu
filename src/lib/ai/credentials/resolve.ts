@@ -6,7 +6,8 @@ import {
   getAiCapabilityDefinition,
   TEXT_CAPABILITY_KEY,
   type AiCapabilityKey,
-  type AiProvider,
+  resolveAiProvider,
+  resolveGoogleModelId,
 } from "@/lib/ai/capabilities/registry";
 import { buildClassAiConfigs } from "@/lib/ai/credentials/buildEffective";
 import { decryptApiKey } from "@/lib/ai/credentials/crypto";
@@ -26,15 +27,14 @@ function rowToResolvedConfig(row: AiCapabilityConfigSecretRow): ResolvedModelCon
   if (!row.provider || !row.encrypted_api_key) {
     throw new Error("AI config row is missing provider or encrypted key");
   }
-  const provider = row.provider as AiProvider;
   const def = getAiCapabilityDefinition(row.capability_key as AiCapabilityKey);
-  const modelId =
-    row.model_id?.trim() ||
-    def.modelPlaceholders[provider] ||
-    getDefaultModelConfigFromEnv().modelId;
+  const modelId = resolveGoogleModelId(
+    row.model_id,
+    def.defaultModelId,
+  );
 
   return {
-    provider,
+    provider: resolveAiProvider(row.provider),
     apiKey: decryptApiKey(row.encrypted_api_key),
     modelId,
   };

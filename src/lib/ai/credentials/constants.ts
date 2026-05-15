@@ -1,4 +1,4 @@
-import type { AiProvider } from "@/lib/ai/capabilities/registry";
+import { DEFAULT_GOOGLE_MODEL } from "@/lib/ai/capabilities/registry";
 
 /** Fixed UUID for platform-scoped rows in `ai_capability_configs`. */
 export const PLATFORM_SCOPE_ID = "00000000-0000-4000-8000-000000000001";
@@ -12,9 +12,6 @@ export function isAiConfigLocksKey(capabilityKey: string): boolean {
   return capabilityKey === AI_CONFIG_LOCKS_KEY;
 }
 
-export function defaultModelForProvider(
-  provider: AiProvider,
-  placeholders: Record<AiProvider, string>,
-): string {
-  return placeholders[provider];
+export function defaultGoogleModelId(): string {
+  return DEFAULT_GOOGLE_MODEL;
 }
