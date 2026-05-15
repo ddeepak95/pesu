@@ -13,7 +13,10 @@ import ProgressiveUnlockSection from "@/components/Teacher/Classes/Settings/Prog
 import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetProgressSection";
 import DuplicateClassSection from "@/components/Teacher/Classes/Settings/DuplicateClassSection";
 import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneSection";
+import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
+import ClassAiConfigSection from "@/components/Settings/ClassAiConfigSection";
 import ClassInheritedSettingsSection from "@/components/Settings/ClassInheritedSettingsSection";
+import type { EffectiveAiConfigs } from "@/types/aiCapabilityConfig";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import { Class } from "@/types/class";
 
@@ -21,6 +24,8 @@ interface ClassSettingsClientProps {
   classData: Class;
   classId: string;
   viewerRole: ViewerRole;
+  initialAiConfigs?: EffectiveAiConfigs;
+  initialInstitutionAiConfigs?: EffectiveAiConfigs;
   /**
    * Optional explicit back-link target. When provided, replaces the default
    * history-based `<BackButton />`. Used by the institution/super-admin
@@ -37,6 +42,8 @@ export default function ClassSettingsClient({
   viewerRole,
   backHref,
   backLabel,
+  initialAiConfigs,
+  initialInstitutionAiConfigs,
 }: ClassSettingsClientProps) {
   const router = useTrackedRouter();
 
@@ -85,6 +92,15 @@ export default function ClassSettingsClient({
           Manage settings for this class.
         </p>
 
+        {initialClassData.institution_id && (
+          <div className="mb-6">
+            <AiConfigMisconfigBanner
+              classDbId={initialClassData.id}
+              institutionId={initialClassData.institution_id}
+            />
+          </div>
+        )}
+
         <div className="space-y-6">
           {canConfigureSettings && (
             <>
@@ -126,6 +142,17 @@ export default function ClassSettingsClient({
             classShortId={classId}
             viewerRole={viewerRole}
           />
+
+          {initialClassData.institution_id && initialAiConfigs && (
+            <ClassAiConfigSection
+              classDbId={initialClassData.id}
+              classShortId={classId}
+              institutionId={initialClassData.institution_id}
+              viewerRole={viewerRole}
+              initialEffective={initialAiConfigs}
+              initialInstitutionEffective={initialInstitutionAiConfigs}
+            />
+          )}
 
           {canConfigureSettings && (
             <>

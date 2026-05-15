@@ -2,6 +2,10 @@ import { notFound } from "next/navigation";
 
 import ClassSettingsClient from "@/app/teacher/classes/[classId]/settings/ClassSettingsClient";
 import { requireSuperAdmin } from "@/lib/dal";
+import {
+  getClassAiConfigs,
+  getInstitutionAiConfigs,
+} from "@/lib/queries/aiCapabilityConfigs";
 import { getInstitution } from "@/lib/queries/institutions";
 import type { Class } from "@/types/class";
 
@@ -39,6 +43,11 @@ export default async function PlatformClassSettingsPage({
   const cls = classRes.data as Class | null;
   if (!cls || cls.institution_id !== id) notFound();
 
+  const [initialAiConfigs, initialInstitutionAiConfigs] = await Promise.all([
+    getClassAiConfigs(supabase, classDbId),
+    getInstitutionAiConfigs(supabase, id),
+  ]);
+
   return (
     <ClassSettingsClient
       classData={cls}
@@ -46,6 +55,8 @@ export default async function PlatformClassSettingsPage({
       viewerRole="super_admin"
       backHref={`/platform/institutions/${id}?tab=classes`}
       backLabel={`Back to ${institution.name}`}
+      initialAiConfigs={initialAiConfigs}
+      initialInstitutionAiConfigs={initialInstitutionAiConfigs}
     />
   );
 }

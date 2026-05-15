@@ -51,6 +51,46 @@ export interface CapabilityInput {
 }
 
 /**
+ * Whether institution-scoped settings / AI UI should render for this viewer.
+ * Institution admins only see these sections when the platform allows admin edit;
+ * super admins always do.
+ */
+export function canViewInstitutionOverrideSections(
+  viewerRole: ViewerRole,
+  allowAdminEdit: boolean,
+): boolean {
+  if (viewerRole === "super_admin") {
+    return true;
+  }
+  if (viewerRole === "institution_admin") {
+    return allowAdminEdit;
+  }
+  return false;
+}
+
+/**
+ * Whether class-scoped override UI (inherited settings, class AI config) should
+ * render for this viewer. Class admins only see these sections when the
+ * institution allows child override; institution admins and super admins always do.
+ */
+export function canViewClassOverrideSections(
+  viewerRole: ViewerRole,
+  allowChildOverride: boolean,
+): boolean {
+  if (viewerRole === "super_admin" || viewerRole === "institution_admin") {
+    return true;
+  }
+  if (
+    viewerRole === "class_owner" ||
+    viewerRole === "class_teacher_co_owner" ||
+    viewerRole === "class_teacher_admin"
+  ) {
+    return allowChildOverride;
+  }
+  return false;
+}
+
+/**
  * Pure: compute the capability bundle for one setting + viewer.
  * The same function is reused by every UI panel and every server action.
  */

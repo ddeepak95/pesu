@@ -1,4 +1,5 @@
 -- Migration: Phase A — polymorphic settings layer.
+-- Also run supabase_settings_member_read_rls.sql so class teachers can read institution locks.
 --
 -- Introduces a single `setting_values` table keyed by (scope, scope_id, key)
 -- so the platform can grow new settings without schema churn and grow new
@@ -56,8 +57,8 @@ CREATE TABLE IF NOT EXISTS public.setting_values (
   scope_id             uuid                 NOT NULL,
   key                  text                 NOT NULL,
   value                jsonb                NOT NULL,
-  allow_admin_edit     boolean              NOT NULL DEFAULT true,
-  allow_child_override boolean              NOT NULL DEFAULT true,
+  allow_admin_edit     boolean              NOT NULL DEFAULT false,
+  allow_child_override boolean              NOT NULL DEFAULT false,
   updated_by           uuid REFERENCES auth.users(id),
   updated_at           timestamptz          NOT NULL DEFAULT now(),
   PRIMARY KEY (scope, scope_id, key)

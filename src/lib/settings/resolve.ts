@@ -77,8 +77,8 @@ export function effectiveDefinition<T>(
 // ---------------------------------------------------------------------------
 
 const DEFAULT_LOCKS: InstitutionLocks = {
-  allowAdminEdit: true,
-  allowChildOverride: true,
+  allowAdminEdit: false,
+  allowChildOverride: false,
 };
 
 function safeValidate<T>(
@@ -214,6 +214,24 @@ export function buildClassSettings(
 
 /** Convenience type — fully-resolved bundle for one scope. */
 export type EffectiveSettings = Record<SettingKey, EffectiveSetting>;
+
+/** True if any institution setting row allows class-level overrides. */
+export function institutionAllowsClassSettingsOverride(
+  bundle: EffectiveSettings,
+): boolean {
+  return Object.values(bundle).some(
+    (eff) => eff.institutionLocks.allowChildOverride,
+  );
+}
+
+/** True if any institution setting row allows institution-admin edits. */
+export function institutionAllowsInstitutionAdminSettingsEdit(
+  bundle: EffectiveSettings,
+): boolean {
+  return Object.values(bundle).some(
+    (eff) => eff.institutionLocks.allowAdminEdit,
+  );
+}
 
 /** Typed accessor that returns a strongly-typed value for a known key. */
 export function getEffectiveValue<K extends SettingKey>(

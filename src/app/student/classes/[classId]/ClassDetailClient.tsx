@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
+import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
 import Content from "@/components/Student/Classes/Content";
 import ProfileDetailsDialog from "@/components/Student/Classes/ProfileDetailsDialog";
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,15 @@ export default function ClassDetailClient({
               </Link>
             </Button>
           </div>
+
+          {classData.institution_id && (
+            <div className="mb-6">
+              <AiConfigMisconfigBanner
+                classDbId={classData.id}
+                institutionId={classData.institution_id}
+              />
+            </div>
+          )}
 
           <Content classData={classData} />
         </div>

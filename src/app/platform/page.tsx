@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import PageLayout from "@/components/PageLayout";
 import InstitutionCard from "@/components/Platform/InstitutionCard";
 import { requireSuperAdmin } from "@/lib/dal";
@@ -49,6 +51,17 @@ export default async function PlatformPage({
             .
           </p>
         </header>
+
+        <p className="text-sm">
+          <Link
+            href="/platform/ai-settings"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Platform AI settings
+          </Link>
+          {" — "}
+          default provider, model, and API keys for text-based AI features.
+        </p>
 
         {(okMsg || errorMsg) && (
           <div

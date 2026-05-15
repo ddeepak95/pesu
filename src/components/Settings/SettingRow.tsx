@@ -254,12 +254,16 @@ function ClassSettingRow({
     });
   };
 
-  const overridingDisabled =
-    !caps.canEditClassOverride && !caps.canClearClassOverride;
+  const childOverrideAllowed =
+    viewerRole === "super_admin" ||
+    effective.institutionLocks.allowChildOverride;
+  const canManageOverride =
+    caps.canEditClassOverride || caps.canClearClassOverride;
+  const showOverrideToggle = childOverrideAllowed && canManageOverride;
 
   return (
     <SettingRowShell definition={def} sourceLabel={sourceLabel(effective)}>
-      {!effective.institutionLocks.allowChildOverride && (
+      {!childOverrideAllowed && (
         <p className="text-xs text-muted-foreground mb-3">
           Locked by the institution. Inherited value is shown read-only.
         </p>
@@ -267,18 +271,30 @@ function ClassSettingRow({
 
       <div className="flex items-center justify-between gap-4 mb-3">
         <div className="text-sm text-muted-foreground">
-          Inherited: <ValuePreview value={inheritedValue} definition={def} />
+          {showOverrideToggle ? (
+            <>
+              Inherited:{" "}
+              <ValuePreview value={inheritedValue} definition={def} />
+            </>
+          ) : (
+            <>
+              Effective:{" "}
+              <ValuePreview value={effective.value} definition={def} />
+            </>
+          )}
         </div>
-        <LockToggle
-          id={`${def.key}-override`}
-          label="Override for this class"
-          checked={overrideEnabled}
-          disabled={overridingDisabled || pending}
-          onChange={handleToggleOverride}
-        />
+        {showOverrideToggle && (
+          <LockToggle
+            id={`${def.key}-override`}
+            label="Override for this class"
+            checked={overrideEnabled}
+            disabled={pending}
+            onChange={handleToggleOverride}
+          />
+        )}
       </div>
 
-      {overrideEnabled && (
+      {showOverrideToggle && overrideEnabled && (
         <SettingControl
           value={draft}
           onChange={setDraft}
@@ -289,7 +305,7 @@ function ClassSettingRow({
       )}
 
       <RowFooter
-        canSave={!overridingDisabled}
+        canSave={showOverrideToggle}
         hasChanges={hasChanges}
         pending={pending}
         savedAt={savedAt}

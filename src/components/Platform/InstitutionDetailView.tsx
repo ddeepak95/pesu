@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
+import InstitutionAiConfigCard from "@/components/Settings/InstitutionAiConfigCard";
 import InstitutionSettingsForm from "@/components/Settings/InstitutionSettingsForm";
 import InstitutionClassCard from "@/components/Platform/InstitutionClassCard";
 import ManageInstitutionAdminInvite from "@/components/Platform/ManageInstitutionAdminInvite";
@@ -35,6 +36,7 @@ import type {
 } from "@/lib/queries/institutions";
 import type { Class } from "@/types/class";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
+import type { EffectiveAiConfigs } from "@/types/aiCapabilityConfig";
 
 import {
   addInstitutionAdminRequestAction,
@@ -62,6 +64,7 @@ export interface InstitutionDetailViewProps {
   backHref?: string;
   backLabel?: string;
   effectiveSettings: EffectiveSettings;
+  initialAiConfigs: EffectiveAiConfigs;
   /**
    * Base href used by the Classes tab to link into the per-class override
    * drill-down. The view appends `/{classDbId}`.
@@ -99,6 +102,7 @@ export default function InstitutionDetailView({
   backHref,
   backLabel,
   effectiveSettings,
+  initialAiConfigs,
   classOverrideHrefBase,
   notice,
 }: InstitutionDetailViewProps) {
@@ -209,6 +213,12 @@ export default function InstitutionDetailView({
             institutionId={institution.id}
             viewerRole={viewerRole}
             initialEffective={effectiveSettings}
+          />
+
+          <InstitutionAiConfigCard
+            institutionId={institution.id}
+            viewerRole={viewerRole}
+            initialEffective={initialAiConfigs}
           />
 
           <AdminsCard

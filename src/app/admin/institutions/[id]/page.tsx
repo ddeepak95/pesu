@@ -12,6 +12,7 @@ import {
   listInstitutionMembers,
   listInstitutions,
 } from "@/lib/queries/institutions";
+import { getInstitutionAiConfigs } from "@/lib/queries/aiCapabilityConfigs";
 import { getEffectiveSettingsForInstitution } from "@/lib/queries/settings";
 
 export const metadata = {
@@ -38,13 +39,14 @@ export default async function AdminInstitutionPage({
   const institution = await getInstitution(supabase, id);
   if (!institution) notFound();
 
-  const [members, classes, moves, allInstitutions, effectiveSettings] =
+  const [members, classes, moves, allInstitutions, effectiveSettings, initialAiConfigs] =
     await Promise.all([
       listInstitutionMembers(supabase, id),
       listClassesInInstitution(supabase, id),
       listClassMoves(supabase, { institutionId: id, limit: 25 }),
       listInstitutions(supabase),
       getEffectiveSettingsForInstitution(supabase, id),
+      getInstitutionAiConfigs(supabase, id),
     ]);
 
   const memberIds = members.map((m) => m.user_id);
@@ -86,6 +88,7 @@ export default async function AdminInstitutionPage({
         backHref={showBackLink ? "/admin" : undefined}
         backLabel={showBackLink ? "Back to institutions" : undefined}
         effectiveSettings={effectiveSettings}
+        initialAiConfigs={initialAiConfigs}
         classOverrideHrefBase={`/admin/institutions/${id}/classes`}
         notice={{ ok, error }}
       />

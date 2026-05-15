@@ -8,7 +8,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useEffectiveClassSettings } from "@/hooks/swr/useSettings";
-import type { ViewerRole } from "@/lib/settings/capabilities";
+import {
+  canViewClassOverrideSections,
+  type ViewerRole,
+} from "@/lib/settings/capabilities";
+import { institutionAllowsClassSettingsOverride } from "@/lib/settings/resolve";
 
 import SettingsList from "./SettingsList";
 
@@ -18,12 +22,6 @@ interface ClassInheritedSettingsSectionProps {
   viewerRole: ViewerRole;
 }
 
-/**
- * Mounted inside the existing class settings page. Lists every registry
- * setting that applies at class scope, showing the inherited value and an
- * "Override for this class" toggle whose visibility is decided by the
- * capabilities helper.
- */
 export default function ClassInheritedSettingsSection({
   classDbId,
   classShortId,
@@ -40,6 +38,11 @@ export default function ClassInheritedSettingsSection({
         </CardHeader>
       </Card>
     );
+  }
+
+  const allowChildOverride = institutionAllowsClassSettingsOverride(effective);
+  if (!canViewClassOverrideSections(viewerRole, allowChildOverride)) {
+    return null;
   }
 
   return (

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
+import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
 import Content from "@/components/Teacher/Classes/Content";
 import Students from "@/components/Teacher/Classes/Students";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,15 @@ export default function ClassDetailClient({
               </Button>
             )}
           </div>
+
+          {classData.institution_id && (
+            <div className="mb-6">
+              <AiConfigMisconfigBanner
+                classDbId={classData.id}
+                institutionId={classData.institution_id}
+              />
+            </div>
+          )}
 
           <Tabs
             value={activeTab}

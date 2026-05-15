@@ -1,6 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 
 import { verifySession } from "@/lib/dal";
+import {
+  getClassAiConfigs,
+  getInstitutionAiConfigs,
+} from "@/lib/queries/aiCapabilityConfigs";
 import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 
 import ClassSettingsClient from "./ClassSettingsClient";
@@ -42,11 +46,21 @@ export default async function ClassSettingsPage({
     redirect(`/teacher/classes/${classId}`);
   }
 
+  const institutionId = classData.institution_id as string | undefined;
+  const [initialAiConfigs, initialInstitutionAiConfigs] = institutionId
+    ? await Promise.all([
+        getClassAiConfigs(supabase, classData.id),
+        getInstitutionAiConfigs(supabase, institutionId),
+      ])
+    : [undefined, undefined];
+
   return (
     <ClassSettingsClient
       classData={classData}
       classId={classId}
       viewerRole={viewerRole}
+      initialAiConfigs={initialAiConfigs}
+      initialInstitutionAiConfigs={initialInstitutionAiConfigs}
     />
   );
 }

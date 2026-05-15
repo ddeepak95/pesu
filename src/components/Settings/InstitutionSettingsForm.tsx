@@ -8,8 +8,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useEffectiveInstitutionSettings } from "@/hooks/swr/useSettings";
-import type { ViewerRole } from "@/lib/settings/capabilities";
-import type { EffectiveSettings } from "@/lib/settings/resolve";
+import {
+  canViewInstitutionOverrideSections,
+  type ViewerRole,
+} from "@/lib/settings/capabilities";
+import {
+  institutionAllowsInstitutionAdminSettingsEdit,
+  type EffectiveSettings,
+} from "@/lib/settings/resolve";
 
 import SettingsList from "./SettingsList";
 
@@ -31,6 +37,12 @@ export default function InstitutionSettingsForm({
 }: InstitutionSettingsFormProps) {
   const { data: effective } = useEffectiveInstitutionSettings(institutionId);
   const resolved = effective ?? initialEffective;
+
+  const allowAdminEdit =
+    institutionAllowsInstitutionAdminSettingsEdit(resolved);
+  if (!canViewInstitutionOverrideSections(viewerRole, allowAdminEdit)) {
+    return null;
+  }
 
   return (
     <Card>

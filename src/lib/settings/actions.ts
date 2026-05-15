@@ -75,7 +75,7 @@ async function getInstitutionLocksForKey(
   key: SettingKey
 ) {
   if (!institutionId) {
-    return { allowAdminEdit: true, allowChildOverride: true };
+    return { allowAdminEdit: false, allowChildOverride: false };
   }
   const rows = await listSettingRowsForScope(
     supabase,
