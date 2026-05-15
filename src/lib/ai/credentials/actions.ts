@@ -14,6 +14,11 @@ import {
 } from "@/lib/queries/aiCapabilityConfigs";
 import { PLATFORM_SCOPE_ID } from "@/lib/ai/credentials/constants";
 import {
+  clearModelConfigCache,
+  invalidateModelConfigCache,
+  invalidateModelConfigCacheForInstitution,
+} from "@/lib/ai/credentials/modelConfigCache";
+import {
   encryptApiKey,
   keyHintFromPlaintext,
 } from "@/lib/ai/credentials/crypto";
@@ -162,6 +167,7 @@ export async function upsertPlatformAiConfigAction(input: {
       enc,
     );
     await upsertAiConfigForScope(supabase, args);
+    clearModelConfigCache();
     revalidatePlatformAi();
     return ok();
   } catch (err) {
@@ -211,6 +217,7 @@ export async function upsertInstitutionAiConfigAction(input: {
       enc,
     );
     await upsertAiConfigForScope(supabase, args);
+    await invalidateModelConfigCacheForInstitution(input.institutionId);
     revalidateInstitution(input.institutionId);
     return ok();
   } catch (err) {
@@ -257,6 +264,7 @@ export async function upsertClassAiConfigAction(input: {
       enc,
     );
     await upsertAiConfigForScope(supabase, args);
+    invalidateModelConfigCache(input.classDbId, capabilityKey);
     revalidateClass(input.classShortId);
     return ok();
   } catch (err) {
@@ -290,6 +298,7 @@ export async function clearClassAiConfigOverrideAction(input: {
       input.classDbId,
       capabilityKey,
     );
+    invalidateModelConfigCache(input.classDbId, capabilityKey);
     revalidateClass(input.classShortId);
     return ok();
   } catch (err) {
@@ -326,6 +335,7 @@ export async function setInstitutionAiConfigLocksAction(input: {
       user.id,
       bundle.institutionPolicy,
     );
+    await invalidateModelConfigCacheForInstitution(input.institutionId);
     revalidateInstitution(input.institutionId);
     return ok();
   } catch (err) {

@@ -3,10 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
 import { getDefaultProviderOptions } from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
-import {
-  AiNotConfiguredError,
-  resolveModelConfig,
-} from "@/lib/ai/credentials/resolve";
+import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
+import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
 import { createChatStream } from "@/lib/ai/chat-stream";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
@@ -88,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     let resolved;
     try {
-      resolved = await resolveModelConfig({
+      resolved = await getCachedResolveModelConfig({
         classDbId: assignment.class_id as string,
       });
     } catch (error) {
