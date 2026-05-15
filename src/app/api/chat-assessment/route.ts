@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
-import {
-  getDefaultModelConfigFromEnv,
-  getDefaultProviderOptions,
-} from "@/lib/ai/config";
+import { getDefaultProviderOptions } from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
+import {
+  AiNotConfiguredError,
+  resolveModelConfig,
+} from "@/lib/ai/credentials/resolve";
 import { createChatStream } from "@/lib/ai/chat-stream";
+import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
   DEFAULT_MAX_ATTEMPTS,
   isRetryableProviderError,
@@ -71,6 +73,47 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
 
+    const { data: assignment, error: assignmentError } = await supabase
+      .from("assignments")
+      .select("class_id")
+      .eq("assignment_id", assignmentId)
+      .single();
+
+    if (assignmentError || !assignment?.class_id) {
+      return NextResponse.json(
+        { error: "Assignment not found" },
+        { status: 404 },
+      );
+    }
+
+    let resolved;
+    try {
+      resolved = await resolveModelConfig({
+        classDbId: assignment.class_id as string,
+      });
+    } catch (error) {
+      if (error instanceof AiNotConfiguredError) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            code: error.code,
+          },
+          { status: 503 },
+        );
+      }
+      throw error;
+    }
+
+    const { config, keySource } = resolved;
+    const model = getLanguageModel(config);
+    const providerOptions = getDefaultProviderOptions(config.provider);
+
+    const aiMetadata = {
+      aiKeySource: keySource,
+      aiProvider: config.provider,
+      aiModelId: config.modelId,
+    };
+
     // Log latest student message
     try {
       const studentMessages = messages.filter(
@@ -78,7 +121,7 @@ export async function POST(request: NextRequest) {
       );
       const latestStudent = studentMessages[studentMessages.length - 1];
       if (latestStudent) {
-        await supabase.from("chat_messages").insert({
+        await insertChatMessage(supabase, {
           submission_id: submissionId ?? null,
           assignment_id: assignmentId,
           question_order: questionOrder,
@@ -91,16 +134,12 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log chat message(s):", error);
     }
 
-    const config = getDefaultModelConfigFromEnv();
-    const model = getLanguageModel(config);
-
     const sdkMessages = messages.map((msg) => ({
       role: msg.role === "student" ? ("user" as const) : ("assistant" as const),
       content: msg.content,
     }));
 
     const encoder = new TextEncoder();
-    const providerOptions = getDefaultProviderOptions(config.provider);
 
     const readable = new ReadableStream({
       async start(controller) {
@@ -114,8 +153,6 @@ export async function POST(request: NextRequest) {
             messages: sdkMessages,
             providerOptions,
           });
-          console.log("systemPrompt", systemPrompt);
-          console.log("result", sdkMessages);
           let deliveredToClient = false;
 
           try {
@@ -209,24 +246,19 @@ export async function POST(request: NextRequest) {
 
         // Log assistant reply
         if (fullReply.trim()) {
-          supabase
-            .from("chat_messages")
-            .insert({
+          try {
+            await insertChatMessage(supabase, {
               submission_id: submissionId ?? null,
               assignment_id: assignmentId,
               question_order: questionOrder,
               role: "assistant",
               content: fullReply,
               attempt_number: attemptNumber ?? null,
-            })
-            .then(({ error }) => {
-              if (error) {
-                console.error(
-                  "Failed to log assistant chat message:",
-                  error,
-                );
-              }
+              aiMetadata,
             });
+          } catch (error) {
+            console.error("Failed to log assistant chat message:", error);
+          }
         }
 
         controller.close();

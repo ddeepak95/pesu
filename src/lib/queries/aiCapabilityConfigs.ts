@@ -53,6 +53,26 @@ export async function listAiConfigSecretsForScope(
   return (data ?? []) as AiCapabilityConfigSecretRow[];
 }
 
+/** Fetch one capability row with ciphertext (custom config only). */
+export async function getAiConfigSecretForCapability(
+  supabase: SupabaseClient,
+  scope: AiConfigScope,
+  scopeId: string,
+  capabilityKey: string,
+): Promise<AiCapabilityConfigSecretRow | null> {
+  asAiCapabilityKey(capabilityKey);
+  const { data, error } = await supabase
+    .from("ai_capability_configs")
+    .select(SECRET_COLUMNS)
+    .eq("scope", scope)
+    .eq("scope_id", scopeId)
+    .eq("capability_key", capabilityKey)
+    .eq("use_platform_default", false)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as AiCapabilityConfigSecretRow | null;
+}
+
 export async function getPlatformAiConfigs(
   supabase: SupabaseClient,
 ): Promise<EffectiveAiConfigs> {

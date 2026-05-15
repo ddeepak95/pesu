@@ -15,3 +15,5 @@ export function isAiConfigLocksKey(capabilityKey: string): boolean {
 export function defaultGoogleModelId(): string {
   return DEFAULT_GOOGLE_MODEL;
 }
+
+export const AI_NOT_CONFIGURED_ERROR_CODE = "AI_NOT_CONFIGURED" as const;

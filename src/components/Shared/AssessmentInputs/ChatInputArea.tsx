@@ -10,6 +10,7 @@ import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
 import { createBulkInputGuard } from "./wordLimitGuards";
+import { AI_NOT_CONFIGURED_ERROR_CODE } from "@/lib/ai/credentials/constants";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 
@@ -327,6 +328,16 @@ export function ChatInputArea({
           );
           return;
         }
+        if (
+          response.status === 503 &&
+          errorData.code === AI_NOT_CONFIGURED_ERROR_CODE
+        ) {
+          showErrorToast(
+            errorData.error ||
+              "AI capabilities are disabled for this class. Please contact your instructor.",
+          );
+          return;
+        }
         throw new Error(errorData.error || "Failed to start chat");
       }
 
@@ -428,6 +439,16 @@ export function ChatInputArea({
           showErrorToast(
             errorData.error ||
               "Access to this assessment has been suspended.",
+          );
+          return;
+        }
+        if (
+          response.status === 503 &&
+          errorData.code === AI_NOT_CONFIGURED_ERROR_CODE
+        ) {
+          showErrorToast(
+            errorData.error ||
+              "AI capabilities are disabled for this class. Please contact your instructor.",
           );
           return;
         }
