@@ -5,7 +5,8 @@ import {
   type AiCapabilityKey,
 } from "@/lib/ai/capabilities/registry";
 import {
-  resolveModelConfig,
+  loadClassAiConfigContext,
+  resolveModelConfigFromContext,
   type ResolveModelConfigResult,
 } from "@/lib/ai/credentials/resolve";
 import { createServiceRoleClient } from "@/lib/supabase-server";
@@ -18,14 +19,35 @@ type CacheEntry = {
   expiresAt: number;
 };
 
-const cache = new Map<string, CacheEntry>();
-const inflight = new Map<string, Promise<ResolveModelConfigResult>>();
+type ModelConfigCacheStore = {
+  cache: Map<string, CacheEntry>;
+  inflight: Map<string, Promise<ResolveModelConfigResult>>;
+};
 
-function cacheKey(classDbId: string, capabilityKey: AiCapabilityKey): string {
-  return `${capabilityKey}:${classDbId}`;
+const globalStore = globalThis as typeof globalThis & {
+  __modelConfigCacheStore?: ModelConfigCacheStore;
+};
+
+function getStore(): ModelConfigCacheStore {
+  if (!globalStore.__modelConfigCacheStore) {
+    globalStore.__modelConfigCacheStore = {
+      cache: new Map(),
+      inflight: new Map(),
+    };
+  }
+  return globalStore.__modelConfigCacheStore;
+}
+
+function cacheKey(
+  classDbId: string,
+  capabilityKey: AiCapabilityKey,
+  fingerprint: string,
+): string {
+  return `${capabilityKey}:${classDbId}:${fingerprint}`;
 }
 
 function getCached(key: string): ResolveModelConfigResult | null {
+  const { cache } = getStore();
   const entry = cache.get(key);
   if (!entry) return null;
   if (Date.now() >= entry.expiresAt) {
@@ -36,29 +58,39 @@ function getCached(key: string): ResolveModelConfigResult | null {
 }
 
 function setCached(key: string, result: ResolveModelConfigResult): void {
-  cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+  getStore().cache.set(key, {
+    result,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
 }
 
 /**
  * Resolve model config with in-memory TTL cache (chat and other opt-in callers).
- * Dedupes concurrent resolves for the same class on a warm instance.
+ * Cache key includes a DB fingerprint so config changes invalidate stale entries
+ * even when server actions and route handlers use separate module instances.
  */
 export async function getCachedResolveModelConfig(input: {
   classDbId: string;
   capabilityKey?: AiCapabilityKey;
 }): Promise<ResolveModelConfigResult> {
   const capabilityKey = input.capabilityKey ?? TEXT_CAPABILITY_KEY;
-  const key = cacheKey(input.classDbId, capabilityKey);
+  const ctx = await loadClassAiConfigContext({
+    classDbId: input.classDbId,
+    capabilityKey,
+  });
+  const key = cacheKey(input.classDbId, capabilityKey, ctx.cacheFingerprint);
 
   const hit = getCached(key);
   if (hit) return hit;
 
+  const { inflight } = getStore();
   let pending = inflight.get(key);
   if (!pending) {
-    pending = resolveModelConfig({
-      classDbId: input.classDbId,
+    pending = resolveModelConfigFromContext(
+      input.classDbId,
       capabilityKey,
-    })
+      ctx,
+    )
       .then((result) => {
         setCached(key, result);
         return result;
@@ -76,18 +108,23 @@ export function invalidateModelConfigCache(
   classDbId: string,
   capabilityKey?: AiCapabilityKey,
 ): void {
+  const { cache, inflight } = getStore();
   if (capabilityKey) {
-    const key = cacheKey(classDbId, capabilityKey);
-    cache.delete(key);
-    inflight.delete(key);
+    const prefix = `${capabilityKey}:${classDbId}:`;
+    for (const k of cache.keys()) {
+      if (k.startsWith(prefix)) cache.delete(k);
+    }
+    for (const k of inflight.keys()) {
+      if (k.startsWith(prefix)) inflight.delete(k);
+    }
     return;
   }
-  const suffix = `:${classDbId}`;
-  for (const key of cache.keys()) {
-    if (key.endsWith(suffix)) cache.delete(key);
+  const suffix = `:${classDbId}:`;
+  for (const k of cache.keys()) {
+    if (k.includes(suffix)) cache.delete(k);
   }
-  for (const key of inflight.keys()) {
-    if (key.endsWith(suffix)) inflight.delete(key);
+  for (const k of inflight.keys()) {
+    if (k.includes(suffix)) inflight.delete(k);
   }
 }
 
@@ -106,6 +143,7 @@ export async function invalidateModelConfigCacheForInstitution(
 }
 
 export function clearModelConfigCache(): void {
-  cache.clear();
-  inflight.clear();
+  const store = getStore();
+  store.cache.clear();
+  store.inflight.clear();
 }

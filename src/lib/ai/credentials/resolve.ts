@@ -12,6 +12,7 @@ import {
 import { buildClassAiConfigs } from "@/lib/ai/credentials/buildEffective";
 import { decryptApiKey } from "@/lib/ai/credentials/crypto";
 import {
+  AI_CONFIG_LOCKS_KEY,
   AI_NOT_CONFIGURED_ERROR_CODE,
   PLATFORM_SCOPE_ID,
   type AiConfigScope,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/queries/aiCapabilityConfigs";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import type {
+  AiCapabilityConfigMetaRow,
   AiCapabilityConfigSecretRow,
   AiConfigSource,
   EffectiveAiCapabilityMeta,
@@ -81,13 +83,43 @@ function winningScopeForMeta(
   return null;
 }
 
-async function loadClassCapabilityMeta(input: {
-  classDbId: string;
-  capabilityKey: AiCapabilityKey;
-}): Promise<{
+function rowUpdatedAt(
+  rows: AiCapabilityConfigMetaRow[],
+  capabilityKey: string,
+): string {
+  return rows.find((r) => r.capability_key === capabilityKey)?.updated_at ?? "";
+}
+
+/** Changes when any scope row or lock policy affecting effective config changes. */
+export function buildModelConfigCacheFingerprint(
+  capabilityKey: AiCapabilityKey,
+  platformRows: AiCapabilityConfigMetaRow[],
+  instRows: AiCapabilityConfigMetaRow[],
+  classRows: AiCapabilityConfigMetaRow[],
+): string {
+  const bundle = buildClassAiConfigs(platformRows, instRows, classRows);
+  const meta = bundle.capabilities[capabilityKey];
+  return [
+    meta.source,
+    meta.usePlatformDefault,
+    rowUpdatedAt(platformRows, capabilityKey),
+    rowUpdatedAt(instRows, capabilityKey),
+    rowUpdatedAt(classRows, capabilityKey),
+    rowUpdatedAt(instRows, AI_CONFIG_LOCKS_KEY),
+  ].join("|");
+}
+
+export interface ClassAiConfigContext {
   meta: EffectiveAiCapabilityMeta;
   institutionId: string | undefined;
-}> {
+  cacheFingerprint: string;
+}
+
+export async function loadClassAiConfigContext(input: {
+  classDbId: string;
+  capabilityKey?: AiCapabilityKey;
+}): Promise<ClassAiConfigContext> {
+  const capabilityKey = input.capabilityKey ?? TEXT_CAPABILITY_KEY;
   const service = createServiceRoleClient();
   const { data: classRow, error: classErr } = await service
     .from("classes")
@@ -107,24 +139,23 @@ async function loadClassCapabilityMeta(input: {
 
   const bundle = buildClassAiConfigs(platformRows, instRows, classRows);
   return {
-    meta: bundle.capabilities[input.capabilityKey],
+    meta: bundle.capabilities[capabilityKey],
     institutionId,
+    cacheFingerprint: buildModelConfigCacheFingerprint(
+      capabilityKey,
+      platformRows,
+      instRows,
+      classRows,
+    ),
   };
 }
 
-/**
- * Resolve provider + model + decrypted API key for a class.
- * Defaults to the text capability (all text LLM routes).
- */
-export async function resolveModelConfig(input: {
-  classDbId: string;
-  capabilityKey?: AiCapabilityKey;
-}): Promise<ResolveModelConfigResult> {
-  const capabilityKey = input.capabilityKey ?? TEXT_CAPABILITY_KEY;
-  const { meta, institutionId } = await loadClassCapabilityMeta({
-    classDbId: input.classDbId,
-    capabilityKey,
-  });
+export async function resolveModelConfigFromContext(
+  classDbId: string,
+  capabilityKey: AiCapabilityKey,
+  ctx: ClassAiConfigContext,
+): Promise<ResolveModelConfigResult> {
+  const { meta, institutionId } = ctx;
 
   if (meta.source === "unconfigured") {
     throw new AiNotConfiguredError();
@@ -137,7 +168,7 @@ export async function resolveModelConfig(input: {
     };
   }
 
-  const winning = winningScopeForMeta(meta, input.classDbId, institutionId);
+  const winning = winningScopeForMeta(meta, classDbId, institutionId);
   if (!winning) {
     throw new AiNotConfiguredError();
   }
@@ -160,13 +191,29 @@ export async function resolveModelConfig(input: {
   };
 }
 
+/**
+ * Resolve provider + model + decrypted API key for a class.
+ * Defaults to the text capability (all text LLM routes).
+ */
+export async function resolveModelConfig(input: {
+  classDbId: string;
+  capabilityKey?: AiCapabilityKey;
+}): Promise<ResolveModelConfigResult> {
+  const capabilityKey = input.capabilityKey ?? TEXT_CAPABILITY_KEY;
+  const ctx = await loadClassAiConfigContext({
+    classDbId: input.classDbId,
+    capabilityKey,
+  });
+  return resolveModelConfigFromContext(input.classDbId, capabilityKey, ctx);
+}
+
 /** Effective metadata without decrypting keys. */
 export async function resolveModelConfigMeta(input: {
   classDbId: string;
   capabilityKey?: AiCapabilityKey;
 }): Promise<EffectiveAiCapabilityMeta> {
   const capabilityKey = input.capabilityKey ?? TEXT_CAPABILITY_KEY;
-  const { meta } = await loadClassCapabilityMeta({
+  const { meta } = await loadClassAiConfigContext({
     classDbId: input.classDbId,
     capabilityKey,
   });
