@@ -12,7 +12,6 @@ import {
 import { buildClassAiConfigs } from "@/lib/ai/credentials/buildEffective";
 import { decryptApiKey } from "@/lib/ai/credentials/crypto";
 import {
-  AI_CONFIG_LOCKS_KEY,
   AI_NOT_CONFIGURED_ERROR_CODE,
   PLATFORM_SCOPE_ID,
   type AiConfigScope,
@@ -23,7 +22,6 @@ import {
 } from "@/lib/queries/aiCapabilityConfigs";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import type {
-  AiCapabilityConfigMetaRow,
   AiCapabilityConfigSecretRow,
   AiConfigSource,
   EffectiveAiCapabilityMeta,
@@ -83,36 +81,9 @@ function winningScopeForMeta(
   return null;
 }
 
-function rowUpdatedAt(
-  rows: AiCapabilityConfigMetaRow[],
-  capabilityKey: string,
-): string {
-  return rows.find((r) => r.capability_key === capabilityKey)?.updated_at ?? "";
-}
-
-/** Changes when any scope row or lock policy affecting effective config changes. */
-export function buildModelConfigCacheFingerprint(
-  capabilityKey: AiCapabilityKey,
-  platformRows: AiCapabilityConfigMetaRow[],
-  instRows: AiCapabilityConfigMetaRow[],
-  classRows: AiCapabilityConfigMetaRow[],
-): string {
-  const bundle = buildClassAiConfigs(platformRows, instRows, classRows);
-  const meta = bundle.capabilities[capabilityKey];
-  return [
-    meta.source,
-    meta.usePlatformDefault,
-    rowUpdatedAt(platformRows, capabilityKey),
-    rowUpdatedAt(instRows, capabilityKey),
-    rowUpdatedAt(classRows, capabilityKey),
-    rowUpdatedAt(instRows, AI_CONFIG_LOCKS_KEY),
-  ].join("|");
-}
-
 export interface ClassAiConfigContext {
   meta: EffectiveAiCapabilityMeta;
   institutionId: string | undefined;
-  cacheFingerprint: string;
 }
 
 export async function loadClassAiConfigContext(input: {
@@ -141,12 +112,6 @@ export async function loadClassAiConfigContext(input: {
   return {
     meta: bundle.capabilities[capabilityKey],
     institutionId,
-    cacheFingerprint: buildModelConfigCacheFingerprint(
-      capabilityKey,
-      platformRows,
-      instRows,
-      classRows,
-    ),
   };
 }
 

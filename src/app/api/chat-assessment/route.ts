@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
 import { getDefaultProviderOptions } from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
@@ -58,26 +58,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (submissionId) {
-      const supabase = await createServerSupabaseClient();
-      const integrityBlock = await assertSubmissionNotIntegrityLocked(
-        supabase,
-        submissionId,
-      );
-      if (integrityBlock) {
-        return integrityBlock;
-      }
-    }
-
     const supabase = await createServerSupabaseClient();
 
-    const { data: assignment, error: assignmentError } = await supabase
-      .from("assignments")
-      .select("class_id")
-      .eq("assignment_id", assignmentId)
-      .single();
-
-    if (assignmentError || !assignment?.class_id) {
+    const classDbId = await getClassDbIdForAssignment(supabase, assignmentId);
+    if (!classDbId) {
       return NextResponse.json(
         { error: "Assignment not found" },
         { status: 404 },
@@ -87,7 +71,7 @@ export async function POST(request: NextRequest) {
     let resolved;
     try {
       resolved = await getCachedResolveModelConfig({
-        classDbId: assignment.class_id as string,
+        classDbId,
       });
     } catch (error) {
       if (error instanceof AiNotConfiguredError) {

@@ -5,8 +5,7 @@ import {
   type AiCapabilityKey,
 } from "@/lib/ai/capabilities/registry";
 import {
-  loadClassAiConfigContext,
-  resolveModelConfigFromContext,
+  resolveModelConfig,
   type ResolveModelConfigResult,
 } from "@/lib/ai/credentials/resolve";
 import { createServiceRoleClient } from "@/lib/supabase-server";
@@ -41,9 +40,8 @@ function getStore(): ModelConfigCacheStore {
 function cacheKey(
   classDbId: string,
   capabilityKey: AiCapabilityKey,
-  fingerprint: string,
 ): string {
-  return `${capabilityKey}:${classDbId}:${fingerprint}`;
+  return `${capabilityKey}:${classDbId}`;
 }
 
 function getCached(key: string): ResolveModelConfigResult | null {
@@ -66,19 +64,14 @@ function setCached(key: string, result: ResolveModelConfigResult): void {
 
 /**
  * Resolve model config with in-memory TTL cache (chat and other opt-in callers).
- * Cache key includes a DB fingerprint so config changes invalidate stale entries
- * even when server actions and route handlers use separate module instances.
+ * On a cache hit, skips all AI config Supabase reads; invalidation runs on settings save.
  */
 export async function getCachedResolveModelConfig(input: {
   classDbId: string;
   capabilityKey?: AiCapabilityKey;
 }): Promise<ResolveModelConfigResult> {
   const capabilityKey = input.capabilityKey ?? TEXT_CAPABILITY_KEY;
-  const ctx = await loadClassAiConfigContext({
-    classDbId: input.classDbId,
-    capabilityKey,
-  });
-  const key = cacheKey(input.classDbId, capabilityKey, ctx.cacheFingerprint);
+  const key = cacheKey(input.classDbId, capabilityKey);
 
   const hit = getCached(key);
   if (hit) return hit;
@@ -86,11 +79,10 @@ export async function getCachedResolveModelConfig(input: {
   const { inflight } = getStore();
   let pending = inflight.get(key);
   if (!pending) {
-    pending = resolveModelConfigFromContext(
-      input.classDbId,
+    pending = resolveModelConfig({
+      classDbId: input.classDbId,
       capabilityKey,
-      ctx,
-    )
+    })
       .then((result) => {
         setCached(key, result);
         return result;
@@ -110,21 +102,17 @@ export function invalidateModelConfigCache(
 ): void {
   const { cache, inflight } = getStore();
   if (capabilityKey) {
-    const prefix = `${capabilityKey}:${classDbId}:`;
-    for (const k of cache.keys()) {
-      if (k.startsWith(prefix)) cache.delete(k);
-    }
-    for (const k of inflight.keys()) {
-      if (k.startsWith(prefix)) inflight.delete(k);
-    }
+    const k = cacheKey(classDbId, capabilityKey);
+    cache.delete(k);
+    inflight.delete(k);
     return;
   }
-  const suffix = `:${classDbId}:`;
+  const suffix = `:${classDbId}`;
   for (const k of cache.keys()) {
-    if (k.includes(suffix)) cache.delete(k);
+    if (k.endsWith(suffix)) cache.delete(k);
   }
   for (const k of inflight.keys()) {
-    if (k.includes(suffix)) inflight.delete(k);
+    if (k.endsWith(suffix)) inflight.delete(k);
   }
 }
 
