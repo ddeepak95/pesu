@@ -11,6 +11,7 @@ import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider"
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { evaluationSchema, type LLMRubricScore } from "./schemas/evaluation";
 import { generateStructured } from "./structured";
+import type { StartAiInvocationInput } from "./logging/types";
 
 export interface EvaluateSubmissionParams {
   model: LanguageModelV3;
@@ -21,6 +22,7 @@ export interface EvaluateSubmissionParams {
   language: string;
   sharedContext?: string;
   customEvaluationPrompt?: string;
+  invocation?: Omit<StartAiInvocationInput, "sdkRequest" | "retryOf" | "retryIndex">;
 }
 
 export interface ValidatedRubricScore {
@@ -49,6 +51,7 @@ export async function evaluateSubmission(
     sharedContext,
     customEvaluationPrompt,
     providerOptions,
+    invocation,
   } = params;
 
   const maxScore = rubric.reduce((sum, item) => sum + item.points, 0);
@@ -102,6 +105,9 @@ The users are students. All feedback must be age-appropriate, supportive, and re
       { role: "user", content: userMessageContent },
     ],
     providerOptions,
+    invocation: invocation
+      ? { ...invocation, schemaName: "evaluationSchema" }
+      : undefined,
   });
 
   const validatedRubricScores = evaluationResult.rubric_scores.map(

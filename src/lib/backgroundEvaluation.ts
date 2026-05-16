@@ -6,9 +6,13 @@ import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
+import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import type { AiConfigSource } from "@/types/aiSettings";
 
 export interface BackgroundEvaluationParams {
   submissionId: string;
+  assignmentId: string;
+  classDbId: string;
   questionOrder: number;
   attemptNumber: number;
   answerText: string;
@@ -18,6 +22,7 @@ export interface BackgroundEvaluationParams {
   sharedContext?: string;
   customEvaluationPrompt?: string;
   modelConfig: ResolvedModelConfig;
+  keySource: AiConfigSource;
 }
 
 /**
@@ -33,6 +38,8 @@ export async function runBackgroundEvaluation(
 ): Promise<SubmissionAttempt> {
   const {
     submissionId,
+    assignmentId,
+    classDbId,
     questionOrder,
     attemptNumber,
     answerText,
@@ -41,6 +48,7 @@ export async function runBackgroundEvaluation(
     language,
     sharedContext,
     customEvaluationPrompt,
+    keySource,
   } = params;
 
   if (!params.modelConfig) {
@@ -58,6 +66,15 @@ export async function runBackgroundEvaluation(
       language,
       sharedContext,
       customEvaluationPrompt,
+      invocation: {
+        appFunctionKey: "text.evaluation",
+        classId: classDbId,
+        assignmentId,
+        submissionId,
+        questionOrder,
+        attemptNumber,
+        model: modelMetaFromResolved(params.modelConfig, keySource),
+      },
     });
 
   const supabase = await createServerSupabaseClient();

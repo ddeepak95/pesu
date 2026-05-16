@@ -14,7 +14,7 @@ export const DEFAULT_MAX_ATTEMPTS = 4;
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30_000;
 
-function isRetryable(error: unknown): boolean {
+export function isRetryable(error: unknown): boolean {
   if (isRetryableProviderError(error)) return true;
   if (!error || typeof error !== "object") return false;
   const statusCode = (error as Record<string, unknown>).statusCode as

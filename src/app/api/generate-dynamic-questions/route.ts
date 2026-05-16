@@ -20,9 +20,11 @@ import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-question
 import { generateStructured } from "@/lib/ai/structured";
 import {
   catalogNotConfiguredResponse,
-  resolveCatalogConfigForRequest,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
+import { modelMetaFromResolved } from "@/lib/ai/logging/types";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import type { AiConfigSource } from "@/types/aiSettings";
 
 /**
  * Interpolate template variables and conditional blocks into a prompt string.
@@ -154,6 +156,12 @@ async function generateMergedQuestions(
   },
   modelConfig: ResolvedModelConfig,
   customPromptTemplate?: string | null,
+  logging?: {
+    classDbId: string;
+    assignmentId: string;
+    submissionId: string;
+    keySource: AiConfigSource;
+  },
 ): Promise<Question[]> {
   const sorted = sortTemplates(templates);
   const n = sorted.length;
@@ -186,6 +194,16 @@ async function generateMergedQuestions(
         content: `Generate exactly ${n} question object(s) as specified. For each index i, the rubric must sum to the total points given for question i in the generation requirements.`,
       },
     ],
+    invocation: logging
+      ? {
+          appFunctionKey: "text.dynamic_questions",
+          classId: logging.classDbId,
+          assignmentId: logging.assignmentId,
+          submissionId: logging.submissionId,
+          model: modelMetaFromResolved(modelConfig, logging.keySource),
+          schemaName: "dynamicQuestionsSchema",
+        }
+      : undefined,
   });
 
   const output: Question[] = [];
@@ -375,9 +393,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let modelConfig: ResolvedModelConfig;
+    let catalogResolved;
     try {
-      modelConfig = await resolveCatalogConfigForRequest({
+      catalogResolved = await getCachedResolveModelConfig({
         classDbId,
         appFunctionKey: "text.dynamic_questions",
       });
@@ -395,8 +413,14 @@ export async function POST(request: NextRequest) {
       templates,
       fileContent,
       context,
-      modelConfig,
+      catalogResolved.config,
       assignment.dynamic_generation_prompt as string | null,
+      {
+        classDbId,
+        assignmentId,
+        submissionId,
+        keySource: catalogResolved.keySource,
+      },
     );
 
     const persistedFileIds = normalizeFileIds(submissionFileIds);

@@ -11,10 +11,7 @@ import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider"
 
 // ── end_conversation tool ────────────────────────────────────────────────────
 
-const endConversationInputSchema = jsonSchema<{
-  reason: "refusal" | "thorough";
-  message: string;
-}>({
+const endConversationJsonSchema = {
   type: "object",
   properties: {
     reason: {
@@ -32,8 +29,13 @@ const endConversationInputSchema = jsonSchema<{
   },
   required: ["reason", "message"],
   additionalProperties: false,
+} as const;
+
+const endConversationInputSchema = jsonSchema<{
+  reason: "refusal" | "thorough";
+  message: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} as any);
+}>(endConversationJsonSchema as any);
 
 const END_CONVERSATION_TOOL_DESCRIPTION =
   "End the conversation gracefully. Call this when: (1) the student explicitly " +
@@ -42,7 +44,13 @@ const END_CONVERSATION_TOOL_DESCRIPTION =
   "response covering the expected answers. Always provide a polite ending message " +
   "thanking the student.";
 
-// ── Public helper ────────────────────────────────────────────────────────────
+/** Serializable tool spec for AI invocation logs. */
+export const CHAT_END_CONVERSATION_TOOL_LOG = {
+  end_conversation: {
+    description: END_CONVERSATION_TOOL_DESCRIPTION,
+    inputSchema: endConversationJsonSchema,
+  },
+} as const;
 
 export interface ChatStreamOptions {
   model: LanguageModelV3;
@@ -52,37 +60,66 @@ export interface ChatStreamOptions {
   providerOptions?: SharedV3ProviderOptions;
 }
 
-/**
- * Start a chat stream. Returns the streamText result whose `.fullStream`
- * the caller iterates to emit SSE events.
- */
-export function createChatStream(options: ChatStreamOptions) {
-  const { model, systemPrompt, greeting, messages, providerOptions } = options;
+/** Exact arguments passed to streamText (for audit logging). */
+export interface ResolvedChatStreamCall {
+  system: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  tools: typeof CHAT_END_CONVERSATION_TOOL_LOG;
+  toolChoice: "auto";
+  stopWhen: "stepCountIs(2)";
+  providerOptions?: SharedV3ProviderOptions;
+}
+
+export function resolveChatStreamCall(
+  options: Omit<ChatStreamOptions, "model">,
+): ResolvedChatStreamCall {
+  const { systemPrompt, greeting, messages, providerOptions } = options;
 
   let system = systemPrompt;
   if (greeting && messages.length === 0) {
     system += `\n\n[Instructions for your first response]: ${greeting}`;
   }
 
-  // Gemini requires at least one user message in contents.
   const sdkMessages =
     messages.length > 0
       ? messages
       : [{ role: "user" as const, content: "Begin." }];
 
-  return streamText({
-    model,
+  return {
     system,
     messages: sdkMessages,
-    tools: {
-      end_conversation: tool({
-        description: END_CONVERSATION_TOOL_DESCRIPTION,
-        inputSchema: endConversationInputSchema,
-      }),
-    },
+    tools: CHAT_END_CONVERSATION_TOOL_LOG,
     toolChoice: "auto",
-    stopWhen: stepCountIs(2),
+    stopWhen: "stepCountIs(2)",
     providerOptions,
+  };
+}
+
+function chatStreamTools() {
+  return {
+    end_conversation: tool({
+      description: END_CONVERSATION_TOOL_DESCRIPTION,
+      inputSchema: endConversationInputSchema,
+    }),
+  };
+}
+
+/**
+ * Start a chat stream. Returns the streamText result whose `.fullStream`
+ * the caller iterates to emit SSE events.
+ */
+export function createChatStream(options: ChatStreamOptions) {
+  const { model, ...rest } = options;
+  const call = resolveChatStreamCall(rest);
+
+  return streamText({
+    model,
+    system: call.system,
+    messages: call.messages,
+    tools: chatStreamTools(),
+    toolChoice: call.toolChoice,
+    stopWhen: stepCountIs(2),
+    providerOptions: call.providerOptions,
     onError({ error }) {
       console.error("[chat-stream] streamText error:", error);
     },

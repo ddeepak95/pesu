@@ -92,3 +92,7 @@ Migrations (greenfield order): [`supabase_ai_catalog.sql`](supabase-migrations/s
 
 - UI: [`useAiCatalogSettings`](src/hooks/swr/useAiCatalogSettings.ts) (platform / institution / class); institution policy via [`useInstitutionAiPolicy`](src/hooks/swr/useInstitutionAiPolicy.ts).
 - Runtime: [`resolveModelConfig`](src/lib/ai/credentials/resolve.ts) → [`resolveCatalogModelConfigForClass`](src/lib/ai/catalog/resolveRuntime.ts) (requires `appFunctionKey`). Env fallback only when no class context (e.g. evaluate without assignment).
+
+## AI invocation logging (internal)
+
+When `AI_INVOCATION_LOGGING_ENABLED=true`, each LLM call writes an index row to `ai_invocations` and JSON payloads to GCS under `ai-logs/{invocation_id}/request.json` and `response.json` in the same bucket as submission files (`FIREBASE_STORAGE_BUCKET`). Access is service-role only (no client UI). Assistant `chat_messages` rows link via `ai_invocation_id`.

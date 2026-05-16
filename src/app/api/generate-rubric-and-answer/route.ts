@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { RubricItem } from "@/types/assignment";
-import {
-  catalogNotConfiguredResponse,
-  resolveCatalogConfigForRequest,
-} from "@/lib/ai/credentials/resolveCatalogConfig";
+import { catalogNotConfiguredResponse } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
+import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRuntime";
+import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import type { AiConfigSource } from "@/types/aiSettings";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import {
@@ -96,11 +97,22 @@ export async function POST(request: NextRequest) {
     }
 
     let config;
+    let keySource: AiConfigSource = "platform";
     try {
-      config = await resolveCatalogConfigForRequest({
-        classDbId,
-        appFunctionKey: "text.rubric_generation",
-      });
+      if (classDbId) {
+        const resolved = await getCachedResolveModelConfig({
+          classDbId,
+          appFunctionKey: "text.rubric_generation",
+        });
+        config = resolved.config;
+        keySource = resolved.keySource;
+      } else {
+        const resolved = await resolveCatalogModelConfigForPlatform(
+          "text.rubric_generation",
+        );
+        config = resolved.config;
+        keySource = resolved.keySource;
+      }
     } catch (error) {
       const notConfigured = catalogNotConfiguredResponse(error);
       if (notConfigured) {
@@ -112,6 +124,11 @@ export async function POST(request: NextRequest) {
     }
     const model = getLanguageModel(config);
     const providerOptions = providerOptionsForConfig(config);
+    const invocationBase = {
+      appFunctionKey: "text.rubric_generation" as const,
+      classId: classDbId ?? null,
+      model: modelMetaFromResolved(config, keySource),
+    };
 
     const baseUser = `${contextText}
 
@@ -126,6 +143,10 @@ Preferred Language (fallback if detection uncertain): ${preferredLanguageName}`;
         model,
         schema: rubricGenerationSchema,
         providerOptions,
+        invocation: {
+          ...invocationBase,
+          schemaName: "rubricGenerationSchema",
+        },
         messages: [
           {
             role: "system",
@@ -195,6 +216,10 @@ Please:
         model,
         schema: rubricOnlySchema,
         providerOptions,
+        invocation: {
+          ...invocationBase,
+          schemaName: "rubricOnlySchema",
+        },
         messages: [
           {
             role: "system",
@@ -236,6 +261,10 @@ Please detect language (ISO 639-1) and generate only the rubric.`,
         model,
         schema: expectedOnlySchema,
         providerOptions,
+        invocation: {
+          ...invocationBase,
+          schemaName: "expectedOnlySchema",
+        },
         messages: [
           {
             role: "system",

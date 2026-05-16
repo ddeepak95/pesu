@@ -18,12 +18,13 @@ export interface InsertChatMessageInput {
   content: string;
   attempt_number: number | null;
   aiMetadata?: ChatMessageAiMetadata;
+  aiInvocationId?: string | null;
 }
 
 export async function insertChatMessage(
   supabase: SupabaseClient,
   row: InsertChatMessageInput,
-): Promise<void> {
+): Promise<string | null> {
   const payload: Record<string, unknown> = {
     submission_id: row.submission_id,
     assignment_id: row.assignment_id,
@@ -39,6 +40,16 @@ export async function insertChatMessage(
     payload.ai_model_id = row.aiMetadata.aiModelId;
   }
 
-  const { error } = await supabase.from("chat_messages").insert(payload);
+  if (row.aiInvocationId) {
+    payload.ai_invocation_id = row.aiInvocationId;
+  }
+
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .insert(payload)
+    .select("id")
+    .single();
+
   if (error) throw error;
+  return (data?.id as string) ?? null;
 }

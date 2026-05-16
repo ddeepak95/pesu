@@ -7,8 +7,9 @@ import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { runBackgroundEvaluation } from "@/lib/backgroundEvaluation";
 import {
   catalogNotConfiguredResponse,
-  resolveCatalogConfigForRequest,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
+import { modelMetaFromResolved } from "@/lib/ai/logging/types";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
@@ -106,9 +107,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let evalModelConfig;
+    let evalResolved;
     try {
-      evalModelConfig = await resolveCatalogConfigForRequest({
+      evalResolved = await getCachedResolveModelConfig({
         classDbId,
         appFunctionKey: "text.evaluation",
       });
@@ -121,6 +122,9 @@ export async function POST(request: NextRequest) {
       }
       throw error;
     }
+
+    const evalModelConfig = evalResolved.config;
+    const evalKeySource = evalResolved.keySource;
 
     // Normalise evaluations (handle legacy array format)
     let evaluations = currentSubmission.evaluations as
@@ -222,6 +226,8 @@ export async function POST(request: NextRequest) {
         try {
           await runBackgroundEvaluation({
             submissionId,
+            assignmentId,
+            classDbId,
             questionOrder,
             attemptNumber: stubAttempt.attempt_number,
             answerText,
@@ -231,6 +237,7 @@ export async function POST(request: NextRequest) {
             sharedContext,
             customEvaluationPrompt,
             modelConfig: evalModelConfig,
+            keySource: evalKeySource,
           });
         } catch (err) {
           console.error("Background evaluation failed:", err);
@@ -258,6 +265,15 @@ export async function POST(request: NextRequest) {
         language,
         sharedContext,
         customEvaluationPrompt,
+        invocation: {
+          appFunctionKey: "text.evaluation",
+          classId: classDbId,
+          assignmentId,
+          submissionId,
+          questionOrder,
+          attemptNumber,
+          model: modelMetaFromResolved(evalModelConfig, evalKeySource),
+        },
       });
 
     const newAttempt: SubmissionAttempt = {

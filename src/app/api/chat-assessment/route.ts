@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
@@ -11,13 +11,25 @@ import {
   aiKeySourceLogLabel,
   AiNotConfiguredError,
 } from "@/lib/ai/credentials/resolve";
-import { createChatStream } from "@/lib/ai/chat-stream";
+import { createChatStream, resolveChatStreamCall } from "@/lib/ai/chat-stream";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
   DEFAULT_MAX_ATTEMPTS,
   isRetryableProviderError,
   waitBeforeRetry,
 } from "@/lib/ai/retry";
+import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import {
+  completeAiInvocation,
+  failAiInvocation,
+  linkInvocationToChatMessage,
+  startAiInvocation,
+  usageFromAiSdkResult,
+} from "@/lib/ai/logging/recordInvocation";
+import {
+  buildLoggedSdkResponse,
+  buildLoggedStreamTextRequest,
+} from "@/lib/ai/logging/serialize";
 
 interface ChatAssessmentMessage {
   role: "student" | "assistant";
@@ -110,6 +122,8 @@ export async function POST(request: NextRequest) {
       aiModelId: config.modelId,
     };
 
+    const invocationModel = modelMetaFromResolved(config, keySource);
+
     // Log latest student message
     try {
       const studentMessages = messages.filter(
@@ -140,15 +154,50 @@ export async function POST(request: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         let fullReply = "";
+        let endConversationReason: string | null = null;
+        let firstInvocationId: string | null = null;
+        let winningInvocationId: string | null = null;
+        let winningStartedAtMs: number | undefined;
+        let lastStreamResult: ReturnType<typeof createChatStream> | null = null;
+
+        const streamCallBase = {
+          systemPrompt,
+          greeting,
+          messages: sdkMessages,
+          providerOptions,
+        };
 
         attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
+          const startedAtMs = Date.now();
+          const resolvedCall = resolveChatStreamCall(streamCallBase);
+          const invocationId = await startAiInvocation({
+            appFunctionKey: "text.chat_tutoring",
+            classId: classDbId,
+            assignmentId,
+            submissionId: submissionId ?? null,
+            questionOrder,
+            attemptNumber: attemptNumber ?? null,
+            model: invocationModel,
+            sdkRequest: buildLoggedStreamTextRequest({
+              system: resolvedCall.system,
+              messages: resolvedCall.messages,
+              tools: resolvedCall.tools,
+              toolChoice: resolvedCall.toolChoice,
+              stopWhen: resolvedCall.stopWhen,
+              providerOptions: resolvedCall.providerOptions,
+            }),
+            retryOf: firstInvocationId,
+            retryIndex: attempt,
+          });
+          if (invocationId && attempt === 0) {
+            firstInvocationId = invocationId;
+          }
+
           const result = createChatStream({
             model,
-            systemPrompt,
-            greeting,
-            messages: sdkMessages,
-            providerOptions,
+            ...streamCallBase,
           });
+          lastStreamResult = result;
           let deliveredToClient = false;
 
           try {
@@ -172,6 +221,7 @@ export async function POST(request: NextRequest) {
                     };
                     const reason =
                       input.reason === "refusal" ? "refusal" : "thorough";
+                    endConversationReason = reason;
                     const message = input.message ?? "";
 
                     if (message) {
@@ -199,6 +249,11 @@ export async function POST(request: NextRequest) {
                     isRetryableProviderError(streamErr) &&
                     attempt < DEFAULT_MAX_ATTEMPTS - 1
                   ) {
+                    if (invocationId) {
+                      after(() =>
+                        failAiInvocation(invocationId, streamErr, startedAtMs),
+                      );
+                    }
                     await waitBeforeRetry(streamErr, attempt);
                     continue attemptLoop;
                   }
@@ -206,16 +261,24 @@ export async function POST(request: NextRequest) {
                     streamErr instanceof Error
                       ? streamErr.message
                       : "Unknown streaming error";
+                  if (invocationId) {
+                    after(() =>
+                      failAiInvocation(invocationId, streamErr, startedAtMs),
+                    );
+                  }
                   deliveredToClient = true;
                   controller.enqueue(
                     encoder.encode(sseEvent({ type: "error", error: errMsg })),
                   );
                   break;
                 }
-                // Ignore all other part types (start, finish, reasoning, etc.)
                 default:
                   break;
               }
+            }
+            if (invocationId) {
+              winningInvocationId = invocationId;
+              winningStartedAtMs = startedAtMs;
             }
             break attemptLoop;
           } catch (err) {
@@ -224,11 +287,17 @@ export async function POST(request: NextRequest) {
               isRetryableProviderError(err) &&
               attempt < DEFAULT_MAX_ATTEMPTS - 1
             ) {
+              if (invocationId) {
+                after(() => failAiInvocation(invocationId, err, startedAtMs));
+              }
               await waitBeforeRetry(err, attempt);
               continue attemptLoop;
             }
             const errMsg =
               err instanceof Error ? err.message : "Unknown streaming error";
+            if (invocationId) {
+              after(() => failAiInvocation(invocationId, err, startedAtMs));
+            }
             if (!deliveredToClient) {
               controller.enqueue(
                 encoder.encode(sseEvent({ type: "error", error: errMsg })),
@@ -240,10 +309,9 @@ export async function POST(request: NextRequest) {
 
         controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
 
-        // Log assistant reply
         if (fullReply.trim()) {
           try {
-            await insertChatMessage(supabase, {
+            const chatMessageId = await insertChatMessage(supabase, {
               submission_id: submissionId ?? null,
               assignment_id: assignmentId,
               question_order: questionOrder,
@@ -251,7 +319,52 @@ export async function POST(request: NextRequest) {
               content: fullReply,
               attempt_number: attemptNumber ?? null,
               aiMetadata,
+              aiInvocationId: winningInvocationId,
             });
+
+            if (winningInvocationId) {
+              const invId = winningInvocationId;
+              const startedAt = winningStartedAtMs;
+              const streamResult = lastStreamResult;
+
+              after(async () => {
+                try {
+                  if (chatMessageId) {
+                    await linkInvocationToChatMessage(invId, chatMessageId);
+                  }
+                  const sdkResponse = streamResult
+                    ? await buildLoggedSdkResponse(streamResult)
+                    : null;
+                  const usage = streamResult
+                    ? await usageFromAiSdkResult(streamResult)
+                    : null;
+                  const finishReason =
+                    sdkResponse &&
+                    typeof sdkResponse === "object" &&
+                    sdkResponse !== null &&
+                    "finishReason" in sdkResponse
+                      ? (sdkResponse.finishReason as string | null)
+                      : null;
+                  await completeAiInvocation(
+                    invId,
+                    {
+                      sdkResponse: sdkResponse ?? {
+                        text: fullReply,
+                        endConversationReason,
+                      },
+                      usage,
+                      finishReason,
+                    },
+                    startedAt,
+                  );
+                } catch (logErr) {
+                  console.error(
+                    "[chat-assessment] AI invocation logging failed:",
+                    logErr,
+                  );
+                }
+              });
+            }
           } catch (error) {
             console.error("Failed to log assistant chat message:", error);
           }

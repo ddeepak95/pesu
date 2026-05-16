@@ -7,8 +7,8 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
 import {
   catalogNotConfiguredResponse,
-  resolveCatalogConfigForRequest,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 
 /**
@@ -84,9 +84,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let modelConfig;
+    let evalResolved;
     try {
-      modelConfig = await resolveCatalogConfigForRequest({
+      evalResolved = await getCachedResolveModelConfig({
         classDbId,
         appFunctionKey: "text.evaluation",
       });
@@ -102,6 +102,8 @@ export async function POST(request: NextRequest) {
 
     const params: BackgroundEvaluationParams = {
       submissionId,
+      assignmentId: submission.assignment_id as string,
+      classDbId,
       questionOrder,
       attemptNumber,
       answerText,
@@ -110,7 +112,8 @@ export async function POST(request: NextRequest) {
       language,
       sharedContext,
       customEvaluationPrompt,
-      modelConfig,
+      modelConfig: evalResolved.config,
+      keySource: evalResolved.keySource,
     };
 
     const updatedAttempt = await runBackgroundEvaluation(params);
