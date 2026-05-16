@@ -29,6 +29,10 @@ function modelPayload(model: AiInvocationModelMeta) {
   };
 }
 
+function logInvocationError(label: string, err: unknown) {
+  console.error(`[ai-invocation] ${label}:`, err);
+}
+
 function usageFromSdk(usage: {
   inputTokens?: number;
   outputTokens?: number;
@@ -68,16 +72,11 @@ function usageFromLoggedSdkResponse(
   );
 }
 
-/**
- * Insert index row and upload request.json. Returns invocation id, or null when disabled.
- */
-export async function startAiInvocation(
+async function persistAiInvocationStart(
   input: StartAiInvocationInput,
-): Promise<string | null> {
-  if (!isAiInvocationLoggingEnabled()) return null;
-
+  invocationId: string,
+): Promise<void> {
   const service = createServiceRoleClient();
-  const invocationId = crypto.randomUUID();
   const paths = aiInvocationStoragePaths(invocationId);
 
   const { error: insertError } = await service.from("ai_invocations").insert({
@@ -99,24 +98,65 @@ export async function startAiInvocation(
   });
 
   if (insertError) {
-    console.error("[ai-invocation] failed to insert row:", insertError);
+    throw insertError;
+  }
+
+  await uploadInvocationJson(paths.requestStoragePath, {
+    invocationId,
+    appFunctionKey: input.appFunctionKey,
+    recordedAt: new Date().toISOString(),
+    context: contextPayload(input),
+    model: modelPayload(input.model),
+    sdkRequest: input.sdkRequest,
+  });
+}
+
+/**
+ * Insert index row and upload request.json. Returns invocation id, or null when disabled.
+ */
+export async function startAiInvocation(
+  input: StartAiInvocationInput,
+): Promise<string | null> {
+  if (!isAiInvocationLoggingEnabled()) return null;
+
+  const invocationId = crypto.randomUUID();
+  try {
+    await persistAiInvocationStart(input, invocationId);
+    return invocationId;
+  } catch (err) {
+    logInvocationError("failed to persist start", err);
     return null;
   }
+}
 
-  try {
-    await uploadInvocationJson(paths.requestStoragePath, {
-      invocationId,
-      appFunctionKey: input.appFunctionKey,
-      recordedAt: new Date().toISOString(),
-      context: contextPayload(input),
-      model: modelPayload(input.model),
-      sdkRequest: input.sdkRequest,
-    });
-  } catch (err) {
-    console.error("[ai-invocation] failed to upload request.json:", err);
-  }
+/**
+ * Allocate an invocation id and persist start in the background (chat streaming).
+ * Does not block time-to-first-token.
+ */
+export function scheduleAiInvocationStart(
+  input: StartAiInvocationInput,
+): string | null {
+  if (!isAiInvocationLoggingEnabled()) return null;
 
+  const invocationId = crypto.randomUUID();
+  void persistAiInvocationStart(input, invocationId).catch((err) =>
+    logInvocationError("failed to persist scheduled start", err),
+  );
   return invocationId;
+}
+
+export function scheduleFailAiInvocation(
+  invocationId: string,
+  error: unknown,
+  startedAtMs?: number,
+  partialSdkResponse?: unknown,
+): void {
+  void failAiInvocation(
+    invocationId,
+    error,
+    startedAtMs,
+    partialSdkResponse,
+  ).catch((err) => logInvocationError("failed to schedule fail", err));
 }
 
 export async function completeAiInvocation(
@@ -148,7 +188,7 @@ export async function completeAiInvocation(
       error: null,
     });
   } catch (err) {
-    console.error("[ai-invocation] failed to upload response.json:", err);
+    logInvocationError("failed to upload response.json", err);
   }
 
   const { error } = await service
@@ -165,7 +205,7 @@ export async function completeAiInvocation(
     .eq("id", invocationId);
 
   if (error) {
-    console.error("[ai-invocation] failed to complete row:", error);
+    logInvocationError("failed to complete row", error);
   }
 }
 
@@ -198,7 +238,7 @@ export async function failAiInvocation(
       error: message,
     });
   } catch (uploadErr) {
-    console.error("[ai-invocation] failed to upload error response.json:", uploadErr);
+    logInvocationError("failed to upload error response.json", uploadErr);
   }
 
   const { error: updateError } = await service
@@ -213,7 +253,7 @@ export async function failAiInvocation(
     .eq("id", invocationId);
 
   if (updateError) {
-    console.error("[ai-invocation] failed to mark row failed:", updateError);
+    logInvocationError("failed to mark row failed", updateError);
   }
 }
 
@@ -233,6 +273,23 @@ export async function linkInvocationToChatMessage(
     .eq("id", invocationId);
 
   if (error) {
-    console.error("[ai-invocation] failed to link chat_message:", error);
+    logInvocationError("failed to link chat_message on invocation", error);
+  }
+}
+
+export async function setChatMessageInvocationId(
+  chatMessageId: string,
+  invocationId: string,
+): Promise<void> {
+  if (!isAiInvocationLoggingEnabled()) return;
+
+  const service = createServiceRoleClient();
+  const { error } = await service
+    .from("chat_messages")
+    .update({ ai_invocation_id: invocationId })
+    .eq("id", chatMessageId);
+
+  if (error) {
+    logInvocationError("failed to set chat_message ai_invocation_id", error);
   }
 }

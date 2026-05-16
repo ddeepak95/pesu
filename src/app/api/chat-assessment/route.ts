@@ -21,9 +21,10 @@ import {
 import { modelMetaFromResolved } from "@/lib/ai/logging/types";
 import {
   completeAiInvocation,
-  failAiInvocation,
   linkInvocationToChatMessage,
-  startAiInvocation,
+  scheduleAiInvocationStart,
+  scheduleFailAiInvocation,
+  setChatMessageInvocationId,
   usageFromAiSdkResult,
 } from "@/lib/ai/logging/recordInvocation";
 import {
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
         attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
           const startedAtMs = Date.now();
           const resolvedCall = resolveChatStreamCall(streamCallBase);
-          const invocationId = await startAiInvocation({
+          const invocationId = scheduleAiInvocationStart({
             appFunctionKey: "text.chat_tutoring",
             classId: classDbId,
             assignmentId,
@@ -250,9 +251,7 @@ export async function POST(request: NextRequest) {
                     attempt < DEFAULT_MAX_ATTEMPTS - 1
                   ) {
                     if (invocationId) {
-                      after(() =>
-                        failAiInvocation(invocationId, streamErr, startedAtMs),
-                      );
+                      scheduleFailAiInvocation(invocationId, streamErr, startedAtMs);
                     }
                     await waitBeforeRetry(streamErr, attempt);
                     continue attemptLoop;
@@ -262,9 +261,7 @@ export async function POST(request: NextRequest) {
                       ? streamErr.message
                       : "Unknown streaming error";
                   if (invocationId) {
-                    after(() =>
-                      failAiInvocation(invocationId, streamErr, startedAtMs),
-                    );
+                    scheduleFailAiInvocation(invocationId, streamErr, startedAtMs);
                   }
                   deliveredToClient = true;
                   controller.enqueue(
@@ -288,7 +285,7 @@ export async function POST(request: NextRequest) {
               attempt < DEFAULT_MAX_ATTEMPTS - 1
             ) {
               if (invocationId) {
-                after(() => failAiInvocation(invocationId, err, startedAtMs));
+                scheduleFailAiInvocation(invocationId, err, startedAtMs);
               }
               await waitBeforeRetry(err, attempt);
               continue attemptLoop;
@@ -296,7 +293,7 @@ export async function POST(request: NextRequest) {
             const errMsg =
               err instanceof Error ? err.message : "Unknown streaming error";
             if (invocationId) {
-              after(() => failAiInvocation(invocationId, err, startedAtMs));
+              scheduleFailAiInvocation(invocationId, err, startedAtMs);
             }
             if (!deliveredToClient) {
               controller.enqueue(
@@ -319,7 +316,6 @@ export async function POST(request: NextRequest) {
               content: fullReply,
               attempt_number: attemptNumber ?? null,
               aiMetadata,
-              aiInvocationId: winningInvocationId,
             });
 
             if (winningInvocationId) {
@@ -330,6 +326,7 @@ export async function POST(request: NextRequest) {
               after(async () => {
                 try {
                   if (chatMessageId) {
+                    await setChatMessageInvocationId(chatMessageId, invId);
                     await linkInvocationToChatMessage(invId, chatMessageId);
                   }
                   const sdkResponse = streamResult
