@@ -13,10 +13,13 @@ import type {
   AiProviderActivationRow,
   CatalogScopeSecrets,
 } from "@/types/aiCatalog";
+import type { AiConfigSource } from "@/types/aiSettings";
 
 export interface CatalogRuntimeState extends LocalAiSettingsState {
   /** Decrypted API keys for active providers (server-only). */
   providerApiKeys: Partial<Record<ProviderId, string>>;
+  /** Which scope supplied the API key used at runtime (not the function binding). */
+  providerApiKeySources: Partial<Record<ProviderId, AiConfigSource>>;
 }
 
 function decryptRowKey(encrypted: string | null): string | null {
@@ -82,6 +85,7 @@ export function buildEffectiveCatalogRuntimeState(
 ): CatalogRuntimeState {
   const base = createDefaultLocalAiSettings("institution");
   const providerApiKeys: Partial<Record<ProviderId, string>> = {};
+  const providerApiKeySources: Partial<Record<ProviderId, AiConfigSource>> = {};
 
   for (const providerId of CATALOG_PROVIDER_IDS) {
     const platRow = platform.providers.find((r) => r.provider_id === providerId);
@@ -122,8 +126,27 @@ export function buildEffectiveCatalogRuntimeState(
     base.providers[providerId] = classMerged.state;
     const key =
       classMerged.apiKey ?? instMerged.apiKey ?? platKey;
+
+    let keySource: AiConfigSource = "platform";
+    const classCustomKey =
+      classRow?.is_active && !classRow.use_platform_default
+        ? decryptRowKey(classRow.encrypted_api_key)
+        : null;
+    if (classCustomKey) {
+      keySource = "class";
+    } else {
+      const instCustomKey =
+        instRow?.is_active && !instRow.use_platform_default
+          ? decryptRowKey(instRow.encrypted_api_key)
+          : null;
+      if (instCustomKey) {
+        keySource = "institution";
+      }
+    }
+
     if (key && classMerged.state.isActive) {
       providerApiKeys[providerId] = key;
+      providerApiKeySources[providerId] = keySource;
     }
   }
 
@@ -137,6 +160,7 @@ export function buildEffectiveCatalogRuntimeState(
     providers: base.providers,
     functions,
     providerApiKeys,
+    providerApiKeySources,
   };
 }
 
@@ -145,6 +169,13 @@ export function getProviderApiKey(
   providerId: ProviderId,
 ): string | null {
   return state.providerApiKeys[providerId] ?? null;
+}
+
+export function getProviderApiKeySource(
+  state: CatalogRuntimeState,
+  providerId: ProviderId,
+): AiConfigSource {
+  return state.providerApiKeySources[providerId] ?? "platform";
 }
 
 export function resolveCatalogFunctionBinding(

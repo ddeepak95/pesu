@@ -10,6 +10,7 @@ import { parseAppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import {
   buildEffectiveCatalogRuntimeState,
   getProviderApiKey,
+  getProviderApiKeySource,
   resolveCatalogFunctionBinding,
 } from "@/lib/ai/catalog/buildEffectiveRuntime";
 import { getModelEntry } from "@/lib/ai/catalog/helpers";
@@ -146,47 +147,7 @@ export async function resolveCatalogModelConfigForClass(input: {
     binding.providerId,
   );
 
-  const usedClassBinding =
-    subKey &&
-    classSecrets.bindings.some((b) => b.binding_key === input.appFunctionKey);
-  const usedClassParentBinding = classSecrets.bindings.some(
-    (b) => b.binding_key === parentKey,
-  );
-  const usedClassProvider =
-    classSecrets.providers.some(
-      (p) =>
-        p.provider_id === binding.providerId &&
-        p.is_active &&
-        !p.use_platform_default,
-    ) ?? false;
-
-  const usedInstitutionBinding =
-    subKey &&
-    (institutionSecrets?.bindings.some(
-      (b) => b.binding_key === input.appFunctionKey,
-    ) ??
-      false);
-  const usedInstitutionParentBinding =
-    institutionSecrets?.bindings.some((b) => b.binding_key === parentKey) ??
-    false;
-  const usedInstitutionProvider =
-    institutionSecrets?.providers.some(
-      (p) =>
-        p.provider_id === binding.providerId &&
-        p.is_active &&
-        !p.use_platform_default,
-    ) ?? false;
-
-  const keySource: AiConfigSource =
-    usedClassBinding ||
-    usedClassParentBinding ||
-    usedClassProvider
-      ? "class"
-      : usedInstitutionBinding ||
-          usedInstitutionParentBinding ||
-          usedInstitutionProvider
-        ? "institution"
-        : "platform";
+  const keySource = getProviderApiKeySource(runtime, binding.providerId);
 
   return {
     config: {
