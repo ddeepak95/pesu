@@ -229,6 +229,13 @@ export const CATALOG_FUNCTIONS: AppFunctionCatalogEntry[] = [
         description: "Generate follow-up or adaptive questions from context.",
         consumers: ["Dynamic question flows"],
       },
+      {
+        key: "rubric_generation",
+        label: "Rubric generation",
+        description:
+          "Generate rubrics and expected-answer keys in the assignment editor.",
+        consumers: ["Assignment editor", "Rubric and expected answer AI"],
+      },
     ],
   },
   {

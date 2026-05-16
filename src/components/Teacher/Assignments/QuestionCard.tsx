@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { AI_NOT_CONFIGURED_ERROR_CODE } from "@/lib/ai/credentials/constants";
 import RubricItemRow from "@/components/Teacher/Assignments/RubricItemRow";
 import { QuestionPromptOverrideEditor } from "@/components/Teacher/Assignments/QuestionPromptOverrideEditor";
 import {
@@ -75,6 +76,8 @@ interface QuestionCardProps {
   ) => void;
   defaultSystemPrompt?: string;
   defaultConversationStart?: string;
+  /** Class DB id for catalog-backed rubric generation. */
+  classDbId?: string | null;
 }
 
 const DYNAMIC_PROMPT_INFO_TOOLTIP =
@@ -104,6 +107,7 @@ export default function QuestionCard({
   onQuestionOverrideChange,
   defaultSystemPrompt = "",
   defaultConversationStart = "",
+  classDbId = null,
 }: QuestionCardProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -177,11 +181,20 @@ export default function QuestionCard({
           focusGuidance: focusGuidance.trim() || undefined,
           generateRubric: genRubric,
           generateExpectedAnswer: genExpected,
+          classDbId: classDbId ?? undefined,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
+        if (
+          response.status === 503 &&
+          errorData.code === AI_NOT_CONFIGURED_ERROR_CODE
+        ) {
+          throw new Error(
+            "AI is not configured for this class. Set up providers and the Rubric generation app function in AI settings.",
+          );
+        }
         throw new Error(
           errorData.error || "Failed to generate rubric and answer",
         );

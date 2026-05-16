@@ -928,6 +928,7 @@ export default function AssignmentForm({
               botPromptConfig.question_overrides?.[question.order]
             }
             onQuestionOverrideChange={handleQuestionOverrideChange}
+            classDbId={classDbId}
             defaultSystemPrompt={botPromptConfig.system_prompt}
             defaultConversationStart={getDefaultConversationStart(
               question.order,

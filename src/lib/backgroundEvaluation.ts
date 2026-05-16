@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { SubmissionAttempt, QuestionEvaluations } from "@/types/submission";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import type { ResolvedModelConfig } from "@/lib/ai/config";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
@@ -17,7 +17,7 @@ export interface BackgroundEvaluationParams {
   language: string;
   sharedContext?: string;
   customEvaluationPrompt?: string;
-  modelConfig?: ResolvedModelConfig;
+  modelConfig: ResolvedModelConfig;
 }
 
 /**
@@ -43,13 +43,15 @@ export async function runBackgroundEvaluation(
     customEvaluationPrompt,
   } = params;
 
-  const config = params.modelConfig ?? getDefaultModelConfigFromEnv();
-  const model = getLanguageModel(config);
+  if (!params.modelConfig) {
+    throw new AiNotConfiguredError();
+  }
+  const model = getLanguageModel(params.modelConfig);
 
   const { validatedRubricScores, overallFeedback, totalScore, maxScore } =
     await evaluateSubmission({
       model,
-      providerOptions: providerOptionsForConfig(config),
+      providerOptions: providerOptionsForConfig(params.modelConfig),
       questionPrompt,
       answerText,
       rubric,

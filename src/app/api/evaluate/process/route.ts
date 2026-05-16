@@ -5,6 +5,11 @@ import {
 } from "@/lib/backgroundEvaluation";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
+import {
+  catalogNotConfiguredResponse,
+  resolveCatalogConfigForRequest,
+} from "@/lib/ai/credentials/resolveCatalogConfig";
+import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 
 /**
  * Retry endpoint for failed background evaluations.
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Missing required fields" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -55,6 +60,46 @@ export async function POST(request: NextRequest) {
       return integrityBlock;
     }
 
+    const { data: submission, error: fetchError } = await supabase
+      .from("submissions")
+      .select("assignment_id")
+      .eq("submission_id", submissionId)
+      .single();
+
+    if (fetchError || !submission?.assignment_id) {
+      return NextResponse.json(
+        { error: "Failed to fetch submission" },
+        { status: 500 },
+      );
+    }
+
+    const classDbId = await getClassDbIdForAssignment(
+      supabase,
+      submission.assignment_id as string,
+    );
+    if (!classDbId) {
+      return NextResponse.json(
+        { error: "Assignment not found" },
+        { status: 404 },
+      );
+    }
+
+    let modelConfig;
+    try {
+      modelConfig = await resolveCatalogConfigForRequest({
+        classDbId,
+        appFunctionKey: "text.evaluation",
+      });
+    } catch (error) {
+      const notConfigured = catalogNotConfiguredResponse(error);
+      if (notConfigured) {
+        return NextResponse.json(notConfigured.body, {
+          status: notConfigured.status,
+        });
+      }
+      throw error;
+    }
+
     const params: BackgroundEvaluationParams = {
       submissionId,
       questionOrder,
@@ -65,6 +110,7 @@ export async function POST(request: NextRequest) {
       language,
       sharedContext,
       customEvaluationPrompt,
+      modelConfig,
     };
 
     const updatedAttempt = await runBackgroundEvaluation(params);
@@ -76,7 +122,7 @@ export async function POST(request: NextRequest) {
         error: "Background evaluation failed",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

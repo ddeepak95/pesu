@@ -5,14 +5,14 @@ import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmis
 import { SubmissionAttempt, QuestionEvaluations } from "@/types/submission";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { runBackgroundEvaluation } from "@/lib/backgroundEvaluation";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
-import { AiNotConfiguredError, resolveEnvModelConfig } from "@/lib/ai/credentials/resolve";
-import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
+import {
+  catalogNotConfiguredResponse,
+  resolveCatalogConfigForRequest,
+} from "@/lib/ai/credentials/resolveCatalogConfig";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
-import type { ResolvedModelConfig } from "@/lib/ai/config";
 
 interface EvaluateRequestBody {
   submissionId: string;
@@ -91,28 +91,36 @@ export async function POST(request: NextRequest) {
     }
 
     const assignmentId = currentSubmission.assignment_id as string | undefined;
-
-    async function resolveEvalConfig(): Promise<ResolvedModelConfig> {
-      if (assignmentId) {
-        const classDbId = await getClassDbIdForAssignment(supabase, assignmentId);
-        if (classDbId) {
-          try {
-            const resolved = await getCachedResolveModelConfig({
-              classDbId,
-              appFunctionKey: "text.evaluation",
-            });
-            return resolved.config;
-          } catch (error) {
-            if (!(error instanceof AiNotConfiguredError)) {
-              throw error;
-            }
-          }
-        }
-      }
-      return resolveEnvModelConfig().config;
+    if (!assignmentId) {
+      return NextResponse.json(
+        { error: "Submission has no assignment" },
+        { status: 400 },
+      );
     }
 
-    const evalModelConfig = await resolveEvalConfig();
+    const classDbId = await getClassDbIdForAssignment(supabase, assignmentId);
+    if (!classDbId) {
+      return NextResponse.json(
+        { error: "Assignment not found" },
+        { status: 404 },
+      );
+    }
+
+    let evalModelConfig;
+    try {
+      evalModelConfig = await resolveCatalogConfigForRequest({
+        classDbId,
+        appFunctionKey: "text.evaluation",
+      });
+    } catch (error) {
+      const notConfigured = catalogNotConfiguredResponse(error);
+      if (notConfigured) {
+        return NextResponse.json(notConfigured.body, {
+          status: notConfigured.status,
+        });
+      }
+      throw error;
+    }
 
     // Normalise evaluations (handle legacy array format)
     let evaluations = currentSubmission.evaluations as

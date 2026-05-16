@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { RubricItem } from "@/types/assignment";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
-import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
-import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRuntime";
+import {
+  catalogNotConfiguredResponse,
+  resolveCatalogConfigForRequest,
+} from "@/lib/ai/credentials/resolveCatalogConfig";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import {
@@ -25,6 +26,8 @@ interface GenerateRubricAndAnswerRequestBody {
   generateRubric?: boolean;
   /** Default true. When false, expected answer is not generated. */
   generateExpectedAnswer?: boolean;
+  /** When set, resolve catalog for this class; otherwise platform catalog. */
+  classDbId?: string;
 }
 
 interface GenerateRubricAndAnswerResponse {
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest) {
       focusGuidance,
       generateRubric = true,
       generateExpectedAnswer = true,
+      classDbId,
     } = body;
 
     if (!questionPrompt) {
@@ -91,14 +95,20 @@ export async function POST(request: NextRequest) {
       contextText += `\n\nTeacher's Additional Instructions for Generation:\n${focusGuidance.trim()}`;
     }
 
-    let config = getDefaultModelConfigFromEnv();
+    let config;
     try {
-      const resolved = await resolveCatalogModelConfigForPlatform("text");
-      config = resolved.config;
+      config = await resolveCatalogConfigForRequest({
+        classDbId,
+        appFunctionKey: "text.rubric_generation",
+      });
     } catch (error) {
-      if (!(error instanceof AiNotConfiguredError)) {
-        throw error;
+      const notConfigured = catalogNotConfiguredResponse(error);
+      if (notConfigured) {
+        return NextResponse.json(notConfigured.body, {
+          status: notConfigured.status,
+        });
       }
+      throw error;
     }
     const model = getLanguageModel(config);
     const providerOptions = providerOptionsForConfig(config);

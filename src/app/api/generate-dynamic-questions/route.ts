@@ -14,13 +14,14 @@ import {
   formatQuestionsForDynamicGenerationPrompt,
 } from "@/lib/promptTemplates";
 import type { ResolvedModelConfig } from "@/lib/ai/config";
-import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-questions";
 import { generateStructured } from "@/lib/ai/structured";
-import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
-import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
+import {
+  catalogNotConfiguredResponse,
+  resolveCatalogConfigForRequest,
+} from "@/lib/ai/credentials/resolveCatalogConfig";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 
 /**
@@ -366,20 +367,28 @@ export async function POST(request: NextRequest) {
         : undefined,
     };
 
-    let modelConfig = getDefaultModelConfigFromEnv();
     const classDbId = await getClassDbIdForAssignment(supabase, assignmentId);
-    if (classDbId) {
-      try {
-        const resolved = await getCachedResolveModelConfig({
-          classDbId,
-          appFunctionKey: "text.dynamic_questions",
+    if (!classDbId) {
+      return NextResponse.json(
+        { error: "Assignment not found" },
+        { status: 404 },
+      );
+    }
+
+    let modelConfig: ResolvedModelConfig;
+    try {
+      modelConfig = await resolveCatalogConfigForRequest({
+        classDbId,
+        appFunctionKey: "text.dynamic_questions",
+      });
+    } catch (error) {
+      const notConfigured = catalogNotConfiguredResponse(error);
+      if (notConfigured) {
+        return NextResponse.json(notConfigured.body, {
+          status: notConfigured.status,
         });
-        modelConfig = resolved.config;
-      } catch (error) {
-        if (!(error instanceof AiNotConfiguredError)) {
-          throw error;
-        }
       }
+      throw error;
     }
 
     const generatedQuestions = await generateMergedQuestions(
