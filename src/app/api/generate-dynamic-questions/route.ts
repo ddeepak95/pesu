@@ -13,13 +13,15 @@ import {
   buildDefaultDynamicGenerationPrompt,
   formatQuestionsForDynamicGenerationPrompt,
 } from "@/lib/promptTemplates";
-import {
-  getDefaultModelConfigFromEnv,
-  getDefaultProviderOptions,
-} from "@/lib/ai/config";
+import type { ResolvedModelConfig } from "@/lib/ai/config";
+import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
+import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-questions";
 import { generateStructured } from "@/lib/ai/structured";
+import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
+import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
+import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 
 /**
  * Interpolate template variables and conditional blocks into a prompt string.
@@ -149,6 +151,7 @@ async function generateMergedQuestions(
     instructions?: string;
     sharedContext?: string;
   },
+  modelConfig: ResolvedModelConfig,
   customPromptTemplate?: string | null,
 ): Promise<Question[]> {
   const sorted = sortTemplates(templates);
@@ -168,14 +171,13 @@ async function generateMergedQuestions(
 
   const systemMessage = interpolateTemplate(promptTemplateStr, templateVariables);
 
-  const config = getDefaultModelConfigFromEnv();
-  const model = getLanguageModel(config);
+  const model = getLanguageModel(modelConfig);
   const schema = buildGeneratedQuestionsSchema(n);
 
   const result = await generateStructured({
     model,
     schema,
-    providerOptions: getDefaultProviderOptions(config.provider),
+    providerOptions: providerOptionsForConfig(modelConfig),
     messages: [
       { role: "system", content: systemMessage },
       {
@@ -364,10 +366,27 @@ export async function POST(request: NextRequest) {
         : undefined,
     };
 
+    let modelConfig = getDefaultModelConfigFromEnv();
+    const classDbId = await getClassDbIdForAssignment(supabase, assignmentId);
+    if (classDbId) {
+      try {
+        const resolved = await getCachedResolveModelConfig({
+          classDbId,
+          appFunctionKey: "text.dynamic_questions",
+        });
+        modelConfig = resolved.config;
+      } catch (error) {
+        if (!(error instanceof AiNotConfiguredError)) {
+          throw error;
+        }
+      }
+    }
+
     const generatedQuestions = await generateMergedQuestions(
       templates,
       fileContent,
       context,
+      modelConfig,
       assignment.dynamic_generation_prompt as string | null,
     );
 

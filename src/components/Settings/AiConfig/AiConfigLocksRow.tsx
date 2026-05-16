@@ -6,11 +6,11 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { invalidateAiConfigCache } from "@/hooks/swr/useAiCapabilityConfigs";
+import { invalidateInstitutionAiPolicy } from "@/hooks/swr/useInstitutionAiPolicy";
 import { setInstitutionAiConfigLocksAction } from "@/lib/ai/credentials/actions";
 import { aiConfigCapabilities } from "@/lib/ai/credentials/capabilities";
 import type { ViewerRole } from "@/lib/settings/capabilities";
-import type { AiInstitutionPolicy } from "@/types/aiCapabilityConfig";
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
 
 interface AiConfigLocksRowProps {
   institutionId: string;
@@ -93,7 +93,7 @@ export default function AiConfigLocksRow({
           return;
         }
       }
-      invalidateAiConfigCache("institution", institutionId);
+      invalidateInstitutionAiPolicy(institutionId);
     });
   };
 

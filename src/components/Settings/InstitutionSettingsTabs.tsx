@@ -1,0 +1,91 @@
+"use client";
+
+import { useMemo, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+
+import {
+  MutedPrimaryTabsList,
+  MutedPrimaryTabsTrigger,
+} from "@/components/Teacher/Shared/MutedPrimaryTabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
+import type { ViewerRole } from "@/lib/settings/capabilities";
+import type { EffectiveSettings } from "@/lib/settings/resolve";
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
+
+import InstitutionAiManagementTab from "./InstitutionAiManagementTab";
+import InstitutionSettingsForm from "./InstitutionSettingsForm";
+
+const SETTINGS_TAB_PARAM = "settingsTab";
+
+type SettingsSubTab = "general" | "ai";
+
+function parseSettingsSubTab(raw: string | null): SettingsSubTab {
+  return raw === "ai" ? "ai" : "general";
+}
+
+interface InstitutionSettingsTabsProps {
+  institutionId: string;
+  viewerRole: ViewerRole;
+  effectiveSettings: EffectiveSettings;
+  institutionPolicy: AiInstitutionPolicy;
+  adminsSection?: ReactNode;
+}
+
+export default function InstitutionSettingsTabs({
+  institutionId,
+  viewerRole,
+  effectiveSettings,
+  institutionPolicy,
+  adminsSection,
+}: InstitutionSettingsTabsProps) {
+  const router = useTrackedRouter();
+  const searchParams = useSearchParams();
+
+  const activeSettingsTab = useMemo(
+    () => parseSettingsSubTab(searchParams.get(SETTINGS_TAB_PARAM)),
+    [searchParams],
+  );
+
+  const handleSettingsTabChange = (value: string) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", "settings");
+    next.set(SETTINGS_TAB_PARAM, parseSettingsSubTab(value));
+    router.replace(`?${next.toString()}`);
+  };
+
+  return (
+    <Tabs
+      value={activeSettingsTab}
+      onValueChange={handleSettingsTabChange}
+      className="w-full"
+    >
+      <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
+        <MutedPrimaryTabsTrigger value="general" className="px-4 py-2">
+          General
+        </MutedPrimaryTabsTrigger>
+        <MutedPrimaryTabsTrigger value="ai" className="px-4 py-2">
+          AI management
+        </MutedPrimaryTabsTrigger>
+      </MutedPrimaryTabsList>
+
+      <TabsContent value="general" className="mt-0 space-y-6">
+        <InstitutionSettingsForm
+          institutionId={institutionId}
+          viewerRole={viewerRole}
+          initialEffective={effectiveSettings}
+        />
+        {adminsSection}
+      </TabsContent>
+
+      <TabsContent value="ai" className="mt-0">
+        <InstitutionAiManagementTab
+          institutionId={institutionId}
+          viewerRole={viewerRole}
+          effectiveSettings={effectiveSettings}
+          institutionPolicy={institutionPolicy}
+        />
+      </TabsContent>
+    </Tabs>
+  );
+}

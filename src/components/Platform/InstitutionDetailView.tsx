@@ -6,8 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
-import InstitutionAiConfigCard from "@/components/Settings/InstitutionAiConfigCard";
-import InstitutionSettingsForm from "@/components/Settings/InstitutionSettingsForm";
+import InstitutionSettingsTabs from "@/components/Settings/InstitutionSettingsTabs";
 import InstitutionClassCard from "@/components/Platform/InstitutionClassCard";
 import ManageInstitutionAdminInvite from "@/components/Platform/ManageInstitutionAdminInvite";
 import { Button } from "@/components/ui/button";
@@ -36,7 +35,7 @@ import type {
 } from "@/lib/queries/institutions";
 import type { Class } from "@/types/class";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
-import type { EffectiveAiConfigs } from "@/types/aiCapabilityConfig";
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
 
 import {
   addInstitutionAdminRequestAction,
@@ -64,7 +63,7 @@ export interface InstitutionDetailViewProps {
   backHref?: string;
   backLabel?: string;
   effectiveSettings: EffectiveSettings;
-  initialAiConfigs: EffectiveAiConfigs;
+  institutionPolicy: AiInstitutionPolicy;
   /**
    * Base href used by the Classes tab to link into the per-class override
    * drill-down. The view appends `/{classDbId}`.
@@ -102,7 +101,7 @@ export default function InstitutionDetailView({
   backHref,
   backLabel,
   effectiveSettings,
-  initialAiConfigs,
+  institutionPolicy,
   classOverrideHrefBase,
   notice,
 }: InstitutionDetailViewProps) {
@@ -209,23 +208,19 @@ export default function InstitutionDetailView({
         </TabsList>
 
         <TabsContent value="settings" className="space-y-6 pt-6">
-          <InstitutionSettingsForm
+          <InstitutionSettingsTabs
             institutionId={institution.id}
             viewerRole={viewerRole}
-            initialEffective={effectiveSettings}
-          />
-
-          <InstitutionAiConfigCard
-            institutionId={institution.id}
-            viewerRole={viewerRole}
-            initialEffective={initialAiConfigs}
-          />
-
-          <AdminsCard
-            institutionId={institution.id}
-            members={members}
-            userEmails={userEmails}
-            isSuper={isSuper}
+            effectiveSettings={effectiveSettings}
+            institutionPolicy={institutionPolicy}
+            adminsSection={
+              <AdminsCard
+                institutionId={institution.id}
+                members={members}
+                userEmails={userEmails}
+                isSuper={isSuper}
+              />
+            }
           />
         </TabsContent>
 

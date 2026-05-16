@@ -1,30 +1,22 @@
-import { TEXT_CAPABILITY_KEY } from "@/lib/ai/capabilities/registry";
-import type {
-  AiConfigReadiness,
-  AiInstitutionPolicy,
-  EffectiveAiConfigs,
-} from "@/types/aiCapabilityConfig";
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
 
-export function assessAiConfigReadiness(input: {
+export interface AiConfigReadiness {
+  showClassBanner: boolean;
+  catalogConfigured: boolean;
+  allowUsePlatformDefaults: boolean;
+}
+
+export function assessCatalogReadiness(input: {
   institutionPolicy: AiInstitutionPolicy;
-  platform: EffectiveAiConfigs;
-  classEffective: EffectiveAiConfigs;
+  catalogConfigured: boolean;
 }): AiConfigReadiness {
-  const textMeta = input.platform.capabilities[TEXT_CAPABILITY_KEY];
-  const classTextMeta = input.classEffective.capabilities[TEXT_CAPABILITY_KEY];
-  const platformConfigured = Boolean(textMeta?.hasKey);
-  const classReady = Boolean(classTextMeta?.hasKey);
   const allowUsePlatformDefaults = input.institutionPolicy.allowUsePlatformDefaults;
-
-  // When platform defaults are disabled, platform keys are not inherited — only
-  // classReady matters. Requiring !platformConfigured hid the banner while platform
-  // still had keys the institution could not use.
-  const showClassBanner = !allowUsePlatformDefaults && !classReady;
+  const showClassBanner =
+    !allowUsePlatformDefaults && !input.catalogConfigured;
 
   return {
     showClassBanner,
-    platformConfigured,
-    classReady,
+    catalogConfigured: input.catalogConfigured,
     allowUsePlatformDefaults,
   };
 }

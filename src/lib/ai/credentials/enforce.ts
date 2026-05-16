@@ -1,64 +1,9 @@
 import "server-only";
 
-import type { AiProvider } from "@/lib/ai/capabilities/registry";
-import {
-  AI_PROVIDERS,
-  asAiCapabilityKey,
-  DEFAULT_GOOGLE_MODEL,
-  isValidGoogleModelId,
-  resolveGoogleModelId,
-} from "@/lib/ai/capabilities/registry";
 import { aiConfigCapabilities } from "@/lib/ai/credentials/capabilities";
 import type { ViewerRole } from "@/lib/settings/capabilities";
-import type {
-  AiInstitutionPolicy,
-  UpsertAiConfigPayload,
-} from "@/types/aiCapabilityConfig";
-import type { InstitutionAiConfigLockKey } from "@/lib/queries/aiCapabilityConfigs";
-
-function assertProvider(raw: unknown): AiProvider {
-  const allowed = new Set(AI_PROVIDERS.map((p) => p.value));
-  if (typeof raw !== "string" || !allowed.has(raw as AiProvider)) {
-    throw new Error("Invalid AI provider");
-  }
-  return raw as AiProvider;
-}
-
-export function validateUpsertPayload(
-  capabilityKey: string,
-  payload: UpsertAiConfigPayload,
-  institutionPolicy?: AiInstitutionPolicy,
-): UpsertAiConfigPayload {
-  asAiCapabilityKey(capabilityKey);
-  if (payload.usePlatformDefault) {
-    if (
-      institutionPolicy &&
-      !institutionPolicy.allowUsePlatformDefaults
-    ) {
-      throw new Error(
-        "Platform defaults are disabled for this institution. Configure custom API keys.",
-      );
-    }
-    return { usePlatformDefault: true };
-  }
-  if (!payload.provider) {
-    throw new Error("Provider is required for custom configuration");
-  }
-  const modelId = resolveGoogleModelId(
-    payload.modelId,
-    DEFAULT_GOOGLE_MODEL,
-  );
-  if (payload.modelId?.trim() && !isValidGoogleModelId(payload.modelId.trim())) {
-    throw new Error("Invalid model");
-  }
-
-  return {
-    usePlatformDefault: false,
-    provider: assertProvider(payload.provider),
-    modelId,
-    apiKey: payload.apiKey?.trim() || undefined,
-  };
-}
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
+import type { InstitutionAiPolicyLockKey } from "@/lib/queries/aiInstitutionSettings";
 
 export function assertCanEditPlatform(viewerRole: ViewerRole): void {
   if (viewerRole !== "super_admin") {
@@ -96,7 +41,7 @@ export function assertCanEditClassAiConfig(input: {
 
 export function assertCanToggleAiLock(input: {
   viewerRole: ViewerRole;
-  lock: InstitutionAiConfigLockKey;
+  lock: InstitutionAiPolicyLockKey;
   institutionPolicy: AiInstitutionPolicy;
 }): void {
   if (input.viewerRole === "super_admin") return;

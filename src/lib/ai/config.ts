@@ -23,6 +23,7 @@ export interface ResolvedModelConfig {
   provider: AIProvider;
   apiKey: string;
   modelId: string;
+  providerOptions?: SharedV3ProviderOptions;
 }
 
 /**
@@ -30,7 +31,7 @@ export interface ResolvedModelConfig {
  *
  * Google (Gemini 3): thinkingLevel "minimal" — near-zero latency, model may
  *   still think for complex coding tasks.
- * OpenAI: reasoningEffort "low" — minimal reasoning overhead for fast responses.
+ * OpenAI: reasoning.effort (e.g. gpt-5.4: none, low, medium, high, xhigh).
  */
 export function getDefaultProviderOptions(
   provider: AIProvider,

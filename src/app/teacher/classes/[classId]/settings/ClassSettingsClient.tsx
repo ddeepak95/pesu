@@ -14,9 +14,9 @@ import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetPro
 import DuplicateClassSection from "@/components/Teacher/Classes/Settings/DuplicateClassSection";
 import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneSection";
 import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
-import ClassAiConfigSection from "@/components/Settings/ClassAiConfigSection";
+import ClassAiManagementTab from "@/components/Settings/ClassAiManagementTab";
 import ClassInheritedSettingsSection from "@/components/Settings/ClassInheritedSettingsSection";
-import type { EffectiveAiConfigs } from "@/types/aiCapabilityConfig";
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import { Class } from "@/types/class";
 
@@ -24,8 +24,7 @@ interface ClassSettingsClientProps {
   classData: Class;
   classId: string;
   viewerRole: ViewerRole;
-  initialAiConfigs?: EffectiveAiConfigs;
-  initialInstitutionAiConfigs?: EffectiveAiConfigs;
+  institutionPolicy?: AiInstitutionPolicy;
   /**
    * Optional explicit back-link target. When provided, replaces the default
    * history-based `<BackButton />`. Used by the institution/super-admin
@@ -42,8 +41,7 @@ export default function ClassSettingsClient({
   viewerRole,
   backHref,
   backLabel,
-  initialAiConfigs,
-  initialInstitutionAiConfigs,
+  institutionPolicy,
 }: ClassSettingsClientProps) {
   const router = useTrackedRouter();
 
@@ -143,14 +141,12 @@ export default function ClassSettingsClient({
             viewerRole={viewerRole}
           />
 
-          {initialClassData.institution_id && initialAiConfigs && (
-            <ClassAiConfigSection
+          {initialClassData.institution_id && institutionPolicy && (
+            <ClassAiManagementTab
               classDbId={initialClassData.id}
-              classShortId={classId}
               institutionId={initialClassData.institution_id}
               viewerRole={viewerRole}
-              initialEffective={initialAiConfigs}
-              initialInstitutionEffective={initialInstitutionAiConfigs}
+              institutionPolicy={institutionPolicy}
             />
           )}
 

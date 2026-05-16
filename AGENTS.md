@@ -83,3 +83,12 @@ Server components, route handlers, and `server-only` helpers are exempt from
 the rules above and may import `@/lib/queries/*` and `useRouter`-style
 helpers directly (the lint rules apply only to `src/components/**` and
 `src/app/**/*Client*.{ts,tsx}`).
+
+## AI catalog (Supabase)
+
+AI settings use the catalog only: `ai_provider_activations`, `ai_function_bindings`, and `ai_institution_settings` (policy locks). Scopes: platform, institution, class.
+
+Migrations (greenfield order): [`supabase_ai_catalog.sql`](supabase-migrations/supabase_ai_catalog.sql) → [`supabase_ai_institution_settings.sql`](supabase-migrations/supabase_ai_institution_settings.sql) → [`supabase_ai_catalog_class_scope.sql`](supabase-migrations/supabase_ai_catalog_class_scope.sql) → [`supabase_ai_drop_capability_configs.sql`](supabase-migrations/supabase_ai_drop_capability_configs.sql).
+
+- UI: [`useAiCatalogSettings`](src/hooks/swr/useAiCatalogSettings.ts) (platform / institution / class); institution policy via [`useInstitutionAiPolicy`](src/hooks/swr/useInstitutionAiPolicy.ts).
+- Runtime: [`resolveModelConfig`](src/lib/ai/credentials/resolve.ts) → [`resolveCatalogModelConfigForClass`](src/lib/ai/catalog/resolveRuntime.ts) (requires `appFunctionKey`). Env fallback only when no class context (e.g. evaluate without assignment).

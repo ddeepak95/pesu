@@ -1,6 +1,6 @@
 "use client";
 
-import { useAiConfigReadiness } from "@/hooks/swr/useAiCapabilityConfigs";
+import { useAiCatalogReadiness } from "@/hooks/swr/useAiCatalogReadiness";
 
 interface AiConfigMisconfigBannerProps {
   classDbId: string;
@@ -11,7 +11,7 @@ export default function AiConfigMisconfigBanner({
   classDbId,
   institutionId,
 }: AiConfigMisconfigBannerProps) {
-  const { data: readiness } = useAiConfigReadiness(classDbId, institutionId);
+  const { data: readiness } = useAiCatalogReadiness(classDbId, institutionId);
 
   if (!readiness?.showClassBanner) {
     return null;

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { AiConfigSource } from "@/types/aiCapabilityConfig";
+import type { AiConfigSource } from "@/types/aiSettings";
 
 export type ChatMessageRole = "student" | "assistant";
 

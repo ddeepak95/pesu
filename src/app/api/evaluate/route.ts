@@ -5,12 +5,14 @@ import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmis
 import { SubmissionAttempt, QuestionEvaluations } from "@/types/submission";
 import { computeDenormalizedFields } from "@/lib/queries/submissions";
 import { runBackgroundEvaluation } from "@/lib/backgroundEvaluation";
-import {
-  getDefaultModelConfigFromEnv,
-  getDefaultProviderOptions,
-} from "@/lib/ai/config";
+import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import { AiNotConfiguredError, resolveEnvModelConfig } from "@/lib/ai/credentials/resolve";
+import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
 import { getLanguageModel } from "@/lib/ai/provider";
+import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
+import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import type { ResolvedModelConfig } from "@/lib/ai/config";
 
 interface EvaluateRequestBody {
   submissionId: string;
@@ -64,6 +66,7 @@ export async function POST(request: NextRequest) {
     const maxScore = rubric.reduce((sum, item) => sum + item.points, 0);
 
     const supabase = await createServerSupabaseClient();
+
     const integrityBlock = await assertSubmissionNotIntegrityLocked(
       supabase,
       submissionId,
@@ -86,6 +89,30 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
+
+    const assignmentId = currentSubmission.assignment_id as string | undefined;
+
+    async function resolveEvalConfig(): Promise<ResolvedModelConfig> {
+      if (assignmentId) {
+        const classDbId = await getClassDbIdForAssignment(supabase, assignmentId);
+        if (classDbId) {
+          try {
+            const resolved = await getCachedResolveModelConfig({
+              classDbId,
+              appFunctionKey: "text.evaluation",
+            });
+            return resolved.config;
+          } catch (error) {
+            if (!(error instanceof AiNotConfiguredError)) {
+              throw error;
+            }
+          }
+        }
+      }
+      return resolveEnvModelConfig().config;
+    }
+
+    const evalModelConfig = await resolveEvalConfig();
 
     // Normalise evaluations (handle legacy array format)
     let evaluations = currentSubmission.evaluations as
@@ -195,6 +222,7 @@ export async function POST(request: NextRequest) {
             language,
             sharedContext,
             customEvaluationPrompt,
+            modelConfig: evalModelConfig,
           });
         } catch (err) {
           console.error("Background evaluation failed:", err);
@@ -210,13 +238,12 @@ export async function POST(request: NextRequest) {
       !!customEvaluationPrompt,
     );
 
-    const config = getDefaultModelConfigFromEnv();
-    const model = getLanguageModel(config);
+    const model = getLanguageModel(evalModelConfig);
 
     const { validatedRubricScores, overallFeedback, totalScore } =
       await evaluateSubmission({
         model,
-        providerOptions: getDefaultProviderOptions(config.provider),
+        providerOptions: providerOptionsForConfig(evalModelConfig),
         questionPrompt,
         answerText,
         rubric,

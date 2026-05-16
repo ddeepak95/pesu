@@ -1,9 +1,6 @@
 import "server-only";
 
-import {
-  TEXT_CAPABILITY_KEY,
-  type AiCapabilityKey,
-} from "@/lib/ai/capabilities/registry";
+import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import {
   resolveModelConfig,
   type ResolveModelConfigResult,
@@ -37,11 +34,8 @@ function getStore(): ModelConfigCacheStore {
   return globalStore.__modelConfigCacheStore;
 }
 
-function cacheKey(
-  classDbId: string,
-  capabilityKey: AiCapabilityKey,
-): string {
-  return `${capabilityKey}:${classDbId}`;
+function cacheKey(classDbId: string, appFunctionKey: AppFunctionKey): string {
+  return `${appFunctionKey}:${classDbId}`;
 }
 
 function getCached(key: string): ResolveModelConfigResult | null {
@@ -64,14 +58,12 @@ function setCached(key: string, result: ResolveModelConfigResult): void {
 
 /**
  * Resolve model config with in-memory TTL cache (chat and other opt-in callers).
- * On a cache hit, skips all AI config Supabase reads; invalidation runs on settings save.
  */
 export async function getCachedResolveModelConfig(input: {
   classDbId: string;
-  capabilityKey?: AiCapabilityKey;
+  appFunctionKey: AppFunctionKey;
 }): Promise<ResolveModelConfigResult> {
-  const capabilityKey = input.capabilityKey ?? TEXT_CAPABILITY_KEY;
-  const key = cacheKey(input.classDbId, capabilityKey);
+  const key = cacheKey(input.classDbId, input.appFunctionKey);
 
   const hit = getCached(key);
   if (hit) return hit;
@@ -81,7 +73,7 @@ export async function getCachedResolveModelConfig(input: {
   if (!pending) {
     pending = resolveModelConfig({
       classDbId: input.classDbId,
-      capabilityKey,
+      appFunctionKey: input.appFunctionKey,
     })
       .then((result) => {
         setCached(key, result);
@@ -98,11 +90,11 @@ export async function getCachedResolveModelConfig(input: {
 
 export function invalidateModelConfigCache(
   classDbId: string,
-  capabilityKey?: AiCapabilityKey,
+  appFunctionKey?: AppFunctionKey,
 ): void {
   const { cache, inflight } = getStore();
-  if (capabilityKey) {
-    const k = cacheKey(classDbId, capabilityKey);
+  if (appFunctionKey) {
+    const k = cacheKey(classDbId, appFunctionKey);
     cache.delete(k);
     inflight.delete(k);
     return;

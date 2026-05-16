@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { RubricItem } from "@/types/assignment";
-import {
-  getDefaultModelConfigFromEnv,
-  getDefaultProviderOptions,
-} from "@/lib/ai/config";
+import { getDefaultModelConfigFromEnv } from "@/lib/ai/config";
+import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
+import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRuntime";
 import { getLanguageModel } from "@/lib/ai/provider";
+import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import {
   rubricGenerationSchema,
   rubricOnlySchema,
@@ -91,9 +91,17 @@ export async function POST(request: NextRequest) {
       contextText += `\n\nTeacher's Additional Instructions for Generation:\n${focusGuidance.trim()}`;
     }
 
-    const config = getDefaultModelConfigFromEnv();
+    let config = getDefaultModelConfigFromEnv();
+    try {
+      const resolved = await resolveCatalogModelConfigForPlatform("text");
+      config = resolved.config;
+    } catch (error) {
+      if (!(error instanceof AiNotConfiguredError)) {
+        throw error;
+      }
+    }
     const model = getLanguageModel(config);
-    const providerOptions = getDefaultProviderOptions(config.provider);
+    const providerOptions = providerOptionsForConfig(config);
 
     const baseUser = `${contextText}
 

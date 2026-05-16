@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { getDefaultProviderOptions } from "@/lib/ai/config";
+import {
+  formatReasoningForConfig,
+  providerOptionsForConfig,
+} from "@/lib/ai/providerOptions";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
-import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
+import {
+  aiKeySourceLogLabel,
+  AiNotConfiguredError,
+} from "@/lib/ai/credentials/resolve";
 import { createChatStream } from "@/lib/ai/chat-stream";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
@@ -72,6 +78,7 @@ export async function POST(request: NextRequest) {
     try {
       resolved = await getCachedResolveModelConfig({
         classDbId,
+        appFunctionKey: "text.chat_tutoring",
       });
     } catch (error) {
       if (error instanceof AiNotConfiguredError) {
@@ -87,8 +94,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { config, keySource } = resolved;
+    console.log("[chat-assessment]", {
+      provider: config.provider,
+      modelId: config.modelId,
+      keySource,
+      label: aiKeySourceLogLabel(keySource),
+      reasoning: formatReasoningForConfig(config),
+    });
     const model = getLanguageModel(config);
-    const providerOptions = getDefaultProviderOptions(config.provider);
+    const providerOptions = providerOptionsForConfig(config);
 
     const aiMetadata = {
       aiKeySource: keySource,

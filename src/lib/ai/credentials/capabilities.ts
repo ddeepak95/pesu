@@ -1,5 +1,5 @@
 import type { SettingCapabilities, ViewerRole } from "@/lib/settings/capabilities";
-import type { AiInstitutionPolicy } from "@/types/aiCapabilityConfig";
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
 
 export function aiConfigCapabilities(input: {
   viewerRole: ViewerRole;
