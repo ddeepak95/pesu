@@ -290,11 +290,7 @@ export default function LandingPage() {
                     borderColor: "oklch(0.145 0 0)",
                   }}
                 >
-                  <Link
-                    href="/assignment/U-qOw_dV"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <Link href="/try" target="_blank" rel="noopener noreferrer">
                     Try Sample Activity
                   </Link>
                 </Button>

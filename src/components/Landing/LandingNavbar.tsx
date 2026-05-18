@@ -113,11 +113,7 @@ export default function LandingNavbar() {
                     borderColor: "var(--foreground)",
                   }}
                 >
-                  <Link
-                    href="/assignment/U-qOw_dV"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <Link href="/try" target="_blank" rel="noopener noreferrer">
                     Try Sample Activity
                   </Link>
                 </Button>
@@ -170,7 +166,7 @@ export default function LandingNavbar() {
               }}
             >
               <Link
-                href="/assignment/U-qOw_dV"
+                href="/try"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={closeMenu}
