@@ -1,88 +1,87 @@
 ﻿"use client";
 
-import { Loader2, Mic, Send } from "lucide-react";
+import { Mic, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ChatPhase } from "./useTurnBasedVoiceChat";
 import { AudioWaveform } from "./AudioWaveform";
+import type { KonvoUiConfig } from "./uiState";
 import type { UseAudioRecorderResult } from "./useAudioRecorder";
 
 interface UserInputPanelProps {
-  phase: ChatPhase;
-  disabled: boolean;
+  ui: KonvoUiConfig;
   canSend: boolean;
-  isTranscribing: boolean;
   recorder: UseAudioRecorderResult;
-  onTapToSpeak: () => void;
+  onMicPress: () => void;
   onSend: () => void;
 }
 
 export function UserInputPanel({
-  phase,
-  disabled,
+  ui,
   canSend,
-  isTranscribing,
   recorder,
-  onTapToSpeak,
+  onMicPress,
   onSend,
 }: UserInputPanelProps) {
-  const isRecording = phase === "user_recording";
-  const showTapToSpeak = phase === "user_idle";
+  const micDisabled = ui.actionButton === "mic" && !ui.micEnabled;
 
   return (
-    <div className={`flex flex-col h-full min-h-[140px] rounded-xl border border-border bg-muted/40 p-4 ${
-        disabled ? "opacity-60 pointer-events-none" : ""
+    <div
+      className={`flex flex-col h-full min-h-[140px] rounded-xl border border-border bg-muted/40 p-4 ${
+        micDisabled ? "opacity-60" : ""
       }`}
     >
-      <p className="text-sm font-semibold text-foreground mb-3">
-        {showTapToSpeak ? "Tap to Speak" : "Your Response"}
-      </p>
+      <p className="text-sm font-semibold text-foreground mb-3">Your Response</p>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 min-h-0 w-full">
-        {showTapToSpeak ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="h-24 w-24 rounded-xl flex flex-col gap-2"
-            onClick={onTapToSpeak}
-            disabled={disabled}
-          >
-            <Mic className="h-10 w-10" />
-          </Button>
-        ) : (
-          <div className="flex w-full flex-col gap-3 flex-1 min-h-0 justify-center">
-            <div className="w-full px-1">
-              <AudioWaveform
-                analyser={recorder.analyser}
-                active={isRecording && !isTranscribing}
-              />
-            </div>
+      <div className="flex flex-1 flex-col min-h-0 gap-3">
+        {ui.showUserSpeakPrompt ? (
+          <p className="text-sm text-muted-foreground text-center px-2">
+            Tap the mic and speak when you&apos;re ready.
+          </p>
+        ) : null}
 
-            <div className="flex w-full items-center justify-end gap-2">
-              {isTranscribing ? (
-                <p className="flex-1 text-sm text-muted-foreground italic flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                  Transcribing…
-                </p>
-              ) : (
-                <p className="flex-1 text-sm text-muted-foreground italic">
-                  {isRecording ? "Speak, then send" : "…"}
-                </p>
-              )}
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="flex flex-col h-auto py-2 px-3 gap-1 shrink-0"
-                onClick={onSend}
-                disabled={!canSend}
-              >
-                <Send className="h-5 w-5" />
-                <span className="text-xs">Send</span>
-              </Button>
-            </div>
+        {ui.showUserWave ? (
+          <div className="w-full px-1 flex-1 flex flex-col items-center justify-center min-h-[48px] gap-1">
+            <p className="text-xs text-muted-foreground">
+              {recorder.isRecording ? "Recording… speak now" : "Starting mic…"}
+            </p>
+            <AudioWaveform
+              key={`rec-${recorder.recordingSessionId}`}
+              mode={recorder.analyser ? "audio" : "thinking"}
+              analyser={recorder.analyser}
+              active={recorder.isRecording && Boolean(recorder.analyser)}
+              className="w-full"
+            />
           </div>
+        ) : (
+          <div className="flex-1 min-h-[48px]" />
         )}
+
+        <div className="flex w-full items-center justify-end">
+          {ui.actionButton === "send" ? (
+            <Button
+              type="button"
+              variant="default"
+              size="lg"
+              className="h-14 w-14 rounded-xl shrink-0"
+              onClick={onSend}
+              disabled={!canSend}
+              aria-label="Send"
+            >
+              <Send className="h-6 w-6" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="h-14 w-14 rounded-xl shrink-0"
+              onClick={onMicPress}
+              disabled={micDisabled}
+              aria-label="Record"
+            >
+              <Mic className="h-6 w-6" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {recorder.error ? (

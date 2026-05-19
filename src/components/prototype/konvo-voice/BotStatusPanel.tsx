@@ -1,16 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import type { ChatPhase } from "./useTurnBasedVoiceChat";
 import { AudioWaveform } from "./AudioWaveform";
-
-type BotVisualState = "thinking" | "speaking" | "listening";
-
-function phaseToBotState(phase: ChatPhase): BotVisualState {
-  if (phase === "bot_thinking" || phase === "user_submitting") return "thinking";
-  if (phase === "bot_speaking") return "speaking";
-  return "listening";
-}
+import {
+  type BotVisualState,
+  type KonvoUiState,
+  uiStateToBotVisual,
+} from "./uiState";
 
 function getAvatarImage(state: BotVisualState): string {
   switch (state) {
@@ -18,6 +14,8 @@ function getAvatarImage(state: BotVisualState): string {
       return "/speaking_avatars/thinking.png";
     case "speaking":
       return "/speaking_avatars/speaking.png";
+    case "ready":
+      return "/speaking_avatars/ready.png";
     default:
       return "/speaking_avatars/listening.png";
   }
@@ -29,6 +27,8 @@ function getRingConfig(state: BotVisualState) {
       return { animationClass: "animate-ring-spin", color: "border-purple-600" };
     case "speaking":
       return { animationClass: "animate-ring-ripple", color: "border-indigo-600" };
+    case "ready":
+      return { animationClass: "animate-ring-breathe", color: "border-emerald-600" };
     default:
       return { animationClass: "animate-ring-pulse", color: "border-blue-600" };
   }
@@ -40,17 +40,27 @@ function getStatusLabel(state: BotVisualState): string {
       return "Thinking";
     case "speaking":
       return "Speaking";
+    case "ready":
+      return "Your turn";
     default:
       return "Listening";
   }
 }
 
 interface BotStatusPanelProps {
-  phase: ChatPhase;
+  uiState: KonvoUiState;
+  showBotWave: boolean;
+  botWaveMode: "thinking" | "audio" | "none";
+  playbackAnalyser: AnalyserNode | null;
 }
 
-export function BotStatusPanel({ phase }: BotStatusPanelProps) {
-  const botState = phaseToBotState(phase);
+export function BotStatusPanel({
+  uiState,
+  showBotWave,
+  botWaveMode,
+  playbackAnalyser,
+}: BotStatusPanelProps) {
+  const botState = uiStateToBotVisual(uiState);
   const ring = getRingConfig(botState);
   const label = getStatusLabel(botState);
 
@@ -75,17 +85,22 @@ export function BotStatusPanel({ phase }: BotStatusPanelProps) {
               alt={`Konvo ${label}`}
               fill
               className="object-cover"
-              style={{ transform: "scale(1.5) translateY(12px)" }}
+              style={{ transform: "scale(1.5) translateY(4px)" }}
               sizes="64px"
             />
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 flex items-center">
-          {botState === "speaking" ? (
-            <AudioWaveform active className="opacity-90" />
+        <div className="flex-1 min-w-0 flex items-center justify-center h-14">
+          {showBotWave ? (
+            <AudioWaveform
+              mode={botWaveMode}
+              analyser={playbackAnalyser}
+              active={botWaveMode === "audio" && Boolean(playbackAnalyser)}
+              className="w-full"
+            />
           ) : (
-            <div className="w-full h-12" />
+            <div className="w-full h-14" />
           )}
         </div>
       </div>

@@ -6,6 +6,7 @@ import { generateStructured } from "@/lib/ai/structured";
 import { buildTurnMessages, segmentsToAssistantText } from "@/lib/prototype/konvo-voice/prompt";
 import { botTurnSchema, type BotSegment } from "@/lib/prototype/konvo-voice/schema";
 import { sseEvent, sseHeaders } from "@/lib/prototype/konvo-voice/sse";
+import { OPENAI_TTS_MIME, OPENAI_TTS_SAMPLE_RATE } from "@/lib/prototype/konvo-voice/speech/config";
 import { getTtsProvider } from "@/lib/prototype/konvo-voice/speech/registry";
 
 interface TurnRequestBody {
@@ -97,7 +98,8 @@ export async function POST(request: NextRequest) {
             enqueue({
               type: "speech_start",
               index: speechIndex,
-              mimeType: "audio/mpeg",
+              mimeType: OPENAI_TTS_MIME,
+              sampleRate: OPENAI_TTS_SAMPLE_RATE,
             });
 
             if (tts.synthesizeStream) {

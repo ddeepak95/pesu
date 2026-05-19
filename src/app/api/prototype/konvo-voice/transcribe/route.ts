@@ -14,6 +14,16 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await audio.arrayBuffer());
+    if (buffer.length < 500) {
+      return NextResponse.json(
+        {
+          error: "Audio too short",
+          details: "Recording was empty or too brief to transcribe.",
+        },
+        { status: 400 },
+      );
+    }
+
     const filename =
       audio instanceof File && audio.name ? audio.name : "recording.webm";
     const mimeType = audio.type || "audio/webm";
@@ -25,7 +35,19 @@ export async function POST(request: NextRequest) {
       mimeType,
     });
 
-    return NextResponse.json({ text: (result.text ?? "").trim() });
+    const text = (result.text ?? "").trim();
+    if (!text) {
+      return NextResponse.json(
+        {
+          error: "No speech detected",
+          details:
+            "The transcription service returned no text. The recording may be silent or unsupported.",
+        },
+        { status: 422 },
+      );
+    }
+
+    return NextResponse.json({ text });
   } catch (error) {
     console.error("[konvo-voice/transcribe]", error);
     return NextResponse.json(
