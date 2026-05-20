@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BotSegment, ContentKind } from "@/lib/prototype/konvo-voice/schema";
+import { SARVAM_STT_CATALOG_MODEL_ID } from "@/lib/prototype/konvo-voice/speech/constants";
+import { splitAudioForSarvam } from "@/lib/prototype/konvo-voice/speech/splitAudioForSarvam";
 import { postJsonSse } from "./useSseClient";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { useStreamingSpeechPlayback } from "./useStreamingSpeechPlayback";
@@ -51,6 +53,7 @@ export function useTurnBasedVoiceChat({
   const interruptedRef = useRef(false);
   const phaseRef = useRef<ChatPhase>(phase);
   phaseRef.current = phase;
+  const recordingStartedAtRef = useRef<number | null>(null);
 
   const recorder = useAudioRecorder();
   const playback = useStreamingSpeechPlayback();
@@ -64,19 +67,39 @@ export function useTurnBasedVoiceChat({
   );
 
   const transcribeBlob = useCallback(async (blob: Blob): Promise<string> => {
-    const mime = blob.type || "audio/webm";
-    const ext = mime.includes("mp4") || mime.includes("m4a")
-      ? "recording.mp4"
-      : mime.includes("ogg")
-        ? "recording.ogg"
-        : "recording.webm";
-
     const formData = new FormData();
-    formData.append(
-      "audio",
-      new File([blob], ext, { type: mime }),
-    );
     formData.append("sessionConfig", JSON.stringify(sessionConfig));
+    if (recordingStartedAtRef.current != null) {
+      const durationMs = Date.now() - recordingStartedAtRef.current;
+      formData.append("recordingDurationMs", String(durationMs));
+    }
+
+    if (sessionConfig.sttModelId === SARVAM_STT_CATALOG_MODEL_ID) {
+      const segments = await splitAudioForSarvam(blob);
+      formData.append("segmentCount", String(segments.length));
+      segments.forEach((segment, index) => {
+        const name =
+          segment.type === "audio/wav"
+            ? `segment_${index}.wav`
+            : `segment_${index}.webm`;
+        formData.append(
+          `audio_${index}`,
+          new File([segment], name, { type: segment.type || "audio/wav" }),
+        );
+      });
+    } else {
+      const rawMime = blob.type || "audio/webm";
+      const mime = rawMime.split(";")[0]?.trim() || "audio/webm";
+      const ext = mime.includes("mp4") || mime.includes("m4a")
+        ? "recording.mp4"
+        : mime.includes("ogg")
+          ? "recording.ogg"
+          : "recording.webm";
+      formData.append(
+        "audio",
+        new File([blob], ext, { type: mime }),
+      );
+    }
 
     const response = await fetch("/api/prototype/konvo-voice/transcribe", {
       method: "POST",
@@ -164,7 +187,6 @@ export function useTurnBasedVoiceChat({
               assistantText = (event.text as string) ?? "";
             } else if (type === "done") {
               if (!interruptedRef.current) {
-                // Stay in bot_speaking until all queued TTS segments finish playing.
                 void playback.waitForAll({
                   onAllEnd: () => {
                     if (!interruptedRef.current) {
@@ -219,23 +241,22 @@ export function useTurnBasedVoiceChat({
     recorderRef.current.clearRecording();
     setTranscript("");
 
-    // Free the output device after bot TTS before opening the mic.
     playback.releasePlayback();
-
     setPhase("user_recording");
 
     const started = await recorderRef.current.startRecording();
-    if (started) {
-      // phase already user_recording
-    } else {
+    if (!started) {
+      recordingStartedAtRef.current = null;
       setPhase("user_idle");
       const micError = recorderRef.current.error;
       if (micError) setError(micError);
+      return;
     }
+
+    recordingStartedAtRef.current = Date.now();
   }, [playback]);
 
   const handleMicPress = useCallback(async () => {
-    // Unlock AudioContext in the same user-gesture turn (before any await).
     recorderRef.current.primeAudio();
 
     const currentPhase = phaseRef.current;
@@ -259,6 +280,9 @@ export function useTurnBasedVoiceChat({
     setError(null);
 
     try {
+      setIsTranscribing(true);
+      setPhase("user_submitting");
+
       const blob = await recorderRef.current.stopRecording();
       if (!blob || blob.size === 0) {
         setError("No audio recorded. Hold the mic longer and try again.");
@@ -273,9 +297,6 @@ export function useTurnBasedVoiceChat({
         setPhase("user_idle");
         return;
       }
-
-      setIsTranscribing(true);
-      setPhase("user_submitting");
 
       const text = await transcribeBlob(blob);
       setTranscript(text);
@@ -304,7 +325,6 @@ export function useTurnBasedVoiceChat({
 
   const isStarted = phase !== "not_started";
   const canSend = phase === "user_recording" && !isTranscribing;
-
   const userPanelDisabled = phase === "not_started";
 
   return {

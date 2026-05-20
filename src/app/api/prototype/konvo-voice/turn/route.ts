@@ -25,14 +25,27 @@ interface TurnRequestBody {
   sessionConfig?: KonvoSessionConfig;
 }
 
+function speechTextFromSegment(
+  segment: Record<string, unknown>,
+): string {
+  for (const key of ["text", "content", "message", "speech"] as const) {
+    const value = segment[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
 function normalizeSegments(raw: BotSegment[] | undefined): BotSegment[] {
   if (!Array.isArray(raw)) return [];
 
   return raw
     .map((segment) => {
       if (segment?.type === "speech") {
-        const text =
-          typeof segment.text === "string" ? segment.text.trim() : "";
+        const text = speechTextFromSegment(
+          segment as unknown as Record<string, unknown>,
+        );
         if (!text) return null;
         return { type: "speech" as const, text };
       }

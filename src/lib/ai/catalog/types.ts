@@ -1,4 +1,4 @@
-export type ProviderId = "google" | "openai" | "cartesia";
+export type ProviderId = "google" | "openai" | "cartesia" | "sarvam";
 
 export type ModelClass = "foundation" | "speech" | "realtime";
 
@@ -55,6 +55,8 @@ export interface ModelCatalogEntry {
   io: { inputs: Modality[]; outputs: Modality[] };
   status: "available" | "coming_soon";
   apiSurface?: "chat_completions" | "live" | "transcribe" | "synthesize";
+  /** Konvo prototype: batch REST vs WebSocket streaming STT. */
+  sttDelivery?: "batch" | "stream";
   /** ISO-style codes from supportedLanguages.ts (prototype / speech models). */
   supportedLanguageCodes?: string[];
   /** Provider API model id (speech models; foundation models use `id`). */

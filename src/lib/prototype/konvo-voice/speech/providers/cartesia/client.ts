@@ -1,7 +1,8 @@
 import "server-only";
 
-const CARTESIA_API_BASE = "https://api.cartesia.ai";
-export const CARTESIA_API_VERSION = "2026-03-01";
+import { CARTESIA_API_BASE, CARTESIA_API_VERSION } from "./constants";
+
+export { CARTESIA_API_BASE, CARTESIA_API_VERSION };
 
 export function getCartesiaApiKey(): string {
   const key = process.env.CARTESIA_API_KEY?.trim();
@@ -19,5 +20,3 @@ export function cartesiaHeaders(): HeadersInit {
     "Cartesia-Version": CARTESIA_API_VERSION,
   };
 }
-
-export { CARTESIA_API_BASE };

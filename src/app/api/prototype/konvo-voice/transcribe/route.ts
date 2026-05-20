@@ -6,6 +6,10 @@ import {
 import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
 import { isProviderConfigured } from "@/lib/prototype/konvo-voice/sessionCatalog";
 import { getCatalogEntry } from "@/lib/prototype/konvo-voice/sessionCatalog";
+import {
+  SARVAM_STT_CATALOG_MODEL_ID,
+  SARVAM_STT_MAX_DURATION_MS,
+} from "@/lib/prototype/konvo-voice/speech/constants";
 
 function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   if (!raw) return null;
@@ -16,10 +20,47 @@ function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   }
 }
 
+function isUploadBlob(value: FormDataEntryValue | null): value is Blob {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "arrayBuffer" in value &&
+    typeof (value as Blob).arrayBuffer === "function"
+  );
+}
+
+function collectAudioSegments(formData: FormData): Blob[] {
+  const segmentCountRaw = formData.get("segmentCount");
+  const segmentCount =
+    typeof segmentCountRaw === "string"
+      ? Number.parseInt(segmentCountRaw, 10)
+      : 0;
+
+  // Sarvam client always sends segmentCount + audio_0…n (including n=1).
+  if (Number.isFinite(segmentCount) && segmentCount >= 1) {
+    const segments: Blob[] = [];
+    for (let i = 0; i < segmentCount; i++) {
+      const item = formData.get(`audio_${i}`);
+      if (isUploadBlob(item)) {
+        segments.push(item);
+      }
+    }
+    if (segments.length > 0) {
+      return segments;
+    }
+  }
+
+  const audio = formData.get("audio");
+  if (isUploadBlob(audio)) {
+    return [audio];
+  }
+
+  return [];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const audio = formData.get("audio");
     const sessionRaw = formData.get("sessionConfig");
     const sessionConfig = parseSessionConfig(
       typeof sessionRaw === "string" ? sessionRaw : null,
@@ -40,13 +81,88 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!audio || !(audio instanceof Blob)) {
+    const segments = collectAudioSegments(formData);
+    if (segments.length === 0) {
       return NextResponse.json(
         { error: "Missing audio file" },
         { status: 400 },
       );
     }
 
+    const durationRaw = formData.get("recordingDurationMs");
+    const recordingDurationMs =
+      typeof durationRaw === "string" && durationRaw.trim()
+        ? Number.parseInt(durationRaw, 10)
+        : NaN;
+
+    const isSarvam = sessionConfig.sttModelId === SARVAM_STT_CATALOG_MODEL_ID;
+    const isChunked = isSarvam && segments.length > 1;
+
+    if (
+      isSarvam &&
+      !isChunked &&
+      Number.isFinite(recordingDurationMs) &&
+      recordingDurationMs > SARVAM_STT_MAX_DURATION_MS
+    ) {
+      return NextResponse.json(
+        {
+          error: "Recording too long for Sarvam STT",
+          details: `Sarvam supports up to ${SARVAM_STT_MAX_DURATION_MS / 1000} seconds per request. Longer recordings are split automatically on supported browsers.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const stt = getSttProvider(sessionConfig.sttModelId);
+    const apiModelId = getSpeechApiModelId(sessionConfig.sttModelId);
+
+    const transcribeSegment = async (audio: Blob) => {
+      const buffer = Buffer.from(await audio.arrayBuffer());
+      if (buffer.length < 500) {
+        return "";
+      }
+      const filename =
+        audio instanceof File && audio.name ? audio.name : "recording.webm";
+      const mimeType = audio.type || "audio/webm";
+      const result = await stt.transcribe({
+        audio: buffer,
+        filename,
+        mimeType,
+        language: sessionConfig.language,
+        apiModelId,
+      });
+      return (result.text ?? "").trim();
+    };
+
+    if (isChunked) {
+      const parts: string[] = [];
+      for (const segment of segments) {
+        const part = await transcribeSegment(segment);
+        if (part) {
+          parts.push(part);
+        }
+      }
+
+      const text = parts.join(" ");
+      console.log(
+        `[konvo-voice/transcribe] provider=sarvam chunks=${segments.length} transcriptLen=${text.length}`,
+      );
+
+      if (!text) {
+        return NextResponse.json(
+          {
+            error: "No speech detected",
+            details:
+              "The transcription service returned no text across all segments.",
+          },
+          { status: 422 },
+        );
+      }
+
+      return NextResponse.json({ text });
+    }
+
+    const audio = segments[0]!;
     const buffer = Buffer.from(await audio.arrayBuffer());
     if (buffer.length < 500) {
       return NextResponse.json(
@@ -58,20 +174,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const filename =
-      audio instanceof File && audio.name ? audio.name : "recording.webm";
-    const mimeType = audio.type || "audio/webm";
-
-    const stt = getSttProvider(sessionConfig.sttModelId);
-    const result = await stt.transcribe({
-      audio: buffer,
-      filename,
-      mimeType,
-      language: sessionConfig.language,
-      apiModelId: getSpeechApiModelId(sessionConfig.sttModelId),
-    });
-
-    const text = (result.text ?? "").trim();
+    const text = await transcribeSegment(audio);
     if (!text) {
       return NextResponse.json(
         {

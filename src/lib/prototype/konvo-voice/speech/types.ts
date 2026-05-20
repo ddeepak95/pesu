@@ -1,4 +1,4 @@
-export type SpeechProviderId = "openai" | "cartesia";
+export type SpeechProviderId = "openai" | "cartesia" | "sarvam";
 
 export interface TranscribeInput {
   audio: Buffer;

@@ -104,7 +104,11 @@ Migrations (greenfield order): [`supabase_ai_catalog.sql`](supabase-migrations/s
 
 Pre-start session settings: activity type, STT/TTS/LLM catalog models (env-gated via [`sessionCatalog.ts`](src/lib/prototype/konvo-voice/sessionCatalog.ts)), dialogue language = intersection of [`intersectKonvoLocales`](src/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers.ts) (STT/TTS capabilities + selectable LLM ids from session-options). TTS voice is **developer-mapped** per `(ttsModelId, locale)` in [`konvoLocaleCapabilities.ts`](src/lib/prototype/konvo-voice/konvoLocaleCapabilities.ts) — not user-selected.
 
-Env keys: `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` / `GEMINI_API_KEY`, `CARTESIA_API_KEY` (Cartesia STT/TTS).
+Env keys: `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` / `GEMINI_API_KEY`, `CARTESIA_API_KEY` (Cartesia STT/TTS), `SARVAM_API_KEY` (Sarvam Saaras v3 STT / Bulbul v3 TTS).
+
+**STT delivery:** All Konvo STT models use **batch** REST via `POST /api/prototype/konvo-voice/transcribe` (`sttDelivery: "batch"` in catalog). Sarvam Saaras v3 is limited to **30 seconds per REST call**; recordings longer than 30s are split client-side into WAV segments (`speech/splitAudioForSarvam.ts`), transcribed per segment, and joined with spaces on the server. TTS may still stream (`useStreamingSpeechPlayback`).
+
+Sarvam TTS uses Bulbul `speaker` names in `KONVO_TTS_MODEL_VOICES["sarvam-bulbul-v3-tts"]` — replace `PLACEHOLDER` values with real speakers (`shubh`, `priya`, …). Sarvam language codes use BCP-47 `*-IN` via `speech/providers/sarvam/language.ts`.
 
 **Deferred (post-prototype):** class-scoped `getCachedResolveModelConfig`, platform AI settings binding for `text.konvo_voice_turn`, Supabase provider keys instead of env.
 

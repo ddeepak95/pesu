@@ -6,20 +6,24 @@ import { cartesiaSttProvider } from "./providers/cartesia/stt";
 import { cartesiaTtsProvider } from "./providers/cartesia/tts";
 import { openaiSttProvider } from "./providers/openai/stt";
 import { openaiTtsProvider } from "./providers/openai/tts";
+import { sarvamSttProvider } from "./providers/sarvam/stt";
+import { sarvamTtsProvider } from "./providers/sarvam/tts";
 import type { SpeechProviderId, SttProvider, TtsProvider } from "./types";
 
 const STT_PROVIDERS: Record<SpeechProviderId, SttProvider> = {
   openai: openaiSttProvider,
   cartesia: cartesiaSttProvider,
+  sarvam: sarvamSttProvider,
 };
 
 const TTS_PROVIDERS: Record<SpeechProviderId, TtsProvider> = {
   openai: openaiTtsProvider,
   cartesia: cartesiaTtsProvider,
+  sarvam: sarvamTtsProvider,
 };
 
 function speechProviderId(providerId: ProviderId): SpeechProviderId {
-  if (providerId === "openai" || providerId === "cartesia") {
+  if (providerId === "openai" || providerId === "cartesia" || providerId === "sarvam") {
     return providerId;
   }
   throw new Error(`Provider "${providerId}" does not support speech APIs.`);

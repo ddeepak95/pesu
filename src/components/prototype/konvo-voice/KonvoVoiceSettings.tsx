@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
+import { isSarvamSttCatalogModel } from "@/lib/prototype/konvo-voice/speech/constants";
 import {
   getLanguageLabel,
   intersectLanguageCodes,
@@ -187,6 +188,12 @@ export function KonvoVoiceSettings({ value, onChange }: KonvoVoiceSettingsProps)
             ))}
           </SelectContent>
         </Select>
+        {isSarvamSttCatalogModel(value.sttModelId) ? (
+          <p className="text-xs text-muted-foreground">
+            Recordings longer than 30 seconds are split automatically and
+            transcribed in chunks.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-2">

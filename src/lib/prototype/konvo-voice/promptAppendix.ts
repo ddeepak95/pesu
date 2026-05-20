@@ -3,7 +3,7 @@ export const KONVO_STRUCTURED_OUTPUT_APPENDIX = `
 
 OUTPUT FORMAT:
 Your reply must be structured as an ordered list of segments:
-- type "speech": dialogue spoken aloud to the student (natural, concise; prefer short turns)
+- type "speech": dialogue spoken aloud to the student — use the "text" field (not "content")
 - type "content": optional visual/reference panel (image, video, article, chart) — use sparingly
 
 Rules:

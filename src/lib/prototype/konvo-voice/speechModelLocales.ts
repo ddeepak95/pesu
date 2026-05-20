@@ -1,5 +1,37 @@
 import type { LocaleTag } from "@/lib/locales/types";
 
+/** Locales supported by Sarvam Saaras STT / Bulbul TTS (Indian BCP-47 family). */
+const SARVAM_SPEECH_LOCALES: readonly LocaleTag[] = [
+  "en",
+  "en-IN",
+  "hi",
+  "bn",
+  "gu",
+  "kn",
+  "ml",
+  "mr",
+  "od",
+  "pa",
+  "ta",
+  "te",
+];
+
+/** Sarvam Bulbul v3 speakers — first recommended male per Sarvam docs. */
+const SARVAM_BULBUL_V3_VOICES: Readonly<Record<LocaleTag, string>> = {
+  en: "ratan",
+  "en-IN": "ratan",
+  hi: "shubh",
+  te: "shubh",
+  kn: "shubh",
+  bn: "rehan",
+  ta: "ratan",
+  od: "shubh",
+  ml: "shubh",
+  mr: "ratan",
+  pa: "mani",
+  gu: "ratan",
+};
+
 /**
  * Per-model locale support for Konvo speech.
  *
@@ -30,6 +62,8 @@ export const KONVO_STT_MODEL_LOCALES: Readonly<
     "hi", "id", "it", "kn", "ja", "ko", "ml", "mr", "pa", "pt", "ru", "es",
     "ta", "te", "th", "tr", "uk", "vi",
   ]),
+  // Sarvam Saaras v3 (batch REST STT; long audio split into 30s chunks).
+  "sarvam-saaras-v3-stt": new Set<LocaleTag>(SARVAM_SPEECH_LOCALES),
 };
 
 /**
@@ -103,6 +137,8 @@ export const KONVO_TTS_MODEL_VOICES: Readonly<
     uk: "05ffab9c-d380-4909-8375-cd12f59238c3",
     vi: "935a9060-373c-49e4-b078-f4ea6326987a",
   },
+  // Sarvam Bulbul v3 (@see Sarvam recommended speakers per language).
+  "sarvam-bulbul-v3-tts": SARVAM_BULBUL_V3_VOICES,
 };
 
 export function isSttModelLocaleSupported(

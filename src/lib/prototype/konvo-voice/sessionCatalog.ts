@@ -23,6 +23,8 @@ export function isProviderConfigured(providerId: ProviderId): boolean {
       );
     case "cartesia":
       return Boolean(process.env.CARTESIA_API_KEY?.trim());
+    case "sarvam":
+      return Boolean(process.env.SARVAM_API_KEY?.trim());
     default:
       return false;
   }

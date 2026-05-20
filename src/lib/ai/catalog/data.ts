@@ -87,7 +87,7 @@ export const MODEL_CLASS_ORDER: ModelClass[] = [
   "realtime",
 ];
 
-export const CATALOG_PROVIDER_IDS = ["google", "openai", "cartesia"] as const;
+export const CATALOG_PROVIDER_IDS = ["google", "openai", "cartesia", "sarvam"] as const;
 
 export const CATALOG_PROVIDERS: ProviderCatalogEntry[] = [
   {
@@ -106,6 +106,12 @@ export const CATALOG_PROVIDERS: ProviderCatalogEntry[] = [
     id: "cartesia",
     label: "Cartesia",
     description: "Ink STT and Sonic TTS for voice prototypes.",
+    activationLabel: "API key",
+  },
+  {
+    id: "sarvam",
+    label: "Sarvam AI",
+    description: "Saaras STT and Bulbul TTS for Indian languages.",
     activationLabel: "API key",
   },
 ];
@@ -207,6 +213,7 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
     status: "available",
     apiSurface: "transcribe",
     apiModelId: "gpt-4o-mini-transcribe",
+    sttDelivery: "batch",
     supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
       "openai-gpt-4o-mini-transcribe",
       "speech_to_text",
@@ -237,6 +244,7 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
     status: "available",
     apiSurface: "transcribe",
     apiModelId: "ink-whisper",
+    sttDelivery: "batch",
     supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
       "cartesia-ink-whisper",
       "speech_to_text",
@@ -254,6 +262,37 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
     apiModelId: "sonic-3.5",
     supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
       "cartesia-sonic-3-5",
+      "text_to_speech",
+    ),
+  },
+  {
+    id: "sarvam-saaras-v3-stt",
+    providerId: "sarvam",
+    label: "Sarvam Saaras v3",
+    modelClass: "speech",
+    tasks: ["speech_to_text"],
+    io: { inputs: ["audio"], outputs: ["text"] },
+    status: "available",
+    apiSurface: "transcribe",
+    apiModelId: "saaras:v3",
+    sttDelivery: "batch",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "sarvam-saaras-v3-stt",
+      "speech_to_text",
+    ),
+  },
+  {
+    id: "sarvam-bulbul-v3-tts",
+    providerId: "sarvam",
+    label: "Sarvam Bulbul v3",
+    modelClass: "speech",
+    tasks: ["text_to_speech"],
+    io: { inputs: ["text"], outputs: ["audio"] },
+    status: "available",
+    apiSurface: "synthesize",
+    apiModelId: "bulbul:v3",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "sarvam-bulbul-v3-tts",
       "text_to_speech",
     ),
   },

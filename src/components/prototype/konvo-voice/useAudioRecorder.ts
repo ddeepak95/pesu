@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface UseAudioRecorderResult {
   isRecording: boolean;
@@ -34,7 +34,14 @@ function waitForRecorderFlush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 150));
 }
 
-export function useAudioRecorder(): UseAudioRecorderResult {
+export type UseAudioRecorderOptions = {
+  /** Auto-stop recording after this duration. */
+  maxRecordingMs?: number;
+};
+
+export function useAudioRecorder(
+  options?: UseAudioRecorderOptions,
+): UseAudioRecorderResult {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSessionId, setRecordingSessionId] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -49,6 +56,16 @@ export function useAudioRecorder(): UseAudioRecorderResult {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const sessionIdRef = useRef(0);
   const activeSessionRef = useRef(0);
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRecordingRef = useRef<(() => Promise<Blob | null>) | null>(null);
+  const maxRecordingMs = options?.maxRecordingMs;
+
+  const clearMaxDurationTimer = useCallback(() => {
+    if (maxDurationTimerRef.current) {
+      clearTimeout(maxDurationTimerRef.current);
+      maxDurationTimerRef.current = null;
+    }
+  }, []);
 
   const primeAudio = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -98,10 +115,11 @@ export function useAudioRecorder(): UseAudioRecorderResult {
         }
       }
     }
+    clearMaxDurationTimer();
     stopTracks();
     closeAudioContext();
     setIsRecording(false);
-  }, [stopTracks, closeAudioContext]);
+  }, [stopTracks, closeAudioContext, clearMaxDurationTimer]);
 
   const startRecording = useCallback(async (): Promise<boolean> => {
     setError(null);
@@ -196,6 +214,16 @@ export function useAudioRecorder(): UseAudioRecorderResult {
 
       recorder.start(250);
       setIsRecording(true);
+
+      if (maxRecordingMs && maxRecordingMs > 0) {
+        clearMaxDurationTimer();
+        maxDurationTimerRef.current = setTimeout(() => {
+          if (mediaRecorderRef.current?.state !== "recording") return;
+          setError("Recording stopped: maximum duration reached.");
+          void stopRecordingRef.current?.();
+        }, maxRecordingMs);
+      }
+
       return true;
     } catch (e) {
       if (activeSessionRef.current === sessionId) {
@@ -207,7 +235,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       abortCurrentSession();
       return false;
     }
-  }, [abortCurrentSession, closeAudioGraph]);
+  }, [abortCurrentSession, closeAudioGraph, clearMaxDurationTimer, maxRecordingMs]);
 
   const stopRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
@@ -242,9 +270,19 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       } catch {
         // optional
       }
+      clearMaxDurationTimer();
       recorder.stop();
     });
-  }, [getAccumulatedBlob, closeAudioGraph, stopTracks]);
+  }, [
+    getAccumulatedBlob,
+    closeAudioGraph,
+    stopTracks,
+    clearMaxDurationTimer,
+  ]);
+
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording;
+  }, [stopRecording]);
 
   const clearRecording = useCallback(() => {
     setAudioBlob(null);

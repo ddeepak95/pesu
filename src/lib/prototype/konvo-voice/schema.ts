@@ -24,7 +24,8 @@ const segmentSchema = {
         type: { type: "string" as const, enum: ["speech"] },
         text: {
           type: "string" as const,
-          description: "Spoken dialogue for the student",
+          description:
+            "Spoken dialogue for the student (required field name: text, not content)",
         },
       },
       required: ["type", "text"] as const,
