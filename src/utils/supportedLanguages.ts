@@ -1,31 +1,7 @@
-export const supportedLanguages = [
-    {code: "ar", name: "Arabic"},
-    {code:"bn", name: "Bengali"},
-    {code:"zh", name: "Chinese"},
-    {code: "cs", name:"Czech"},
-    {code: "da", name:"Danish"},
-    {code: "nl", name: "Dutch"},
-    {code: "en", name: "English" },
-    {code: "en-IN", name: "English (India)"},
-    {code:"fr", name: "French"},
-    {code:"de", name: "German"},
-    {code: "el", name: "Greek"},
-    {code: "he", name: "Hebrew"},
-    {code:"hi", name: "Hindi"},
-    {code: "id", name: "Indonesian"},
-    {code: "it", name: "Italian"},
-    {code:"kn", name: "Kannada"},
-    {code: "ja", name: "Japanese"},
-    {code:"ko", name: "Korean"},
-    {code:"ml", name: "Malayalam"},
-    {code:"mr", name: "Marathi"},
-    {code: "pt", name: "Portuguese"},
-    {code: "ru", name: "Russian"},
-    {code:"es", name: "Spanish"},
-    {code: "ta", name: "Tamil"},
-    {code: "te", name: "Telugu"},
-    {code: "th", name: "Thai"},
-    {code: "tr", name: "Turkish"},
-    {code: "uk", name: "Ukrainian"},
-    {code: "vi", name: "Vietnamese"},
-];
+/**
+ * @deprecated Import from `@/lib/locales` instead. This shim preserves `{ code, name }`.
+ */
+import { getAppLocalesLegacyShape } from "@/lib/locales/registry";
+
+/** @deprecated Use APP_LOCALES / getAppLocalesLegacyShape from @/lib/locales */
+export const supportedLanguages = getAppLocalesLegacyShape();

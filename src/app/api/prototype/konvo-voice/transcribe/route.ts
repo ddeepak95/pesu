@@ -1,10 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSttProvider } from "@/lib/prototype/konvo-voice/speech/registry";
+import {
+  getSpeechApiModelId,
+  getSttProvider,
+} from "@/lib/prototype/konvo-voice/speech/registry";
+import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
+import { isProviderConfigured } from "@/lib/prototype/konvo-voice/sessionCatalog";
+import { getCatalogEntry } from "@/lib/prototype/konvo-voice/sessionCatalog";
+
+function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as KonvoSessionConfig;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const audio = formData.get("audio");
+    const sessionRaw = formData.get("sessionConfig");
+    const sessionConfig = parseSessionConfig(
+      typeof sessionRaw === "string" ? sessionRaw : null,
+    );
+
+    if (!sessionConfig?.sttModelId || !sessionConfig.language) {
+      return NextResponse.json(
+        { error: "Missing sessionConfig (sttModelId, language)" },
+        { status: 400 },
+      );
+    }
+
+    const catalogEntry = getCatalogEntry(sessionConfig.sttModelId);
+    if (!catalogEntry || !isProviderConfigured(catalogEntry.providerId)) {
+      return NextResponse.json(
+        { error: "STT model unavailable or provider not configured" },
+        { status: 400 },
+      );
+    }
 
     if (!audio || !(audio instanceof Blob)) {
       return NextResponse.json(
@@ -28,11 +62,13 @@ export async function POST(request: NextRequest) {
       audio instanceof File && audio.name ? audio.name : "recording.webm";
     const mimeType = audio.type || "audio/webm";
 
-    const stt = getSttProvider();
+    const stt = getSttProvider(sessionConfig.sttModelId);
     const result = await stt.transcribe({
       audio: buffer,
       filename,
       mimeType,
+      language: sessionConfig.language,
+      apiModelId: getSpeechApiModelId(sessionConfig.sttModelId),
     });
 
     const text = (result.text ?? "").trim();

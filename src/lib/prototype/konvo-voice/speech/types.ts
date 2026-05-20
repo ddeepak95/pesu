@@ -1,9 +1,11 @@
-export type SpeechProviderId = "openai";
+export type SpeechProviderId = "openai" | "cartesia";
 
 export interface TranscribeInput {
   audio: Buffer;
   filename: string;
   mimeType?: string;
+  language?: string;
+  apiModelId?: string;
 }
 
 export interface TranscribeResult {
@@ -19,6 +21,8 @@ export interface SttProvider {
 export interface SynthesizeInput {
   text: string;
   voice?: string;
+  language?: string;
+  apiModelId?: string;
 }
 
 export interface SynthesizeResult {
@@ -26,9 +30,15 @@ export interface SynthesizeResult {
   mimeType: string;
 }
 
+export interface TtsStreamFormat {
+  mimeType: string;
+  sampleRate: number;
+}
+
 export interface TtsProvider {
   readonly id: SpeechProviderId;
   readonly supportsStream: boolean;
+  readonly streamFormat: TtsStreamFormat;
   synthesize(input: SynthesizeInput): Promise<SynthesizeResult>;
   synthesizeStream?(input: SynthesizeInput): AsyncIterable<Uint8Array>;
 }

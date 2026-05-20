@@ -1,4 +1,4 @@
-export type ProviderId = "google" | "openai";
+export type ProviderId = "google" | "openai" | "cartesia";
 
 export type ModelClass = "foundation" | "speech" | "realtime";
 
@@ -55,6 +55,10 @@ export interface ModelCatalogEntry {
   io: { inputs: Modality[]; outputs: Modality[] };
   status: "available" | "coming_soon";
   apiSurface?: "chat_completions" | "live" | "transcribe" | "synthesize";
+  /** ISO-style codes from supportedLanguages.ts (prototype / speech models). */
+  supportedLanguageCodes?: string[];
+  /** Provider API model id (speech models; foundation models use `id`). */
+  apiModelId?: string;
   /** When set, this model supports configurable reasoning at the listed levels/efforts. */
   reasoningCapabilities?: ModelReasoningCapabilities;
 }

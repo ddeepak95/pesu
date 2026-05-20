@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import { OPENAI_TTS_SAMPLE_RATE } from "@/lib/prototype/konvo-voice/speech/config";
 
+const DEFAULT_SAMPLE_RATE = OPENAI_TTS_SAMPLE_RATE;
+
 export interface SpeechPlaybackHandlers {
   onPlaybackStart?: () => void;
   onSegmentStart?: (index: number) => void;
@@ -51,6 +53,7 @@ export function useStreamingSpeechPlayback() {
   const nextPlayableIndexRef = useRef(0);
   const nextScheduleTimeRef = useRef(0);
 
+  const sampleRateRef = useRef(DEFAULT_SAMPLE_RATE);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const activeSourcesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -61,10 +64,16 @@ export function useStreamingSpeechPlayback() {
   );
 
   const ensureAudioGraph = useCallback(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext({
-        sampleRate: OPENAI_TTS_SAMPLE_RATE,
-      });
+    const rate = sampleRateRef.current;
+    if (
+      !audioContextRef.current ||
+      audioContextRef.current.sampleRate !== rate
+    ) {
+      if (audioContextRef.current) {
+        void audioContextRef.current.close();
+      }
+      audioContextRef.current = new AudioContext({ sampleRate: rate });
+      analyserRef.current = null;
     }
     if (!analyserRef.current) {
       const analyser = audioContextRef.current.createAnalyser();
@@ -139,7 +148,7 @@ export function useStreamingSpeechPlayback() {
       const { ctx, analyser } = ensureAudioGraph();
       void ctx.resume();
 
-      const buffer = ctx.createBuffer(1, samples.length, OPENAI_TTS_SAMPLE_RATE);
+      const buffer = ctx.createBuffer(1, samples.length, sampleRateRef.current);
       buffer.getChannelData(0).set(samples);
 
       const source = ctx.createBufferSource();
@@ -238,9 +247,15 @@ export function useStreamingSpeechPlayback() {
     [tryDrainSegment],
   );
 
-  const prepareSegment = useCallback((index: number) => {
-    getOrCreateSegment(index);
-  }, [getOrCreateSegment]);
+  const prepareSegment = useCallback(
+    (index: number, format?: { sampleRate?: number }) => {
+      if (format?.sampleRate && format.sampleRate > 0) {
+        sampleRateRef.current = format.sampleRate;
+      }
+      getOrCreateSegment(index);
+    },
+    [getOrCreateSegment],
+  );
 
   const appendChunk = useCallback(
     (index: number, base64: string) => {
@@ -299,6 +314,7 @@ export function useStreamingSpeechPlayback() {
   const beginTurn = useCallback(
     (handlers?: SpeechPlaybackHandlers) => {
       reset();
+      sampleRateRef.current = DEFAULT_SAMPLE_RATE;
       abortRef.current = new AbortController();
       if (handlers) handlersRef.current = handlers;
       const { ctx } = ensureAudioGraph();

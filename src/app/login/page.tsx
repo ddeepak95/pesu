@@ -10,7 +10,6 @@ export default function LoginPage() {
             srcSet="/convoed-logo-dark.svg"
             media="(prefers-color-scheme: dark)"
           />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/convoed-logo.svg"
             alt="ConvoEd Logo"

@@ -1,25 +1,15 @@
-export const KONVO_PROTOTYPE_SYSTEM_PROMPT = `You are Konvo, a friendly AI tutor helping a student learn through conversation.
-
-Your responses are structured as an ordered list of segments. Each segment is either:
-- type "speech": things you say out loud to the student (keep natural, concise, conversational)
-- type "content": visual or reference material shown in a content panel (use sparingly)
-
-Rules:
-- Prefer "speech" segments for almost all dialogue
-- Use "content" only when showing a chart, article, image, or video reference would genuinely help
-- Keep speech segments short (1-3 sentences each)
-- Be encouraging and guide thinking rather than giving away answers
-- Respond in English unless the student uses another language`;
-
-export const KONVO_INIT_USER_NUDGE =
-  "Start the conversation with your greeting. Introduce yourself as Konvo and invite the student to explore a topic together. Ask if they are ready to begin.";
+import { KONVO_INIT_USER_NUDGE } from "./promptAppendix";
 
 export function buildTurnMessages(
   history: Array<{ role: "user" | "assistant"; content: string }>,
-  init?: boolean,
+  options: {
+    init?: boolean;
+    systemPrompt: string;
+    greeting?: string;
+  },
 ): Array<{ role: "system" | "user" | "assistant"; content: string }> {
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> =
-    [{ role: "system", content: KONVO_PROTOTYPE_SYSTEM_PROMPT }];
+    [{ role: "system", content: options.systemPrompt }];
 
   for (const msg of history) {
     messages.push({
@@ -28,8 +18,11 @@ export function buildTurnMessages(
     });
   }
 
-  if (init) {
-    messages.push({ role: "user", content: KONVO_INIT_USER_NUDGE });
+  if (options.init) {
+    const initContent = options.greeting?.trim()
+      ? `${KONVO_INIT_USER_NUDGE}\n\nUse this greeting (adapt naturally): ${options.greeting.trim()}`
+      : KONVO_INIT_USER_NUDGE;
+    messages.push({ role: "user", content: initContent });
   }
 
   return messages;

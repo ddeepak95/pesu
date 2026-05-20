@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getProviderLanguageCodeForKonvo } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import { toFile } from "openai";
 import type { SttProvider } from "../../types";
 import { OPENAI_STT_MODEL } from "../../config";
@@ -15,11 +16,24 @@ export const openaiSttProvider: SttProvider = {
       type: input.mimeType ?? "audio/webm",
     });
 
+    const model = input.apiModelId ?? OPENAI_STT_MODEL;
+    const language = input.language
+      ? getProviderLanguageCodeForKonvo(input.language)
+      : undefined;
+    console.log(
+      `[konvo-voice/stt] provider=openai model=${model} locale=${input.language ?? ""} language=${language ?? ""} audioBytes=${input.audio.length}`,
+    );
+
     const result = await openai.audio.transcriptions.create({
       file,
-      model: OPENAI_STT_MODEL,
+      model,
+      ...(language ? { language } : {}),
     });
 
-    return { text: result.text ?? "" };
+    const text = result.text ?? "";
+    console.log(
+      `[konvo-voice/stt] provider=openai response.textLen=${text.length} text=${JSON.stringify(text.slice(0, 200))}`,
+    );
+    return { text };
   },
 };

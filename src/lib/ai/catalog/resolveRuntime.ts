@@ -4,7 +4,7 @@ import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import type { GoogleLanguageModelOptions } from "@ai-sdk/google";
 import type { OpenAILanguageModelResponsesOptions } from "@ai-sdk/openai";
 
-import type { ResolvedModelConfig } from "@/lib/ai/config";
+import type { AIProvider, ResolvedModelConfig } from "@/lib/ai/config";
 import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import { parseAppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import {
@@ -14,7 +14,7 @@ import {
   resolveCatalogFunctionBinding,
 } from "@/lib/ai/catalog/buildEffectiveRuntime";
 import { getModelEntry } from "@/lib/ai/catalog/helpers";
-import type { SavedModelReasoningConfig } from "@/lib/ai/catalog/types";
+import type { ProviderId, SavedModelReasoningConfig } from "@/lib/ai/catalog/types";
 import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
 import { PLATFORM_SCOPE_ID } from "@/lib/ai/credentials/constants";
 import { getCatalogSecretsForScope } from "@/lib/queries/aiCatalog";
@@ -24,6 +24,13 @@ import type { AiConfigSource } from "@/types/aiSettings";
 export interface ResolveCatalogModelConfigResult {
   config: ResolvedModelConfig & { providerOptions?: SharedV3ProviderOptions };
   keySource: AiConfigSource;
+}
+
+function toLlmProvider(providerId: ProviderId): AIProvider {
+  if (providerId === "google" || providerId === "openai") {
+    return providerId;
+  }
+  throw new AiNotConfiguredError();
 }
 
 function reasoningToProviderOptions(
@@ -86,12 +93,12 @@ export async function resolveCatalogModelConfigForPlatform(
   }
   return {
     config: {
-      provider: binding.providerId,
+      provider: toLlmProvider(binding.providerId),
       apiKey,
       modelId: binding.modelId,
       providerOptions: reasoningToProviderOptions(
         binding.reasoning,
-        binding.providerId,
+        toLlmProvider(binding.providerId),
       ),
     },
     keySource: "platform",
@@ -142,16 +149,17 @@ export async function resolveCatalogModelConfigForClass(input: {
     throw new AiNotConfiguredError();
   }
 
+  const llmProvider = toLlmProvider(binding.providerId);
   const providerOptions = reasoningToProviderOptions(
     binding.reasoning,
-    binding.providerId,
+    llmProvider,
   );
 
   const keySource = getProviderApiKeySource(runtime, binding.providerId);
 
   return {
     config: {
-      provider: binding.providerId,
+      provider: toLlmProvider(binding.providerId),
       apiKey,
       modelId: binding.modelId,
       providerOptions,

@@ -93,6 +93,21 @@ Migrations (greenfield order): [`supabase_ai_catalog.sql`](supabase-migrations/s
 - UI: [`useAiCatalogSettings`](src/hooks/swr/useAiCatalogSettings.ts) (platform / institution / class); institution policy via [`useInstitutionAiPolicy`](src/hooks/swr/useInstitutionAiPolicy.ts).
 - Runtime: [`resolveModelConfig`](src/lib/ai/credentials/resolve.ts) → [`resolveCatalogModelConfigForClass`](src/lib/ai/catalog/resolveRuntime.ts) (requires `appFunctionKey`). Env fallback only when no class context (e.g. evaluate without assignment).
 
+## Locales (app-wide + Konvo overlay)
+
+- **Layer 1 — registry:** [`src/lib/locales/`](src/lib/locales) holds canonical BCP-47 tags (`APP_LOCALES`), labels, and helpers (`getLocaleLabel`, `toProviderLanguageCode`). Prefer importing from `@/lib/locales`.
+- **Shim:** [`src/utils/supportedLanguages.ts`](src/utils/supportedLanguages.ts) re-exports legacy `{ code, name }` until call sites migrate (~15 files).
+- **Layer 2 — Konvo speech:** locale support is declared **per catalog model id** in [`speechModelLocales.ts`](src/lib/prototype/konvo-voice/speechModelLocales.ts) — separate `KONVO_STT_MODEL_LOCALES` (set of locales per STT model) and `KONVO_TTS_MODEL_VOICES` (per-locale voice id per TTS model). STT and TTS coverage can differ within a provider, and multiple models per provider each carry their own list. [`konvoLocaleCapabilities.ts`](src/lib/prototype/konvo-voice/konvoLocaleCapabilities.ts) derives a per-locale view and holds optional `KONVO_LOCALE_EXTRAS` (provider language overrides, per-locale LLM allowlist). Helpers in [`konvoLocaleCapabilitiesHelpers.ts`](src/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers.ts). Speech catalog `supportedLanguageCodes` are derived via `buildCatalogLocaleCodesFromCapabilities` in [`data.ts`](src/lib/ai/catalog/data.ts).
+- **Validation:** `npm run validate:locales` runs registry + Konvo capability asserts.
+
+## Konvo voice prototype (`/prototype/konvo-voice`)
+
+Pre-start session settings: activity type, STT/TTS/LLM catalog models (env-gated via [`sessionCatalog.ts`](src/lib/prototype/konvo-voice/sessionCatalog.ts)), dialogue language = intersection of [`intersectKonvoLocales`](src/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers.ts) (STT/TTS capabilities + selectable LLM ids from session-options). TTS voice is **developer-mapped** per `(ttsModelId, locale)` in [`konvoLocaleCapabilities.ts`](src/lib/prototype/konvo-voice/konvoLocaleCapabilities.ts) — not user-selected.
+
+Env keys: `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` / `GEMINI_API_KEY`, `CARTESIA_API_KEY` (Cartesia STT/TTS).
+
+**Deferred (post-prototype):** class-scoped `getCachedResolveModelConfig`, platform AI settings binding for `text.konvo_voice_turn`, Supabase provider keys instead of env.
+
 ## AI invocation logging (internal)
 
 When `AI_INVOCATION_LOGGING_ENABLED=true`, each LLM call writes an index row to `ai_invocations` and JSON payloads to GCS under `ai-logs/{invocation_id}/request.json` and `response.json` in the same bucket as submission files (`FIREBASE_STORAGE_BUCKET`). Access is service-role only (no client UI). Assistant `chat_messages` rows link via `ai_invocation_id`.

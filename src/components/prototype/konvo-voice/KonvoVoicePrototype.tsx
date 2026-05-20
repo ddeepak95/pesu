@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -7,11 +8,32 @@ import { ContentBox } from "./ContentBox";
 import { BotStatusPanel } from "./BotStatusPanel";
 import { UserInputPanel } from "./UserInputPanel";
 import { APP_ASSESSMENT_SHELL_CLASS } from "./layoutConstants";
+import { KonvoVoiceSettings } from "./KonvoVoiceSettings";
+import { DEFAULT_KONVO_SESSION_CONFIG } from "./defaultSessionConfig";
+import { useKonvoPrototypePrompts } from "./useKonvoPrototypePrompts";
 import { useTurnBasedVoiceChat } from "./useTurnBasedVoiceChat";
+import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
 
 export function KonvoVoicePrototype() {
-  const chat = useTurnBasedVoiceChat();
+  const [sessionConfig, setSessionConfig] = useState<KonvoSessionConfig>(
+    DEFAULT_KONVO_SESSION_CONFIG,
+  );
+  const { systemPrompt, greeting } = useKonvoPrototypePrompts(
+    sessionConfig.language,
+    sessionConfig.activityType,
+  );
+  const chat = useTurnBasedVoiceChat({
+    sessionConfig,
+    systemPrompt,
+    greeting,
+  });
   const { ui } = chat;
+
+  const canStart =
+    Boolean(sessionConfig.sttModelId) &&
+    Boolean(sessionConfig.ttsModelId) &&
+    Boolean(sessionConfig.llmModelId) &&
+    Boolean(sessionConfig.language);
 
   return (
     <div className="w-full space-y-6">
@@ -25,15 +47,20 @@ export function KonvoVoicePrototype() {
       </header>
 
       {!chat.isStarted ? (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/20 p-8 min-h-[280px]">
+        <div className="flex flex-col items-center justify-center gap-6 rounded-xl border border-dashed border-border bg-muted/20 p-8 min-h-[280px]">
           <p className="text-sm text-muted-foreground text-center max-w-sm">
-            Start a turn-based voice session with Konvo. The bot will greet you
-            first; then you can record and send replies.
+            Configure models and language, then start a turn-based voice session
+            with Konvo.
           </p>
+          <KonvoVoiceSettings
+            value={sessionConfig}
+            onChange={setSessionConfig}
+          />
           <Button
             type="button"
             size="lg"
             className="gap-2"
+            disabled={!canStart}
             onClick={chat.handleStart}
           >
             <Play className="h-5 w-5" />

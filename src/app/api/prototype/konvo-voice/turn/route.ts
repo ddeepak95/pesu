@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveEnvModelConfig } from "@/lib/ai/credentials/resolve";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { generateStructured } from "@/lib/ai/structured";
 import { buildTurnMessages, segmentsToAssistantText } from "@/lib/prototype/konvo-voice/prompt";
+import { resolvePrototypeModelConfig } from "@/lib/prototype/konvo-voice/resolvePrototypeModel";
 import { botTurnSchema, type BotSegment } from "@/lib/prototype/konvo-voice/schema";
+import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
+import { getCatalogEntry, isProviderConfigured } from "@/lib/prototype/konvo-voice/sessionCatalog";
 import { sseEvent, sseHeaders } from "@/lib/prototype/konvo-voice/sse";
-import { OPENAI_TTS_MIME, OPENAI_TTS_SAMPLE_RATE } from "@/lib/prototype/konvo-voice/speech/config";
-import { getTtsProvider } from "@/lib/prototype/konvo-voice/speech/registry";
+import {
+  getSpeechApiModelId,
+  getTtsProvider,
+} from "@/lib/prototype/konvo-voice/speech/registry";
+import {
+  KonvoLocaleVoiceError,
+  resolveTtsVoice,
+} from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
 
 interface TurnRequestBody {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   init?: boolean;
+  system_prompt?: string;
+  greeting?: string;
+  sessionConfig?: KonvoSessionConfig;
 }
 
 function normalizeSegments(raw: BotSegment[] | undefined): BotSegment[] {
@@ -44,7 +55,54 @@ function normalizeSegments(raw: BotSegment[] | undefined): BotSegment[] {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as TurnRequestBody;
-    const { messages = [], init } = body;
+    const {
+      messages = [],
+      init,
+      system_prompt: systemPrompt,
+      greeting,
+      sessionConfig,
+    } = body;
+
+    if (!sessionConfig?.sttModelId || !sessionConfig.ttsModelId || !sessionConfig.llmModelId || !sessionConfig.language) {
+      return NextResponse.json(
+        { error: "Missing sessionConfig (language, sttModelId, ttsModelId, llmModelId)" },
+        { status: 400 },
+      );
+    }
+
+    if (!systemPrompt?.trim()) {
+      return NextResponse.json(
+        { error: "Missing system_prompt" },
+        { status: 400 },
+      );
+    }
+
+    const llmEntry = getCatalogEntry(sessionConfig.llmModelId);
+    const ttsEntry = getCatalogEntry(sessionConfig.ttsModelId);
+    if (
+      !llmEntry ||
+      !ttsEntry ||
+      !isProviderConfigured(llmEntry.providerId) ||
+      !isProviderConfigured(ttsEntry.providerId)
+    ) {
+      return NextResponse.json(
+        { error: "Selected models unavailable or provider not configured" },
+        { status: 400 },
+      );
+    }
+
+    let ttsVoice: string;
+    try {
+      ttsVoice = resolveTtsVoice(
+        sessionConfig.ttsModelId,
+        sessionConfig.language,
+      );
+    } catch (e) {
+      if (e instanceof KonvoLocaleVoiceError) {
+        return NextResponse.json({ error: e.message }, { status: 400 });
+      }
+      throw e;
+    }
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
@@ -56,11 +114,15 @@ export async function POST(request: NextRequest) {
         try {
           enqueue({ type: "thinking" });
 
-          const { config } = resolveEnvModelConfig();
+          const config = resolvePrototypeModelConfig(sessionConfig.llmModelId);
           const model = getLanguageModel(config);
           const providerOptions = providerOptionsForConfig(config);
 
-          const turnMessages = buildTurnMessages(messages, init);
+          const turnMessages = buildTurnMessages(messages, {
+            init,
+            systemPrompt: systemPrompt.trim(),
+            greeting,
+          });
           const output = await generateStructured({
             model,
             schema: botTurnSchema,
@@ -68,14 +130,19 @@ export async function POST(request: NextRequest) {
             providerOptions,
           });
 
+          console.log(
+            `[konvo-voice/turn] init=${Boolean(init)} llmModel=${sessionConfig.llmModelId} rawSegments=${JSON.stringify(output.segments)?.slice(0, 800)}`,
+          );
+
           let segments = normalizeSegments(output.segments);
           if (segments.length === 0) {
-            segments = [
-              {
-                type: "speech",
-                text: "Hi! I'm Konvo. I'm ready when you are — tap the microphone and tell me what you'd like to explore.",
-              },
-            ];
+            console.warn(
+              `[konvo-voice/turn] LLM returned no usable segments (init=${Boolean(init)}). Using fallback.`,
+            );
+            const fallbackText = init
+              ? "Hi! I'm Konvo. I'm ready when you are — tap the microphone and tell me what you'd like to explore."
+              : "Sorry, I didn't quite catch that. Could you say it again?";
+            segments = [{ type: "speech", text: fallbackText }];
           }
           enqueue({ type: "segments", segments });
 
@@ -85,7 +152,8 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          const tts = getTtsProvider();
+          const tts = getTtsProvider(sessionConfig.ttsModelId);
+          const { mimeType, sampleRate } = tts.streamFormat;
           const speechSegments = segments.filter(
             (s): s is { type: "speech"; text: string } =>
               s.type === "speech" && Boolean(s.text?.trim()),
@@ -98,12 +166,19 @@ export async function POST(request: NextRequest) {
             enqueue({
               type: "speech_start",
               index: speechIndex,
-              mimeType: OPENAI_TTS_MIME,
-              sampleRate: OPENAI_TTS_SAMPLE_RATE,
+              mimeType,
+              sampleRate,
             });
 
+            const synthInput = {
+              text,
+              voice: ttsVoice,
+              language: sessionConfig.language,
+              apiModelId: getSpeechApiModelId(sessionConfig.ttsModelId),
+            };
+
             if (tts.synthesizeStream) {
-              for await (const chunk of tts.synthesizeStream({ text })) {
+              for await (const chunk of tts.synthesizeStream(synthInput)) {
                 enqueue({
                   type: "speech_chunk",
                   index: speechIndex,
@@ -111,7 +186,7 @@ export async function POST(request: NextRequest) {
                 });
               }
             } else {
-              const result = await tts.synthesize({ text });
+              const result = await tts.synthesize(synthInput);
               enqueue({
                 type: "speech_chunk",
                 index: speechIndex,

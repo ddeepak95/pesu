@@ -5,7 +5,14 @@ import type { BotSegment, ContentKind } from "@/lib/prototype/konvo-voice/schema
 import { postJsonSse } from "./useSseClient";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { useStreamingSpeechPlayback } from "./useStreamingSpeechPlayback";
+import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
 import { getKonvoUiConfig } from "./uiState";
+
+export interface KonvoVoiceChatParams {
+  sessionConfig: KonvoSessionConfig;
+  systemPrompt: string;
+  greeting: string;
+}
 
 export type ChatPhase =
   | "not_started"
@@ -27,7 +34,11 @@ interface ChatMessage {
   content: string;
 }
 
-export function useTurnBasedVoiceChat() {
+export function useTurnBasedVoiceChat({
+  sessionConfig,
+  systemPrompt,
+  greeting,
+}: KonvoVoiceChatParams) {
   const [phase, setPhase] = useState<ChatPhase>("not_started");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [content, setContent] = useState<ContentDisplay | null>(null);
@@ -65,6 +76,7 @@ export function useTurnBasedVoiceChat() {
       "audio",
       new File([blob], ext, { type: mime }),
     );
+    formData.append("sessionConfig", JSON.stringify(sessionConfig));
 
     const response = await fetch("/api/prototype/konvo-voice/transcribe", {
       method: "POST",
@@ -82,7 +94,7 @@ export function useTurnBasedVoiceChat() {
     }
 
     return (body.text ?? "").trim();
-  }, []);
+  }, [sessionConfig]);
 
   const runTurn = useCallback(
     async (history: ChatMessage[], init?: boolean) => {
@@ -110,7 +122,13 @@ export function useTurnBasedVoiceChat() {
       try {
         await postJsonSse(
           "/api/prototype/konvo-voice/turn",
-          { messages: history, init },
+          {
+            messages: history,
+            init,
+            system_prompt: systemPrompt,
+            greeting,
+            sessionConfig,
+          },
           (event) => {
             const type = event.type as string;
 
@@ -127,7 +145,12 @@ export function useTurnBasedVoiceChat() {
                 });
               }
             } else if (type === "speech_start") {
-              playback.prepareSegment(event.index as number);
+              playback.prepareSegment(event.index as number, {
+                sampleRate:
+                  typeof event.sampleRate === "number"
+                    ? event.sampleRate
+                    : undefined,
+              });
             } else if (type === "speech_chunk") {
               playback.appendChunk(
                 event.index as number,
@@ -177,7 +200,7 @@ export function useTurnBasedVoiceChat() {
         setPhase("user_idle");
       }
     },
-    [playback],
+    [playback, sessionConfig, systemPrompt, greeting],
   );
 
   useEffect(() => {

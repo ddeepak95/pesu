@@ -4,7 +4,7 @@ import {
   RubricItem,
   teacherPromptOrFocus,
 } from "@/types/assignment";
-import { supportedLanguages } from "@/utils/supportedLanguages";
+import { getLocaleLabel } from "@/lib/locales";
 
 /**
  * Context for interpolating prompt templates.
@@ -117,8 +117,7 @@ export function formatRubricForPrompt(rubric: RubricItem[]): string {
  * @returns The language name (e.g., "English", "Tamil")
  */
 export function getLanguageName(languageCode: string): string {
-  const language = supportedLanguages.find((l) => l.code === languageCode);
-  return language?.name || languageCode;
+  return getLocaleLabel(languageCode);
 }
 
 /**
