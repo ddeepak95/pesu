@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Settings } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -68,11 +68,6 @@ export default function AiFunctionBindingControls({
   const reasoningLabel = normalizedBinding
     ? formatReasoningLabel(normalizedBinding)
     : null;
-
-  useEffect(() => {
-    if (!configureOpen || canConfigure) return;
-    setConfigureOpen(false);
-  }, [configureOpen, canConfigure]);
 
   const commitBinding = (next: FunctionBindingState) => {
     onBindingChange(normalizeFunctionBinding(next));

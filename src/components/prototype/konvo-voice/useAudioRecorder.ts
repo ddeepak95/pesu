@@ -207,7 +207,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       abortCurrentSession();
       return false;
     }
-  }, [abortCurrentSession, closeAudioGraph, stopTracks]);
+  }, [abortCurrentSession, closeAudioGraph]);
 
   const stopRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {

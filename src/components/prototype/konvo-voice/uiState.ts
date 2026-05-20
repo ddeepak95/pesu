@@ -112,3 +112,10 @@ export function uiStateToBotVisual(uiState: KonvoUiState): BotVisualState {
   if (uiState === "user_listening") return "ready";
   return "listening";
 }
+
+/** Matches main UI Card: focused = default card surface, unfocused = muted. */
+export function getKonvoPanelCardClass(focused: boolean): string {
+  return focused
+    ? "bg-card shadow-[var(--card-shadow)] transition-[background-color,box-shadow] duration-300 ease-out"
+    : "bg-muted/60 border-border/60 transition-[background-color,box-shadow,border-color] duration-300 ease-out";
+}

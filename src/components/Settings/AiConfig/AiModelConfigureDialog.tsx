@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,24 +42,34 @@ interface AiModelConfigureDialogProps {
   onSave: (reasoning: SavedModelReasoningConfig) => void;
 }
 
-export default function AiModelConfigureDialog({
-  open,
-  onOpenChange,
+function reasoningSeedKey(
+  modelId: string,
+  reasoning: SavedModelReasoningConfig | undefined,
+): string {
+  if (!reasoning) return `${modelId}:none`;
+  if (reasoning.kind === "google") {
+    return `${modelId}:google:${reasoning.thinkingLevel}`;
+  }
+  return `${modelId}:openai:${reasoning.reasoningEffort}`;
+}
+
+interface AiModelConfigureDialogFormProps {
+  modelId: string;
+  reasoning: SavedModelReasoningConfig | undefined;
+  onSave: (reasoning: SavedModelReasoningConfig) => void;
+  onCancel: () => void;
+}
+
+function AiModelConfigureDialogForm({
   modelId,
   reasoning,
   onSave,
-}: AiModelConfigureDialogProps) {
-  const model = getModelEntry(modelId);
+  onCancel,
+}: AiModelConfigureDialogFormProps) {
   const catalogCaps = getModelReasoningCapabilities(modelId);
-
   const [draft, setDraft] = useState<SavedModelReasoningConfig | undefined>(
-    undefined,
+    () => coerceReasoningForModel(modelId, reasoning),
   );
-
-  useEffect(() => {
-    if (!open) return;
-    setDraft(coerceReasoningForModel(modelId, reasoning));
-  }, [open, modelId, reasoning]);
 
   const hasReasoning =
     catalogCaps &&
@@ -84,8 +94,120 @@ export default function AiModelConfigureDialog({
     const next = coerceReasoningForModel(modelId, draft);
     if (!next) return;
     onSave(next);
-    onOpenChange(false);
+    onCancel();
   };
+
+  return (
+    <>
+      <div className="space-y-6 py-2">
+        {hasReasoning && draft?.kind === "google" && (
+          <section className="space-y-2">
+            <Label>Reasoning</Label>
+            <Select
+              value={draft.thinkingLevel}
+              onValueChange={(value) =>
+                setDraft({
+                  kind: "google",
+                  availableLevels:
+                    catalogCaps?.kind === "google"
+                      ? [...catalogCaps.levels]
+                      : [],
+                  thinkingLevel: value as GoogleThinkingLevel,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select reasoning level" />
+              </SelectTrigger>
+              <SelectContent>
+                {googleOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {
+                googleOptions.find((o) => o.value === draft.thinkingLevel)
+                  ?.description
+              }
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Available for this model:{" "}
+              {googleOptions.map((o) => o.label).join(", ")}
+            </p>
+          </section>
+        )}
+
+        {hasReasoning && draft?.kind === "openai" && (
+          <section className="space-y-2">
+            <Label>Reasoning</Label>
+            <Select
+              value={draft.reasoningEffort}
+              onValueChange={(value) =>
+                setDraft({
+                  kind: "openai",
+                  availableEfforts:
+                    catalogCaps?.kind === "openai"
+                      ? [...catalogCaps.efforts]
+                      : [],
+                  reasoningEffort: value as OpenAiReasoningEffort,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select reasoning effort" />
+              </SelectTrigger>
+              <SelectContent>
+                {openAiOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {
+                openAiOptions.find((o) => o.value === draft.reasoningEffort)
+                  ?.description
+              }
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Available for this model:{" "}
+              {openAiOptions.map((o) => o.label).join(", ")}
+            </p>
+          </section>
+        )}
+
+        {!hasReasoning && (
+          <p className="text-sm text-muted-foreground">
+            This model has no configurable options yet.
+          </p>
+        )}
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" onClick={handleSave} disabled={!hasReasoning || !draft}>
+          Save
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+export default function AiModelConfigureDialog({
+  open,
+  onOpenChange,
+  modelId,
+  reasoning,
+  onSave,
+}: AiModelConfigureDialogProps) {
+  const model = getModelEntry(modelId);
+  const formKey = reasoningSeedKey(modelId, reasoning);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -99,102 +221,15 @@ export default function AiModelConfigureDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-2">
-          {hasReasoning && draft?.kind === "google" && (
-            <section className="space-y-2">
-              <Label>Reasoning</Label>
-              <Select
-                value={draft.thinkingLevel}
-                onValueChange={(value) =>
-                  setDraft({
-                    kind: "google",
-                    availableLevels:
-                      catalogCaps?.kind === "google"
-                        ? [...catalogCaps.levels]
-                        : [],
-                    thinkingLevel: value as GoogleThinkingLevel,
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select reasoning level" />
-                </SelectTrigger>
-                <SelectContent>
-                  {googleOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {
-                  googleOptions.find((o) => o.value === draft.thinkingLevel)
-                    ?.description
-                }
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Available for this model:{" "}
-                {googleOptions.map((o) => o.label).join(", ")}
-              </p>
-            </section>
-          )}
-
-          {hasReasoning && draft?.kind === "openai" && (
-            <section className="space-y-2">
-              <Label>Reasoning</Label>
-              <Select
-                value={draft.reasoningEffort}
-                onValueChange={(value) =>
-                  setDraft({
-                    kind: "openai",
-                    availableEfforts:
-                      catalogCaps?.kind === "openai"
-                        ? [...catalogCaps.efforts]
-                        : [],
-                    reasoningEffort: value as OpenAiReasoningEffort,
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select reasoning effort" />
-                </SelectTrigger>
-                <SelectContent>
-                  {openAiOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {
-                  openAiOptions.find((o) => o.value === draft.reasoningEffort)
-                    ?.description
-                }
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Available for this model:{" "}
-                {openAiOptions.map((o) => o.label).join(", ")}
-              </p>
-            </section>
-          )}
-
-          {!hasReasoning && (
-            <p className="text-sm text-muted-foreground">
-              This model has no configurable options yet.
-            </p>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={!hasReasoning || !draft}>
-            Save
-          </Button>
-        </DialogFooter>
+        {open ? (
+          <AiModelConfigureDialogForm
+            key={formKey}
+            modelId={modelId}
+            reasoning={reasoning}
+            onSave={onSave}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );

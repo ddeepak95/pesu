@@ -1,7 +1,7 @@
 import "server-only";
 
 import { toFile } from "openai";
-import type { SttProvider, TranscribeInput } from "../../types";
+import type { SttProvider } from "../../types";
 import { OPENAI_STT_MODEL } from "../../config";
 import { getOpenAIClient } from "./client";
 

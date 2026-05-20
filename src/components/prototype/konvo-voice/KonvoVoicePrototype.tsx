@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { ContentBox } from "./ContentBox";
 import { BotStatusPanel } from "./BotStatusPanel";
 import { UserInputPanel } from "./UserInputPanel";
+import { APP_ASSESSMENT_SHELL_CLASS } from "./layoutConstants";
 import { useTurnBasedVoiceChat } from "./useTurnBasedVoiceChat";
 
 export function KonvoVoicePrototype() {
@@ -13,16 +14,18 @@ export function KonvoVoicePrototype() {
   const { ui } = chat;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-5xl mx-auto p-4 gap-4">
-      <header className="shrink-0">
-        <h1 className="text-xl font-semibold text-foreground">Konvo Voice Prototype</h1>
+    <div className="w-full space-y-6">
+      <header className="space-y-1">
+        <h1 className="text-xl font-semibold text-foreground">
+          Konvo Voice Prototype
+        </h1>
         <p className="text-sm text-muted-foreground">
           Turn-based voice chat — local prototype
         </p>
       </header>
 
       {!chat.isStarted ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/20 p-8">
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/20 p-8 min-h-[280px]">
           <p className="text-sm text-muted-foreground text-center max-w-sm">
             Start a turn-based voice session with Konvo. The bot will greet you
             first; then you can record and send replies.
@@ -38,7 +41,7 @@ export function KonvoVoicePrototype() {
           </Button>
         </div>
       ) : (
-        <>
+        <div className={cn(APP_ASSESSMENT_SHELL_CLASS, "min-h-[480px] flex flex-col")}>
           {chat.error ? (
             <div
               role="alert"
@@ -59,6 +62,7 @@ export function KonvoVoicePrototype() {
             >
               <BotStatusPanel
                 uiState={ui.uiState}
+                focused={ui.botExpanded}
                 showBotWave={ui.showBotWave}
                 botWaveMode={ui.botWaveMode}
                 playbackAnalyser={chat.playbackAnalyser}
@@ -88,7 +92,7 @@ export function KonvoVoicePrototype() {
               {JSON.stringify(chat.messages, null, 2)}
             </pre>
           </details>
-        </>
+        </div>
       )}
     </div>
   );

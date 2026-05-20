@@ -105,9 +105,11 @@ export function AudioWaveform({
   const smoothedRef = useRef<number[]>([]);
   const peakHoldRef = useRef(0.28);
 
-  analyserRef.current = analyser ?? null;
-  activeRef.current = active;
-  modeRef.current = mode;
+  useEffect(() => {
+    analyserRef.current = analyser ?? null;
+    activeRef.current = active;
+    modeRef.current = mode;
+  }, [analyser, active, mode]);
 
   useEffect(() => {
     if (mode === "none") return;
