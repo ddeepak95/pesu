@@ -256,14 +256,21 @@ function ClassSettingRow({
 
   const childOverrideAllowed =
     viewerRole === "super_admin" ||
+    viewerRole === "institution_admin" ||
     effective.institutionLocks.allowChildOverride;
+  const adminOnlyClassOverride =
+    def.classOverrideAdminOnly &&
+    (viewerRole === "super_admin" || viewerRole === "institution_admin");
   const canManageOverride =
     caps.canEditClassOverride || caps.canClearClassOverride;
-  const showOverrideToggle = childOverrideAllowed && canManageOverride;
+  const showOverrideToggle = !!(
+    (childOverrideAllowed || adminOnlyClassOverride) &&
+    canManageOverride
+  );
 
   return (
     <SettingRowShell definition={def} sourceLabel={sourceLabel(effective)}>
-      {!childOverrideAllowed && (
+      {!childOverrideAllowed && !adminOnlyClassOverride && (
         <p className="text-xs text-muted-foreground mb-3">
           Locked by the institution. Inherited value is shown read-only.
         </p>

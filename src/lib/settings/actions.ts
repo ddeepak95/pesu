@@ -21,10 +21,7 @@ import {
   isKnownSettingKey,
   type SettingKey,
 } from "./registry";
-import {
-  mergeInstitutionSetting,
-  type SettingRow,
-} from "./resolve";
+import type { SettingRow } from "./resolve";
 import type { ViewerRole } from "./capabilities";
 import { resolveClassSettingsViewer } from "./classViewerRole";
 
@@ -82,12 +79,16 @@ async function getInstitutionLocksForKey(
     "institution",
     institutionId
   );
-  const def = getSettingDefinition(key);
   const row =
     (rows.find((r: SettingRow) => r.key === key) as SettingRow | undefined) ??
     null;
-  const merged = mergeInstitutionSetting(def, row);
-  return merged.institutionLocks;
+  if (!row) {
+    return { allowAdminEdit: false, allowChildOverride: false };
+  }
+  return {
+    allowAdminEdit: row.allow_admin_edit,
+    allowChildOverride: row.allow_child_override,
+  };
 }
 
 function revalidateInstitution(institutionId: string) {

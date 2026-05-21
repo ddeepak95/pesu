@@ -80,6 +80,11 @@ export interface SettingDefinition<TValue = unknown> {
    * `type: "custom"` for value types the built-in dispatcher does not cover.
    */
   Control?: ComponentType<SettingControlProps<TValue>>;
+  /**
+   * When true, institution_admin and super_admin may set a class override even
+   * if `allow_child_override` is false; class teachers never may.
+   */
+  classOverrideAdminOnly?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +115,13 @@ function validateStringArrayFromOptions(
   }
   // Preserve registry option order so two equivalent selections serialize identically.
   return options.map((o) => o.value).filter((v) => seen.has(v));
+}
+
+function validateBoolean(raw: unknown): boolean {
+  if (typeof raw !== "boolean") {
+    throw new Error("Expected a boolean");
+  }
+  return raw;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +155,20 @@ const allowedAssessmentModes: SettingDefinition<AssessmentMode[]> = {
   clamp: (child, parent) => child.filter((mode) => parent.includes(mode)),
 };
 
+const enableBulkFeedbackApproval: SettingDefinition<boolean> = {
+  key: "enable_bulk_feedback_approval",
+  label: "Bulk feedback approval",
+  description:
+    "When enabled, teachers can approve all pending AI-generated feedback for an assignment in one action, without editing each item individually.",
+  category: "Assessment",
+  order: 20,
+  scopes: ["institution", "class"],
+  type: "boolean",
+  default: false,
+  validate: validateBoolean,
+  classOverrideAdminOnly: true,
+};
+
 /**
  * Erased definition shape — used by code that handles arbitrary registry
  * entries (resolver, UI dispatcher, server actions). Each definition's
@@ -161,6 +187,7 @@ export type AnySettingDefinition = SettingDefinition<any>;
  */
 export const SETTINGS_REGISTRY = {
   allowed_assessment_modes: allowedAssessmentModes,
+  enable_bulk_feedback_approval: enableBulkFeedbackApproval,
 } as const satisfies Record<string, AnySettingDefinition>;
 
 export type SettingKey = keyof typeof SETTINGS_REGISTRY;

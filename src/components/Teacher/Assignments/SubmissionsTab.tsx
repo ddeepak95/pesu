@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useState, useMemo } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   MutedPrimaryTabsList,
@@ -25,7 +34,7 @@ import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
-import { showErrorToast } from "@/lib/toast";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import {
   invalidateSubmissionsCache,
   invalidateTeacherUnlocksCache,
@@ -38,6 +47,7 @@ import {
   useProgressViewConfig,
   useSubmissionsForAssignment,
   useTeacherUnlocksForContentItem,
+  useEffectiveClassSettings,
 } from "@/hooks/swr";
 import { useConsumeStudentIdDeepLink } from "@/hooks/useConsumeStudentIdDeepLink";
 
@@ -147,6 +157,12 @@ export default function SubmissionsTab({
   >(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [resetting, setResetting] = useState<string | null>(null);
+  const [bulkApproveDialogOpen, setBulkApproveDialogOpen] = useState(false);
+  const [bulkApproving, setBulkApproving] = useState(false);
+
+  const { data: effectiveClassSettings } = useEffectiveClassSettings(classDbId);
+  const bulkFeedbackApprovalEnabled =
+    effectiveClassSettings?.enable_bulk_feedback_approval?.value === true;
 
   const handleViewSubmission = (
     item: StudentSubmissionStatus | PublicSubmissionStatus
@@ -519,13 +535,87 @@ export default function SubmissionsTab({
     { value: "started", label: "In Progress" },
   ];
 
+  const pendingClassSubmissionCount = useMemo(
+    () => classSubmissions.filter((s) => s.hasPendingApprovals).length,
+    [classSubmissions]
+  );
+  const pendingPublicSubmissionCount = useMemo(
+    () => publicSubmissions.filter((s) => s.hasPendingApprovals).length,
+    [publicSubmissions]
+  );
+  const totalPendingSubmissionCount =
+    pendingClassSubmissionCount + pendingPublicSubmissionCount;
+
+  const showBulkApproveButton =
+    !!assignment?.feedback_requires_approval &&
+    bulkFeedbackApprovalEnabled &&
+    totalPendingSubmissionCount > 0;
+
+  const handleBulkApproveDialogOpenChange = (open: boolean) => {
+    if (!open) setBulkApproving(false);
+    setBulkApproveDialogOpen(open);
+  };
+
+  const handleBulkApprove = async () => {
+    setBulkApproving(true);
+    try {
+      const res = await fetch("/api/submissions/bulk-approve-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to approve pending feedback");
+      }
+      await invalidateSubmissionsCache();
+
+      const submissionCount =
+        (data.affectedSubmissionCount as number | undefined) ??
+        totalPendingSubmissionCount;
+      const attemptCount = data.approvedAttemptCount as number | undefined;
+      const submissionLabel =
+        submissionCount === 1 ? "submission" : "submissions";
+      const attemptSuffix =
+        attemptCount != null && attemptCount > 0
+          ? ` (${attemptCount} feedback ${attemptCount === 1 ? "item" : "items"})`
+          : "";
+
+      showSuccessToast(
+        `Approved pending feedback for ${submissionCount} ${submissionLabel}${attemptSuffix}.`
+      );
+      handleBulkApproveDialogOpenChange(false);
+    } catch (err) {
+      console.error("Bulk approve error:", err);
+      showErrorToast(
+        err instanceof Error
+          ? err.message
+          : "Failed to approve pending feedback. Please try again."
+      );
+    } finally {
+      setBulkApproving(false);
+    }
+  };
+
   return (
     <div className="py-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Submissions</h2>
-        <p className="text-sm text-muted-foreground">
-          View and manage student submissions for this assignment.
-        </p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Submissions</h2>
+          <p className="text-sm text-muted-foreground">
+            View and manage student submissions for this assignment.
+          </p>
+        </div>
+        {showBulkApproveButton && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setBulkApproveDialogOpen(true)}
+            className="shrink-0"
+          >
+            {`Approve all pending (${totalPendingSubmissionCount})`}
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="class-students" className="w-full">
@@ -599,6 +689,50 @@ export default function SubmissionsTab({
           </TabsContent>
         )}
       </Tabs>
+
+      <Dialog
+        open={bulkApproveDialogOpen}
+        onOpenChange={handleBulkApproveDialogOpenChange}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Approve all pending feedback</DialogTitle>
+            <DialogDescription>
+              Approve pending feedback for{" "}
+              <span className="font-medium text-foreground">
+                {totalPendingSubmissionCount} submission
+                {totalPendingSubmissionCount === 1 ? "" : "s"}
+              </span>{" "}
+              on this assignment. Feedback will be published as the AI generated
+              it, without individual review.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleBulkApproveDialogOpenChange(false)}
+              disabled={bulkApproving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleBulkApprove}
+              disabled={bulkApproving}
+            >
+              {bulkApproving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                "Approve all"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {selectedSubmission && (
         <SubmissionViewDialog

@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+- Use only standard HTML/JSX elements (div, span, etc.) or components that already exist in this repository.
+- Do NOT use framer-motion (motion.div, motion.span) or any motion/animation library unless explicitly imported in the file.
+- Never invent component names. If unsure, use <div>.

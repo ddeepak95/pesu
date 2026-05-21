@@ -94,6 +94,23 @@ export function canViewClassOverrideSections(
  * Pure: compute the capability bundle for one setting + viewer.
  * The same function is reused by every UI panel and every server action.
  */
+function classOverrideEditableForViewer(
+  viewerRole: ViewerRole,
+  definition: AnySettingDefinition,
+  institutionLocks: InstitutionLocks,
+): boolean {
+  const classEditable = definition.scopes.includes("class");
+  if (!classEditable) return false;
+
+  if (definition.classOverrideAdminOnly) {
+    return (
+      viewerRole === "super_admin" || viewerRole === "institution_admin"
+    );
+  }
+
+  return institutionLocks.allowChildOverride;
+}
+
 export function settingCapabilities({
   viewerRole,
   definition,
@@ -101,6 +118,11 @@ export function settingCapabilities({
 }: CapabilityInput): SettingCapabilities {
   const institutionEditable = definition.scopes.includes("institution");
   const classEditable = definition.scopes.includes("class");
+  const classOverrideEditable = classOverrideEditableForViewer(
+    viewerRole,
+    definition,
+    institutionLocks,
+  );
 
   if (viewerRole === "super_admin") {
     return {
@@ -123,10 +145,8 @@ export function settingCapabilities({
       // right to override it.
       canToggleAllowChildOverride:
         institutionEditable && institutionLocks.allowAdminEdit,
-      canEditClassOverride:
-        classEditable && institutionLocks.allowChildOverride,
-      canClearClassOverride:
-        classEditable && institutionLocks.allowChildOverride,
+      canEditClassOverride: classOverrideEditable,
+      canClearClassOverride: classOverrideEditable,
     };
   }
 
@@ -139,10 +159,8 @@ export function settingCapabilities({
       canEditInstitutionValue: false,
       canToggleAllowAdminEdit: false,
       canToggleAllowChildOverride: false,
-      canEditClassOverride:
-        classEditable && institutionLocks.allowChildOverride,
-      canClearClassOverride:
-        classEditable && institutionLocks.allowChildOverride,
+      canEditClassOverride: classOverrideEditable,
+      canClearClassOverride: classOverrideEditable,
     };
   }
 
