@@ -20,13 +20,8 @@ function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   }
 }
 
-function isUploadBlob(value: FormDataEntryValue | null): value is Blob {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "arrayBuffer" in value &&
-    typeof (value as Blob).arrayBuffer === "function"
-  );
+function isUploadFile(value: FormDataEntryValue | null): value is File {
+  return value instanceof File;
 }
 
 function collectAudioSegments(formData: FormData): Blob[] {
@@ -41,7 +36,7 @@ function collectAudioSegments(formData: FormData): Blob[] {
     const segments: Blob[] = [];
     for (let i = 0; i < segmentCount; i++) {
       const item = formData.get(`audio_${i}`);
-      if (isUploadBlob(item)) {
+      if (isUploadFile(item)) {
         segments.push(item);
       }
     }
@@ -51,7 +46,7 @@ function collectAudioSegments(formData: FormData): Blob[] {
   }
 
   const audio = formData.get("audio");
-  if (isUploadBlob(audio)) {
+  if (isUploadFile(audio)) {
     return [audio];
   }
 
