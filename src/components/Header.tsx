@@ -36,7 +36,7 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
     <header className="w-full border-b bg-secondary shadow-[var(--card-shadow)]">
       <div className="flex items-center justify-between px-8 py-4">
         <div className="flex shrink-0 items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- static SVG logo */}
           <img
             src="/convoed-symbol.svg"
             alt={t("toolName")}
@@ -47,7 +47,6 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
               srcSet="/convoed-logo-dark.svg"
               media="(prefers-color-scheme: dark)"
             />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/convoed-logo.svg"
               alt={t("toolName")}

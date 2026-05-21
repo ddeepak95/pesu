@@ -1,4 +1,5 @@
 import { TEXT_CAPABILITY_KEY } from "@/lib/ai/capabilities/registry";
+import { buildCatalogLocaleCodesFromCapabilities } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilities";
 
 import type {
   AppFunctionCatalogEntry,
@@ -86,7 +87,7 @@ export const MODEL_CLASS_ORDER: ModelClass[] = [
   "realtime",
 ];
 
-export const CATALOG_PROVIDER_IDS = ["google", "openai"] as const;
+export const CATALOG_PROVIDER_IDS = ["google", "openai", "cartesia", "sarvam"] as const;
 
 export const CATALOG_PROVIDERS: ProviderCatalogEntry[] = [
   {
@@ -99,6 +100,18 @@ export const CATALOG_PROVIDERS: ProviderCatalogEntry[] = [
     id: "openai",
     label: "OpenAI",
     description: "GPT foundation models, Whisper, and TTS APIs.",
+    activationLabel: "API key",
+  },
+  {
+    id: "cartesia",
+    label: "Cartesia",
+    description: "Ink STT and Sonic TTS for voice prototypes.",
+    activationLabel: "API key",
+  },
+  {
+    id: "sarvam",
+    label: "Sarvam AI",
+    description: "Saaras STT and Bulbul TTS for Indian languages.",
     activationLabel: "API key",
   },
 ];
@@ -189,6 +202,99 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
       kind: "openai",
       efforts: ["low", "medium", "high"],
     },
+  },
+  {
+    id: "openai-gpt-4o-mini-transcribe",
+    providerId: "openai",
+    label: "GPT-4o mini Transcribe",
+    modelClass: "speech",
+    tasks: ["speech_to_text"],
+    io: { inputs: ["audio"], outputs: ["text"] },
+    status: "available",
+    apiSurface: "transcribe",
+    apiModelId: "gpt-4o-mini-transcribe",
+    sttDelivery: "batch",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "openai-gpt-4o-mini-transcribe",
+      "speech_to_text",
+    ),
+  },
+  {
+    id: "openai-gpt-4o-mini-tts",
+    providerId: "openai",
+    label: "GPT-4o mini TTS",
+    modelClass: "speech",
+    tasks: ["text_to_speech"],
+    io: { inputs: ["text"], outputs: ["audio"] },
+    status: "available",
+    apiSurface: "synthesize",
+    apiModelId: "gpt-4o-mini-tts",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "openai-gpt-4o-mini-tts",
+      "text_to_speech",
+    ),
+  },
+  {
+    id: "cartesia-ink-whisper",
+    providerId: "cartesia",
+    label: "Cartesia Ink Whisper",
+    modelClass: "speech",
+    tasks: ["speech_to_text"],
+    io: { inputs: ["audio"], outputs: ["text"] },
+    status: "available",
+    apiSurface: "transcribe",
+    apiModelId: "ink-whisper",
+    sttDelivery: "batch",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "cartesia-ink-whisper",
+      "speech_to_text",
+    ),
+  },
+  {
+    id: "cartesia-sonic-3-5",
+    providerId: "cartesia",
+    label: "Cartesia Sonic 3.5",
+    modelClass: "speech",
+    tasks: ["text_to_speech"],
+    io: { inputs: ["text"], outputs: ["audio"] },
+    status: "available",
+    apiSurface: "synthesize",
+    apiModelId: "sonic-3.5",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "cartesia-sonic-3-5",
+      "text_to_speech",
+    ),
+  },
+  {
+    id: "sarvam-saaras-v3-stt",
+    providerId: "sarvam",
+    label: "Sarvam Saaras v3",
+    modelClass: "speech",
+    tasks: ["speech_to_text"],
+    io: { inputs: ["audio"], outputs: ["text"] },
+    status: "available",
+    apiSurface: "transcribe",
+    apiModelId: "saaras:v3",
+    sttDelivery: "batch",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "sarvam-saaras-v3-stt",
+      "speech_to_text",
+    ),
+  },
+  {
+    id: "sarvam-bulbul-v3-tts",
+    providerId: "sarvam",
+    label: "Sarvam Bulbul v3",
+    modelClass: "speech",
+    tasks: ["text_to_speech"],
+    io: { inputs: ["text"], outputs: ["audio"] },
+    status: "available",
+    apiSurface: "synthesize",
+    apiModelId: "bulbul:v3",
+    supportedLanguageCodes: buildCatalogLocaleCodesFromCapabilities(
+      "sarvam-bulbul-v3-tts",
+      "text_to_speech",
+    ),
   },
   {
     id: "whisper-1",

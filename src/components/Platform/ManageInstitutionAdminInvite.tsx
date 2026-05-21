@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,13 +35,21 @@ export default function ManageInstitutionAdminInvite({
   const { data: invite, error } = useInstitutionAdminInvite(institutionId);
   const [newInviteToken, setNewInviteToken] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const [nowMs, setNowMs] = useState(0);
+
+  useEffect(() => {
+    queueMicrotask(() => setNowMs(Date.now()));
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const activeInvite = useMemo(() => {
     if (!invite) return null;
     if (invite.revoked_at) return null;
-    if (new Date(invite.expires_at).getTime() <= Date.now()) return null;
+    if (nowMs === 0) return invite;
+    if (new Date(invite.expires_at).getTime() <= nowMs) return null;
     return invite;
-  }, [invite]);
+  }, [invite, nowMs]);
 
   const inviteUrl = useMemo(() => {
     const token = activeInvite?.token || newInviteToken;
