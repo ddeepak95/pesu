@@ -47,6 +47,7 @@ import {
   ClipboardCheck,
   ChevronDown,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
@@ -244,6 +245,8 @@ export default function AssignmentDetailClient({
         return { label: "Text Chat", icon: MessageSquare };
       case "static_text":
         return { label: "Static Text", icon: FileText };
+      case "multimodal":
+        return { label: "Multimodal", icon: Sparkles };
       default:
         return { label: "Voice", icon: Mic };
     }

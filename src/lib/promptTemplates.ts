@@ -108,7 +108,11 @@ export function getVariablesByCategory(category: "static" | "runtime") {
 // ---------------------------------------------------------------------------
 
 export type ActivityType = "assessment" | "learning";
-export type InteractionType = "voice" | "text_chat" | "static_text";
+export type InteractionType =
+  | "voice"
+  | "text_chat"
+  | "static_text"
+  | "multimodal";
 
 const PERSONA: Record<ActivityType, string> = {
 assessment:
@@ -197,6 +201,8 @@ const INTERACTION_MODIFIERS: Record<InteractionType, string> = {
     "Keep responses concise and conversational.",
   static_text:
     "The student will submit a single written answer. You will not have a back-and-forth conversation.",
+  multimodal:
+    "Use a multimodal, conversational style and adapt to changing context naturally.",
 };
 
 /**

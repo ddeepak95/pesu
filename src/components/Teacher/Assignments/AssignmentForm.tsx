@@ -73,7 +73,7 @@ interface AssignmentFormProps {
   initialLockLanguage?: boolean;
   initialIsPublic?: boolean;
   initialActivityType?: ActivityType;
-  initialAssessmentMode?: "voice" | "text_chat" | "static_text";
+  initialAssessmentMode?: AssessmentMode;
   initialResponderFieldsConfig?: ResponderFieldConfig[];
   initialMaxAttempts?: number;
   initialBotPromptConfig?: BotPromptConfig;
@@ -103,7 +103,7 @@ interface AssignmentFormProps {
     lockLanguage: boolean;
     isPublic: boolean;
     activityType: ActivityType;
-    assessmentMode: "voice" | "text_chat" | "static_text";
+    assessmentMode: AssessmentMode;
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
@@ -187,9 +187,8 @@ export default function AssignmentForm({
   const [isPublic, setIsPublic] = useState(initialIsPublic);
   const [activityType, setActivityType] =
     useState<ActivityType>(initialActivityType);
-  const [assessmentMode, setAssessmentMode] = useState<
-    "voice" | "text_chat" | "static_text"
-  >(initialAssessmentMode);
+  const [assessmentMode, setAssessmentMode] =
+    useState<AssessmentMode>(initialAssessmentMode);
 
   // Pull the class's effective allowed assessment modes (institution → class).
   // Modes outside the allow list are disabled in the dropdown but the current
@@ -209,18 +208,13 @@ export default function AssignmentForm({
   // user-/default-state to the first allowed mode when the raw state is
   // restricted, so the trigger never shows a blank value. Edit mode keeps the
   // existing value visible so historic assignments stay editable.
-  const currentAssessmentMode = useMemo<
-    "voice" | "text_chat" | "static_text"
-  >(() => {
+  const currentAssessmentMode = useMemo<AssessmentMode>(() => {
     if (mode === "edit") return assessmentMode;
     if (allowedAssessmentModes.has(assessmentMode)) return assessmentMode;
     const first = ASSESSMENT_MODE_OPTIONS.find((o) =>
       allowedAssessmentModes.has(o.value),
     );
-    return (first?.value ?? assessmentMode) as
-      | "voice"
-      | "text_chat"
-      | "static_text";
+    return (first?.value ?? assessmentMode) as AssessmentMode;
   }, [mode, assessmentMode, allowedAssessmentModes]);
 
   // Keep the underlying state aligned with what the dropdown is showing so
@@ -643,14 +637,20 @@ export default function AssignmentForm({
         router.push(`/teacher/classes/${classId}`);
       }
     } catch (err) {
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : null;
       console.error(
         `Error ${mode === "edit" ? "updating" : "creating"} assignment:`,
         err,
       );
       setError(
-        `Failed to ${
-          mode === "edit" ? "update" : "create"
-        } assignment. Please try again.`,
+        message
+          ? `Failed to ${mode === "edit" ? "update" : "create"} assignment: ${message}`
+          : `Failed to ${
+              mode === "edit" ? "update" : "create"
+            } assignment. Please try again.`,
       );
     } finally {
       setLoading(false);
@@ -729,7 +729,7 @@ export default function AssignmentForm({
           <Select
             value={currentAssessmentMode}
             onValueChange={(value) => {
-              const newMode = value as "voice" | "text_chat" | "static_text";
+              const newMode = value as AssessmentMode;
               setAssessmentMode(newMode);
               setBotPromptConfig(
                 buildDefaultBotPromptConfig(activityType, newMode),

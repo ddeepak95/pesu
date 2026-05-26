@@ -216,7 +216,7 @@ export interface Assignment {
    * Assessment delivery mode for this assignment.
    * Defaults to "voice" for legacy assignments where this field is missing.
    */
-  assessment_mode?: "voice" | "text_chat" | "static_text";
+  assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
   /**
    * Activity type for this assignment.
    * Defaults to "learning" for legacy assignments where this field is missing.

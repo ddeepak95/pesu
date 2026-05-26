@@ -14,13 +14,14 @@ import {
   VOICE_SYSTEM_APPENDIX,
 } from "@/lib/promptTemplates";
 import { Info, Eye, MessageSquare, Volume2 } from "lucide-react";
+import type { AssessmentMode } from "@/lib/settings/registry";
 
 interface PromptPreviewProps {
   config: BotPromptConfig;
   assignment: Partial<Assignment>;
   question?: Partial<Question>;
   languageCode?: string;
-  assessmentMode?: "voice" | "text_chat" | "static_text";
+  assessmentMode?: AssessmentMode;
   previewQuestionOrder?: 0 | 1; // 0 = first question, 1 = subsequent
 }
 

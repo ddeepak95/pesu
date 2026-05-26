@@ -245,7 +245,7 @@ export async function getTranscriptsForSubmission(
 export async function createSubmission(
   assignmentId: string,
   preferredLanguage: string,
-  submissionMode: "voice" | "text_chat" | "static_text",
+  submissionMode: "voice" | "text_chat" | "static_text" | "multimodal",
   options?: {
     studentId?: string;
     responderDetails?: Record<string, string>;
@@ -301,7 +301,12 @@ export async function createSubmission(
     .single();
 
   if (error) {
-    console.error("Error creating submission:", error);
+    console.error("Error creating submission:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
     throw error;
   }
 

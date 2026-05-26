@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -19,14 +20,15 @@ interface LoginFormProps {
   defaultRedirect: string;
 }
 
-export default function LoginForm({
-  userType,
-  defaultRedirect,
-}: LoginFormProps) {
+export default function LoginForm({ userType, defaultRedirect }: LoginFormProps) {
   const { t } = useTranslation();
   const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { signInWithGoogle, user, loading: authLoading } = useAuth();
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const hasRedirected = useRef(false);
 
@@ -83,6 +85,22 @@ export default function LoginForm({
     // Note: OAuth redirect will happen automatically, so we don't need to handle success case
   };
 
+  const handleEmailSignIn = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setEmailLoading(true);
+
+    const { error: signInError } = await signIn(email.trim(), password);
+    if (signInError) {
+      setError(signInError.message);
+      setEmailLoading(false);
+      return;
+    }
+
+    // Let the auth effect redirect when `user` becomes available.
+    setEmailLoading(false);
+  };
+
   // Show loading while checking auth
   if (authLoading) {
     return (
@@ -126,7 +144,7 @@ export default function LoginForm({
               variant="outline"
               className="w-full"
               onClick={handleGoogleSignIn}
-              disabled={googleLoading}
+              disabled={googleLoading || emailLoading}
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                 <path
@@ -150,6 +168,54 @@ export default function LoginForm({
                 ? t("auth.signingIn")
                 : t("auth.continueWithGoogle")}
             </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-sm"
+              onClick={() => setShowEmailForm((prev) => !prev)}
+              disabled={googleLoading}
+            >
+              {t("auth.orContinueWithEmail")}
+            </Button>
+
+            {showEmailForm && (
+              <form className="space-y-3" onSubmit={handleEmailSignIn}>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium" htmlFor="email">
+                    {t("auth.email")}
+                  </label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium" htmlFor="password">
+                    {t("auth.password")}
+                  </label>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={emailLoading || googleLoading}
+                >
+                  {emailLoading ? t("auth.signingIn") : t("auth.signIn")}
+                </Button>
+              </form>
+            )}
             {error && (
               <div className="p-3 text-sm rounded-md bg-destructive/10 text-destructive border border-destructive/20">
                 {error}

@@ -6,9 +6,10 @@ import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
 import { BotPromptConfig, Question } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import { Eye } from "lucide-react";
+import type { AssessmentMode } from "@/lib/settings/registry";
 
 interface MoreOptionsAIBotProps {
-  assessmentMode: "voice" | "text_chat" | "static_text";
+  assessmentMode: AssessmentMode;
   showBotPreview: boolean;
   setShowBotPreview: (show: boolean) => void;
   previewQuestionOrder: 0 | 1;

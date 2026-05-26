@@ -17,6 +17,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { VoiceInputArea } from "@/components/Shared/AssessmentInputs/VoiceInputArea";
 import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputArea";
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
+import { MultimodalInputArea } from "@/components/Shared/AssessmentInputs/MultimodalInputArea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
@@ -24,7 +25,7 @@ import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 export interface AssessmentShellProps {
-  assessmentMode: "voice" | "text_chat" | "static_text";
+  assessmentMode: "voice" | "text_chat" | "static_text" | "multimodal";
   question: Question;
   language: string;
   assignmentId: string;
@@ -358,7 +359,9 @@ export function AssessmentShell({
 
   const showInCardLanguageSelector =
     Boolean(onLanguageChange) &&
-    (assessmentMode === "voice" || assessmentMode === "text_chat");
+    (assessmentMode === "voice" ||
+      assessmentMode === "text_chat" ||
+      assessmentMode === "multimodal");
   const handleLanguageValueChange = React.useCallback(
     (nextLanguage: string) => {
       onLanguageChange?.(nextLanguage);
@@ -429,6 +432,7 @@ export function AssessmentShell({
               {assessmentMode === "voice" && <VoiceInputArea {...inputProps} />}
               {assessmentMode === "text_chat" && <ChatInputArea {...inputProps} />}
               {assessmentMode === "static_text" && <StaticTextInputArea {...inputProps} />}
+              {assessmentMode === "multimodal" && <MultimodalInputArea {...inputProps} />}
             </>
           )}
         </AssessmentQuestionCard>

@@ -19,6 +19,7 @@ import {
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
+import type { AssessmentMode } from "@/lib/settings/registry";
 
 export default function CreateAssignmentPage() {
   const params = useParams();
@@ -97,7 +98,7 @@ export default function CreateAssignmentPage() {
     lockLanguage: boolean;
     isPublic: boolean;
     activityType: ActivityType;
-    assessmentMode: "voice" | "text_chat" | "static_text";
+    assessmentMode: AssessmentMode;
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;

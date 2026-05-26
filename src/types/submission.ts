@@ -101,7 +101,7 @@ export interface Submission {
    * The submission mode used for this submission
    * Stored at creation time to preserve historical accuracy
    */
-  submission_mode?: "voice" | "text_chat" | "static_text";
+  submission_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
   created_at?: string;
   updated_at?: string;
   /**

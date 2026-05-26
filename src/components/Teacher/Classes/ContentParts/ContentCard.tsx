@@ -128,6 +128,8 @@ export default function ContentCard({
         return "Text Chat";
       case "static_text":
         return "Static Text";
+      case "multimodal":
+        return "Multimodal";
       default:
         return "Voice";
     }

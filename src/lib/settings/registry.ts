@@ -135,6 +135,7 @@ export const ASSESSMENT_MODE_OPTIONS = [
   { value: "voice", label: "Voice" },
   { value: "text_chat", label: "Text chat" },
   { value: "static_text", label: "Static text" },
+  { value: "multimodal", label: "Multimodal" },
 ] as const satisfies readonly SettingOption[];
 
 export type AssessmentMode = (typeof ASSESSMENT_MODE_OPTIONS)[number]["value"];

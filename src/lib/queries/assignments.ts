@@ -193,7 +193,7 @@ export async function createAssignment(
     lock_language?: boolean;
     is_public?: boolean;
     activity_type?: "assessment" | "learning";
-    assessment_mode?: "voice" | "text_chat" | "static_text";
+    assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
@@ -269,7 +269,12 @@ export async function createAssignment(
     .single();
 
   if (error) {
-    console.error("Error creating assignment:", error);
+    console.error("Error creating assignment:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
     throw error;
   }
 
@@ -297,7 +302,7 @@ export async function updateAssignment(
     lock_language?: boolean;
     is_public?: boolean;
     activity_type?: "assessment" | "learning";
-    assessment_mode?: "voice" | "text_chat" | "static_text";
+    assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
@@ -374,7 +379,12 @@ export async function updateAssignment(
     .single();
 
   if (error) {
-    console.error("Error updating assignment:", error);
+    console.error("Error updating assignment:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
     throw error;
   }
 

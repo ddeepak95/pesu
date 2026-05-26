@@ -19,6 +19,7 @@ import {
 import type { ActivityType } from "@/lib/promptTemplates";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { useAssignmentByIdForTeacher } from "@/hooks/swr";
+import type { AssessmentMode } from "@/lib/settings/registry";
 
 export default function EditAssignmentPage() {
   const params = useParams();
@@ -33,9 +34,8 @@ export default function EditAssignmentPage() {
   const [lockLanguage, setLockLanguage] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [activityType, setActivityType] = useState<ActivityType>("learning");
-  const [assessmentMode, setAssessmentMode] = useState<
-    "voice" | "text_chat" | "static_text"
-  >("voice");
+  const [assessmentMode, setAssessmentMode] =
+    useState<AssessmentMode>("voice");
   const [responderFieldsConfig, setResponderFieldsConfig] = useState<
     ResponderFieldConfig[] | undefined
   >(undefined);
@@ -137,7 +137,7 @@ export default function EditAssignmentPage() {
     lockLanguage: boolean;
     isPublic: boolean;
     activityType: ActivityType;
-    assessmentMode: "voice" | "text_chat" | "static_text";
+    assessmentMode: AssessmentMode;
     isDraft: boolean;
     responderFieldsConfig?: ResponderFieldConfig[];
     maxAttempts?: number;
