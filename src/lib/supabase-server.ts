@@ -33,9 +33,22 @@ export async function createServerSupabaseClient() {
 
 // Service role client for trusted server-side operations that bypass RLS
 export function createServiceRoleClient() {
+  const useLocal = process.env.NEXT_PUBLIC_USE_LOCAL_SUPABASE === "true"
+  const serviceRoleKey = useLocal
+    ? process.env.SUPABASE_LOCAL_SERVICE_ROLE_KEY
+    : process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!serviceRoleKey) {
+    throw new Error(
+      useLocal
+        ? "SUPABASE_LOCAL_SERVICE_ROLE_KEY environment variable is not set (required when NEXT_PUBLIC_USE_LOCAL_SUPABASE=true)"
+        : "SUPABASE_SERVICE_ROLE_KEY environment variable is not set"
+    )
+  }
+
   return createClient(
     getSupabaseUrl(),
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serviceRoleKey,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 }

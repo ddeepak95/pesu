@@ -64,6 +64,7 @@
     "baseline-browser-mapping": "^2.9.19",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "supabase": "^2.101.0",
     "tailwindcss": "^4.1.16",
     "typescript": "^5"
   }
