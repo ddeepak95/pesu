@@ -1,13 +1,12 @@
 /**
  * Supabase configuration helper
  * 
- * Selects the appropriate Supabase instance (development or production)
- * based on the NEXT_PUBLIC_SUPABASE_ENV environment variable.
+ * Selects the appropriate Supabase instance (local or production).
  *
- * If NEXT_PUBLIC_USE_LOCAL_SUPABASE=true, overrides both development and
- * production and uses the local Supabase URL/anon key instead.
+ * If NEXT_PUBLIC_USE_LOCAL_SUPABASE=true, uses the local Supabase
+ * URL/anon key. Otherwise uses the production Supabase project.
  * 
- * Defaults to 'development' if not set.
+ * Defaults to production when NEXT_PUBLIC_USE_LOCAL_SUPABASE is not set.
  */
 
 /**
@@ -30,26 +29,13 @@ export function getSupabaseUrl(): string {
     return url
   }
 
-  const env = process.env.NEXT_PUBLIC_SUPABASE_ENV || "development"
-  
-  if (env === "production") {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_PROD_URL
-    if (!url) {
-      throw new Error(
-        "NEXT_PUBLIC_SUPABASE_PROD_URL environment variable is not set"
-      )
-    }
-    return url
-  } else {
-    // Default to development
-    const url = process.env.NEXT_PUBLIC_SUPABASE_DEV_URL
-    if (!url) {
-      throw new Error(
-        "NEXT_PUBLIC_SUPABASE_DEV_URL environment variable is not set"
-      )
-    }
-    return url
+  const url = process.env.NEXT_PUBLIC_SUPABASE_PROD_URL
+  if (!url) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_PROD_URL environment variable is not set"
+    )
   }
+  return url
 }
 
 /**
@@ -68,24 +54,11 @@ export function getSupabaseAnonKey(): string {
     return key
   }
 
-  const env = process.env.NEXT_PUBLIC_SUPABASE_ENV || "development"
-  
-  if (env === "production") {
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PROD_ANON_KEY
-    if (!key) {
-      throw new Error(
-        "NEXT_PUBLIC_SUPABASE_PROD_ANON_KEY environment variable is not set"
-      )
-    }
-    return key
-  } else {
-    // Default to development
-    const key = process.env.NEXT_PUBLIC_SUPABASE_DEV_ANON_KEY
-    if (!key) {
-      throw new Error(
-        "NEXT_PUBLIC_SUPABASE_DEV_ANON_KEY environment variable is not set"
-      )
-    }
-    return key
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PROD_ANON_KEY
+  if (!key) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_PROD_ANON_KEY environment variable is not set"
+    )
   }
+  return key
 }
