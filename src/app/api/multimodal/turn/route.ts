@@ -47,6 +47,7 @@ import {
   getSpeechApiModelId,
   getTtsProvider,
 } from "@/lib/konvo-voice/speech/registry";
+import { resolveProviderApiKeyForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
 import { sseEvent, sseHeaders } from "@/lib/konvo-voice/sse";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
@@ -104,7 +105,10 @@ export async function POST(request: NextRequest) {
     }
 
     const ttsEntry = getCatalogEntry(ttsModelId);
-    if (!ttsEntry || !isProviderConfigured(ttsEntry.providerId)) {
+    const ttsProviderApiKey = ttsEntry
+      ? await resolveProviderApiKeyForAssignment(assignmentId, ttsEntry.providerId)
+      : null;
+    if (!ttsEntry || (!ttsProviderApiKey && !isProviderConfigured(ttsEntry.providerId))) {
       return NextResponse.json(
         { error: "Selected TTS model unavailable or provider not configured" },
         { status: 400 },
@@ -266,6 +270,7 @@ export async function POST(request: NextRequest) {
             language,
             voice,
             apiModelId: getSpeechApiModelId(ttsModelId),
+            providerApiKey: ttsProviderApiKey ?? undefined,
             continueGeneration,
           };
 
@@ -329,6 +334,7 @@ export async function POST(request: NextRequest) {
               modelId: getSpeechApiModelId(ttsModelId) ?? "sonic-3.5",
               voiceId: voice,
               language,
+              apiKey: ttsProviderApiKey ?? undefined,
             });
             audioPump = startAudioPump(cartesiaSession.consumeAudio());
           } else if (useSarvamWs) {
@@ -336,6 +342,7 @@ export async function POST(request: NextRequest) {
               modelId: getSpeechApiModelId(ttsModelId) ?? "bulbul:v3",
               speaker: voice,
               language,
+              apiKey: ttsProviderApiKey ?? undefined,
             });
             audioPump = startAudioPump(sarvamSession.consumeAudio());
           }

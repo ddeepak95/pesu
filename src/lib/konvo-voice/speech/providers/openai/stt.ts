@@ -11,7 +11,7 @@ export const openaiSttProvider: SttProvider = {
   supportsStream: false,
 
   async transcribe(input) {
-    const openai = getOpenAIClient();
+    const openai = getOpenAIClient(input.providerApiKey);
     const file = await toFile(input.audio, input.filename, {
       type: input.mimeType ?? "audio/webm",
     });

@@ -23,7 +23,7 @@ async function requestTtsBytes(input: SynthesizeInput): Promise<Buffer> {
 
   const response = await fetch(`${SARVAM_API_BASE}/text-to-speech`, {
     method: "POST",
-    headers: sarvamHeaders("application/json"),
+    headers: sarvamHeaders("application/json", input.providerApiKey),
     body: JSON.stringify({
       model,
       text: input.text,

@@ -35,7 +35,7 @@ export const sarvamSttProvider: SttProvider = {
 
     const response = await fetch(`${SARVAM_API_BASE}/speech-to-text`, {
       method: "POST",
-      headers: sarvamHeaders(),
+      headers: sarvamHeaders(undefined, input.providerApiKey),
       body: form,
     });
 

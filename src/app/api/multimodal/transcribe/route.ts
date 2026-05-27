@@ -10,6 +10,7 @@ import {
   SARVAM_STT_CATALOG_MODEL_ID,
   SARVAM_STT_MAX_DURATION_MS,
 } from "@/lib/konvo-voice/speech/constants";
+import { resolveProviderApiKeyForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
 
 function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   if (!raw) return null;
@@ -69,7 +70,20 @@ export async function POST(request: NextRequest) {
     }
 
     const catalogEntry = getCatalogEntry(sessionConfig.sttModelId);
-    if (!catalogEntry || !isProviderConfigured(catalogEntry.providerId)) {
+    const assignmentIdRaw = formData.get("assignmentId");
+    const assignmentId =
+      typeof assignmentIdRaw === "string" && assignmentIdRaw.trim()
+        ? assignmentIdRaw.trim()
+        : null;
+    const sttProviderApiKey =
+      assignmentId && catalogEntry
+        ? await resolveProviderApiKeyForAssignment(assignmentId, catalogEntry.providerId)
+        : null;
+
+    if (
+      !catalogEntry ||
+      (!sttProviderApiKey && !isProviderConfigured(catalogEntry.providerId))
+    ) {
       return NextResponse.json(
         { error: "STT model unavailable or provider not configured" },
         { status: 400 },
@@ -125,6 +139,7 @@ export async function POST(request: NextRequest) {
         mimeType,
         language: sessionConfig.language,
         apiModelId,
+        providerApiKey: sttProviderApiKey ?? undefined,
       });
       return (result.text ?? "").trim();
     };

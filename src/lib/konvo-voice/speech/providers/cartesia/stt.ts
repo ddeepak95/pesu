@@ -14,7 +14,7 @@ export const cartesiaSttProvider: SttProvider = {
   supportsStream: false,
 
   async transcribe(input) {
-    const apiKey = getCartesiaApiKey();
+    const apiKey = getCartesiaApiKey(input.providerApiKey);
     const file = await toFile(input.audio, input.filename, {
       type: input.mimeType ?? "audio/webm",
     });

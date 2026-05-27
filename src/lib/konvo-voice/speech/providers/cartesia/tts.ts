@@ -24,7 +24,7 @@ async function requestTtsBytes(input: SynthesizeInput): Promise<Buffer> {
   const response = await fetch(`${CARTESIA_API_BASE}/tts/bytes`, {
     method: "POST",
     headers: {
-      ...cartesiaHeaders(),
+      ...cartesiaHeaders(input.providerApiKey),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

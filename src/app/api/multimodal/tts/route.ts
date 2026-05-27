@@ -6,11 +6,13 @@ import {
   KonvoLocaleVoiceError,
   resolveTtsVoice,
 } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
+import { resolveProviderApiKeyForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
 
 interface MultimodalTtsBody {
   ttsModelId: string;
   text: string;
   language: string;
+  assignmentId?: string;
   contextId?: string;
   continueGeneration?: boolean;
   index?: number;
@@ -19,7 +21,15 @@ interface MultimodalTtsBody {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as MultimodalTtsBody;
-    const { ttsModelId, text, language, contextId, continueGeneration, index } = body;
+    const {
+      ttsModelId,
+      text,
+      language,
+      assignmentId,
+      contextId,
+      continueGeneration,
+      index,
+    } = body;
     if (!ttsModelId || !language?.trim()) {
       return NextResponse.json(
         { error: "Missing required fields: ttsModelId, language" },
@@ -28,7 +38,11 @@ export async function POST(request: NextRequest) {
     }
 
     const ttsEntry = getCatalogEntry(ttsModelId);
-    if (!ttsEntry || !isProviderConfigured(ttsEntry.providerId)) {
+    const ttsProviderApiKey =
+      assignmentId && ttsEntry
+        ? await resolveProviderApiKeyForAssignment(assignmentId, ttsEntry.providerId)
+        : null;
+    if (!ttsEntry || (!ttsProviderApiKey && !isProviderConfigured(ttsEntry.providerId))) {
       return NextResponse.json(
         { error: "Selected TTS model unavailable or provider not configured" },
         { status: 400 },
@@ -70,6 +84,7 @@ export async function POST(request: NextRequest) {
             language,
             voice,
             apiModelId: getSpeechApiModelId(ttsModelId),
+            providerApiKey: ttsProviderApiKey ?? undefined,
           };
 
           if (!trimmed && continueGeneration === false) {

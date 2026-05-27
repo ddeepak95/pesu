@@ -28,6 +28,11 @@ import {
   invalidateModelConfigCache,
   invalidateModelConfigCacheForInstitution,
 } from "@/lib/ai/credentials/modelConfigCache";
+import {
+  clearSpeechProviderKeyCache,
+  invalidateSpeechProviderKeyCacheForClass,
+  invalidateSpeechProviderKeyCacheForInstitution,
+} from "@/lib/konvo-voice/speech/resolveProviderKey";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
 import { PLATFORM_SCOPE_ID } from "@/lib/ai/credentials/constants";
 import {
@@ -165,17 +170,21 @@ async function afterCatalogMutation(input: {
   classDbId?: string;
 }) {
   clearModelConfigCache();
+  clearSpeechProviderKeyCache();
   if (input.scope === "platform") {
     return;
   }
   if (input.scope === "institution" && input.institutionId) {
     await invalidateModelConfigCacheForInstitution(input.institutionId);
+    await invalidateSpeechProviderKeyCacheForInstitution(input.institutionId);
     return;
   }
   if (input.scope === "class" && input.classDbId) {
     invalidateModelConfigCache(input.classDbId);
+    await invalidateSpeechProviderKeyCacheForClass(input.classDbId);
     if (input.institutionId) {
       await invalidateModelConfigCacheForInstitution(input.institutionId);
+      await invalidateSpeechProviderKeyCacheForInstitution(input.institutionId);
     }
   }
 }

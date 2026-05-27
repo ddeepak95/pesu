@@ -11,6 +11,10 @@ import {
   invalidateModelConfigCacheForInstitution,
 } from "@/lib/ai/credentials/modelConfigCache";
 import {
+  clearSpeechProviderKeyCache,
+  invalidateSpeechProviderKeyCacheForInstitution,
+} from "@/lib/konvo-voice/speech/resolveProviderKey";
+import {
   getInstitutionAiPolicy,
   setInstitutionAiPolicyLock,
 } from "@/lib/queries/aiInstitutionSettings";
@@ -92,7 +96,9 @@ export async function setInstitutionAiConfigLocksAction(input: {
       institutionPolicy,
     );
     clearModelConfigCache();
+    clearSpeechProviderKeyCache();
     await invalidateModelConfigCacheForInstitution(input.institutionId);
+    await invalidateSpeechProviderKeyCacheForInstitution(input.institutionId);
     revalidateInstitution(input.institutionId);
     return ok();
   } catch (err) {

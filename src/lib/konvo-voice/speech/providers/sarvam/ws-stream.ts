@@ -13,6 +13,7 @@ export interface SarvamTtsWebSocketConfig {
   modelId: string;
   speaker: string;
   language: string;
+  apiKey?: string;
   sampleRate?: number;
   minBufferSize?: number;
   maxChunkLength?: number;
@@ -79,7 +80,7 @@ export class SarvamTtsWebSocketSession {
 
   private connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const headers = sarvamHeaders() as Record<string, string>;
+      const headers = sarvamHeaders(undefined, this.config.apiKey) as Record<string, string>;
       const ws = new WebSocket(this.buildWsUrl(), { headers });
 
       const onError = (error: Error) => {

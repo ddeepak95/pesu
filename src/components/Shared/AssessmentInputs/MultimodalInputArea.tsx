@@ -675,6 +675,7 @@ export function MultimodalInputArea({
           "audio",
           new File([wavBlob], "recording.wav", { type: "audio/wav" }),
         );
+        formData.append("assignmentId", assignmentId);
         const response = await fetch("/api/multimodal/transcribe", {
           method: "POST",
           body: formData,
@@ -741,6 +742,7 @@ export function MultimodalInputArea({
       showErrorToast("Unable to start recording.");
     }
   }, [
+    assignmentId,
     activityType,
     isSpeaking,
     isThinking,

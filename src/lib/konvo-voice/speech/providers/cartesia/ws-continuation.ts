@@ -12,6 +12,7 @@ export interface CartesiaTtsContinuationConfig {
   modelId: string;
   voiceId: string;
   language: string;
+  apiKey?: string;
   contextId?: string;
   sampleRate?: number;
   maxBufferDelayMs?: number;
@@ -72,7 +73,7 @@ export class CartesiaTtsContinuationSession {
 
   private connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const headers = cartesiaHeaders() as Record<string, string>;
+      const headers = cartesiaHeaders(this.config.apiKey) as Record<string, string>;
       const ws = new WebSocket(CARTESIA_WS_URL, { headers });
 
       const onError = (error: Error) => {

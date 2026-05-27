@@ -11,7 +11,7 @@ import {
 import { getOpenAIClient } from "./client";
 
 async function synthesizeBuffer(input: SynthesizeInput): Promise<Buffer> {
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClient(input.providerApiKey);
   const model = input.apiModelId ?? OPENAI_TTS_MODEL;
   const voice = input.voice ?? OPENAI_TTS_VOICE;
   console.log(
@@ -78,7 +78,7 @@ export const openaiTtsProvider: TtsProvider = {
   },
 
   async *synthesizeStream(input): AsyncIterable<Uint8Array> {
-    const openai = getOpenAIClient();
+    const openai = getOpenAIClient(input.providerApiKey);
     const model = input.apiModelId ?? OPENAI_TTS_MODEL;
     const voice = input.voice ?? OPENAI_TTS_VOICE;
     console.log(

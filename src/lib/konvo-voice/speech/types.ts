@@ -6,6 +6,7 @@ export interface TranscribeInput {
   mimeType?: string;
   language?: string;
   apiModelId?: string;
+  providerApiKey?: string;
 }
 
 export interface TranscribeResult {
@@ -23,6 +24,7 @@ export interface SynthesizeInput {
   voice?: string;
   language?: string;
   apiModelId?: string;
+  providerApiKey?: string;
   /** Provider-specific continuation context id (Cartesia). */
   contextId?: string;
   /** Provider-specific continuation flag (Cartesia). */
