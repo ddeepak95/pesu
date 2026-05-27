@@ -2,7 +2,6 @@ import type { LocaleTag } from "@/lib/locales/types";
 
 /** Locales supported by Sarvam Saaras STT / Bulbul TTS (Indian BCP-47 family). */
 const SARVAM_SPEECH_LOCALES: readonly LocaleTag[] = [
-  "en",
   "en-IN",
   "hi",
   "bn",
@@ -18,7 +17,6 @@ const SARVAM_SPEECH_LOCALES: readonly LocaleTag[] = [
 
 /** Sarvam Bulbul v3 speakers — first recommended male per Sarvam docs. */
 const SARVAM_BULBUL_V3_VOICES: Readonly<Record<LocaleTag, string>> = {
-  en: "ratan",
   "en-IN": "ratan",
   hi: "shubh",
   te: "shubh",
