@@ -69,9 +69,7 @@ export function BotStatusPanel({
 
       <div className="flex flex-1 items-center gap-4 min-h-0">
         <div className="relative shrink-0 w-20 h-20 flex items-center justify-center">
-          <div
-            className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-border bg-canvas"
-          >
+          <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-border bg-canvas">
             <Image
               src={getAvatarImage(botState)}
               alt={`Konvo ${label}`}
@@ -89,7 +87,7 @@ export function BotStatusPanel({
               mode={botWaveMode}
               analyser={playbackAnalyser}
               active={botWaveMode === "audio" && Boolean(playbackAnalyser)}
-              className="w-full"
+              className="w-full text-foreground"
             />
           ) : (
             <div className="w-full h-14" />

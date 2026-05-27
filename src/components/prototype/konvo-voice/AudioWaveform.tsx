@@ -104,6 +104,7 @@ export function AudioWaveform({
   const modeRef = useRef(mode);
   const smoothedRef = useRef<number[]>([]);
   const peakHoldRef = useRef(0.28);
+  const drawColorRef = useRef<string>("#000000");
 
   useEffect(() => {
     analyserRef.current = analyser ?? null;
@@ -129,6 +130,10 @@ export function AudioWaveform({
       canvas.style.width = `${width}px`;
       canvas.style.height = `${DISPLAY_HEIGHT}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const computed = window.getComputedStyle(container).color;
+      if (computed) {
+        drawColorRef.current = computed;
+      }
     };
 
     resize();
@@ -146,7 +151,7 @@ export function AudioWaveform({
         const envelope = centerEnvelope(i, barCount);
         const barH = h * (minH + breath * envelope * maxAmp);
         const { x, barW } = barLayout(i, barCount, w);
-        ctx.fillStyle = "currentColor";
+        ctx.fillStyle = drawColorRef.current;
         ctx.globalAlpha = 0.55;
         ctx.fillRect(x, (h - barH) / 2, barW, barH);
       }
@@ -166,7 +171,7 @@ export function AudioWaveform({
         const normalized = Math.min(1, Math.max(0, values[i]));
         const barH = Math.max(4, normalized * h * 0.88);
         const { x, barW } = barLayout(i, barCount, w);
-        ctx.fillStyle = "currentColor";
+        ctx.fillStyle = drawColorRef.current;
         ctx.globalAlpha = minAlpha + normalized * (1 - minAlpha);
         ctx.fillRect(x, (h - barH) / 2, barW, barH);
       }

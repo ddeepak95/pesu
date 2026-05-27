@@ -22,6 +22,21 @@ interface UserInputPanelProps {
   onSend: () => void;
 }
 
+function getUserStatusLabel(uiState: KonvoUiConfig["uiState"]): string {
+  switch (uiState) {
+    case "user_speaking":
+      return "Speaking";
+    case "user_listening":
+      return "Ready";
+    case "bot_thinking":
+      return "Waiting";
+    case "bot_speaking":
+      return "Listening";
+    default:
+      return "Ready";
+  }
+}
+
 export function UserInputPanel({
   ui,
   canSend,
@@ -29,6 +44,7 @@ export function UserInputPanel({
   onMicPress,
   onSend,
 }: UserInputPanelProps) {
+  const userStatusLabel = getUserStatusLabel(ui.uiState);
   const micDisabled = ui.actionButton === "mic" && !ui.micEnabled;
 
   const isListeningForMic =
@@ -60,7 +76,7 @@ export function UserInputPanel({
 
   const showRings = ui.actionButton === "send" ? showSendNudge : showMicNudgeRings;
   const ringClassName =
-    ui.actionButton === "send" ? "border-primary" : "border-blue-600";
+    ui.actionButton === "send" ? "border-foreground" : "border-foreground";
 
   return (
     <Card
@@ -70,9 +86,12 @@ export function UserInputPanel({
         micDisabled && "opacity-60",
       )}
     >
-      <p className="absolute top-4 left-4 z-10 font-semibold text-foreground">
-        You
-      </p>
+      <div className="absolute top-4 left-4 z-10 flex items-baseline gap-2">
+        <p className="font-semibold text-foreground">You</p>
+        <span className="text-sm italic text-muted-foreground">
+          {userStatusLabel}
+        </span>
+      </div>
 
       <div className="absolute inset-0 flex items-center gap-4 px-4">
         <div className="flex-1 min-w-0 flex flex-col items-center justify-center text-center min-h-[56px] px-2">
@@ -88,7 +107,7 @@ export function UserInputPanel({
                 mode={recorder.analyser ? "audio" : "thinking"}
                 analyser={recorder.analyser}
                 active={recorder.isRecording && Boolean(recorder.analyser)}
-                className="w-full"
+                className="w-full text-foreground"
               />
             </>
           ) : ui.showUserSpeakPrompt ? (

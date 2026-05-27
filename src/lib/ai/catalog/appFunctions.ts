@@ -8,7 +8,9 @@ export type AppFunctionKey =
   | "text.chat_tutoring"
   | "text.evaluation"
   | "text.dynamic_questions"
-  | "text.rubric_generation";
+  | "text.rubric_generation"
+  | "speech_to_text"
+  | "text_to_speech";
 
 export function parseAppFunctionKey(
   key: AppFunctionKey,

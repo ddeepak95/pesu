@@ -10,6 +10,7 @@ import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { AssessmentInputProps } from "./types";
 import { createBulkInputGuard } from "./wordLimitGuards";
+import { useEndConversationFinish } from "./useEndConversationFinish";
 import { AI_NOT_CONFIGURED_ERROR_CODE } from "@/lib/ai/credentials/constants";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
@@ -79,14 +80,7 @@ export function ChatInputArea({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const activeRequestAbortRef = React.useRef<AbortController | null>(null);
   const restoredFromStorageRef = React.useRef(false);
-  /** Browser timer id; avoid NodeJS.Timeout vs number mismatch in client components. */
-  const autoFinishTimeoutIdRef = React.useRef<number | null>(null);
-  const finishInFlightRef = React.useRef(false);
-  const finishHandlerRef = React.useRef<(() => Promise<void>) | null>(null);
   const messagesRef = React.useRef<ChatMessage[]>([]);
-  const endConversationRef = React.useRef<{
-    reason: "thorough" | "refusal";
-  } | null>(null);
   const storageKey = React.useMemo(
     () => `chat-${submissionId}-${question.order}`,
     [submissionId, question.order],
@@ -97,13 +91,6 @@ export function ChatInputArea({
   React.useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-
-  const clearAutoFinishTimeout = React.useCallback(() => {
-    if (autoFinishTimeoutIdRef.current != null) {
-      window.clearTimeout(autoFinishTimeoutIdRef.current);
-      autoFinishTimeoutIdRef.current = null;
-    }
-  }, []);
 
   // Report language-disabled state to the shell
   React.useEffect(() => {
@@ -140,29 +127,6 @@ export function ChatInputArea({
     () => createBulkInputGuard(submissionId),
     [submissionId],
   );
-
-  // Load draft for this question, reset ref state, clear stale auto-finish timers
-  React.useEffect(() => {
-    clearAutoFinishTimeout();
-    restoredFromStorageRef.current = false;
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored) as ChatMessage[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          restoredFromStorageRef.current = true;
-          setMessages(parsed);
-          return;
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    setMessages([]);
-    return () => {
-      clearAutoFinishTimeout();
-    };
-  }, [storageKey, clearAutoFinishTimeout]);
 
   // Persist chat draft to localStorage (debounced to avoid blocking during streaming)
   React.useEffect(() => {
@@ -211,40 +175,9 @@ export function ChatInputArea({
       .join("\n\n");
   };
 
-  const scheduleEndConversationAutoFinish = React.useCallback(() => {
-    clearAutoFinishTimeout();
-    autoFinishTimeoutIdRef.current = window.setTimeout(() => {
-      autoFinishTimeoutIdRef.current = null;
-      void finishHandlerRef.current?.();
-    }, 1000);
-  }, [clearAutoFinishTimeout]);
-
-  const handleFinishAndEvaluate = React.useCallback(async () => {
-    if (finishInFlightRef.current || isEvaluating) {
-      return;
-    }
-
+  const finishSubmission = React.useCallback(async () => {
     const msgs = messagesRef.current;
-    const hasStudentMessage = msgs.some(
-      (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
-    );
-    if (!hasStudentMessage) {
-      if (!isEvaluating && !finishInFlightRef.current) {
-        showWarningToast("Please provide at least one response before finishing.");
-      }
-      return;
-    }
-    if (maxAttemptsReached) {
-      showWarningToast(
-        "You have reached the maximum number of attempts for this question.",
-      );
-      return;
-    }
-
-    clearAutoFinishTimeout();
-
     const answerText = formatFullConversation(msgs).trim();
-    finishInFlightRef.current = true;
     try {
       await onSubmitForEvaluation(answerText);
       setMessages([]);
@@ -257,19 +190,56 @@ export function ChatInputArea({
       }
     } catch {
       /* Error toast already shown by AssessmentShell */
-    } finally {
-      finishInFlightRef.current = false;
     }
-  }, [
+  }, [onSubmitForEvaluation, storageKey, sync]);
+
+  const {
+    endConversationRef,
     clearAutoFinishTimeout,
+    scheduleAutoFinish,
+    runFinish: handleFinishAndEvaluate,
+  } = useEndConversationFinish({
     isEvaluating,
     maxAttemptsReached,
-    onSubmitForEvaluation,
-    storageKey,
-    sync,
-  ]);
+    hasStudentContent: () =>
+      messagesRef.current.some(
+        (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
+      ),
+    onWarnNoStudentContent: () => {
+      showWarningToast(
+        "Please provide at least one response before finishing.",
+      );
+    },
+    onWarnMaxAttemptsReached: () => {
+      showWarningToast(
+        "You have reached the maximum number of attempts for this question.",
+      );
+    },
+    onFinish: finishSubmission,
+  });
 
-  finishHandlerRef.current = handleFinishAndEvaluate;
+  // Load draft for this question, reset ref state, clear stale auto-finish timers
+  React.useEffect(() => {
+    clearAutoFinishTimeout();
+    restoredFromStorageRef.current = false;
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as ChatMessage[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          restoredFromStorageRef.current = true;
+          setMessages(parsed);
+          return;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    setMessages([]);
+    return () => {
+      clearAutoFinishTimeout();
+    };
+  }, [storageKey, clearAutoFinishTimeout]);
 
   const handleStartChat = async () => {
     if (maxAttemptsReached) {
@@ -323,8 +293,7 @@ export function ChatInputArea({
         ) {
           onIntegrityAccessRevoked?.();
           showErrorToast(
-            errorData.error ||
-              "Access to this assessment has been suspended.",
+            errorData.error || "Access to this assessment has been suspended.",
           );
           return;
         }
@@ -350,7 +319,7 @@ export function ChatInputArea({
       }, 0);
 
       if (endConversationRef.current) {
-        scheduleEndConversationAutoFinish();
+        scheduleAutoFinish();
       }
     } catch (error) {
       if (
@@ -437,8 +406,7 @@ export function ChatInputArea({
         ) {
           onIntegrityAccessRevoked?.();
           showErrorToast(
-            errorData.error ||
-              "Access to this assessment has been suspended.",
+            errorData.error || "Access to this assessment has been suspended.",
           );
           return;
         }
@@ -460,7 +428,7 @@ export function ChatInputArea({
       await streamSSEResponse(reader, assistantId);
 
       if (endConversationRef.current) {
-        scheduleEndConversationAutoFinish();
+        scheduleAutoFinish();
       }
     } catch (error) {
       if (
@@ -541,40 +509,40 @@ export function ChatInputArea({
             className="h-96 overflow-y-auto py-4 px-2 bg-muted/20"
           >
             <div className="min-h-full flex flex-col justify-end gap-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex items-end gap-2 ${
-                  message.role === "student" ? "flex-row-reverse" : "flex-row"
-                }`}
-              >
+              {messages.map((message) => (
                 <div
-                  className={`max-w-[95%] sm:max-w-[75%] px-4 py-2.5 text-sm whitespace-pre-wrap shadow-sm ${
-                    message.role === "student"
-                      ? "bg-primary text-primary-foreground rounded-2xl rounded-br-md"
-                      : "bg-card border border-border text-card-foreground rounded-2xl rounded-bl-md"
+                  key={message.id}
+                  className={`flex items-end gap-2 ${
+                    message.role === "student" ? "flex-row-reverse" : "flex-row"
                   }`}
                 >
-                  {message.role === "assistant" && (
-                    <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-muted-foreground">
-                      <Bot className="h-3.5 w-3.5 shrink-0" />
-                      Konvo
-                    </div>
-                  )}
-                  {message.content || (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                      <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                      <span className="w-2 h-2 bg-current rounded-full animate-bounce"></span>
-                    </span>
+                  <div
+                    className={`max-w-[95%] sm:max-w-[75%] px-4 py-2.5 text-sm whitespace-pre-wrap shadow-sm ${
+                      message.role === "student"
+                        ? "bg-primary text-primary-foreground rounded-2xl rounded-br-md"
+                        : "bg-card border border-border text-card-foreground rounded-2xl rounded-bl-md"
+                    }`}
+                  >
+                    {message.role === "assistant" && (
+                      <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-muted-foreground">
+                        <Bot className="h-3.5 w-3.5 shrink-0" />
+                        Konvo
+                      </div>
+                    )}
+                    {message.content || (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                        <span className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                        <span className="w-2 h-2 bg-current rounded-full animate-bounce"></span>
+                      </span>
+                    )}
+                  </div>
+                  {message.role === "student" && (
+                    <div className="w-8 h-8 flex-shrink-0" />
                   )}
                 </div>
-                {message.role === "student" && (
-                  <div className="w-8 h-8 flex-shrink-0" />
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
+              ))}
+              <div ref={messagesEndRef} />
             </div>
           </div>
 

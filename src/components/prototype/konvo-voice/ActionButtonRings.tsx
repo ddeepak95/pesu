@@ -9,7 +9,7 @@ interface ActionButtonRingsProps {
 
 export function ActionButtonRings({
   active,
-  ringClassName = "border-blue-600",
+  ringClassName = "border-foreground",
 }: ActionButtonRingsProps) {
   if (!active) return null;
 
