@@ -22,21 +22,6 @@ interface UserInputPanelProps {
   onSend: () => void;
 }
 
-function getUserStatusLabel(uiState: KonvoUiConfig["uiState"]): string {
-  switch (uiState) {
-    case "user_speaking":
-      return "Speaking";
-    case "user_listening":
-      return "Ready";
-    case "bot_thinking":
-      return "Waiting";
-    case "bot_speaking":
-      return "Listening";
-    default:
-      return "Ready";
-  }
-}
-
 export function UserInputPanel({
   ui,
   canSend,
@@ -44,7 +29,6 @@ export function UserInputPanel({
   onMicPress,
   onSend,
 }: UserInputPanelProps) {
-  const userStatusLabel = getUserStatusLabel(ui.uiState);
   const micDisabled = ui.actionButton === "mic" && !ui.micEnabled;
 
   const isListeningForMic =
@@ -86,22 +70,14 @@ export function UserInputPanel({
         micDisabled && "opacity-60",
       )}
     >
-      <div className="absolute top-4 left-4 z-10 flex items-baseline gap-2">
+      <div className="absolute top-4 left-4 z-10">
         <p className="font-semibold text-foreground">You</p>
-        <span className="text-sm italic text-muted-foreground">
-          {userStatusLabel}
-        </span>
       </div>
 
       <div className="absolute inset-0 flex items-center gap-4 px-4">
         <div className="flex-1 min-w-0 flex flex-col items-center justify-center text-center min-h-[56px] px-2">
           {ui.showUserWave ? (
             <>
-              <p className="text-xs text-muted-foreground shrink-0 mb-1">
-                {recorder.isRecording
-                  ? "Recording... speak now"
-                  : "Starting mic..."}
-              </p>
               <AudioWaveform
                 key={`rec-${recorder.recordingSessionId}`}
                 mode={recorder.analyser ? "audio" : "thinking"}

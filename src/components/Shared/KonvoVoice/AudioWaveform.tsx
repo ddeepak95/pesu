@@ -9,9 +9,10 @@ interface AudioWaveformProps {
   active?: boolean;
   barCount?: number;
   className?: string;
+  height?: number;
 }
 
-const DISPLAY_HEIGHT = 56;
+const DEFAULT_DISPLAY_HEIGHT = 56;
 
 /** Bar width as a fraction of each slot (lower = more gap). */
 const BAR_WIDTH_RATIO = 0.46;
@@ -95,6 +96,7 @@ export function AudioWaveform({
   active = false,
   barCount: requestedBarCount = 0,
   className = "",
+  height = DEFAULT_DISPLAY_HEIGHT,
 }: AudioWaveformProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,9 +128,9 @@ export function AudioWaveform({
       const width = Math.max(container.clientWidth, 120);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(DISPLAY_HEIGHT * dpr);
+      canvas.height = Math.floor(height * dpr);
       canvas.style.width = `${width}px`;
-      canvas.style.height = `${DISPLAY_HEIGHT}px`;
+      canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const computed = window.getComputedStyle(container).color;
       if (computed) {
@@ -227,7 +229,7 @@ export function AudioWaveform({
 
     const draw = (t: number) => {
       const w = container.clientWidth || 120;
-      const h = DISPLAY_HEIGHT;
+      const h = height;
       const barCount = barCountForWidth(w, requestedBarCount);
       const currentMode = modeRef.current;
 
@@ -299,7 +301,7 @@ export function AudioWaveform({
       smoothedRef.current = [];
       peakHoldRef.current = 0.28;
     };
-  }, [requestedBarCount, mode, analyser, active]);
+  }, [requestedBarCount, mode, analyser, active, height]);
 
   if (mode === "none") return null;
 
@@ -307,7 +309,7 @@ export function AudioWaveform({
     <div
       ref={containerRef}
       className={`w-full max-w-md mx-auto text-foreground ${className}`}
-      style={{ height: DISPLAY_HEIGHT }}
+      style={{ height }}
     >
       <canvas ref={canvasRef} className="block w-full" aria-hidden />
     </div>

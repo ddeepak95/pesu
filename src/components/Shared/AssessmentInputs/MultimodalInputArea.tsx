@@ -27,6 +27,7 @@ interface ChatMessage {
   id: string;
   role: "student" | "assistant";
   content: string;
+  status?: "transcribing";
 }
 
 type ChatPhase =
@@ -126,9 +127,9 @@ export function MultimodalInputArea({
   botPromptConfig,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
-  const [expandedUserMessageIds, setExpandedUserMessageIds] = React.useState<
-    Record<string, boolean>
-  >({});
+  const [expandedMessageIds, setExpandedMessageIds] = React.useState<Record<string, boolean>>(
+    {},
+  );
   const [isStarting, setIsStarting] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [isThinking, setIsThinking] = React.useState(false);
@@ -160,6 +161,11 @@ export function MultimodalInputArea({
   const botOrdinalRef = React.useRef(0);
   const botInterruptionRequestedRef = React.useRef(false);
   const activeAbortRef = React.useRef<AbortController | null>(null);
+  const activeAssistantTurnRef = React.useRef({
+    text: "",
+    ttsStarted: false,
+    committed: false,
+  });
   const sessionStartedAtRef = React.useRef<string | null>(null);
   const playbackResetRef = React.useRef(playback.reset);
 
@@ -170,10 +176,9 @@ export function MultimodalInputArea({
   }, [messages]);
 
   React.useEffect(() => {
-    setExpandedUserMessageIds((prev) => {
+    setExpandedMessageIds((prev) => {
       let next: Record<string, boolean> | null = null;
       for (const m of messages) {
-        if (m.role !== "student") continue;
         if (prev[m.id] !== undefined) continue;
         if (!next) next = { ...prev };
         next[m.id] = false;
@@ -189,7 +194,7 @@ export function MultimodalInputArea({
     };
   }, []);
 
-  const hasStarted = messages.length > 0;
+  const hasStarted = messages.length > 0 || isStarting;
 
   const phase: ChatPhase = React.useMemo(() => {
     if (!hasStarted && !isStarting) return "not_started";
@@ -304,6 +309,28 @@ export function MultimodalInputArea({
     await onSubmitForEvaluation(answerText);
   }, [onSubmitForEvaluation]);
 
+  const commitAssistantTurnToMessages = React.useCallback(
+    (options?: { force?: boolean }) => {
+      const turn = activeAssistantTurnRef.current;
+      if (turn.committed) return false;
+      const content = turn.text.trim();
+      if (!options?.force && !content && !turn.ttsStarted) return false;
+      turn.committed = true;
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: content || "...",
+      };
+      setMessages((prev) => {
+        const next = [...prev, assistantMessage];
+        messagesRef.current = next;
+        return next;
+      });
+      return true;
+    },
+    [],
+  );
+
   const {
     scheduleAutoFinish,
     runFinish: handleFinishAndEvaluate,
@@ -343,6 +370,7 @@ export function MultimodalInputArea({
 
     playback.beginTurn({
       onPlaybackStart: () => {
+        activeAssistantTurnRef.current.ttsStarted = true;
         setIsThinking(false);
         setIsSpeaking(true);
       },
@@ -350,6 +378,11 @@ export function MultimodalInputArea({
 
     const controller = new AbortController();
     activeAbortRef.current = controller;
+    activeAssistantTurnRef.current = {
+      text: "",
+      ttsStarted: false,
+      committed: false,
+    };
 
     try {
       const response = await fetch("/api/multimodal/turn", {
@@ -401,6 +434,7 @@ export function MultimodalInputArea({
       for await (const event of parseMultimodalTurnStream(reader)) {
         if (event.type === "text-delta") {
           assistantText += event.content;
+          activeAssistantTurnRef.current.text = assistantText;
         } else if (event.type === "end_conversation") {
           didEndConversation = true;
         } else if (event.type === "speech_start") {
@@ -415,6 +449,7 @@ export function MultimodalInputArea({
             speechSegmentPrepared = true;
           }
           ttsStarted = true;
+          activeAssistantTurnRef.current.ttsStarted = true;
           playback.appendChunk(0, event.base64);
           pcmChunks.push(decodeBase64ToBytes(event.base64));
         } else if (event.type === "speech_end") {
@@ -429,7 +464,7 @@ export function MultimodalInputArea({
       if (botInterruptionRequestedRef.current) {
         interrupted = true;
       }
-      if (ttsStarted) {
+      if (ttsStarted && !botInterruptionRequestedRef.current) {
         await playback.waitForAll();
       } else {
         setIsThinking(false);
@@ -437,15 +472,7 @@ export function MultimodalInputArea({
       playback.releasePlayback();
       setIsSpeaking(false);
 
-      const finalAssistantText = assistantText.trim();
-      if (finalAssistantText) {
-        const assistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: finalAssistantText,
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-      }
+      commitAssistantTurnToMessages();
 
       const totalBytes = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
       if (totalBytes > 0) {
@@ -477,6 +504,10 @@ export function MultimodalInputArea({
         (turnError.name === "AbortError" ||
           turnError.message === "signal is aborted without reason")
       ) {
+        activeAssistantTurnRef.current.text = assistantText;
+        activeAssistantTurnRef.current.ttsStarted =
+          activeAssistantTurnRef.current.ttsStarted || ttsStarted;
+        commitAssistantTurnToMessages({ force: true });
         setIsThinking(false);
         setIsSpeaking(false);
         return;
@@ -502,6 +533,7 @@ export function MultimodalInputArea({
     persistUtteranceAudio,
     question.order,
     scheduleAutoFinish,
+    commitAssistantTurnToMessages,
     speechModels?.ttsModelId,
     submissionId,
     systemPrompt,
@@ -517,7 +549,7 @@ export function MultimodalInputArea({
     if (messagesRef.current.length > 0 || isStarting) return;
     sessionStartedAtRef.current = new Date().toISOString();
     setIsStarting(true);
-    setExpandedUserMessageIds({});
+    setExpandedMessageIds({});
     userOrdinalRef.current = 0;
     botOrdinalRef.current = 0;
     setSessionChunkIndex(0);
@@ -548,6 +580,7 @@ export function MultimodalInputArea({
       botInterruptionRequestedRef.current = true;
       activeAbortRef.current?.abort();
       playback.reset();
+      commitAssistantTurnToMessages({ force: true });
       setIsSpeaking(false);
       const started = await recorder.startRecording();
       if (!started && recorder.error) {
@@ -565,6 +598,17 @@ export function MultimodalInputArea({
       setIsTranscribing(true);
       try {
         const wavBlob = await tryConvertToWavBlob(recorded);
+        const pendingMessageId = crypto.randomUUID();
+        const pendingStudentMessage: ChatMessage = {
+          id: pendingMessageId,
+          role: "student",
+          content: "Transcribing...",
+          status: "transcribing",
+        };
+        setMessages((prev) => [...prev, pendingStudentMessage]);
+        const historyWithPending = [...messagesRef.current, pendingStudentMessage];
+        messagesRef.current = historyWithPending;
+
         const sttModelId =
           speechModels?.sttModelId ?? DEFAULT_KONVO_SESSION_CONFIG.sttModelId;
         const formData = new FormData();
@@ -594,16 +638,22 @@ export function MultimodalInputArea({
         }
         const text = (body.text ?? "").trim();
         if (!text) {
+          setMessages((prev) => prev.filter((m) => m.id !== pendingMessageId));
           showWarningToast("No speech detected. Try speaking louder and closer to the mic.");
           return;
         }
         const studentMessage: ChatMessage = {
-          id: crypto.randomUUID(),
+          id: pendingMessageId,
           role: "student",
           content: text,
         };
-        const nextHistory = [...messagesRef.current, studentMessage];
-        setMessages(nextHistory);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === pendingMessageId ? studentMessage : m)),
+        );
+        const nextHistory = historyWithPending.map((m) =>
+          m.id === pendingMessageId ? studentMessage : m,
+        );
+        messagesRef.current = nextHistory;
         userOrdinalRef.current += 1;
         await persistUtteranceAudio({
           dbRole: "student",
@@ -617,6 +667,7 @@ export function MultimodalInputArea({
         setIsTranscribing(false);
         await runAssistantTurn(nextHistory);
       } catch (sendError) {
+        setMessages((prev) => prev.filter((m) => m.status !== "transcribing"));
         const message =
           sendError instanceof Error ? sendError.message : "Failed to process audio";
         setError(message);
@@ -644,6 +695,7 @@ export function MultimodalInputArea({
     persistUtteranceAudio,
     playback,
     recorder,
+    commitAssistantTurnToMessages,
     runAssistantTurn,
     speechModels?.sttModelId,
     speechModels?.ttsModelId,
@@ -697,10 +749,11 @@ export function MultimodalInputArea({
 
           <ContentBox
             content={null}
+            uiState={ui.uiState}
             messages={messages}
-            expandedMessageIds={expandedUserMessageIds}
+            expandedMessageIds={expandedMessageIds}
             onToggleExpanded={(messageId) =>
-              setExpandedUserMessageIds((prev) => ({
+              setExpandedMessageIds((prev) => ({
                 ...prev,
                 [messageId]: !prev[messageId],
               }))
