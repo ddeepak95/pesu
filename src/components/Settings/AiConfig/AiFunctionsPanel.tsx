@@ -1,6 +1,10 @@
 "use client";
 
 import { CATALOG_FUNCTIONS } from "@/lib/ai/catalog/data";
+import {
+  mergeClassProviderStateForCatalog,
+  mergeInstitutionProviderStateForCatalog,
+} from "@/lib/ai/catalog/helpers";
 import type {
   AiSettingsScope,
   FunctionBindingState,
@@ -34,6 +38,13 @@ export default function AiFunctionsPanel({
   onUsePlatformFunctionDefault,
   onBrowseCatalogForTask,
 }: AiFunctionsPanelProps) {
+  const catalogState =
+    scope === "class" && institutionState && platformState
+      ? mergeClassProviderStateForCatalog(state, institutionState, platformState)
+      : scope === "institution" && platformState
+        ? mergeInstitutionProviderStateForCatalog(state, platformState)
+        : state;
+
   return (
     <section className="space-y-4">
       <div>
@@ -66,7 +77,12 @@ export default function AiFunctionsPanel({
               fn={fn}
               scope={scope}
               state={state}
+              platformState={platformState}
+              institutionState={institutionState}
+              allowUsePlatformDefaults={allowUsePlatformDefaults}
+              providerCatalogState={catalogState}
               onBindingChange={onBindingChange}
+              onUsePlatformFunctionDefault={onUsePlatformFunctionDefault}
               onBrowseCatalogForTask={onBrowseCatalogForTask}
             />
           ),

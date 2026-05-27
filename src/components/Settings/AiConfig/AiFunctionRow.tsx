@@ -11,12 +11,18 @@ import type {
 
 import AiFunctionBindingControls from "./AiFunctionBindingControls";
 import AiFunctionBrowseModelsButton from "./AiFunctionBrowseModelsButton";
+import AiInstitutionFunctionDefaultSection from "./AiInstitutionFunctionDefaultSection";
 
 interface AiFunctionRowProps {
   fn: AppFunctionCatalogEntry;
   scope: AiSettingsScope;
   state: LocalAiSettingsState;
+  platformState?: LocalAiSettingsState;
+  institutionState?: LocalAiSettingsState;
+  allowUsePlatformDefaults?: boolean;
+  providerCatalogState?: LocalAiSettingsState;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
+  onUsePlatformFunctionDefault?: (parentKey: string, usePlatform: boolean) => void;
   onBrowseCatalogForTask: (task: ModelTask) => void;
 }
 
@@ -25,11 +31,38 @@ export default function AiFunctionRow({
   fn,
   scope,
   state,
+  platformState,
+  institutionState,
+  allowUsePlatformDefaults = true,
+  providerCatalogState,
   onBindingChange,
+  onUsePlatformFunctionDefault,
   onBrowseCatalogForTask,
 }: AiFunctionRowProps) {
   const comingSoon = fn.status === "coming_soon";
-  const eligible = modelsEligibleForFunction(fn.key, state, scope);
+  const eligible = modelsEligibleForFunction(
+    fn.key,
+    state,
+    scope,
+    providerCatalogState,
+  );
+  const showInheritedDefaults =
+    (scope === "institution" && platformState && onUsePlatformFunctionDefault) ||
+    (scope === "class" &&
+      institutionState &&
+      platformState &&
+      onUsePlatformFunctionDefault);
+  const inheritLabel = scope === "class" ? "institution" : "platform";
+
+  const bindingControls = (
+    <AiFunctionBindingControls
+      parentFnKey={fn.key}
+      scope={scope}
+      state={providerCatalogState ?? state}
+      binding={state.functions[fn.key]}
+      onBindingChange={(binding) => onBindingChange(fn.key, binding)}
+    />
+  );
 
   return (
     <div
@@ -63,15 +96,24 @@ export default function AiFunctionRow({
         ) : null}
       </div>
 
-      {!comingSoon && (
-        <AiFunctionBindingControls
-          parentFnKey={fn.key}
-          scope={scope}
-          state={state}
-          binding={state.functions[fn.key]}
-          onBindingChange={(binding) => onBindingChange(fn.key, binding)}
-        />
-      )}
+      {!comingSoon &&
+        (showInheritedDefaults ? (
+          <AiInstitutionFunctionDefaultSection
+            fn={fn}
+            scopeState={state}
+            platformState={platformState!}
+            institutionState={institutionState}
+            inheritLabel={inheritLabel}
+            allowUsePlatformDefaults={allowUsePlatformDefaults}
+            onUsePlatformChange={(usePlatform) =>
+              onUsePlatformFunctionDefault!(fn.key, usePlatform)
+            }
+          >
+            {bindingControls}
+          </AiInstitutionFunctionDefaultSection>
+        ) : (
+          bindingControls
+        ))}
     </div>
   );
 }
