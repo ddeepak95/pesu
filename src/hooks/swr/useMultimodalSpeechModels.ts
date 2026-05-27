@@ -5,6 +5,7 @@ import useSWR from "swr";
 interface MultimodalSpeechModelsResponse {
   sttModelId: string;
   ttsModelId: string;
+  supportedLocales: string[];
 }
 
 async function fetchMultimodalSpeechModels(

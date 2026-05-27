@@ -13,6 +13,7 @@ import {
 import {
   KONVO_STT_MODEL_LOCALES,
   KONVO_TTS_MODEL_VOICES,
+  getAllSpeechSupportedLocales,
   getTtsVoiceForModelAndLocale,
   isSttModelLocaleSupported,
   isTtsModelLocaleSupported,
@@ -83,6 +84,20 @@ export function intersectKonvoLocales(
       isKonvoSttSupported(locale, sttModelId) &&
       isKonvoTtsSupported(locale, ttsModelId) &&
       isKonvoLlmSupported(locale, llmModelId, selectableLlmIds),
+  );
+}
+
+/** Locales supported by both STT and TTS catalog models (no LLM filter). */
+export function intersectSpeechLocales(
+  sttModelId: string,
+  ttsModelId: string,
+): LocaleTag[] {
+  return sortLocalesByRegistryOrder(
+    [...getAllSpeechSupportedLocales()].filter(
+      (locale) =>
+        isKonvoSttSupported(locale, sttModelId) &&
+        isKonvoTtsSupported(locale, ttsModelId),
+    ),
   );
 }
 

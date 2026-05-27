@@ -40,6 +40,10 @@ import {
 } from "@/lib/prototype/konvo-voice/speech/providers/cartesia/ws-continuation";
 import { CARTESIA_TTS_MIME } from "@/lib/prototype/konvo-voice/speech/providers/cartesia/tts";
 import {
+  SarvamTtsWebSocketSession,
+  SARVAM_WS_TTS_MIME,
+} from "@/lib/prototype/konvo-voice/speech/providers/sarvam/ws-stream";
+import {
   getSpeechApiModelId,
   getTtsProvider,
 } from "@/lib/prototype/konvo-voice/speech/registry";
@@ -191,6 +195,8 @@ export async function POST(request: NextRequest) {
 
     const tts = getTtsProvider(ttsModelId);
     const useCartesiaWs = tts.id === "cartesia";
+    const useSarvamWs = tts.id === "sarvam";
+    const useStreamingWs = useCartesiaWs || useSarvamWs;
     const { mimeType, sampleRate } = tts.streamFormat;
     const abortSignal = request.signal;
     const encoder = new TextEncoder();
@@ -208,6 +214,7 @@ export async function POST(request: NextRequest) {
         let winningStartedAtMs: number | undefined;
         let lastStreamResult: ReturnType<typeof createChatStream> | null = null;
         let cartesiaSession: CartesiaTtsContinuationSession | null = null;
+        let sarvamSession: SarvamTtsWebSocketSession | null = null;
         let speechStartSent = false;
         let pendingFallbackTts = "";
         let audioPump: Promise<void> | null = null;
@@ -216,19 +223,28 @@ export async function POST(request: NextRequest) {
         const onAbort = () => {
           aborted = true;
           cartesiaSession?.cancelContext();
+          sarvamSession?.close();
         };
         abortSignal.addEventListener("abort", onAbort);
 
         const ensureSpeechStart = () => {
           if (speechStartSent) return;
           speechStartSent = true;
+          const wsMimeType = useCartesiaWs
+            ? CARTESIA_TTS_MIME
+            : useSarvamWs
+              ? SARVAM_WS_TTS_MIME
+              : mimeType;
+          const wsSampleRate = useCartesiaWs
+            ? cartesiaSession?.sampleRate ?? sampleRate
+            : useSarvamWs
+              ? sarvamSession?.sampleRate ?? sampleRate
+              : sampleRate;
           enqueue({
             type: "speech_start",
             index: 0,
-            mimeType: useCartesiaWs ? CARTESIA_TTS_MIME : mimeType,
-            sampleRate: useCartesiaWs
-              ? cartesiaSession?.sampleRate ?? sampleRate
-              : sampleRate,
+            mimeType: useStreamingWs ? wsMimeType : mimeType,
+            sampleRate: useStreamingWs ? wsSampleRate : sampleRate,
           });
         };
 
@@ -284,6 +300,29 @@ export async function POST(request: NextRequest) {
           }
         };
 
+        const startAudioPump = (
+          source: AsyncIterable<Uint8Array>,
+        ): Promise<void> =>
+          (async () => {
+            try {
+              for await (const chunk of source) {
+                if (aborted) return;
+                enqueueSpeechChunk(chunk);
+              }
+              if (speechStartSent && !aborted) {
+                enqueue({ type: "speech_end", index: 0 });
+              }
+            } catch (audioError) {
+              if (!aborted) {
+                const message =
+                  audioError instanceof Error
+                    ? audioError.message
+                    : "TTS audio stream failed";
+                enqueue({ type: "error", error: message });
+              }
+            }
+          })();
+
         try {
           if (useCartesiaWs) {
             cartesiaSession = await CartesiaTtsContinuationSession.open({
@@ -291,26 +330,14 @@ export async function POST(request: NextRequest) {
               voiceId: voice,
               language,
             });
-
-            audioPump = (async () => {
-              try {
-                for await (const chunk of cartesiaSession!.consumeAudio()) {
-                  if (aborted) return;
-                  enqueueSpeechChunk(chunk);
-                }
-                if (speechStartSent && !aborted) {
-                  enqueue({ type: "speech_end", index: 0 });
-                }
-              } catch (audioError) {
-                if (!aborted) {
-                  const message =
-                    audioError instanceof Error
-                      ? audioError.message
-                      : "TTS audio stream failed";
-                  enqueue({ type: "error", error: message });
-                }
-              }
-            })();
+            audioPump = startAudioPump(cartesiaSession.consumeAudio());
+          } else if (useSarvamWs) {
+            sarvamSession = await SarvamTtsWebSocketSession.open({
+              modelId: getSpeechApiModelId(ttsModelId) ?? "bulbul:v3",
+              speaker: voice,
+              language,
+            });
+            audioPump = startAudioPump(sarvamSession.consumeAudio());
           }
 
           const streamCallBase = {
@@ -367,6 +394,8 @@ export async function POST(request: NextRequest) {
 
                     if (useCartesiaWs && cartesiaSession) {
                       cartesiaSession.pushTranscript(part.text, true);
+                    } else if (useSarvamWs && sarvamSession) {
+                      sarvamSession.pushText(part.text);
                     } else {
                       await pushFallbackTtsDelta(part.text);
                     }
@@ -389,6 +418,8 @@ export async function POST(request: NextRequest) {
                         enqueue({ type: "text-delta", content: message });
                         if (useCartesiaWs && cartesiaSession) {
                           cartesiaSession.pushTranscript(message, true);
+                        } else if (useSarvamWs && sarvamSession) {
+                          sarvamSession.pushText(message);
                         } else {
                           await pushFallbackTtsDelta(message);
                         }
@@ -459,6 +490,9 @@ export async function POST(request: NextRequest) {
           if (!aborted) {
             if (useCartesiaWs && cartesiaSession) {
               cartesiaSession.pushTranscript("", false);
+              await audioPump;
+            } else if (useSarvamWs && sarvamSession) {
+              sarvamSession.flush();
               await audioPump;
             } else {
               await finalizeFallbackTts();
@@ -535,6 +569,7 @@ export async function POST(request: NextRequest) {
         } finally {
           abortSignal.removeEventListener("abort", onAbort);
           cartesiaSession?.close();
+          sarvamSession?.close();
           controller.close();
         }
       },

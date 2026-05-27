@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { intersectSpeechLocales } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import {
   resolveMultimodalSpeechModelsForAssignment,
 } from "@/lib/prototype/konvo-voice/resolveMultimodalSpeechModelsForClass";
@@ -22,7 +23,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(resolved);
+    return NextResponse.json({
+      ...resolved,
+      supportedLocales: intersectSpeechLocales(
+        resolved.sttModelId,
+        resolved.ttsModelId,
+      ),
+    });
   } catch (error) {
     console.error("[multimodal/speech-models]", error);
     return NextResponse.json(

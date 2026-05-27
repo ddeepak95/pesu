@@ -4,6 +4,7 @@ import React, { useCallback, useRef } from "react";
 import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
 import { useQuestionAttempts } from "@/hooks/swr";
+import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
 import { AssessmentQuestionCard } from "@/components/Shared/AssessmentQuestionCard";
@@ -22,6 +23,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext";
+import { getLocaleLabel } from "@/lib/locales";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 export interface AssessmentShellProps {
@@ -348,14 +350,44 @@ export function AssessmentShell({
     [logEvent]
   );
 
-  const languageOptions = React.useMemo(
-    () =>
-      supportedLanguages.map((lang) => ({
-        value: lang.code,
-        label: lang.name,
-      })),
-    [],
+  const isMultimodal = assessmentMode === "multimodal";
+  const { data: multimodalSpeechModels } = useMultimodalSpeechModels(
+    isMultimodal ? assignmentId : null,
   );
+  const multimodalLocalesLoading = isMultimodal && multimodalSpeechModels === undefined;
+  const multimodalSupportedLocales = multimodalSpeechModels?.supportedLocales ?? [];
+  const multimodalNoLocales =
+    isMultimodal &&
+    multimodalSpeechModels !== undefined &&
+    multimodalSupportedLocales.length === 0;
+
+  const languageOptions = React.useMemo(() => {
+    if (isMultimodal && multimodalSpeechModels) {
+      return multimodalSupportedLocales.map((code) => ({
+        value: code,
+        label: getLocaleLabel(code),
+      }));
+    }
+    return supportedLanguages.map((lang) => ({
+      value: lang.code,
+      label: lang.name,
+    }));
+  }, [isMultimodal, multimodalSpeechModels, multimodalSupportedLocales]);
+
+  React.useEffect(() => {
+    if (!isMultimodal || !multimodalSpeechModels) return;
+    const { supportedLocales } = multimodalSpeechModels;
+    if (supportedLocales.length === 0) return;
+    if (!supportedLocales.includes(language)) {
+      onLanguageChange?.(supportedLocales[0]);
+    }
+  }, [isMultimodal, language, multimodalSpeechModels, onLanguageChange]);
+
+  const languageSelectorDisabled =
+    languageDisabled ||
+    isEvaluating ||
+    multimodalLocalesLoading ||
+    multimodalNoLocales;
 
   const showInCardLanguageSelector =
     Boolean(onLanguageChange) &&
@@ -417,16 +449,24 @@ export function AssessmentShell({
           ) : (
             <>
               {showInCardLanguageSelector && (
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-sm text-muted-foreground">Language:</span>
-                  <SearchableSelect
-                    value={language}
-                    onValueChange={handleLanguageValueChange}
-                    options={languageOptions}
-                    placeholder="Select language..."
-                    disabled={languageDisabled || isEvaluating}
-                    className="w-[180px]"
-                  />
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-sm text-muted-foreground">Language:</span>
+                    <SearchableSelect
+                      value={language}
+                      onValueChange={handleLanguageValueChange}
+                      options={languageOptions}
+                      placeholder="Select language..."
+                      disabled={languageSelectorDisabled}
+                      className="w-[180px]"
+                    />
+                  </div>
+                  {multimodalNoLocales && (
+                    <p className="text-xs text-muted-foreground text-center max-w-md">
+                      No languages are available for the speech models configured
+                      for this class.
+                    </p>
+                  )}
                 </div>
               )}
               {assessmentMode === "voice" && <VoiceInputArea {...inputProps} />}
