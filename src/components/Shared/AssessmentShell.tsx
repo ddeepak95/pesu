@@ -355,7 +355,10 @@ export function AssessmentShell({
     isMultimodal ? assignmentId : null,
   );
   const multimodalLocalesLoading = isMultimodal && multimodalSpeechModels === undefined;
-  const multimodalSupportedLocales = multimodalSpeechModels?.supportedLocales ?? [];
+  const multimodalSupportedLocales = React.useMemo(
+    () => multimodalSpeechModels?.supportedLocales ?? [],
+    [multimodalSpeechModels],
+  );
   const multimodalNoLocales =
     isMultimodal &&
     multimodalSpeechModels !== undefined &&
