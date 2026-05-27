@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getProviderLanguageCodeForKonvo } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
+import { getProviderLanguageCodeForKonvo } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import type { SynthesizeInput, TtsProvider } from "../../types";
 import { CARTESIA_API_BASE, cartesiaHeaders } from "./client";
 

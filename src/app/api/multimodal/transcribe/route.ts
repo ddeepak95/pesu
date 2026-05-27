@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getSpeechApiModelId,
   getSttProvider,
-} from "@/lib/prototype/konvo-voice/speech/registry";
-import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
-import { isProviderConfigured } from "@/lib/prototype/konvo-voice/sessionCatalog";
-import { getCatalogEntry } from "@/lib/prototype/konvo-voice/sessionCatalog";
+} from "@/lib/konvo-voice/speech/registry";
+import type { KonvoSessionConfig } from "@/lib/konvo-voice/sessionConfig";
+import { isProviderConfigured } from "@/lib/konvo-voice/sessionCatalog";
+import { getCatalogEntry } from "@/lib/konvo-voice/sessionCatalog";
 import {
   SARVAM_STT_CATALOG_MODEL_ID,
   SARVAM_STT_MAX_DURATION_MS,
-} from "@/lib/prototype/konvo-voice/speech/constants";
+} from "@/lib/konvo-voice/speech/constants";
 
 function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   if (!raw) return null;

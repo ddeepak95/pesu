@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { OPENAI_TTS_SAMPLE_RATE } from "@/lib/prototype/konvo-voice/speech/config";
+import { OPENAI_TTS_SAMPLE_RATE } from "@/lib/konvo-voice/speech/config";
 
 const DEFAULT_SAMPLE_RATE = OPENAI_TTS_SAMPLE_RATE;
 

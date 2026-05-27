@@ -1,6 +1,6 @@
 import "server-only";
 
-import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/prototype/konvo-voice/defaultSessionConfig";
+import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/Shared/KonvoVoice/defaultSessionConfig";
 import { PLATFORM_SCOPE_ID } from "@/lib/ai/credentials/constants";
 import { buildEffectiveCatalogRuntimeState, getProviderApiKey, resolveCatalogFunctionBinding } from "@/lib/ai/catalog/buildEffectiveRuntime";
 import { getCatalogSecretsForScope } from "@/lib/queries/aiCatalog";

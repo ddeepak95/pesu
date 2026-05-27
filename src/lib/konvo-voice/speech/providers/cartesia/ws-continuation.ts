@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import WebSocket from "ws";
-import { getProviderLanguageCodeForKonvo } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
+import { getProviderLanguageCodeForKonvo } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import { CARTESIA_API_VERSION, cartesiaHeaders, getCartesiaApiKey } from "./client";
 import { CARTESIA_TTS_SAMPLE_RATE } from "./tts";
 

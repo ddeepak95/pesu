@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { intersectSpeechLocales } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
+import { intersectSpeechLocales } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import {
   resolveMultimodalSpeechModelsForAssignment,
-} from "@/lib/prototype/konvo-voice/resolveMultimodalSpeechModelsForClass";
+} from "@/lib/konvo-voice/resolveMultimodalSpeechModelsForClass";
 
 export async function GET(request: NextRequest) {
   try {

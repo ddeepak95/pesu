@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getProviderLanguageCodeForKonvo } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
+import { getProviderLanguageCodeForKonvo } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import { toFile } from "openai";
 import type { SttProvider } from "../../types";
 import { OPENAI_STT_MODEL } from "../../config";

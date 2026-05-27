@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCatalogEntry, isProviderConfigured } from "@/lib/prototype/konvo-voice/sessionCatalog";
-import { getSpeechApiModelId, getTtsProvider } from "@/lib/prototype/konvo-voice/speech/registry";
-import { sseEvent, sseHeaders } from "@/lib/prototype/konvo-voice/sse";
+import { getCatalogEntry, isProviderConfigured } from "@/lib/konvo-voice/sessionCatalog";
+import { getSpeechApiModelId, getTtsProvider } from "@/lib/konvo-voice/speech/registry";
+import { sseEvent, sseHeaders } from "@/lib/konvo-voice/sse";
 import {
   KonvoLocaleVoiceError,
   resolveTtsVoice,
-} from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
+} from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
 
 interface MultimodalTtsBody {
   ttsModelId: string;

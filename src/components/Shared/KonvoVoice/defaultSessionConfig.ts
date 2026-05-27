@@ -1,4 +1,4 @@
-import type { KonvoSessionConfig } from "@/lib/prototype/konvo-voice/sessionConfig";
+import type { KonvoSessionConfig } from "@/lib/konvo-voice/sessionConfig";
 
 export const DEFAULT_KONVO_SESSION_CONFIG: KonvoSessionConfig = {
   language: "en",

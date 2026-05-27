@@ -1,5 +1,5 @@
 import { TEXT_CAPABILITY_KEY } from "@/lib/ai/capabilities/registry";
-import { buildCatalogLocaleCodesFromCapabilities } from "@/lib/prototype/konvo-voice/konvoLocaleCapabilities";
+import { buildCatalogLocaleCodesFromCapabilities } from "@/lib/konvo-voice/konvoLocaleCapabilities";
 
 import type {
   AppFunctionCatalogEntry,

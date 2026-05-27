@@ -8,15 +8,15 @@ import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels
 import { Button } from "@/components/ui/button";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
-import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/prototype/konvo-voice/defaultSessionConfig";
-import { useAudioRecorder } from "@/components/prototype/konvo-voice/useAudioRecorder";
-import { useStreamingSpeechPlayback } from "@/components/prototype/konvo-voice/useStreamingSpeechPlayback";
-import { audioBufferSliceToWavBlob, pcmToWavArrayBuffer } from "@/lib/prototype/konvo-voice/speech/audioBufferToWav";
-import { ContentBox } from "@/components/prototype/konvo-voice/ContentBox";
-import { BotStatusPanel } from "@/components/prototype/konvo-voice/BotStatusPanel";
-import { UserInputPanel } from "@/components/prototype/konvo-voice/UserInputPanel";
-import { APP_ASSESSMENT_SHELL_CLASS } from "@/components/prototype/konvo-voice/layoutConstants";
-import { getKonvoUiConfig } from "@/components/prototype/konvo-voice/uiState";
+import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/Shared/KonvoVoice/defaultSessionConfig";
+import { useAudioRecorder } from "@/components/Shared/KonvoVoice/useAudioRecorder";
+import { useStreamingSpeechPlayback } from "@/components/Shared/KonvoVoice/useStreamingSpeechPlayback";
+import { audioBufferSliceToWavBlob, pcmToWavArrayBuffer } from "@/lib/konvo-voice/speech/audioBufferToWav";
+import { ContentBox } from "@/components/Shared/KonvoVoice/ContentBox";
+import { BotStatusPanel } from "@/components/Shared/KonvoVoice/BotStatusPanel";
+import { UserInputPanel } from "@/components/Shared/KonvoVoice/UserInputPanel";
+import { APP_ASSESSMENT_SHELL_CLASS } from "@/components/Shared/KonvoVoice/layoutConstants";
+import { getKonvoUiConfig } from "@/components/Shared/KonvoVoice/uiState";
 import { useEndConversationFinish } from "./useEndConversationFinish";
 import type { AssessmentInputProps } from "./types";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
@@ -126,6 +126,9 @@ export function MultimodalInputArea({
   botPromptConfig,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [expandedUserMessageIds, setExpandedUserMessageIds] = React.useState<
+    Record<string, boolean>
+  >({});
   const [isStarting, setIsStarting] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [isThinking, setIsThinking] = React.useState(false);
@@ -164,6 +167,19 @@ export function MultimodalInputArea({
 
   React.useEffect(() => {
     messagesRef.current = messages;
+  }, [messages]);
+
+  React.useEffect(() => {
+    setExpandedUserMessageIds((prev) => {
+      let next: Record<string, boolean> | null = null;
+      for (const m of messages) {
+        if (m.role !== "student") continue;
+        if (prev[m.id] !== undefined) continue;
+        if (!next) next = { ...prev };
+        next[m.id] = false;
+      }
+      return next ?? prev;
+    });
   }, [messages]);
 
   React.useEffect(() => {
@@ -313,8 +329,6 @@ export function MultimodalInputArea({
     setIsThinking(true);
     setError(null);
     botInterruptionRequestedRef.current = false;
-    const assistantId = crypto.randomUUID();
-    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
 
     const ttsModelId =
       speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
@@ -387,11 +401,6 @@ export function MultimodalInputArea({
       for await (const event of parseMultimodalTurnStream(reader)) {
         if (event.type === "text-delta") {
           assistantText += event.content;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: assistantText } : m,
-            ),
-          );
         } else if (event.type === "end_conversation") {
           didEndConversation = true;
         } else if (event.type === "speech_start") {
@@ -428,6 +437,16 @@ export function MultimodalInputArea({
       playback.releasePlayback();
       setIsSpeaking(false);
 
+      const finalAssistantText = assistantText.trim();
+      if (finalAssistantText) {
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: finalAssistantText,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
+
       const totalBytes = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
       if (totalBytes > 0) {
         const pcmBytes = new Uint8Array(totalBytes);
@@ -460,12 +479,10 @@ export function MultimodalInputArea({
       ) {
         setIsThinking(false);
         setIsSpeaking(false);
-        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
         return;
       }
       setIsThinking(false);
       setIsSpeaking(false);
-      setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       const message =
         turnError instanceof Error ? turnError.message : "Assistant turn failed";
       setError(message);
@@ -500,6 +517,7 @@ export function MultimodalInputArea({
     if (messagesRef.current.length > 0 || isStarting) return;
     sessionStartedAtRef.current = new Date().toISOString();
     setIsStarting(true);
+    setExpandedUserMessageIds({});
     userOrdinalRef.current = 0;
     botOrdinalRef.current = 0;
     setSessionChunkIndex(0);
@@ -562,7 +580,7 @@ export function MultimodalInputArea({
           }),
         );
         formData.append("audio", new File([wavBlob], "recording.wav", { type: "audio/wav" }));
-        const response = await fetch("/api/prototype/konvo-voice/transcribe", {
+        const response = await fetch("/api/multimodal/transcribe", {
           method: "POST",
           body: formData,
         });
@@ -677,7 +695,17 @@ export function MultimodalInputArea({
             </div>
           ) : null}
 
-          <ContentBox content={null} />
+          <ContentBox
+            content={null}
+            messages={messages}
+            expandedMessageIds={expandedUserMessageIds}
+            onToggleExpanded={(messageId) =>
+              setExpandedUserMessageIds((prev) => ({
+                ...prev,
+                [messageId]: !prev[messageId],
+              }))
+            }
+          />
           <div className="flex flex-col md:flex-row gap-4 shrink-0 min-h-[150px]">
             <div
               className={cn(

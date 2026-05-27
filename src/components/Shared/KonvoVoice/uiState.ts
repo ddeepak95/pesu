@@ -1,4 +1,10 @@
-import type { ChatPhase } from "./useTurnBasedVoiceChat";
+export type ChatPhase =
+  | "not_started"
+  | "bot_thinking"
+  | "bot_speaking"
+  | "user_idle"
+  | "user_recording"
+  | "user_submitting";
 
 export type KonvoUiState =
   | "bot_thinking"

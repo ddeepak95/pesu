@@ -8,7 +8,7 @@ import {
 import {
   getCatalogEntry,
   isProviderConfigured,
-} from "@/lib/prototype/konvo-voice/sessionCatalog";
+} from "@/lib/konvo-voice/sessionCatalog";
 
 export function resolvePrototypeModelConfig(
   catalogModelId: string,

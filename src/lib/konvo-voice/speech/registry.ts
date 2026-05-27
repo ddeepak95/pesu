@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getCatalogEntry } from "@/lib/prototype/konvo-voice/sessionCatalog";
+import { getCatalogEntry } from "@/lib/konvo-voice/sessionCatalog";
 import type { ProviderId } from "@/lib/ai/catalog/types";
 import { cartesiaSttProvider } from "./providers/cartesia/stt";
 import { cartesiaTtsProvider } from "./providers/cartesia/tts";

@@ -30,24 +30,24 @@ import {
   buildLoggedSdkResponse,
   buildLoggedStreamTextRequest,
 } from "@/lib/ai/logging/serialize";
-import { getCatalogEntry, isProviderConfigured } from "@/lib/prototype/konvo-voice/sessionCatalog";
+import { getCatalogEntry, isProviderConfigured } from "@/lib/konvo-voice/sessionCatalog";
 import {
   KonvoLocaleVoiceError,
   resolveTtsVoice,
-} from "@/lib/prototype/konvo-voice/konvoLocaleCapabilitiesHelpers";
+} from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import {
   CartesiaTtsContinuationSession,
-} from "@/lib/prototype/konvo-voice/speech/providers/cartesia/ws-continuation";
-import { CARTESIA_TTS_MIME } from "@/lib/prototype/konvo-voice/speech/providers/cartesia/tts";
+} from "@/lib/konvo-voice/speech/providers/cartesia/ws-continuation";
+import { CARTESIA_TTS_MIME } from "@/lib/konvo-voice/speech/providers/cartesia/tts";
 import {
   SarvamTtsWebSocketSession,
   SARVAM_WS_TTS_MIME,
-} from "@/lib/prototype/konvo-voice/speech/providers/sarvam/ws-stream";
+} from "@/lib/konvo-voice/speech/providers/sarvam/ws-stream";
 import {
   getSpeechApiModelId,
   getTtsProvider,
-} from "@/lib/prototype/konvo-voice/speech/registry";
-import { sseEvent, sseHeaders } from "@/lib/prototype/konvo-voice/sse";
+} from "@/lib/konvo-voice/speech/registry";
+import { sseEvent, sseHeaders } from "@/lib/konvo-voice/sse";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 interface MultimodalTurnMessage {

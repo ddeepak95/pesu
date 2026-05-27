@@ -26,7 +26,7 @@ export class KonvoLocaleVoiceError extends Error {
   ) {
     super(
       `No TTS voice mapped for model "${ttsModelId}" and locale "${locale}". ` +
-        "Add an entry in src/lib/prototype/konvo-voice/speechModelLocales.ts.",
+        "Add an entry in src/lib/konvo-voice/speechModelLocales.ts.",
     );
     this.name = "KonvoLocaleVoiceError";
   }
