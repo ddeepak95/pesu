@@ -36,6 +36,7 @@ export function ContentBox({
   const [knownMessageIds, setKnownMessageIds] = React.useState<Set<string>>(
     () => new Set(),
   );
+  // Dotted WhatsApp-style background, kept subtle for readability.
   const staticWaveHeights = React.useMemo(
     () => [22, 12, 17, 10, 14, 19, 13, 9, 15, 11, 20, 16, 12, 18, 10, 15, 19, 9, 14, 17],
     [],
@@ -133,10 +134,11 @@ export function ContentBox({
       </style>
     <div
       className="relative flex h-96 flex-col rounded-xl border border-border bg-muted/30 p-3 overflow-hidden
-                 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.04)_1px,transparent_0)]
-                 bg-[length:20px_20px]
-                 dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.05)_1px,transparent_0)]
-                 dark:bg-[length:20px_20px]"
+                 bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.14)_1px,transparent_0)]
+                 bg-[length:18px_18px]
+                 dark:bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.20)_1px,transparent_0)]
+                 dark:bg-[length:18px_18px]"
+      style={{ backgroundColor: "rgba(161,98,7,0.06)" }}
     >
       <div ref={scrollRef} className="flex flex-1 flex-col overflow-auto">
         {messages && messages.length > 0 ? (
@@ -158,17 +160,15 @@ export function ContentBox({
                   <div
                     className={`relative max-w-[95%] sm:max-w-[80%] px-3 py-2 text-sm whitespace-pre-wrap shadow-sm transition-all duration-500 ease-out ${
                       isStudent
-                        ? "bg-primary/15 text-foreground border border-primary/30 rounded-2xl rounded-br-sm"
-                        : "bg-muted/80 border border-border/60 text-foreground rounded-2xl rounded-bl-sm"
+                        ? "bg-muted text-foreground border border-border/60 rounded-2xl rounded-br-sm"
+                        : "bg-muted/70 border border-border/60 text-foreground rounded-2xl rounded-bl-sm"
                     }`}
                   >
                   <div
                     className={`mb-2 flex items-center ${isStudent ? "justify-between" : "justify-between"}`}
                   >
                     <div
-                      className={`text-sm font-semibold ${
-                        isStudent ? "text-primary-foreground" : "text-foreground"
-                      }`}
+                      className="text-sm font-semibold text-foreground"
                     >
                       {isStudent ? "You" : "Konvo"}
                     </div>
