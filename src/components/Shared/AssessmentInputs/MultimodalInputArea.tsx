@@ -11,7 +11,10 @@ import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/Shared/KonvoVoice/defaultSessionConfig";
 import { useAudioRecorder } from "@/components/Shared/KonvoVoice/useAudioRecorder";
 import { useStreamingSpeechPlayback } from "@/components/Shared/KonvoVoice/useStreamingSpeechPlayback";
-import { audioBufferSliceToWavBlob, pcmToWavArrayBuffer } from "@/lib/konvo-voice/speech/audioBufferToWav";
+import {
+  audioBufferSliceToWavBlob,
+  pcmToWavArrayBuffer,
+} from "@/lib/konvo-voice/speech/audioBufferToWav";
 import { ContentBox } from "@/components/Shared/KonvoVoice/ContentBox";
 import { BotStatusPanel } from "@/components/Shared/KonvoVoice/BotStatusPanel";
 import { UserInputPanel } from "@/components/Shared/KonvoVoice/UserInputPanel";
@@ -127,9 +130,9 @@ export function MultimodalInputArea({
   botPromptConfig,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
-  const [expandedMessageIds, setExpandedMessageIds] = React.useState<Record<string, boolean>>(
-    {},
-  );
+  const [expandedMessageIds, setExpandedMessageIds] = React.useState<
+    Record<string, boolean>
+  >({});
   const [isStarting, setIsStarting] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [isThinking, setIsThinking] = React.useState(false);
@@ -203,7 +206,14 @@ export function MultimodalInputArea({
     if (isThinking || isStarting) return "bot_thinking";
     if (recorder.isRecording) return "user_recording";
     return "user_idle";
-  }, [hasStarted, isTranscribing, isThinking, isStarting, isSpeaking, recorder.isRecording]);
+  }, [
+    hasStarted,
+    isTranscribing,
+    isThinking,
+    isStarting,
+    isSpeaking,
+    recorder.isRecording,
+  ]);
 
   const ui = React.useMemo(
     () => getKonvoUiConfig(phase, isTranscribing),
@@ -252,7 +262,10 @@ export function MultimodalInputArea({
       if (sessionChunkIndex === 0 && sessionStartedAtRef.current) {
         formData.append("recordingStartedAt", sessionStartedAtRef.current);
       }
-      formData.append("audio", new File([wavBlob], "session.wav", { type: "audio/wav" }));
+      formData.append(
+        "audio",
+        new File([wavBlob], "session.wav", { type: "audio/wav" }),
+      );
       void fetch("/api/multimodal/audio/session-chunk", {
         method: "POST",
         body: formData,
@@ -261,48 +274,67 @@ export function MultimodalInputArea({
       });
       setSessionChunkIndex((v) => v + 1);
     },
-    [assignmentId, attempts.length, question.order, sessionChunkIndex, submissionId],
+    [
+      assignmentId,
+      attempts.length,
+      question.order,
+      sessionChunkIndex,
+      submissionId,
+    ],
   );
 
-  const persistUtteranceAudio = React.useCallback(async (input: {
-    dbRole: "student" | "assistant";
-    storageRole: "user" | "bot";
-    ordinal: number;
-    audioBlob: Blob;
-    content: string;
-    generatedContent?: string;
-    interrupted?: boolean;
-  }) => {
-    try {
-      const formData = new FormData();
-      formData.append("submissionId", submissionId);
-      formData.append("assignmentId", assignmentId);
-      formData.append("questionOrder", String(question.order));
-      formData.append("attemptNumber", String(attempts.length + 1));
-      formData.append("utteranceOrdinal", String(input.ordinal));
-      formData.append("dbRole", input.dbRole);
-      formData.append("storageRole", input.storageRole);
-      formData.append("interrupted", String(Boolean(input.interrupted)));
-      formData.append("spokenAt", new Date().toISOString());
-      formData.append("content", input.content);
-      if (input.generatedContent) {
-        formData.append("generatedContent", input.generatedContent);
+  const persistUtteranceAudio = React.useCallback(
+    async (input: {
+      dbRole: "student" | "assistant";
+      storageRole: "user" | "bot";
+      ordinal: number;
+      audioBlob: Blob;
+      content: string;
+      generatedContent?: string;
+      interrupted?: boolean;
+    }) => {
+      try {
+        const formData = new FormData();
+        formData.append("submissionId", submissionId);
+        formData.append("assignmentId", assignmentId);
+        formData.append("questionOrder", String(question.order));
+        formData.append("attemptNumber", String(attempts.length + 1));
+        formData.append("utteranceOrdinal", String(input.ordinal));
+        formData.append("dbRole", input.dbRole);
+        formData.append("storageRole", input.storageRole);
+        formData.append("interrupted", String(Boolean(input.interrupted)));
+        formData.append("spokenAt", new Date().toISOString());
+        formData.append("content", input.content);
+        if (input.generatedContent) {
+          formData.append("generatedContent", input.generatedContent);
+        }
+        formData.append(
+          "audio",
+          new File(
+            [input.audioBlob],
+            `${input.storageRole}-${input.ordinal}.wav`,
+            {
+              type: "audio/wav",
+            },
+          ),
+        );
+        await fetch("/api/multimodal/audio/utterance", {
+          method: "POST",
+          body: formData,
+        });
+        await flushSessionChunk(input.audioBlob);
+      } catch (utteranceError) {
+        console.error("Failed to persist utterance audio", utteranceError);
       }
-      formData.append(
-        "audio",
-        new File([input.audioBlob], `${input.storageRole}-${input.ordinal}.wav`, {
-          type: "audio/wav",
-        }),
-      );
-      await fetch("/api/multimodal/audio/utterance", {
-        method: "POST",
-        body: formData,
-      });
-      await flushSessionChunk(input.audioBlob);
-    } catch (utteranceError) {
-      console.error("Failed to persist utterance audio", utteranceError);
-    }
-  }, [assignmentId, attempts.length, flushSessionChunk, question.order, submissionId]);
+    },
+    [
+      assignmentId,
+      attempts.length,
+      flushSessionChunk,
+      question.order,
+      submissionId,
+    ],
+  );
 
   const finishSubmission = React.useCallback(async () => {
     const answerText = formatFullStudentTranscript(messagesRef.current).trim();
@@ -331,213 +363,223 @@ export function MultimodalInputArea({
     [],
   );
 
-  const {
-    scheduleAutoFinish,
-    runFinish: handleFinishAndEvaluate,
-  } = useEndConversationFinish({
-    isEvaluating,
-    maxAttemptsReached,
-    hasStudentContent: () =>
-      messagesRef.current.some(
-        (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
-      ),
-    onWarnNoStudentContent: () => {
-      showWarningToast("Please provide at least one response before finishing.");
-    },
-    onWarnMaxAttemptsReached: () => {
-      showWarningToast(
-        "You have reached the maximum number of attempts for this question.",
-      );
-    },
-    onFinish: finishSubmission,
-  });
-
-  const runAssistantTurn = React.useCallback(async (history: ChatMessage[]) => {
-    setIsThinking(true);
-    setError(null);
-    botInterruptionRequestedRef.current = false;
-
-    const ttsModelId =
-      speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
-    const attemptNumber = attempts.length + 1;
-    let sampleRate = 24000;
-    let ttsStarted = false;
-    let interrupted = false;
-    const pcmChunks: Uint8Array[] = [];
-    let speechSegmentPrepared = false;
-    let assistantText = "";
-    let didEndConversation = false;
-
-    playback.beginTurn({
-      onPlaybackStart: () => {
-        activeAssistantTurnRef.current.ttsStarted = true;
-        setIsThinking(false);
-        setIsSpeaking(true);
+  const { scheduleAutoFinish, runFinish: handleFinishAndEvaluate } =
+    useEndConversationFinish({
+      isEvaluating,
+      maxAttemptsReached,
+      hasStudentContent: () =>
+        messagesRef.current.some(
+          (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
+        ),
+      onWarnNoStudentContent: () => {
+        showWarningToast(
+          "Please provide at least one response before finishing.",
+        );
       },
+      onWarnMaxAttemptsReached: () => {
+        showWarningToast(
+          "You have reached the maximum number of attempts for this question.",
+        );
+      },
+      onFinish: finishSubmission,
     });
 
-    const controller = new AbortController();
-    activeAbortRef.current = controller;
-    activeAssistantTurnRef.current = {
-      text: "",
-      ttsStarted: false,
-      committed: false,
-    };
+  const runAssistantTurn = React.useCallback(
+    async (history: ChatMessage[]) => {
+      setIsThinking(true);
+      setError(null);
+      botInterruptionRequestedRef.current = false;
 
-    try {
-      const response = await fetch("/api/multimodal/turn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assignmentId,
-          submissionId,
-          questionOrder: question.order,
-          attemptNumber,
-          messages: history.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          system_prompt: systemPrompt,
-          greeting,
-          language,
-          ttsModelId,
-        }),
-        signal: controller.signal,
+      const ttsModelId =
+        speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
+      const attemptNumber = attempts.length + 1;
+      let sampleRate = 24000;
+      let ttsStarted = false;
+      let interrupted = false;
+      const pcmChunks: Uint8Array[] = [];
+      let speechSegmentPrepared = false;
+      let assistantText = "";
+      let didEndConversation = false;
+
+      playback.beginTurn({
+        onPlaybackStart: () => {
+          activeAssistantTurnRef.current.ttsStarted = true;
+          setIsThinking(false);
+          setIsSpeaking(true);
+        },
       });
 
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as {
-          error?: string;
-          code?: string;
-        };
-        if (
-          response.status === 403 &&
-          errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
-        ) {
-          onIntegrityAccessRevoked?.();
-        }
-        if (
-          response.status === 503 &&
-          errorData.code === AI_NOT_CONFIGURED_ERROR_CODE
-        ) {
-          throw new Error(
-            errorData.error ||
-              "AI capabilities are disabled for this class. Please contact your instructor.",
-          );
-        }
-        throw new Error(errorData.error || "Failed to stream assistant turn");
-      }
+      const controller = new AbortController();
+      activeAbortRef.current = controller;
+      activeAssistantTurnRef.current = {
+        text: "",
+        ttsStarted: false,
+        committed: false,
+      };
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      try {
+        const response = await fetch("/api/multimodal/turn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignmentId,
+            submissionId,
+            questionOrder: question.order,
+            attemptNumber,
+            messages: history.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            system_prompt: systemPrompt,
+            greeting,
+            language,
+            ttsModelId,
+          }),
+          signal: controller.signal,
+        });
 
-      for await (const event of parseMultimodalTurnStream(reader)) {
-        if (event.type === "text-delta") {
-          assistantText += event.content;
-          activeAssistantTurnRef.current.text = assistantText;
-        } else if (event.type === "end_conversation") {
-          didEndConversation = true;
-        } else if (event.type === "speech_start") {
-          if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
-            sampleRate = event.sampleRate;
+        if (!response.ok) {
+          const errorData = (await response.json().catch(() => ({}))) as {
+            error?: string;
+            code?: string;
+          };
+          if (
+            response.status === 403 &&
+            errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
+          ) {
+            onIntegrityAccessRevoked?.();
           }
-          playback.prepareSegment(0, { sampleRate });
-          speechSegmentPrepared = true;
-        } else if (event.type === "speech_chunk") {
-          if (!speechSegmentPrepared) {
+          if (
+            response.status === 503 &&
+            errorData.code === AI_NOT_CONFIGURED_ERROR_CODE
+          ) {
+            throw new Error(
+              errorData.error ||
+                "AI capabilities are disabled for this class. Please contact your instructor.",
+            );
+          }
+          throw new Error(errorData.error || "Failed to stream assistant turn");
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No response body");
+
+        for await (const event of parseMultimodalTurnStream(reader)) {
+          if (event.type === "text-delta") {
+            assistantText += event.content;
+            activeAssistantTurnRef.current.text = assistantText;
+          } else if (event.type === "end_conversation") {
+            didEndConversation = true;
+          } else if (event.type === "speech_start") {
+            if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
+              sampleRate = event.sampleRate;
+            }
             playback.prepareSegment(0, { sampleRate });
             speechSegmentPrepared = true;
+          } else if (event.type === "speech_chunk") {
+            if (!speechSegmentPrepared) {
+              playback.prepareSegment(0, { sampleRate });
+              speechSegmentPrepared = true;
+            }
+            ttsStarted = true;
+            activeAssistantTurnRef.current.ttsStarted = true;
+            playback.appendChunk(0, event.base64);
+            pcmChunks.push(decodeBase64ToBytes(event.base64));
+          } else if (event.type === "speech_end") {
+            if (speechSegmentPrepared) {
+              await playback.endSegment(0);
+            }
+          } else if (event.type === "error") {
+            throw new Error(
+              event.error || event.message || "Assistant turn failed",
+            );
           }
-          ttsStarted = true;
-          activeAssistantTurnRef.current.ttsStarted = true;
-          playback.appendChunk(0, event.base64);
-          pcmChunks.push(decodeBase64ToBytes(event.base64));
-        } else if (event.type === "speech_end") {
-          if (speechSegmentPrepared) {
-            await playback.endSegment(0);
+        }
+
+        if (botInterruptionRequestedRef.current) {
+          interrupted = true;
+        }
+        if (ttsStarted && !botInterruptionRequestedRef.current) {
+          await playback.waitForAll();
+        } else {
+          setIsThinking(false);
+        }
+        playback.releasePlayback();
+        setIsSpeaking(false);
+
+        commitAssistantTurnToMessages();
+
+        const totalBytes = pcmChunks.reduce(
+          (sum, chunk) => sum + chunk.length,
+          0,
+        );
+        if (totalBytes > 0) {
+          const pcmBytes = new Uint8Array(totalBytes);
+          let offset = 0;
+          for (const chunk of pcmChunks) {
+            pcmBytes.set(chunk, offset);
+            offset += chunk.length;
           }
-        } else if (event.type === "error") {
-          throw new Error(event.error || event.message || "Assistant turn failed");
+          const wav = pcmToWavArrayBuffer(pcmBytes, sampleRate);
+          const wavBlob = new Blob([wav], { type: "audio/wav" });
+          botOrdinalRef.current += 1;
+          await persistUtteranceAudio({
+            dbRole: "assistant",
+            storageRole: "bot",
+            ordinal: botOrdinalRef.current,
+            audioBlob: wavBlob,
+            content: assistantText.trim(),
+            generatedContent: assistantText.trim(),
+            interrupted,
+          });
         }
-      }
-
-      if (botInterruptionRequestedRef.current) {
-        interrupted = true;
-      }
-      if (ttsStarted && !botInterruptionRequestedRef.current) {
-        await playback.waitForAll();
-      } else {
-        setIsThinking(false);
-      }
-      playback.releasePlayback();
-      setIsSpeaking(false);
-
-      commitAssistantTurnToMessages();
-
-      const totalBytes = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-      if (totalBytes > 0) {
-        const pcmBytes = new Uint8Array(totalBytes);
-        let offset = 0;
-        for (const chunk of pcmChunks) {
-          pcmBytes.set(chunk, offset);
-          offset += chunk.length;
+        if (didEndConversation) {
+          scheduleAutoFinish();
         }
-        const wav = pcmToWavArrayBuffer(pcmBytes, sampleRate);
-        const wavBlob = new Blob([wav], { type: "audio/wav" });
-        botOrdinalRef.current += 1;
-        await persistUtteranceAudio({
-          dbRole: "assistant",
-          storageRole: "bot",
-          ordinal: botOrdinalRef.current,
-          audioBlob: wavBlob,
-          content: assistantText.trim(),
-          generatedContent: assistantText.trim(),
-          interrupted,
-        });
-      }
-      if (didEndConversation) {
-        scheduleAutoFinish();
-      }
-    } catch (turnError) {
-      if (
-        turnError instanceof DOMException &&
-        (turnError.name === "AbortError" ||
-          turnError.message === "signal is aborted without reason")
-      ) {
-        activeAssistantTurnRef.current.text = assistantText;
-        activeAssistantTurnRef.current.ttsStarted =
-          activeAssistantTurnRef.current.ttsStarted || ttsStarted;
-        commitAssistantTurnToMessages({ force: true });
+      } catch (turnError) {
+        if (
+          turnError instanceof DOMException &&
+          (turnError.name === "AbortError" ||
+            turnError.message === "signal is aborted without reason")
+        ) {
+          activeAssistantTurnRef.current.text = assistantText;
+          activeAssistantTurnRef.current.ttsStarted =
+            activeAssistantTurnRef.current.ttsStarted || ttsStarted;
+          commitAssistantTurnToMessages({ force: true });
+          setIsThinking(false);
+          setIsSpeaking(false);
+          return;
+        }
         setIsThinking(false);
         setIsSpeaking(false);
-        return;
+        const message =
+          turnError instanceof Error
+            ? turnError.message
+            : "Assistant turn failed";
+        setError(message);
+        showErrorToast(message);
+      } finally {
+        playback.releasePlayback();
+        setIsSpeaking(false);
+        activeAbortRef.current = null;
       }
-      setIsThinking(false);
-      setIsSpeaking(false);
-      const message =
-        turnError instanceof Error ? turnError.message : "Assistant turn failed";
-      setError(message);
-      showErrorToast(message);
-    } finally {
-      playback.releasePlayback();
-      setIsSpeaking(false);
-      activeAbortRef.current = null;
-    }
-  }, [
-    assignmentId,
-    attempts.length,
-    greeting,
-    language,
-    onIntegrityAccessRevoked,
-    playback,
-    persistUtteranceAudio,
-    question.order,
-    scheduleAutoFinish,
-    commitAssistantTurnToMessages,
-    speechModels?.ttsModelId,
-    submissionId,
-    systemPrompt,
-  ]);
+    },
+    [
+      assignmentId,
+      attempts.length,
+      greeting,
+      language,
+      onIntegrityAccessRevoked,
+      playback,
+      persistUtteranceAudio,
+      question.order,
+      scheduleAutoFinish,
+      commitAssistantTurnToMessages,
+      speechModels?.ttsModelId,
+      submissionId,
+      systemPrompt,
+    ],
+  );
 
   const handleStart = React.useCallback(async () => {
     if (maxAttemptsReached) {
@@ -592,7 +634,9 @@ export function MultimodalInputArea({
     if (recorder.isRecording) {
       const recorded = await recorder.stopRecording();
       if (!recorded || recorded.size < 2000) {
-        showWarningToast("Recording too short. Speak for 1-2 seconds and try again.");
+        showWarningToast(
+          "Recording too short. Speak for 1-2 seconds and try again.",
+        );
         return;
       }
       setIsTranscribing(true);
@@ -606,7 +650,10 @@ export function MultimodalInputArea({
           status: "transcribing",
         };
         setMessages((prev) => [...prev, pendingStudentMessage]);
-        const historyWithPending = [...messagesRef.current, pendingStudentMessage];
+        const historyWithPending = [
+          ...messagesRef.current,
+          pendingStudentMessage,
+        ];
         messagesRef.current = historyWithPending;
 
         const sttModelId =
@@ -619,11 +666,15 @@ export function MultimodalInputArea({
             activityType,
             sttModelId,
             ttsModelId:
-              speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId,
+              speechModels?.ttsModelId ??
+              DEFAULT_KONVO_SESSION_CONFIG.ttsModelId,
             llmModelId: DEFAULT_KONVO_SESSION_CONFIG.llmModelId,
           }),
         );
-        formData.append("audio", new File([wavBlob], "recording.wav", { type: "audio/wav" }));
+        formData.append(
+          "audio",
+          new File([wavBlob], "recording.wav", { type: "audio/wav" }),
+        );
         const response = await fetch("/api/multimodal/transcribe", {
           method: "POST",
           body: formData,
@@ -639,7 +690,9 @@ export function MultimodalInputArea({
         const text = (body.text ?? "").trim();
         if (!text) {
           setMessages((prev) => prev.filter((m) => m.id !== pendingMessageId));
-          showWarningToast("No speech detected. Try speaking louder and closer to the mic.");
+          showWarningToast(
+            "No speech detected. Try speaking louder and closer to the mic.",
+          );
           return;
         }
         const studentMessage: ChatMessage = {
@@ -669,7 +722,9 @@ export function MultimodalInputArea({
       } catch (sendError) {
         setMessages((prev) => prev.filter((m) => m.status !== "transcribing"));
         const message =
-          sendError instanceof Error ? sendError.message : "Failed to process audio";
+          sendError instanceof Error
+            ? sendError.message
+            : "Failed to process audio";
         setError(message);
         showErrorToast(message);
       } finally {
@@ -706,15 +761,23 @@ export function MultimodalInputArea({
       {!hasStarted ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/20 p-6">
           <p className="text-sm text-muted-foreground text-center">
-            Start multimodal interaction to explore this question.
+            Begin the activity by clicking the button below and talk to the AI
+            assistant.
+            <br /> Wait for the assistant to start speaking. You can speak by
+            clicking the microphone icon.
           </p>
           <Button type="button" className="gap-2" onClick={handleStart}>
             <Play className="h-4 w-4" />
-            {isStarting ? "Starting..." : "Start Multimodal"}
+            {isStarting ? "Starting..." : "Start Activity"}
           </Button>
         </div>
       ) : (
-        <div className={cn(APP_ASSESSMENT_SHELL_CLASS, "min-h-[420px] flex flex-col")}>
+        <div
+          className={cn(
+            APP_ASSESSMENT_SHELL_CLASS,
+            "min-h-[420px] flex flex-col",
+          )}
+        >
           {error ? (
             <div
               role="alert"
@@ -732,7 +795,8 @@ export function MultimodalInputArea({
                     Microphone blocked
                   </Button>
                   <p className="text-xs text-center text-muted-foreground max-w-lg">
-                    Microphone access is blocked. Update site permissions in your browser settings, then reload the page.
+                    Microphone access is blocked. Update site permissions in
+                    your browser settings, then reload the page.
                   </p>
                 </>
               ) : (
@@ -741,7 +805,9 @@ export function MultimodalInputArea({
                   onClick={() => void handleRequestMic()}
                   disabled={micRequestPending}
                 >
-                  {micRequestPending ? "Waiting for permission..." : "Allow microphone access"}
+                  {micRequestPending
+                    ? "Waiting for permission..."
+                    : "Allow microphone access"}
                 </Button>
               )}
             </div>
@@ -795,7 +861,12 @@ export function MultimodalInputArea({
               type="button"
               variant="outline"
               onClick={() => void handleFinishAndEvaluate()}
-              disabled={isEvaluating || maxAttemptsReached || isThinking || isTranscribing}
+              disabled={
+                isEvaluating ||
+                maxAttemptsReached ||
+                isThinking ||
+                isTranscribing
+              }
             >
               {isEvaluating ? (
                 <>
@@ -822,7 +893,10 @@ export function MultimodalInputArea({
           aria-live="polite"
           aria-label="Waiting for microphone permission"
         >
-          <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
+          <Loader2
+            className="h-10 w-10 animate-spin text-primary"
+            aria-hidden
+          />
           <p className="max-w-sm px-4 text-center text-sm font-medium text-foreground">
             Use your browser&apos;s microphone prompt to allow or block access.
           </p>
