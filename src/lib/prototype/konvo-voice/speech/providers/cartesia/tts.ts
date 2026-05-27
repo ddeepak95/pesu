@@ -32,6 +32,10 @@ async function requestTtsBytes(input: SynthesizeInput): Promise<Buffer> {
       transcript: input.text,
       voice: { mode: "id", id: voiceId },
       language,
+      ...(input.contextId ? { context_id: input.contextId } : {}),
+      ...(typeof input.continueGeneration === "boolean"
+        ? { continue: input.continueGeneration }
+        : {}),
       output_format: {
         container: "raw",
         encoding: "pcm_s16le",

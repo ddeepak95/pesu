@@ -11,15 +11,18 @@ interface MultimodalTtsBody {
   ttsModelId: string;
   text: string;
   language: string;
+  contextId?: string;
+  continueGeneration?: boolean;
+  index?: number;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as MultimodalTtsBody;
-    const { ttsModelId, text, language } = body;
-    if (!ttsModelId || !text?.trim() || !language?.trim()) {
+    const { ttsModelId, text, language, contextId, continueGeneration, index } = body;
+    if (!ttsModelId || !language?.trim()) {
       return NextResponse.json(
-        { error: "Missing required fields: ttsModelId, text, language" },
+        { error: "Missing required fields: ttsModelId, language" },
         { status: 400 },
       );
     }
@@ -51,25 +54,31 @@ export async function POST(request: NextRequest) {
         };
 
         try {
+          const safeIndex = typeof index === "number" && index >= 0 ? index : 0;
+          const trimmed = (text ?? "").trim();
           enqueue({
             type: "speech_start",
-            index: 0,
+            index: safeIndex,
             mimeType: tts.streamFormat.mimeType,
             sampleRate: tts.streamFormat.sampleRate,
           });
 
           const synthInput = {
-            text: text.trim(),
+            text: trimmed,
+            contextId,
+            continueGeneration,
             language,
             voice,
             apiModelId: getSpeechApiModelId(ttsModelId),
           };
 
-          if (tts.synthesizeStream) {
+          if (!trimmed && continueGeneration === false) {
+            // Final continuation close signal with no additional transcript content.
+          } else if (tts.synthesizeStream) {
             for await (const chunk of tts.synthesizeStream(synthInput)) {
               enqueue({
                 type: "speech_chunk",
-                index: 0,
+                index: safeIndex,
                 base64: Buffer.from(chunk).toString("base64"),
               });
             }
@@ -77,12 +86,12 @@ export async function POST(request: NextRequest) {
             const result = await tts.synthesize(synthInput);
             enqueue({
               type: "speech_chunk",
-              index: 0,
+              index: safeIndex,
               base64: result.audio.toString("base64"),
             });
           }
 
-          enqueue({ type: "speech_end", index: 0 });
+          enqueue({ type: "speech_end", index: safeIndex });
           enqueue({ type: "done" });
         } catch (error) {
           enqueue({

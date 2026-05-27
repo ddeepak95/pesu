@@ -23,6 +23,10 @@ export interface SynthesizeInput {
   voice?: string;
   language?: string;
   apiModelId?: string;
+  /** Provider-specific continuation context id (Cartesia). */
+  contextId?: string;
+  /** Provider-specific continuation flag (Cartesia). */
+  continueGeneration?: boolean;
 }
 
 export interface SynthesizeResult {

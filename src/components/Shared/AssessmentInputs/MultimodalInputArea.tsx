@@ -6,7 +6,6 @@ import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
 import { Button } from "@/components/ui/button";
-import { parseSSEStream } from "@/lib/sseParser";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/prototype/konvo-voice/defaultSessionConfig";
@@ -38,12 +37,14 @@ type ChatPhase =
   | "user_recording"
   | "user_submitting";
 
-type TtsStreamEvent =
-  | { type: "speech_start"; sampleRate?: number }
-  | { type: "speech_chunk"; base64: string }
-  | { type: "speech_end" }
+type MultimodalTurnEvent =
+  | { type: "text-delta"; content: string }
+  | { type: "end_conversation"; reason: "thorough" | "refusal" }
+  | { type: "speech_start"; index?: number; sampleRate?: number }
+  | { type: "speech_chunk"; index?: number; base64: string }
+  | { type: "speech_end"; index?: number }
   | { type: "done" }
-  | { type: "error"; message?: string };
+  | { type: "error"; error?: string; message?: string };
 
 function formatFullStudentTranscript(messages: ChatMessage[]): string {
   return messages
@@ -61,9 +62,9 @@ function decodeBase64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
-async function* parseTtsSseStream(
+async function* parseMultimodalTurnStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-): AsyncGenerator<TtsStreamEvent> {
+): AsyncGenerator<MultimodalTurnEvent> {
   const decoder = new TextDecoder();
   let buffer = "";
 
@@ -81,7 +82,7 @@ async function* parseTtsSseStream(
         if (!line.startsWith("data: ")) continue;
         const jsonStr = line.slice(6);
         try {
-          const parsed = JSON.parse(jsonStr) as TtsStreamEvent;
+          const parsed = JSON.parse(jsonStr) as MultimodalTurnEvent;
           yield parsed;
         } catch {
           // ignore malformed SSE chunk
@@ -282,195 +283,6 @@ export function MultimodalInputArea({
     }
   }, [assignmentId, attempts.length, flushSessionChunk, question.order, submissionId]);
 
-  const synthesizeAndPlay = React.useCallback(async (assistantText: string) => {
-    if (!assistantText.trim()) return;
-    const ttsModelId =
-      speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
-    const controller = new AbortController();
-    activeAbortRef.current = controller;
-    const response = await fetch("/api/multimodal/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ttsModelId,
-        text: assistantText,
-        language,
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error || "Failed to synthesize assistant speech");
-    }
-    playback.beginTurn({
-      // Switch status exactly when playback starts, not while audio is still buffering.
-      onPlaybackStart: () => {
-        setIsThinking(false);
-        setIsSpeaking(true);
-      },
-    });
-    let sampleRate = 24000;
-    let startedSpeech = false;
-    let interrupted = false;
-    const pcmChunks: Uint8Array[] = [];
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No TTS stream body");
-    }
-
-    try {
-      for await (const event of parseTtsSseStream(reader)) {
-        if (botInterruptionRequestedRef.current) {
-          interrupted = true;
-          break;
-        }
-        if (event.type === "speech_start") {
-          if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
-            sampleRate = event.sampleRate;
-          }
-          playback.prepareSegment(0, { sampleRate });
-          startedSpeech = true;
-        } else if (event.type === "speech_chunk") {
-          if (!startedSpeech) {
-            // Robust fallback if a provider sends chunk before explicit start.
-            playback.prepareSegment(0, { sampleRate });
-            startedSpeech = true;
-          }
-          playback.appendChunk(0, event.base64);
-          pcmChunks.push(decodeBase64ToBytes(event.base64));
-        } else if (event.type === "speech_end") {
-          await playback.endSegment(0);
-        } else if (event.type === "error") {
-          throw new Error(event.message || "TTS streaming failed");
-        } else if (event.type === "done") {
-          break;
-        }
-      }
-
-      if (startedSpeech) {
-        await playback.waitForAll();
-      } else {
-        // No playable audio arrived; exit thinking state to avoid hanging status.
-        setIsThinking(false);
-      }
-    } catch (ttsError) {
-      if (
-        ttsError instanceof DOMException &&
-        (ttsError.name === "AbortError" ||
-          ttsError.message === "signal is aborted without reason")
-      ) {
-        interrupted = true;
-      } else {
-        throw ttsError;
-      }
-    } finally {
-      playback.releasePlayback();
-      setIsSpeaking(false);
-      activeAbortRef.current = null;
-    }
-
-    if (botInterruptionRequestedRef.current) {
-      interrupted = true;
-    }
-    botInterruptionRequestedRef.current = false;
-
-    const totalBytes = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const pcmBytes = new Uint8Array(totalBytes);
-    let offset = 0;
-    for (const chunk of pcmChunks) {
-      pcmBytes.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    const wav = pcmToWavArrayBuffer(pcmBytes, sampleRate);
-    const wavBlob = new Blob([wav], { type: "audio/wav" });
-    botOrdinalRef.current += 1;
-    await persistUtteranceAudio({
-      dbRole: "assistant",
-      storageRole: "bot",
-      ordinal: botOrdinalRef.current,
-      audioBlob: wavBlob,
-      content: assistantText,
-      generatedContent: assistantText,
-      interrupted,
-    });
-  }, [language, persistUtteranceAudio, playback, speechModels?.ttsModelId]);
-
-  const streamChatTurn = React.useCallback(async (
-    history: ChatMessage[],
-    assistantId: string,
-  ) => {
-    const attemptNumber = attempts.length + 1;
-    const controller = new AbortController();
-    activeAbortRef.current = controller;
-    const response = await fetch("/api/chat-assessment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        assignmentId,
-        submissionId,
-        questionOrder: question.order,
-        attemptNumber,
-        messages: history.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-        system_prompt: systemPrompt,
-        greeting,
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        code?: string;
-      };
-      if (
-        response.status === 403 &&
-        errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
-      ) {
-        onIntegrityAccessRevoked?.();
-      }
-      if (
-        response.status === 503 &&
-        errorData.code === AI_NOT_CONFIGURED_ERROR_CODE
-      ) {
-        throw new Error(
-          errorData.error ||
-            "AI capabilities are disabled for this class. Please contact your instructor.",
-        );
-      }
-      throw new Error(errorData.error || "Failed to stream assistant reply");
-    }
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    let assistantText = "";
-    let didEndConversation = false;
-    for await (const event of parseSSEStream(reader)) {
-      if (event.type === "text-delta") {
-        assistantText += event.content;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: assistantText } : m)),
-        );
-      } else if (event.type === "end_conversation") {
-        didEndConversation = true;
-      } else if (event.type === "error") {
-        throw new Error(event.error);
-      }
-    }
-
-    return { assistantText: assistantText.trim(), didEndConversation };
-  }, [
-    assignmentId,
-    attempts.length,
-    greeting,
-    onIntegrityAccessRevoked,
-    question.order,
-    submissionId,
-    systemPrompt,
-  ]);
-
   const finishSubmission = React.useCallback(async () => {
     const answerText = formatFullStudentTranscript(messagesRef.current).trim();
     await onSubmitForEvaluation(answerText);
@@ -500,17 +312,142 @@ export function MultimodalInputArea({
   const runAssistantTurn = React.useCallback(async (history: ChatMessage[]) => {
     setIsThinking(true);
     setError(null);
+    botInterruptionRequestedRef.current = false;
     const assistantId = crypto.randomUUID();
     setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+
+    const ttsModelId =
+      speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
+    const attemptNumber = attempts.length + 1;
+    let sampleRate = 24000;
+    let ttsStarted = false;
+    let interrupted = false;
+    const pcmChunks: Uint8Array[] = [];
+    let speechSegmentPrepared = false;
+    let assistantText = "";
+    let didEndConversation = false;
+
+    playback.beginTurn({
+      onPlaybackStart: () => {
+        setIsThinking(false);
+        setIsSpeaking(true);
+      },
+    });
+
+    const controller = new AbortController();
+    activeAbortRef.current = controller;
+
     try {
-      const { assistantText, didEndConversation } = await streamChatTurn(
-        history,
-        assistantId,
-      );
-      if (assistantText) {
-        await synthesizeAndPlay(assistantText);
+      const response = await fetch("/api/multimodal/turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignmentId,
+          submissionId,
+          questionOrder: question.order,
+          attemptNumber,
+          messages: history.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          system_prompt: systemPrompt,
+          greeting,
+          language,
+          ttsModelId,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+        if (
+          response.status === 403 &&
+          errorData.code === INTEGRITY_ACCESS_REVOKED_ERROR_CODE
+        ) {
+          onIntegrityAccessRevoked?.();
+        }
+        if (
+          response.status === 503 &&
+          errorData.code === AI_NOT_CONFIGURED_ERROR_CODE
+        ) {
+          throw new Error(
+            errorData.error ||
+              "AI capabilities are disabled for this class. Please contact your instructor.",
+          );
+        }
+        throw new Error(errorData.error || "Failed to stream assistant turn");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      for await (const event of parseMultimodalTurnStream(reader)) {
+        if (event.type === "text-delta") {
+          assistantText += event.content;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: assistantText } : m,
+            ),
+          );
+        } else if (event.type === "end_conversation") {
+          didEndConversation = true;
+        } else if (event.type === "speech_start") {
+          if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
+            sampleRate = event.sampleRate;
+          }
+          playback.prepareSegment(0, { sampleRate });
+          speechSegmentPrepared = true;
+        } else if (event.type === "speech_chunk") {
+          if (!speechSegmentPrepared) {
+            playback.prepareSegment(0, { sampleRate });
+            speechSegmentPrepared = true;
+          }
+          ttsStarted = true;
+          playback.appendChunk(0, event.base64);
+          pcmChunks.push(decodeBase64ToBytes(event.base64));
+        } else if (event.type === "speech_end") {
+          if (speechSegmentPrepared) {
+            await playback.endSegment(0);
+          }
+        } else if (event.type === "error") {
+          throw new Error(event.error || event.message || "Assistant turn failed");
+        }
+      }
+
+      if (botInterruptionRequestedRef.current) {
+        interrupted = true;
+      }
+      if (ttsStarted) {
+        await playback.waitForAll();
       } else {
         setIsThinking(false);
+      }
+      playback.releasePlayback();
+      setIsSpeaking(false);
+
+      const totalBytes = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      if (totalBytes > 0) {
+        const pcmBytes = new Uint8Array(totalBytes);
+        let offset = 0;
+        for (const chunk of pcmChunks) {
+          pcmBytes.set(chunk, offset);
+          offset += chunk.length;
+        }
+        const wav = pcmToWavArrayBuffer(pcmBytes, sampleRate);
+        const wavBlob = new Blob([wav], { type: "audio/wav" });
+        botOrdinalRef.current += 1;
+        await persistUtteranceAudio({
+          dbRole: "assistant",
+          storageRole: "bot",
+          ordinal: botOrdinalRef.current,
+          audioBlob: wavBlob,
+          content: assistantText.trim(),
+          generatedContent: assistantText.trim(),
+          interrupted,
+        });
       }
       if (didEndConversation) {
         scheduleAutoFinish();
@@ -534,9 +471,24 @@ export function MultimodalInputArea({
       setError(message);
       showErrorToast(message);
     } finally {
+      playback.releasePlayback();
+      setIsSpeaking(false);
       activeAbortRef.current = null;
     }
-  }, [scheduleAutoFinish, streamChatTurn, synthesizeAndPlay]);
+  }, [
+    assignmentId,
+    attempts.length,
+    greeting,
+    language,
+    onIntegrityAccessRevoked,
+    playback,
+    persistUtteranceAudio,
+    question.order,
+    scheduleAutoFinish,
+    speechModels?.ttsModelId,
+    submissionId,
+    systemPrompt,
+  ]);
 
   const handleStart = React.useCallback(async () => {
     if (maxAttemptsReached) {
