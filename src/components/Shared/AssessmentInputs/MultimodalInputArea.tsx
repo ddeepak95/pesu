@@ -398,6 +398,7 @@ export function MultimodalInputArea({
       let interrupted = false;
       const pcmChunks: Uint8Array[] = [];
       let speechSegmentPrepared = false;
+      let speechSegmentEnded = false;
       let assistantText = "";
       let didEndConversation = false;
 
@@ -486,7 +487,8 @@ export function MultimodalInputArea({
             playback.appendChunk(0, event.base64);
             pcmChunks.push(decodeBase64ToBytes(event.base64));
           } else if (event.type === "speech_end") {
-            if (speechSegmentPrepared) {
+            if (speechSegmentPrepared && !speechSegmentEnded) {
+              speechSegmentEnded = true;
               await playback.endSegment(0);
             }
           } else if (event.type === "error") {
@@ -498,6 +500,14 @@ export function MultimodalInputArea({
 
         if (botInterruptionRequestedRef.current) {
           interrupted = true;
+        }
+        if (
+          speechSegmentPrepared &&
+          !speechSegmentEnded &&
+          !botInterruptionRequestedRef.current
+        ) {
+          speechSegmentEnded = true;
+          await playback.endSegment(0);
         }
         if (ttsStarted && !botInterruptionRequestedRef.current) {
           await playback.waitForAll();
@@ -523,7 +533,7 @@ export function MultimodalInputArea({
           const wav = pcmToWavArrayBuffer(pcmBytes, sampleRate);
           const wavBlob = new Blob([wav], { type: "audio/wav" });
           botOrdinalRef.current += 1;
-          await persistUtteranceAudio({
+          void persistUtteranceAudio({
             dbRole: "assistant",
             storageRole: "bot",
             ordinal: botOrdinalRef.current,

@@ -300,7 +300,8 @@ export async function POST(request: NextRequest) {
           if (pendingFallbackTts.trim()) {
             await flushFallbackTts(pendingFallbackTts, false);
             pendingFallbackTts = "";
-          } else if (speechStartSent) {
+          }
+          if (speechStartSent && !aborted) {
             enqueue({ type: "speech_end", index: 0 });
           }
         };

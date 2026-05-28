@@ -117,7 +117,7 @@ export class CartesiaTtsContinuationSession {
         language: this.languageCode,
         context_id: this.contextId,
         continue: continueGeneration,
-        max_buffer_delay_ms: this.config.maxBufferDelayMs ?? 3000,
+        max_buffer_delay_ms: this.config.maxBufferDelayMs ?? 500,
       }),
     );
   }
