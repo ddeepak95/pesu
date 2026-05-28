@@ -1,243 +1,328 @@
 # Multimodal Orchestration Plan
 
-Parallel-agent architecture for rich pedagogical content delivery in `MultimodalInputArea`.
+Parallel content delivery for `MultimodalInputArea` — voice speech + rich pedagogical content from a single LLM call.
 
 ---
 
-## 1. Overview
+## 1. Core Architecture Decision
 
-The learner has a voice conversation with an AI tutor. While the AI is speaking, a parallel content pipeline fires simultaneously — generating MCQs, fetching images, rendering equations, or queuing videos — so that by the time the speech ends, visual content is ready to reveal. Teachers configure which content actions are available per activity.
+A single `streamObject` call replaces the current `streamText` call. The schema puts `speech` first so TTS starts streaming immediately. The `action` field resolves later in the same generation — no second LLM call, no coordination problem, transcript sent once.
+
+```
+t=0ms    → streamObject({ speech, action, endConversation }) — full transcript, one call
+t=300ms  → speech field starts streaming → TTS starts immediately
+t=600ms  → first word at frontend
+t=1200ms → action field resolves → action agent spawns in parallel with ongoing speech
+t=~1800ms→ MCQ ready, streamed to frontend while bot is still speaking
+```
+
+**Why not tool calls:** LLM pauses mid-speech waiting for tool results — unacceptable for voice.
+**Why not two parallel LLMs:** No shared state — incoherent output (speech says one thing, content does another).
+**Why not orchestrator-first:** Adds ~150ms before first word, requires sending transcript twice.
+**Provider compatibility:** `streamObject` + speech delta extraction is provider-agnostic via Vercel AI SDK — works with OpenAI, Gemini, Anthropic. Model is resolved via existing `getLanguageModel(config)`.
 
 ---
 
-## 2. High-Level Architecture
+## 2. System Architecture
 
 ```mermaid
 graph TD
-    U[Learner speaks] --> T[/api/multimodal/turn]
-    T --> ORCH[Orchestrator LLM\nstreams text + tool calls]
+    U[Learner speaks] --> API[/api/multimodal/turn]
 
-    ORCH -->|text-delta stream| TTS[TTS Agent\nCartesia / Sarvam WS]
-    ORCH -->|tool call: show_image| IMG[Image Agent\ngen or library lookup]
-    ORCH -->|tool call: show_mcq| MCQ[MCQ Agent\ngenerate question + choices]
-    ORCH -->|tool call: show_video| VID[Video Agent\nquery curated library]
-    ORCH -->|tool call: show_equation| EQ[Equation Agent\ngenerate LaTeX]
-    ORCH -->|tool call: end_conversation| FIN[Finish Handler\nexisting]
+    API -->|full transcript, one call| LLM[Gemini Flash\nstreamObject]
 
-    TTS -->|speech_start/chunk/end| SSE[SSE Multiplexer]
-    IMG -->|action_start / action_payload| SSE
-    MCQ -->|action_start / action_payload| SSE
-    VID -->|action_start / action_payload| SSE
-    EQ -->|action_start / action_payload| SSE
+    LLM -->|speech field streams| TTS[TTS Agent\nCartesia / Sarvam WS]
+    LLM -->|action field resolves| DISPATCH[Action Dispatcher]
 
-    SSE -->|single SSE stream| FE[Frontend\nMultimodalInputArea]
+    DISPATCH -->|kind: mcq| MCQ[MCQ Agent\ngenerateObject]
+    DISPATCH -->|kind: image — future| IMG[Image Agent]
+    DISPATCH -->|kind: video — future| VID[Video Agent]
+    DISPATCH -->|kind: equation — future| EQ[Equation Agent]
+
+    TTS -->|speech_start/chunk/end SSE| FE[Frontend]
+    MCQ -->|action_start / action_payload SSE| FE
+    IMG -->|action_start / action_payload SSE| FE
 ```
-
-**Key principle:** Tool calls from the LLM fire their handlers immediately as `Promise`s — no `await`. The LLM stream + all action agents run concurrently. The route only awaits all pending action promises *after* the LLM stream closes.
 
 ---
 
-## 3. Parallel Execution Model
+## 3. Sequence Diagram
 
 ```mermaid
 sequenceDiagram
     participant FE as Frontend
     participant API as /api/multimodal/turn
-    participant LLM as Orchestrator LLM
-    participant TTS as TTS Agent
-    participant ACT as Action Agents (parallel)
+    participant LLM as Gemini Flash
+    participant TTS as TTS WS Session
+    participant MCQ as MCQ Agent
 
-    FE->>API: POST {messages, assignmentId, availableActions, ...}
-    API->>LLM: streamText() — tools: availableActions
-    API->>TTS: open WS session (Cartesia / Sarvam)
+    FE->>API: POST {messages, availableActions: ["mcq"], endConversationConfig}
+    API->>TTS: open WS session
+    API->>LLM: streamObject {speech, action, endConversation}
 
-    loop LLM streams
-        LLM-->>API: text-delta
+    loop speech field streams token by token
+        LLM-->>API: speech delta
         API->>TTS: pushTranscript(delta)
         API-->>FE: SSE text-delta
-        TTS-->>FE: SSE speech_chunk (concurrent)
+        TTS-->>FE: SSE speech_chunk
     end
 
-    LLM-->>API: tool-call: show_mcq(params)
-    Note over API,ACT: Launch Promise immediately, do NOT await
-    API->>ACT: spawnAction("mcq", params)
-    ACT-->>FE: SSE action_start {id, kind:"mcq"}
+    LLM-->>API: action: {kind:"mcq", topic:"ATP production"}
+    API-->>FE: SSE action_start {id, kind:"mcq"}
+    Note over API,MCQ: Spawns Promise — does NOT await
+    API->>MCQ: generateObject(topic, difficulty)
 
-    loop LLM keeps streaming
-        LLM-->>API: text-delta
-        API->>TTS: pushTranscript(delta)
-        API-->>FE: SSE text-delta
-        ACT-->>FE: SSE action_payload {id, kind:"mcq", data} (concurrent)
-        TTS-->>FE: SSE speech_chunk (concurrent)
-    end
+    Note over TTS,MCQ: Both run concurrently
+    TTS-->>FE: SSE speech_chunk (ongoing)
+    MCQ-->>API: {question, choices, correctIndex, explanation}
+    MCQ->>API: persist to chat_message_actions DB
+    API-->>FE: SSE action_payload {id, kind:"mcq", data}
 
-    LLM-->>API: done
-    TTS-->>API: audio complete
-    API->>API: await Promise.all(pendingActions)
+    API->>API: await finalizeTts()
+    API->>API: await pendingAction
     API-->>FE: SSE done
 ```
 
 ---
 
-## 4. SSE Protocol Extension
+## 4. SSE Protocol
 
-### New Event Types
+### Existing events (unchanged)
+```ts
+| { type: "text-delta"; content: string }
+| { type: "speech_start"; index?: number; sampleRate?: number }
+| { type: "speech_chunk"; index?: number; base64: string }
+| { type: "speech_end"; index?: number }
+| { type: "end_conversation"; reason: "thorough" | "refusal" }
+| { type: "done" }
+| { type: "error"; error?: string; message?: string }
+```
 
-Extend `MultimodalTurnEvent` in the frontend:
+### New events (generic — designed for all future action types, only MCQ in Phase 1)
+```ts
+| { type: "action_start";   id: string; kind: ActionKind }
+| { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
+| { type: "action_error";   id: string; kind: ActionKind; error: string }
+```
 
 ```ts
-type MultimodalTurnEvent =
-  // --- existing ---
-  | { type: "text-delta"; content: string }
-  | { type: "end_conversation"; reason: "thorough" | "refusal" }
-  | { type: "speech_start"; index?: number; sampleRate?: number }
-  | { type: "speech_chunk"; index?: number; base64: string }
-  | { type: "speech_end"; index?: number }
-  | { type: "done" }
-  | { type: "error"; error?: string; message?: string }
-  // --- new ---
-  | { type: "action_start"; id: string; kind: ActionKind }
-  | { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
-  | { type: "action_error"; id: string; kind: ActionKind; error: string };
-
+// Extend as new action types are added
 type ActionKind = "mcq" | "image" | "video" | "equation" | "animation";
 
 type ActionPayload =
   | { kind: "mcq"; question: string; choices: string[]; correctIndex: number; explanation?: string }
-  | { kind: "image"; url: string; altText?: string; sourceLabel?: string }
-  | { kind: "video"; url: string; title?: string; startSeconds?: number }
+  // future:
+  | { kind: "image"; url: string; altText?: string }
+  | { kind: "video"; url: string; title?: string }
   | { kind: "equation"; latex: string; display: "inline" | "block" }
   | { kind: "animation"; animationId: string; params?: Record<string, unknown> };
 ```
 
-### Event Ordering Contract
-
-- `action_start` always arrives before `action_payload` for a given `id`
-- `action_payload` may arrive *while speech is still playing* — frontend should reveal content after speech ends for that turn, not immediately (configurable per action kind)
-- `action_error` replaces `action_payload` when an agent fails; frontend discards the skeleton
+`action_start` always precedes `action_payload` for a given `id`. `action_error` replaces `action_payload` on failure — frontend discards the skeleton silently.
 
 ---
 
-## 5. Backend: Route Changes (`/api/multimodal/turn`)
+## 5. Backend Changes
 
-### 5a. Request Body Addition
+### 5a. Request Body
 
 ```ts
 interface MultimodalTurnRequestBody {
-  // ... existing fields ...
-  availableActions?: ActionKind[];  // teacher-configured list
+  // existing fields unchanged
+  assignmentId: string;
+  submissionId?: string;
+  questionOrder: number;
+  messages: MultimodalTurnMessage[];
+  attemptNumber?: number;
+  system_prompt: string;
+  greeting?: string;        // still used — injected as first assistant message when history is empty
+  language: string;
+  ttsModelId: string;
+  // new
+  availableActions?: ActionKind[];       // teacher-configured, defaults to []
+  endConversationConfig?: EndConversationConfig;
+}
+
+interface EndConversationConfig {
+  afterBotTurns?: number;       // end after N bot responses (2–5)
+  afterMcqsAnswered?: number;   // end after learner answers N MCQs
+  customInstruction?: string;   // e.g. "wrap up once the student demonstrates understanding"
 }
 ```
 
-### 5b. Tool Definitions (passed to LLM)
+### 5b. `turnSchema`
+
+One action per turn maximum — keeps the conversation uncluttered and makes reveal timing straightforward.
 
 ```ts
-const PEDAGOGICAL_TOOLS = {
-  show_mcq: {
-    description: "Present the learner with a multiple-choice question to check understanding.",
-    parameters: z.object({
+const turnSchema = z.object({
+  speech: z.string().describe(
+    "The full conversational response to speak aloud. Complete sentences only."
+  ),
+  action: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("mcq"),
       topic: z.string(),
-      difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+      difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
     }),
-  },
-  show_image: {
-    description: "Display a relevant image or diagram to support the explanation.",
-    parameters: z.object({
-      query: z.string().describe("Search query or description for the image"),
-      source: z.enum(["library", "generate"]).default("library"),
-    }),
-  },
-  show_video: {
-    description: "Queue a short video clip from the curated content library.",
-    parameters: z.object({
-      topic: z.string(),
-      maxDurationSeconds: z.number().optional(),
-    }),
-  },
-  show_equation: {
-    description: "Render a mathematical equation.",
-    parameters: z.object({
-      latex: z.string(),
-      display: z.enum(["inline", "block"]).default("block"),
-    }),
-  },
-  end_conversation: { /* existing */ },
-};
-
-// Filter by availableActions from request
-function buildTools(availableActions: ActionKind[]) {
-  return Object.fromEntries(
-    Object.entries(PEDAGOGICAL_TOOLS).filter(
-      ([key]) => key === "end_conversation" || availableActions.includes(key as ActionKind)
-    )
-  );
-}
+    // Add new action schemas here as they are implemented:
+    // z.object({ kind: z.literal("image"), query: z.string() }),
+    // z.object({ kind: z.literal("equation"), latex: z.string() }),
+  ]).nullable().describe(
+    "A single content action to show the learner, or null if none needed."
+  ),
+  endConversation: z.enum(["thorough", "refusal"]).nullable().describe(
+    "Set to 'thorough' when the conversation end condition is met, 'refusal' if the learner is off-topic, null otherwise."
+  ),
+});
 ```
 
-### 5c. Parallel Action Dispatch (inside the SSE ReadableStream)
+When `availableActions` is empty, use `action: z.null()` so the LLM never generates actions.
+
+### 5c. Streaming Loop (replaces current `streamText` loop)
 
 ```ts
-const pendingActions: Promise<void>[] = [];
+const { partialObjectStream } = streamObject({
+  model,
+  system: systemPrompt,  // includes end condition + available actions instructions
+  messages: sdkMessages, // full transcript; greeting injected as first assistant message if history empty
+  schema: turnSchema,
+});
 
-// In the LLM stream loop, on "tool-call":
-case "tool-call": {
-  if (part.toolName === "end_conversation") {
-    // ... existing handling ...
-  } else {
-    const actionId = crypto.randomUUID();
-    enqueue({ type: "action_start", id: actionId, kind: part.toolName as ActionKind });
+let lastSpeechLength = 0;
+let actionDispatched = false;
+let pendingAction: Promise<void> | null = null;
 
-    // Fire and collect — do NOT await here
-    const actionPromise = handleAction(actionId, part.toolName, part.input, enqueue)
-      .catch((err) => {
-        enqueue({ type: "action_error", id: actionId, kind: part.toolName, error: err.message });
-      });
-    pendingActions.push(actionPromise);
+for await (const partial of partialObjectStream) {
+  if (aborted) break;
+
+  // Speech streams token by token → same TTS path as today
+  if (partial.speech) {
+    const delta = partial.speech.slice(lastSpeechLength);
+    if (delta) {
+      fullReply += delta;
+      enqueue({ type: "text-delta", content: delta });
+      pushToTts(delta);  // Cartesia/Sarvam WS or fallback sentence-flush
+      lastSpeechLength = partial.speech.length;
+    }
   }
-  break;
+
+  // Single action — dispatch as soon as the action object is complete
+  if (!actionDispatched && partial.action?.kind) {
+    actionDispatched = true;
+    const actionId = crypto.randomUUID();
+    enqueue({ type: "action_start", id: actionId, kind: partial.action.kind });
+    pendingAction = dispatchAction({
+      id: actionId,
+      action: partial.action,
+      enqueue,
+      submissionId,
+      chatMessageId,  // ID of the assistant chat_message row, inserted after fullReply is known
+    }).catch((err) => {
+      enqueue({
+        type: "action_error",
+        id: actionId,
+        kind: partial.action!.kind,
+        error: err instanceof Error ? err.message : "Action failed",
+      });
+    });
+  }
+
+  // End conversation
+  if (partial.endConversation) {
+    endConversationReason = partial.endConversation;
+    enqueue({ type: "end_conversation", reason: partial.endConversation });
+  }
 }
 
-// After LLM stream + TTS finish:
-await Promise.all(pendingActions);
+await finalizeTts();
+if (pendingAction) await pendingAction;
 enqueue({ type: "done" });
 ```
 
-### 5d. Action Handlers
-
-Each handler is an `async function` that calls the appropriate API and enqueues the result:
+### 5d. Action Dispatcher (extensible registry)
 
 ```ts
-async function handleAction(
-  id: string,
-  kind: string,
-  input: unknown,
-  enqueue: (data: Record<string, unknown>) => void,
-): Promise<void> {
-  switch (kind) {
-    case "show_mcq": return handleMcqAction(id, input, enqueue);
-    case "show_image": return handleImageAction(id, input, enqueue);
-    case "show_video": return handleVideoAction(id, input, enqueue);
-    case "show_equation": return handleEquationAction(id, input, enqueue);
+// lib/multimodal/actions/dispatcher.ts
+
+interface DispatchActionArgs {
+  id: string;
+  action: ActionUnion;
+  enqueue: EnqueueFn;
+  submissionId: string;
+  chatMessageId: string;
+}
+
+export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
+  switch (args.action.kind) {
+    case "mcq":
+      return handleMcqAction(args);
+    // future:
+    // case "image": return handleImageAction(args);
+    // case "equation": return handleEquationAction(args);
+    default:
+      throw new Error(`Unknown action kind: ${(args.action as { kind: string }).kind}`);
   }
 }
+```
 
-async function handleMcqAction(id, input, enqueue) {
-  // Call a separate LLM prompt to generate the MCQ JSON
-  const mcq = await generateMcq(input.topic, input.difficulty);
-  enqueue({ type: "action_payload", id, kind: "mcq", data: mcq });
-}
+### 5e. MCQ Action Handler
 
-async function handleEquationAction(id, input, enqueue) {
-  // Equation is already fully specified by the LLM tool call
-  enqueue({ type: "action_payload", id, kind: "equation", data: input });
+Saves to DB before enqueuing SSE — payload survives even if the client disconnects mid-stream.
+
+```ts
+// lib/multimodal/actions/mcq.ts
+
+export async function handleMcqAction({
+  id, action, enqueue, submissionId, chatMessageId,
+}: DispatchActionArgs): Promise<void> {
+  const result = await generateObject({
+    model,
+    system: "Generate a multiple choice question. Return only valid JSON.",
+    prompt: `Topic: ${action.topic}\nDifficulty: ${action.difficulty}`,
+    schema: z.object({
+      question: z.string(),
+      choices: z.array(z.string()).length(4),
+      correctIndex: z.number().int().min(0).max(3),
+      explanation: z.string(),
+    }),
+  });
+
+  const payload = { kind: "mcq" as const, ...result.object };
+
+  // Persist before streaming — survives interruption
+  await insertChatMessageAction(supabase, {
+    id,
+    chatMessageId,
+    submissionId,
+    kind: "mcq",
+    payload,
+  });
+
+  enqueue({ type: "action_payload", id, kind: "mcq", data: payload });
 }
+```
+
+### 5f. DB Schema Addition
+
+```sql
+create table chat_message_actions (
+  id              uuid primary key,
+  chat_message_id uuid not null references chat_messages(id) on delete cascade,
+  submission_id   uuid,
+  kind            text not null,            -- 'mcq' | 'image' | 'equation' | ...
+  payload         jsonb not null,           -- full action payload for session replay
+  answered_index  int,                      -- MCQ: which choice the learner picked
+  answered_at     timestamptz,
+  created_at      timestamptz default now()
+);
 ```
 
 ---
 
-## 6. Frontend State Changes
+## 6. Frontend Changes
 
-### 6a. ChatMessage Extension
+### 6a. Extended types
 
 ```ts
 interface ChatMessage {
@@ -245,7 +330,7 @@ interface ChatMessage {
   role: "student" | "assistant";
   content: string;
   status?: "transcribing";
-  actions?: PendingAction[];   // NEW
+  action?: PendingAction;   // single action per message, matches one-per-turn rule
 }
 
 interface PendingAction {
@@ -253,204 +338,211 @@ interface PendingAction {
   kind: ActionKind;
   state: "loading" | "ready" | "error";
   payload?: ActionPayload;
-  error?: string;
+  answeredIndex?: number;   // MCQ: set when learner selects a choice, locks the card
 }
 ```
 
-### 6b. Frontend Action Lifecycle
+### 6b. Handling new SSE events in `parseMultimodalTurnStream`
 
-```mermaid
-stateDiagram-v2
-    [*] --> Loading : action_start received
-    Loading --> Ready : action_payload received
-    Loading --> Error : action_error received
-    Ready --> [*]
-    Error --> [*]
-
-    note right of Loading : Skeleton shown in message
-    note right of Ready : Content revealed\n(may wait for speech end)
-    note right of Error : Silently hidden
+```ts
+} else if (event.type === "action_start") {
+  setMessages(prev => prev.map(m =>
+    m.id === currentAssistantId
+      ? { ...m, action: { id: event.id, kind: event.kind, state: "loading" } }
+      : m
+  ));
+} else if (event.type === "action_payload") {
+  setMessages(prev => prev.map(m =>
+    m.id === currentAssistantId && m.action?.id === event.id
+      ? { ...m, action: { ...m.action, state: "ready", payload: event.data } }
+      : m
+  ));
+} else if (event.type === "action_error") {
+  setMessages(prev => prev.map(m =>
+    m.id === currentAssistantId && m.action?.id === event.id
+      ? { ...m, action: undefined }
+      : m
+  ));
+}
 ```
 
-### 6c. Reveal Timing by Action Kind
+**On interruption** — strip any `"loading"` skeleton so no ghost card remains:
 
-| Kind | Reveal timing |
-|------|---------------|
-| `equation` | Immediately when `action_payload` arrives |
-| `image` | Immediately when `action_payload` arrives |
-| `mcq` | After speech ends (bot turn complete) |
-| `video` | After speech ends |
-| `animation` | After speech ends |
+```ts
+// In handleMicPress interruption path, after abort
+setMessages(prev => prev.map(m =>
+  m.action?.state === "loading" ? { ...m, action: undefined } : m
+));
+```
 
-This prevents the MCQ from appearing mid-sentence before the bot has finished framing the question verbally.
+### 6c. Action reveal timing
 
-### 6d. MCQ Answer Flow
+| Kind | Reveal when |
+|------|-------------|
+| `mcq` | After speech ends — gate on `isSpeaking === false` |
+| `image` *(future)* | Immediately on `action_payload` |
+| `equation` *(future)* | Immediately on `action_payload` |
+| `video` *(future)* | After speech ends |
+
+MCQ reveals after speech so the verbal setup ("I've prepared a question for you...") completes before the card appears.
+
+### 6d. MCQ answer flow
 
 ```mermaid
 flowchart TD
-    A[MCQ renders] --> B{Learner selects choice}
-    B --> C[Optimistic: highlight selection]
-    C --> D[POST /api/multimodal/mcq-answer]
-    D --> E{Correct?}
-    E -->|yes| F[Show correct indicator\n+ inject 'student answered: X' into history]
-    E -->|no| G[Show incorrect + hint\n+ inject into history]
-    F & G --> H[runAssistantTurn with updated history]
+    A[MCQCard renders\nafter speech ends] --> B{Learner selects choice}
+    B --> C[Set answeredIndex — card locks, disables]
+    C --> D[PATCH /api/multimodal/mcq-answer\npersist answered_index + answered_at]
+    C --> E[Inject synthetic student message:\n MCQ Q: question — Student answered: choice text]
+    D & E --> F[runAssistantTurn with updated history]
+    F --> G[Bot responds verbally]
 ```
 
-The MCQ answer is injected as a synthetic student message so the conversation history remains coherent for the LLM.
+The synthetic message format includes the question text so the LLM has full context on the next turn.
+
+### 6e. `ActionCard` component (extensible)
+
+Actions render inline within each assistant message in the scroll history. Cards persist indefinitely — answered MCQs show locked state with correct answer revealed.
+
+```ts
+// components/Shared/KonvoVoice/ActionCard.tsx
+
+interface ActionCardProps {
+  action: PendingAction;
+  isSpeaking: boolean;
+  onMcqAnswer: (index: number) => void;
+}
+
+export function ActionCard({ action, isSpeaking, onMcqAnswer }: ActionCardProps) {
+  if (action.state === "loading") return <ActionSkeleton kind={action.kind} />;
+
+  const speechGated = action.payload?.kind === "mcq" && isSpeaking;
+  if (speechGated) return <ActionSkeleton kind="mcq" />;
+
+  switch (action.payload?.kind) {
+    case "mcq":
+      return (
+        <MCQCard
+          payload={action.payload}
+          answeredIndex={action.answeredIndex}
+          onAnswer={action.answeredIndex === undefined ? onMcqAnswer : undefined}
+        />
+      );
+    // future:
+    // case "image": return <ImageCard payload={action.payload} />;
+    // case "equation": return <EquationCard payload={action.payload} />;
+    default: return null;
+  }
+}
+```
 
 ---
 
 ## 7. Teacher Configuration
 
-### 7a. Schema (extends existing `botPromptConfig`)
-
 ```ts
-interface BotPromptConfig {
-  // ... existing fields ...
-  availableActions?: ActivityActionConfig;
-}
-
 interface ActivityActionConfig {
-  mcq?: {
-    enabled: boolean;
-    maxChoices?: number;          // 2-5, default 4
-    allowHints?: boolean;
-  };
-  image?: {
-    enabled: boolean;
-    source: "library" | "generate" | "both";
-    libraryIds?: string[];        // restrict to curated set
-  };
-  video?: {
-    enabled: boolean;
-    libraryIds?: string[];
-    maxDurationSeconds?: number;
-  };
-  equation?: {
-    enabled: boolean;
-  };
-  animation?: {
-    enabled: boolean;
-    allowedAnimationIds?: string[];
-  };
+  mcq?: { enabled: boolean };
+  image?: { enabled: boolean; source?: "library" | "generate" };  // future
+  video?: { enabled: boolean; libraryIds?: string[] };             // future
+  equation?: { enabled: boolean };                                  // future
+}
+
+interface EndConversationConfig {
+  afterBotTurns?: number;       // 2–5
+  afterMcqsAnswered?: number;
+  customInstruction?: string;
 }
 ```
 
-### 7b. Teacher UI (conceptual)
+Config flows through:
 
 ```
-Activity Settings → Content Actions
-
-  ☑ MCQ Questions
-      Max choices: [4 ▾]    Allow hints: [yes ▾]
-
-  ☑ Images
-      Source: [Library only ▾]
-      [ + Add image library ]
-
-  ☐ Video Clips
-  ☐ Equations
-  ☐ Animations
+DB / assignment settings
+  → botPromptConfig { availableActions, endConversationConfig }
+    → useInterpolatedPrompts → system prompt
+      → MultimodalInputArea → POST body
+        → /api/multimodal/turn → turnSchema + system prompt
 ```
 
-The enabled action kinds get serialized into `botPromptConfig.availableActions` and persisted with the assignment. The frontend passes them through `useInterpolatedPrompts` → turn API request → tool definitions passed to LLM.
+System prompt includes both the list of available actions and the end condition so the LLM knows what it can do and when to stop.
 
 ---
 
-## 8. Data Flow Summary
+## 8. Implementation Phases
 
-```mermaid
-flowchart LR
-    subgraph Teacher
-        TC[Activity Config\navailableActions]
-    end
+### Phase 1 — MCQ + Teacher Config
 
-    subgraph Frontend
-        IIP[useInterpolatedPrompts\nreads botPromptConfig]
-        MIA[MultimodalInputArea\nhandleMicPress]
-        RENDER[ContentBox\n+ ActionCard components]
-    end
+**Step 0 — Validate `streamObject` streaming first**
+- [ ] Write a minimal script: call `streamObject` with `{ speech: z.string(), action: z.null(), endConversation: z.null() }` against Gemini Flash, log each `partial.speech` delta with a timestamp
+- [ ] Confirm deltas arrive token-by-token (not buffered to end)
+- [ ] Confirm `shouldFlushFallbackTtsChunk` sentence-detection fires correctly on those deltas
+- [ ] **If buffered:** fall back to `streamText` for speech + parallel `generateObject` for action (two calls, transcript sent twice — acceptable fallback)
 
-    subgraph API
-        TURN[/api/multimodal/turn]
-        TOOLS[buildTools\nfiltered by availableActions]
-        DISPATCH[handleAction\nparallel Promises]
-    end
+**Backend**
+- [ ] Replace `streamText` with `streamObject` in `/api/multimodal/turn`
+- [ ] `turnSchema`: `speech` + nullable `action` + nullable `endConversation`
+- [ ] Migrate `end_conversation` from tool call to `endConversation` schema field
+- [ ] `dispatchAction` registry (`lib/multimodal/actions/dispatcher.ts`)
+- [ ] `handleMcqAction` using `generateObject` (`lib/multimodal/actions/mcq.ts`)
+- [ ] `chat_message_actions` DB table (migration)
+- [ ] `handleMcqAction` persists payload to DB before SSE enqueue
+- [ ] `PATCH /api/multimodal/mcq-answer` — persists `answered_index` + `answered_at`
+- [ ] `availableActions` + `endConversationConfig` wired through to schema + system prompt
 
-    subgraph External
-        LLM_EXT[LLM\nstreamText + toolChoice]
-        TTS_EXT[TTS\nCartesia/Sarvam WS]
-        IMG_EXT[Image API]
-        VID_DB[Video Library DB]
-    end
+**Frontend**
+- [ ] `ChatMessage.action?: PendingAction` + `PendingAction.answeredIndex?`
+- [ ] Handle `action_start / action_payload / action_error` in `parseMultimodalTurnStream`
+- [ ] Strip `"loading"` action on interruption
+- [ ] `ActionCard` + `ActionSkeleton` components
+- [ ] `MCQCard` — unanswered and locked/answered states
+- [ ] MCQ answer → lock card → persist via `PATCH` → inject synthetic message → `runAssistantTurn`
+- [ ] MCQ card persists in scroll history after answering
 
-    TC --> IIP
-    IIP --> MIA
-    MIA -->|POST availableActions| TURN
-    TURN --> TOOLS
-    TOOLS --> LLM_EXT
-    LLM_EXT -->|text-delta| TTS_EXT
-    LLM_EXT -->|tool-call| DISPATCH
-    DISPATCH --> IMG_EXT
-    DISPATCH --> VID_DB
-    TTS_EXT -->|speech_chunk SSE| RENDER
-    DISPATCH -->|action_payload SSE| RENDER
-```
+**Teacher config**
+- [ ] `ActivityActionConfig` + `EndConversationConfig` persisted with assignment in DB
+- [ ] MCQ on/off toggle in assignment settings UI
+- [ ] "End conversation after" selector (2 / 3 / 4 / 5 turns, or custom instruction)
+- [ ] Config flows through `botPromptConfig` → `useInterpolatedPrompts`
 
----
+### Phase 2 — Image + Equation
+- [ ] Add `image` + `equation` to `turnSchema` discriminated union
+- [ ] `handleImageAction` (library lookup) + `handleEquationAction` (LaTeX passthrough)
+- [ ] Both persist to `chat_message_actions`
+- [ ] `ImageCard` + `EquationCard` (reveal immediately, no speech gate)
+- [ ] Teacher toggle UI for image + equation
 
-## 9. New API Routes Needed
-
-| Route | Purpose |
-|-------|---------|
-| `POST /api/multimodal/mcq-answer` | Validate MCQ answer, return feedback |
-| `POST /api/multimodal/action/image` | Image lookup / generation (called internally by action handler) |
-| `POST /api/multimodal/action/video` | Video library query |
-| `POST /api/multimodal/action/mcq` | MCQ generation via LLM (called internally) |
-
-Internal action routes are server-to-server (same Next.js process, can be direct function calls rather than HTTP).
+### Phase 3 — Video + Animation
+- [ ] Video library DB + query handler
+- [ ] `VideoCard` with asset preload on `action_start`
+- [ ] Animation registry + `AnimationCard`
+- [ ] Teacher toggle UI for video + animation
 
 ---
 
-## 10. Implementation Phases
+## 9. Decisions Made
 
-### Phase 1 — Protocol + Equation/Image (stateless actions)
-- [ ] Add `action_start / action_payload / action_error` SSE event types
-- [ ] Add `handleAction` + parallel `Promise` dispatch to `/api/multimodal/turn`
-- [ ] Implement `show_equation` tool (no external call, LLM provides LaTeX directly)
-- [ ] Implement `show_image` tool (library lookup by query)
-- [ ] Frontend: extend `ChatMessage` with `actions[]`; render `EquationCard` and `ImageCard`
-- [ ] Reveal equations/images immediately on `action_payload`
-
-### Phase 2 — MCQ
-- [ ] Implement `show_mcq` tool + `handleMcqAction` (secondary LLM call)
-- [ ] `POST /api/multimodal/mcq-answer` route
-- [ ] Frontend: `MCQCard` component with selection state
-- [ ] Answer injection into conversation history
-- [ ] Reveal MCQ after speech ends (gate on `bot_turn_complete`)
-
-### Phase 3 — Teacher Config UI
-- [ ] `ActivityActionConfig` schema in DB / assignment config
-- [ ] Settings UI: checklist with per-action options
-- [ ] Pass `availableActions` through `botPromptConfig` → `useInterpolatedPrompts` → API
-
-### Phase 4 — Video + Animation
-- [ ] Video library DB + query route
-- [ ] `VideoCard` embed component
-- [ ] Animation registry + `AnimationCard` component
-- [ ] Preloading: `action_start` triggers asset prefetch before reveal
+| Question | Decision |
+|----------|----------|
+| Architecture | Single `streamObject` call — `speech` streams to TTS, `action` spawns agent in parallel |
+| Actions per turn | One maximum — `action` is a nullable field, not an array |
+| `end_conversation` | Migrated from tool call to `endConversation` schema field |
+| End condition config | Teacher sets turn count (2–5) or custom instruction; interpolated into system prompt |
+| Action persistence | `chat_message_actions` table; handler saves before SSE enqueue |
+| MCQ answer persistence | `PATCH /api/multimodal/mcq-answer` updates `answered_index` + `answered_at` |
+| Interruption — loading actions | Strip `"loading"` skeleton; payload safe in DB |
+| Interruption — delivered actions | Persist in scroll history; already delivered |
+| LLM flow on interruption | Not disrupted — next turn starts a fresh `streamObject` call |
+| MCQ card persistence | Stays in scroll history; `answeredIndex` locks it into answered state |
+| MCQ answer feedback | Bot always responds verbally via `runAssistantTurn`; no separate inline feedback |
+| MCQ question in history | Synthetic message: `"[MCQ] Q: <question> — Student answered: <choice>"` |
+| `formatFullStudentTranscript` | MCQ answer injections included — richer signal for evaluator |
+| Teacher config timing | Ships in Phase 1 alongside MCQ |
+| Provider compatibility | `streamObject` is provider-agnostic via Vercel AI SDK |
+| Transcript size | Gemini Flash has 1M token context — full transcript sent every turn, no summarization needed |
 
 ---
 
-## 11. Open Questions
+## 10. Future Improvements
 
-1. **MCQ generation latency**: Secondary LLM call for MCQ may take 2-4s. Should the skeleton show a spinner or should the bot verbally say "let me prepare a question" to buy time?
-
-2. **Action ordering on screen**: If two actions fire in the same turn (image + equation), should they appear in tool-call order or arrival order?
-
-3. **Persistence**: Should action payloads be stored in the DB alongside chat messages? Needed for session replay / review.
-
-4. **Interruption handling**: If the learner interrupts the bot mid-speech, pending actions that haven't delivered yet — discard or still reveal?
-
-5. **Accessibility**: MCQ and image content must be narrated or have ARIA labels so the experience works without screen interaction (learner may be eyes-off).
+- **Accessibility**: MCQ should be keyboard-navigable and ARIA-labelled (`role="radiogroup"`, `aria-checked`, etc.) for ears-on/eyes-off learners. Not blocking Phase 1.
