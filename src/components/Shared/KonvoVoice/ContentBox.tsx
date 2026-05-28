@@ -2,7 +2,6 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import type { KonvoUiState } from "./uiState";
 
 type ContentDisplay = {
   kind: string;
@@ -13,7 +12,6 @@ type ContentDisplay = {
 
 interface ContentBoxProps {
   content: ContentDisplay | null;
-  uiState: KonvoUiState;
   messages?: Array<{
     id: string;
     role: "student" | "assistant";
@@ -26,13 +24,12 @@ interface ContentBoxProps {
 
 export function ContentBox({
   content,
-  uiState,
   messages,
   expandedMessageIds,
   onToggleExpanded,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const scrollRafRef = React.useRef<number | null>(null);
+  const prevMessageCountRef = React.useRef(0);
   const [knownMessageIds, setKnownMessageIds] = React.useState<Set<string>>(
     () => new Set(),
   );
@@ -62,73 +59,38 @@ export function ContentBox({
     });
   }, [newMessageIds]);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
+    const count = messages?.length ?? 0;
+    if (count === 0) {
+      prevMessageCountRef.current = 0;
+      return;
+    }
+    if (count <= prevMessageCountRef.current) return;
+    prevMessageCountRef.current = count;
+
     const el = scrollRef.current;
     if (!el) return;
 
-    const runScrollAnimation = () => {
-      if (scrollRafRef.current) {
-        cancelAnimationFrame(scrollRafRef.current);
-        scrollRafRef.current = null;
-      }
-      const startTop = el.scrollTop;
-      const endTop = el.scrollHeight - el.clientHeight;
-      if (endTop <= startTop) return;
-
-      const durationMs = 520;
-      const startTs = performance.now();
-      const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-
-      const step = (now: number) => {
-        const elapsed = now - startTs;
-        const progress = Math.min(1, elapsed / durationMs);
-        const eased = easeOutCubic(progress);
-        el.scrollTop = startTop + (endTop - startTop) * eased;
-        if (progress < 1) {
-          scrollRafRef.current = requestAnimationFrame(step);
-        } else {
-          scrollRafRef.current = null;
-        }
-      };
-
-      scrollRafRef.current = requestAnimationFrame(step);
-    };
-
-    const layoutRaf = requestAnimationFrame(() => {
-      requestAnimationFrame(runScrollAnimation);
-    });
-
-    return () => {
-      cancelAnimationFrame(layoutRaf);
-      if (scrollRafRef.current) {
-        cancelAnimationFrame(scrollRafRef.current);
-        scrollRafRef.current = null;
+    const scrollToEnd = () => {
+      const endTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (endTop > 0) {
+        el.scrollTop = endTop;
       }
     };
+
+    // Instant scroll before paint; one rAF retry if layout was not ready yet.
+    scrollToEnd();
+    const raf = requestAnimationFrame(scrollToEnd);
+    return () => cancelAnimationFrame(raf);
   }, [messages]);
-
-  const konvoStatusText = React.useMemo(() => {
-    switch (uiState) {
-      case "bot_thinking":
-        return "Konvo is thinking";
-      case "bot_speaking":
-        return "Konvo is talking";
-      case "user_speaking":
-        return "Konvo is listening";
-      case "user_listening":
-        return "Share your response";
-      default:
-        return "Konvo is listening";
-    }
-  }, [uiState]);
 
   return (
     <>
       <style>
         {`
           @keyframes konvoBubbleIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0px); }
+            from { opacity: 0; }
+            to { opacity: 1; }
           }
         `}
       </style>
@@ -140,10 +102,14 @@ export function ContentBox({
                  dark:bg-[length:18px_18px]"
       style={{ backgroundColor: "rgba(161,98,7,0.06)" }}
     >
-      <div ref={scrollRef} className="flex flex-1 flex-col overflow-auto">
-        {messages && messages.length > 0 ? (
-          <div className="mt-auto flex flex-col gap-3">
-            {messages.map((m) => {
+      <div
+        ref={scrollRef}
+        className="relative min-h-0 flex-1 overflow-y-auto"
+      >
+        <div className="flex min-h-full flex-col">
+          <div className="min-h-0 flex-1 shrink-0" aria-hidden />
+          <div className="flex flex-col gap-3">
+            {messages?.map((m) => {
             const isStudent = m.role === "student";
             const expanded = Boolean(expandedMessageIds?.[m.id]);
 
@@ -211,11 +177,13 @@ export function ContentBox({
               );
             })}
           </div>
-        ) : !content ? (
-          <div className="flex h-full items-center justify-center">
+        </div>
+        {(!messages || messages.length === 0) && !content ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="text-sm text-muted-foreground">Enjoy learning</span>
           </div>
-        ) : (
+        ) : null}
+        {content && (!messages || messages.length === 0) ? (
           <div className="flex h-full flex-col gap-3 overflow-auto">
             <span className="text-xs uppercase tracking-wide text-muted-foreground">
               {content.kind}
@@ -237,10 +205,7 @@ export function ContentBox({
               </a>
             ) : null}
           </div>
-        )}
-      </div>
-      <div className="mt-2 border-t border-border/50 pt-2 text-center text-xs italic text-muted-foreground">
-        {konvoStatusText}
+        ) : null}
       </div>
     </div>
     </>

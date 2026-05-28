@@ -163,6 +163,7 @@ export function MultimodalInputArea({
   const userOrdinalRef = React.useRef(0);
   const botOrdinalRef = React.useRef(0);
   const botInterruptionRequestedRef = React.useRef(false);
+  const assistantTurnSeqRef = React.useRef(0);
   const activeAbortRef = React.useRef<AbortController | null>(null);
   const activeAssistantTurnRef = React.useRef({
     text: "",
@@ -170,6 +171,7 @@ export function MultimodalInputArea({
     committed: false,
   });
   const sessionStartedAtRef = React.useRef<string | null>(null);
+  const botUserCardsRef = React.useRef<HTMLDivElement>(null);
   const playbackResetRef = React.useRef(playback.reset);
 
   playbackResetRef.current = playback.reset;
@@ -342,7 +344,13 @@ export function MultimodalInputArea({
   }, [onSubmitForEvaluation]);
 
   const commitAssistantTurnToMessages = React.useCallback(
-    (options?: { force?: boolean }) => {
+    (options?: { force?: boolean; turnId?: number }) => {
+      if (
+        options?.turnId !== undefined &&
+        options.turnId !== assistantTurnSeqRef.current
+      ) {
+        return false;
+      }
       const turn = activeAssistantTurnRef.current;
       if (turn.committed) return false;
       const content = turn.text.trim();
@@ -386,6 +394,7 @@ export function MultimodalInputArea({
 
   const runAssistantTurn = React.useCallback(
     async (history: ChatMessage[]) => {
+      const turnId = ++assistantTurnSeqRef.current;
       setIsThinking(true);
       setError(null);
       botInterruptionRequestedRef.current = false;
@@ -404,6 +413,7 @@ export function MultimodalInputArea({
 
       playback.beginTurn({
         onPlaybackStart: () => {
+          if (assistantTurnSeqRef.current !== turnId) return;
           activeAssistantTurnRef.current.ttsStarted = true;
           setIsThinking(false);
           setIsSpeaking(true);
@@ -486,11 +496,6 @@ export function MultimodalInputArea({
             activeAssistantTurnRef.current.ttsStarted = true;
             playback.appendChunk(0, event.base64);
             pcmChunks.push(decodeBase64ToBytes(event.base64));
-          } else if (event.type === "speech_end") {
-            if (speechSegmentPrepared && !speechSegmentEnded) {
-              speechSegmentEnded = true;
-              await playback.endSegment(0);
-            }
           } else if (event.type === "error") {
             throw new Error(
               event.error || event.message || "Assistant turn failed",
@@ -511,13 +516,18 @@ export function MultimodalInputArea({
         }
         if (ttsStarted && !botInterruptionRequestedRef.current) {
           await playback.waitForAll();
+          await playback.drainScheduledPlayback();
         } else {
           setIsThinking(false);
         }
-        playback.releasePlayback();
-        setIsSpeaking(false);
+        if (assistantTurnSeqRef.current === turnId) {
+          playback.releasePlayback();
+          setIsSpeaking(false);
+        }
 
-        commitAssistantTurnToMessages();
+        if (!botInterruptionRequestedRef.current) {
+          commitAssistantTurnToMessages({ turnId });
+        }
 
         const totalBytes = pcmChunks.reduce(
           (sum, chunk) => sum + chunk.length,
@@ -552,16 +562,22 @@ export function MultimodalInputArea({
           (turnError.name === "AbortError" ||
             turnError.message === "signal is aborted without reason")
         ) {
-          activeAssistantTurnRef.current.text = assistantText;
-          activeAssistantTurnRef.current.ttsStarted =
-            activeAssistantTurnRef.current.ttsStarted || ttsStarted;
-          commitAssistantTurnToMessages({ force: true });
+          if (assistantTurnSeqRef.current === turnId) {
+            activeAssistantTurnRef.current.text = assistantText;
+            activeAssistantTurnRef.current.ttsStarted =
+              activeAssistantTurnRef.current.ttsStarted || ttsStarted;
+          }
+          commitAssistantTurnToMessages({ force: true, turnId });
           setIsThinking(false);
-          setIsSpeaking(false);
+          if (assistantTurnSeqRef.current === turnId) {
+            setIsSpeaking(false);
+          }
           return;
         }
         setIsThinking(false);
-        setIsSpeaking(false);
+        if (assistantTurnSeqRef.current === turnId) {
+          setIsSpeaking(false);
+        }
         const message =
           turnError instanceof Error
             ? turnError.message
@@ -569,9 +585,13 @@ export function MultimodalInputArea({
         setError(message);
         showErrorToast(message);
       } finally {
-        playback.releasePlayback();
-        setIsSpeaking(false);
-        activeAbortRef.current = null;
+        if (activeAbortRef.current === controller) {
+          activeAbortRef.current = null;
+        }
+        if (assistantTurnSeqRef.current === turnId) {
+          playback.releasePlayback();
+          setIsSpeaking(false);
+        }
       }
     },
     [
@@ -605,6 +625,14 @@ export function MultimodalInputArea({
     userOrdinalRef.current = 0;
     botOrdinalRef.current = 0;
     setSessionChunkIndex(0);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        botUserCardsRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
+    });
     try {
       await runAssistantTurn([]);
     } finally {
@@ -632,7 +660,10 @@ export function MultimodalInputArea({
       botInterruptionRequestedRef.current = true;
       activeAbortRef.current?.abort();
       playback.reset();
-      commitAssistantTurnToMessages({ force: true });
+      commitAssistantTurnToMessages({
+        force: true,
+        turnId: assistantTurnSeqRef.current,
+      });
       setIsSpeaking(false);
       const started = await recorder.startRecording();
       if (!started && recorder.error) {
@@ -827,7 +858,6 @@ export function MultimodalInputArea({
 
           <ContentBox
             content={null}
-            uiState={ui.uiState}
             messages={messages}
             expandedMessageIds={expandedMessageIds}
             onToggleExpanded={(messageId) =>
@@ -837,7 +867,10 @@ export function MultimodalInputArea({
               }))
             }
           />
-          <div className="flex flex-col md:flex-row gap-4 shrink-0 min-h-[150px]">
+          <div
+            ref={botUserCardsRef}
+            className="flex flex-col md:flex-row gap-4 shrink-0 min-h-[150px]"
+          >
             <div
               className={cn(
                 "min-w-0 transition-[flex] duration-300 ease-out",

@@ -311,6 +311,11 @@ export function useStreamingSpeechPlayback() {
     return queueRef.current;
   }, []);
 
+  const drainScheduledPlayback = useCallback(async () => {
+    await queueRef.current;
+    await waitForScheduleEnd();
+  }, [waitForScheduleEnd]);
+
   const beginTurn = useCallback(
     (handlers?: SpeechPlaybackHandlers) => {
       reset();
@@ -346,6 +351,7 @@ export function useStreamingSpeechPlayback() {
     appendChunk,
     endSegment,
     waitForAll,
+    drainScheduledPlayback,
     setHandlers,
     playbackAnalyser,
     setActiveIndex: (index: number) => {

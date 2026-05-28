@@ -62,8 +62,9 @@ export function BotStatusPanel({
         getKonvoPanelCardClass(focused),
       )}
     >
-      <div className="mb-3">
+      <div className="mb-3 flex items-baseline gap-2">
         <span className="font-semibold text-foreground">Konvo Bot</span>
+        <span className="text-xs italic text-muted-foreground">{label}</span>
       </div>
 
       <div className="flex flex-1 items-center gap-4 min-h-0">
