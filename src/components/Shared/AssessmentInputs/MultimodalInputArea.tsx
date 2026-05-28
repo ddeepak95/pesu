@@ -135,6 +135,8 @@ export function MultimodalInputArea({
   >({});
   const [isStarting, setIsStarting] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
+  const [isAssistantTurnActive, setIsAssistantTurnActive] =
+    React.useState(false);
   const [isThinking, setIsThinking] = React.useState(false);
   const [isSpeaking, setIsSpeaking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -204,13 +206,16 @@ export function MultimodalInputArea({
   const phase: ChatPhase = React.useMemo(() => {
     if (!hasStarted && !isStarting) return "not_started";
     if (isTranscribing) return "user_submitting";
+    if (isAssistantTurnActive || isThinking || isStarting) {
+      return isSpeaking ? "bot_speaking" : "bot_thinking";
+    }
     if (isSpeaking) return "bot_speaking";
-    if (isThinking || isStarting) return "bot_thinking";
     if (recorder.isRecording) return "user_recording";
     return "user_idle";
   }, [
     hasStarted,
     isTranscribing,
+    isAssistantTurnActive,
     isThinking,
     isStarting,
     isSpeaking,
@@ -392,10 +397,23 @@ export function MultimodalInputArea({
       onFinish: finishSubmission,
     });
 
+  const releaseAssistantTurnUi = React.useCallback(
+    (turnId: number) => {
+      if (assistantTurnSeqRef.current !== turnId) return;
+      setIsAssistantTurnActive(false);
+      setIsThinking(false);
+      setIsSpeaking(false);
+      playback.releasePlayback();
+    },
+    [playback],
+  );
+
   const runAssistantTurn = React.useCallback(
     async (history: ChatMessage[]) => {
       const turnId = ++assistantTurnSeqRef.current;
+      setIsAssistantTurnActive(true);
       setIsThinking(true);
+      setIsSpeaking(false);
       setError(null);
       botInterruptionRequestedRef.current = false;
 
@@ -415,7 +433,6 @@ export function MultimodalInputArea({
         onPlaybackStart: () => {
           if (assistantTurnSeqRef.current !== turnId) return;
           activeAssistantTurnRef.current.ttsStarted = true;
-          setIsThinking(false);
           setIsSpeaking(true);
         },
       });
@@ -517,16 +534,14 @@ export function MultimodalInputArea({
         if (ttsStarted && !botInterruptionRequestedRef.current) {
           await playback.waitForAll();
           await playback.drainScheduledPlayback();
-        } else {
-          setIsThinking(false);
-        }
-        if (assistantTurnSeqRef.current === turnId) {
-          playback.releasePlayback();
-          setIsSpeaking(false);
         }
 
         if (!botInterruptionRequestedRef.current) {
           commitAssistantTurnToMessages({ turnId });
+        }
+
+        if (!botInterruptionRequestedRef.current) {
+          releaseAssistantTurnUi(turnId);
         }
 
         const totalBytes = pcmChunks.reduce(
@@ -568,16 +583,10 @@ export function MultimodalInputArea({
               activeAssistantTurnRef.current.ttsStarted || ttsStarted;
           }
           commitAssistantTurnToMessages({ force: true, turnId });
-          setIsThinking(false);
-          if (assistantTurnSeqRef.current === turnId) {
-            setIsSpeaking(false);
-          }
+          releaseAssistantTurnUi(turnId);
           return;
         }
-        setIsThinking(false);
-        if (assistantTurnSeqRef.current === turnId) {
-          setIsSpeaking(false);
-        }
+        releaseAssistantTurnUi(turnId);
         const message =
           turnError instanceof Error
             ? turnError.message
@@ -587,10 +596,6 @@ export function MultimodalInputArea({
       } finally {
         if (activeAbortRef.current === controller) {
           activeAbortRef.current = null;
-        }
-        if (assistantTurnSeqRef.current === turnId) {
-          playback.releasePlayback();
-          setIsSpeaking(false);
         }
       }
     },
@@ -603,6 +608,7 @@ export function MultimodalInputArea({
       playback,
       persistUtteranceAudio,
       question.order,
+      releaseAssistantTurnUi,
       scheduleAutoFinish,
       commitAssistantTurnToMessages,
       speechModels?.ttsModelId,
@@ -651,7 +657,7 @@ export function MultimodalInputArea({
   }, [micRequestPending, requestAccess]);
 
   const handleMicPress = React.useCallback(async () => {
-    if (maxAttemptsReached || isTranscribing || isThinking) {
+    if (maxAttemptsReached || isTranscribing || (isThinking && !isSpeaking)) {
       return;
     }
     recorder.primeAudio();
@@ -664,7 +670,7 @@ export function MultimodalInputArea({
         force: true,
         turnId: assistantTurnSeqRef.current,
       });
-      setIsSpeaking(false);
+      releaseAssistantTurnUi(assistantTurnSeqRef.current);
       const started = await recorder.startRecording();
       if (!started && recorder.error) {
         setError(recorder.error);
@@ -757,8 +763,6 @@ export function MultimodalInputArea({
           audioBlob: wavBlob,
           content: text,
         });
-        // Transcription is complete before assistant turn starts; this allows
-        // bot status to transition from thinking -> speaking correctly.
         setIsTranscribing(false);
         await runAssistantTurn(nextHistory);
       } catch (sendError) {
@@ -794,6 +798,7 @@ export function MultimodalInputArea({
     playback,
     recorder,
     commitAssistantTurnToMessages,
+    releaseAssistantTurnUi,
     runAssistantTurn,
     speechModels?.sttModelId,
     speechModels?.ttsModelId,
