@@ -10,7 +10,15 @@ import {
   aiKeySourceLogLabel,
   AiNotConfiguredError,
 } from "@/lib/ai/credentials/resolve";
-import { createChatStream, resolveChatStreamCall } from "@/lib/ai/chat-stream";
+import {
+  createMultimodalTurnStream,
+  resolveMultimodalTurnCall,
+  TURN_SCHEMA_NAME,
+} from "@/lib/ai/chat-stream-object";
+import { dispatchAction } from "@/lib/multimodal/actions/dispatcher";
+import type { ActionInput } from "@/lib/multimodal/actions/schema";
+import type { ActionKind } from "@/lib/multimodal/actions/types";
+import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
   DEFAULT_MAX_ATTEMPTS,
@@ -28,7 +36,7 @@ import {
 } from "@/lib/ai/logging/recordInvocation";
 import {
   buildLoggedSdkResponse,
-  buildLoggedStreamTextRequest,
+  buildLoggedStreamObjectRequest,
 } from "@/lib/ai/logging/serialize";
 import { getCatalogEntry, isProviderConfigured } from "@/lib/konvo-voice/sessionCatalog";
 import {
@@ -54,6 +62,11 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 interface MultimodalTurnMessage {
   role: "student" | "assistant";
   content: string;
+  /**
+   * Hidden context (e.g. an MCQ result note) — sent to the LLM but never
+   * persisted to chat_messages, since it may contain the correct answer.
+   */
+  hidden?: boolean;
 }
 
 interface MultimodalTurnRequestBody {
@@ -66,6 +79,8 @@ interface MultimodalTurnRequestBody {
   greeting?: string;
   language: string;
   ttsModelId: string;
+  availableActions?: ActionKind[];
+  endConversationConfig?: EndConversationConfig;
 }
 
 function shouldFlushFallbackTtsChunk(buffer: string): boolean {
@@ -88,7 +103,11 @@ export async function POST(request: NextRequest) {
       greeting,
       language,
       ttsModelId,
+      availableActions,
+      endConversationConfig,
     } = body;
+
+    const enabledActions: ActionKind[] = availableActions ?? [];
 
     if (
       !assignmentId ||
@@ -175,7 +194,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const studentMessages = messages.filter(
-        (m) => m.role === "student" && m.content?.trim(),
+        (m) => m.role === "student" && m.content?.trim() && !m.hidden,
       );
       const latestStudent = studentMessages[studentMessages.length - 1];
       if (latestStudent) {
@@ -213,10 +232,13 @@ export async function POST(request: NextRequest) {
 
         let fullReply = "";
         let endConversationReason: string | null = null;
+        let resolvedAction: ActionInput | null = null;
         let firstInvocationId: string | null = null;
         let winningInvocationId: string | null = null;
         let winningStartedAtMs: number | undefined;
-        let lastStreamResult: ReturnType<typeof createChatStream> | null = null;
+        let lastStreamResult: ReturnType<
+          typeof createMultimodalTurnStream
+        > | null = null;
         let cartesiaSession: CartesiaTtsContinuationSession | null = null;
         let sarvamSession: SarvamTtsWebSocketSession | null = null;
         let speechStartSent = false;
@@ -306,6 +328,21 @@ export async function POST(request: NextRequest) {
           }
         };
 
+        // Send a chunk of speech text to the client + the active TTS path.
+        // Shared by the streaming loop and the final-object flush.
+        const pushSpeechDelta = async (delta: string) => {
+          if (!delta) return;
+          fullReply += delta;
+          enqueue({ type: "text-delta", content: delta });
+          if (useCartesiaWs && cartesiaSession) {
+            cartesiaSession.pushTranscript(delta, true);
+          } else if (useSarvamWs && sarvamSession) {
+            sarvamSession.pushText(delta);
+          } else {
+            await pushFallbackTtsDelta(delta);
+          }
+        };
+
         const startAudioPump = (
           source: AsyncIterable<Uint8Array>,
         ): Promise<void> =>
@@ -353,13 +390,15 @@ export async function POST(request: NextRequest) {
             greeting,
             messages: sdkMessages,
             providerOptions,
+            availableActions: enabledActions,
+            endConversation: endConversationConfig,
           };
 
           attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
             if (aborted) break attemptLoop;
 
             const startedAtMs = Date.now();
-            const resolvedCall = resolveChatStreamCall(streamCallBase);
+            const resolvedCall = resolveMultimodalTurnCall(streamCallBase);
             const invocationId = scheduleAiInvocationStart({
               appFunctionKey: "text.chat_tutoring",
               classId: classDbId,
@@ -368,13 +407,11 @@ export async function POST(request: NextRequest) {
               questionOrder,
               attemptNumber: attemptNumber ?? null,
               model: invocationModel,
-              sdkRequest: buildLoggedStreamTextRequest({
+              sdkRequest: buildLoggedStreamObjectRequest({
                 system: resolvedCall.system,
                 messages: resolvedCall.messages,
-                tools: resolvedCall.tools,
-                toolChoice: resolvedCall.toolChoice,
-                stopWhen: resolvedCall.stopWhen,
                 providerOptions: resolvedCall.providerOptions,
+                schemaName: TURN_SCHEMA_NAME,
               }),
               retryOf: firstInvocationId,
               retryIndex: attempt,
@@ -383,7 +420,7 @@ export async function POST(request: NextRequest) {
               firstInvocationId = invocationId;
             }
 
-            const result = createChatStream({
+            const result = createMultimodalTurnStream({
               model,
               ...streamCallBase,
             });
@@ -391,78 +428,72 @@ export async function POST(request: NextRequest) {
             let deliveredToClient = false;
 
             try {
-              for await (const part of result.fullStream) {
+              let lastSpeechLength = 0;
+
+              // streamObject does not throw from the iterator on provider
+              // failure — it ends and surfaces the error via `result.object`.
+              for await (const partial of result.partialObjectStream) {
                 if (aborted) break attemptLoop;
 
-                switch (part.type) {
-                  case "text-delta": {
-                    fullReply += part.text;
-                    deliveredToClient = true;
-                    enqueue({ type: "text-delta", content: part.text });
+                if (
+                  typeof partial.speech === "string" &&
+                  partial.speech.length > lastSpeechLength
+                ) {
+                  const delta = partial.speech.slice(lastSpeechLength);
+                  lastSpeechLength = partial.speech.length;
+                  deliveredToClient = true;
+                  await pushSpeechDelta(delta);
+                }
 
-                    if (useCartesiaWs && cartesiaSession) {
-                      cartesiaSession.pushTranscript(part.text, true);
-                    } else if (useSarvamWs && sarvamSession) {
-                      sarvamSession.pushText(part.text);
-                    } else {
-                      await pushFallbackTtsDelta(part.text);
-                    }
-                    break;
-                  }
-                  case "tool-call": {
-                    if (part.toolName === "end_conversation") {
-                      const input = part.input as {
-                        reason?: string;
-                        message?: string;
-                      };
-                      const reason =
-                        input.reason === "refusal" ? "refusal" : "thorough";
-                      endConversationReason = reason;
-                      const message = input.message ?? "";
+                if (partial.endConversation && !endConversationReason) {
+                  endConversationReason =
+                    partial.endConversation === "refusal"
+                      ? "refusal"
+                      : "thorough";
+                  deliveredToClient = true;
+                  enqueue({
+                    type: "end_conversation",
+                    reason: endConversationReason,
+                  });
+                }
+              }
 
-                      if (message) {
-                        fullReply += message;
-                        deliveredToClient = true;
-                        enqueue({ type: "text-delta", content: message });
-                        if (useCartesiaWs && cartesiaSession) {
-                          cartesiaSession.pushTranscript(message, true);
-                        } else if (useSarvamWs && sarvamSession) {
-                          sarvamSession.pushText(message);
-                        } else {
-                          await pushFallbackTtsDelta(message);
-                        }
-                      }
-                      deliveredToClient = true;
-                      enqueue({ type: "end_conversation", reason });
-                    }
-                    break;
-                  }
-                  case "error": {
-                    const streamErr = part.error;
-                    if (
-                      !deliveredToClient &&
-                      isRetryableProviderError(streamErr) &&
-                      attempt < DEFAULT_MAX_ATTEMPTS - 1
-                    ) {
-                      if (invocationId) {
-                        scheduleFailAiInvocation(invocationId, streamErr, startedAtMs);
-                      }
-                      await waitBeforeRetry(streamErr, attempt);
-                      continue attemptLoop;
-                    }
-                    const errMsg =
-                      streamErr instanceof Error
-                        ? streamErr.message
-                        : "Unknown streaming error";
-                    if (invocationId) {
-                      scheduleFailAiInvocation(invocationId, streamErr, startedAtMs);
-                    }
-                    deliveredToClient = true;
-                    enqueue({ type: "error", error: errMsg });
-                    break;
-                  }
-                  default:
-                    break;
+              // Resolve + validate the final object. A malformed `action` must
+              // not discard already-delivered speech, so this is only fatal
+              // (eligible for retry) when nothing was streamed yet.
+              let finalObject: Awaited<typeof result.object> | null = null;
+              try {
+                finalObject = await result.object;
+              } catch (objErr) {
+                if (!deliveredToClient) throw objErr;
+                console.error(
+                  "[multimodal/turn] Final object invalid; proceeding without action:",
+                  objErr,
+                );
+              }
+
+              if (finalObject) {
+                if (
+                  typeof finalObject.speech === "string" &&
+                  finalObject.speech.length > lastSpeechLength
+                ) {
+                  const delta = finalObject.speech.slice(lastSpeechLength);
+                  lastSpeechLength = finalObject.speech.length;
+                  deliveredToClient = true;
+                  await pushSpeechDelta(delta);
+                }
+                if (finalObject.endConversation && !endConversationReason) {
+                  endConversationReason =
+                    finalObject.endConversation === "refusal"
+                      ? "refusal"
+                      : "thorough";
+                  enqueue({
+                    type: "end_conversation",
+                    reason: endConversationReason,
+                  });
+                }
+                if (finalObject.action) {
+                  resolvedAction = finalObject.action as ActionInput;
                 }
               }
 
@@ -495,6 +526,61 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          // Persist the assistant message now (before TTS finalize) so any
+          // action row has a chat_message_id to reference and invocation
+          // logging can link to it.
+          // Persist even on interruption — a partial assistant transcript is
+          // still part of the session record (matches prior behavior).
+          let assistantChatMessageId: string | null = null;
+          if (fullReply.trim() || resolvedAction) {
+            try {
+              assistantChatMessageId = await insertChatMessage(supabase, {
+                submission_id: submissionId ?? null,
+                assignment_id: assignmentId,
+                question_order: questionOrder,
+                role: "assistant",
+                content: fullReply.trim() || "...",
+                attempt_number: attemptNumber ?? null,
+                aiMetadata,
+              });
+            } catch (error) {
+              console.error(
+                "[multimodal/turn] Failed to log assistant chat message:",
+                error,
+              );
+            }
+          }
+
+          // Dispatch the action in parallel with TTS finalize/drain.
+          let pendingAction: Promise<void> | null = null;
+          if (resolvedAction && assistantChatMessageId && !aborted) {
+            const actionId = crypto.randomUUID();
+            const actionKind = resolvedAction.kind;
+            enqueue({ type: "action_start", id: actionId, kind: actionKind });
+            pendingAction = dispatchAction({
+              id: actionId,
+              action: resolvedAction,
+              model,
+              providerOptions,
+              enqueue,
+              supabase,
+              submissionId: submissionId ?? null,
+              chatMessageId: assistantChatMessageId,
+            }).catch((actionErr) => {
+              const message =
+                actionErr instanceof Error ? actionErr.message : "Action failed";
+              console.error("[multimodal/turn] Action failed:", actionErr);
+              if (!aborted) {
+                enqueue({
+                  type: "action_error",
+                  id: actionId,
+                  kind: actionKind,
+                  error: message,
+                });
+              }
+            });
+          }
+
           if (!aborted) {
             if (useCartesiaWs && cartesiaSession) {
               cartesiaSession.pushTranscript("", false);
@@ -507,67 +593,52 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          if (pendingAction) await pendingAction;
+
           enqueue({ type: "done" });
 
-          if (fullReply.trim()) {
-            try {
-              const chatMessageId = await insertChatMessage(supabase, {
-                submission_id: submissionId ?? null,
-                assignment_id: assignmentId,
-                question_order: questionOrder,
-                role: "assistant",
-                content: fullReply,
-                attempt_number: attemptNumber ?? null,
-                aiMetadata,
-              });
+          if (assistantChatMessageId && winningInvocationId) {
+            const chatMessageId = assistantChatMessageId;
+            const invId = winningInvocationId;
+            const startedAt = winningStartedAtMs;
+            const streamResult = lastStreamResult;
 
-              if (winningInvocationId) {
-                const invId = winningInvocationId;
-                const startedAt = winningStartedAtMs;
-                const streamResult = lastStreamResult;
-
-                after(async () => {
-                  try {
-                    if (chatMessageId) {
-                      await setChatMessageInvocationId(chatMessageId, invId);
-                      await linkInvocationToChatMessage(invId, chatMessageId);
-                    }
-                    const sdkResponse = streamResult
-                      ? await buildLoggedSdkResponse(streamResult)
-                      : null;
-                    const usage = streamResult
-                      ? await usageFromAiSdkResult(streamResult)
-                      : null;
-                    const finishReason =
-                      sdkResponse &&
-                      typeof sdkResponse === "object" &&
-                      sdkResponse !== null &&
-                      "finishReason" in sdkResponse
-                        ? (sdkResponse.finishReason as string | null)
-                        : null;
-                    await completeAiInvocation(
-                      invId,
-                      {
-                        sdkResponse: sdkResponse ?? {
-                          text: fullReply,
-                          endConversationReason,
-                        },
-                        usage,
-                        finishReason,
-                      },
-                      startedAt,
-                    );
-                  } catch (logErr) {
-                    console.error(
-                      "[multimodal/turn] AI invocation logging failed:",
-                      logErr,
-                    );
-                  }
-                });
+            after(async () => {
+              try {
+                await setChatMessageInvocationId(chatMessageId, invId);
+                await linkInvocationToChatMessage(invId, chatMessageId);
+                const sdkResponse = streamResult
+                  ? await buildLoggedSdkResponse(streamResult)
+                  : null;
+                const usage = streamResult
+                  ? await usageFromAiSdkResult(streamResult)
+                  : null;
+                const finishReason =
+                  sdkResponse &&
+                  typeof sdkResponse === "object" &&
+                  sdkResponse !== null &&
+                  "finishReason" in sdkResponse
+                    ? (sdkResponse.finishReason as string | null)
+                    : null;
+                await completeAiInvocation(
+                  invId,
+                  {
+                    sdkResponse: sdkResponse ?? {
+                      text: fullReply,
+                      endConversationReason,
+                    },
+                    usage,
+                    finishReason,
+                  },
+                  startedAt,
+                );
+              } catch (logErr) {
+                console.error(
+                  "[multimodal/turn] AI invocation logging failed:",
+                  logErr,
+                );
               }
-            } catch (error) {
-              console.error("[multimodal/turn] Failed to log assistant chat message:", error);
-            }
+            });
           }
         } catch (error) {
           const message =

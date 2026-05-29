@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { PromptConfigEditor } from "@/components/Teacher/Assignments/PromptConfigEditor";
 import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
+import { MultimodalActionsConfigEditor } from "@/components/Teacher/Assignments/MultimodalActionsConfigEditor";
 import { BotPromptConfig, Question } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import { Eye } from "lucide-react";
@@ -62,8 +63,19 @@ export function MoreOptionsAIBot({
         Use variable placeholders to insert dynamic content.
       </p>
 
+      {/* Multimodal-only: which actions the tutor may use + end condition */}
+      {assessmentMode === "multimodal" && (
+        <MultimodalActionsConfigEditor
+          config={botPromptConfig}
+          onChange={setBotPromptConfig}
+          disabled={loading}
+        />
+      )}
+
       {/* Editor and Preview Toggle (only for voice and text_chat modes) */}
-      {(assessmentMode === "voice" || assessmentMode === "text_chat") && (
+      {(assessmentMode === "voice" ||
+        assessmentMode === "text_chat" ||
+        assessmentMode === "multimodal") && (
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -86,7 +98,9 @@ export function MoreOptionsAIBot({
       )}
 
       {showBotPreview &&
-      (assessmentMode === "voice" || assessmentMode === "text_chat") ? (
+      (assessmentMode === "voice" ||
+        assessmentMode === "text_chat" ||
+        assessmentMode === "multimodal") ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Preview for:</span>
@@ -130,7 +144,9 @@ export function MoreOptionsAIBot({
           onChange={setBotPromptConfig}
           disabled={loading}
           showBotPrompts={
-            assessmentMode === "voice" || assessmentMode === "text_chat"
+            assessmentMode === "voice" ||
+        assessmentMode === "text_chat" ||
+        assessmentMode === "multimodal"
           }
           evaluationPrompt={evaluationPrompt}
           onEvaluationPromptChange={setEvaluationPrompt}

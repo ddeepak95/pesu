@@ -20,6 +20,11 @@ import { BotStatusPanel } from "@/components/Shared/KonvoVoice/BotStatusPanel";
 import { UserInputPanel } from "@/components/Shared/KonvoVoice/UserInputPanel";
 import { APP_ASSESSMENT_SHELL_CLASS } from "@/components/Shared/KonvoVoice/layoutConstants";
 import { getKonvoUiConfig } from "@/components/Shared/KonvoVoice/uiState";
+import type { PendingAction } from "@/components/Shared/KonvoVoice/actionTypes";
+import type {
+  ActionKind,
+  ActionPayload,
+} from "@/lib/multimodal/actions/types";
 import { useEndConversationFinish } from "./useEndConversationFinish";
 import type { AssessmentInputProps } from "./types";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
@@ -31,6 +36,10 @@ interface ChatMessage {
   role: "student" | "assistant";
   content: string;
   status?: "transcribing";
+  /** Set on a standalone action-only message (empty content). */
+  action?: PendingAction;
+  /** Hidden context sent to the LLM but not rendered (e.g. MCQ result note). */
+  hidden?: boolean;
 }
 
 type ChatPhase =
@@ -47,14 +56,39 @@ type MultimodalTurnEvent =
   | { type: "speech_start"; index?: number; sampleRate?: number }
   | { type: "speech_chunk"; index?: number; base64: string }
   | { type: "speech_end"; index?: number }
+  | { type: "action_start"; id: string; kind: ActionKind }
+  | { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
+  | { type: "action_error"; id: string; kind: ActionKind; error?: string }
   | { type: "done" }
   | { type: "error"; error?: string; message?: string };
 
 function formatFullStudentTranscript(messages: ChatMessage[]): string {
-  return messages
-    .filter((m) => m.role === "student" && m.content.trim())
-    .map((m) => m.content.trim())
-    .join("\n\n");
+  const parts: string[] = [];
+  for (const m of messages) {
+    if (m.hidden) continue;
+    if (m.role === "student" && m.content.trim()) {
+      parts.push(m.content.trim());
+      continue;
+    }
+    // Answered MCQs are part of the learner's contribution — include the
+    // question, their selection, and whether it was correct for the evaluator.
+    const action = m.action;
+    if (
+      action?.payload?.kind === "mcq" &&
+      action.answeredIndex !== undefined
+    ) {
+      const mcq = action.payload;
+      const selected = mcq.choices[action.answeredIndex] ?? "";
+      const correct = action.answeredIndex === mcq.correctIndex;
+      const correctText = mcq.choices[mcq.correctIndex] ?? "";
+      parts.push(
+        `[Multiple choice question] ${mcq.question}\n` +
+          `Selected: ${selected} (${correct ? "correct" : "incorrect"})` +
+          (correct ? "" : `\nCorrect answer: ${correctText}`),
+      );
+    }
+  }
+  return parts.join("\n\n");
 }
 
 function decodeBase64ToBytes(base64: string): Uint8Array {
@@ -167,7 +201,11 @@ export function MultimodalInputArea({
   const botInterruptionRequestedRef = React.useRef(false);
   const assistantTurnSeqRef = React.useRef(0);
   const activeAbortRef = React.useRef<AbortController | null>(null);
-  const activeAssistantTurnRef = React.useRef({
+  const activeAssistantTurnRef = React.useRef<{
+    text: string;
+    ttsStarted: boolean;
+    committed: boolean;
+  }>({
     text: "",
     ttsStarted: false,
     committed: false,
@@ -382,7 +420,12 @@ export function MultimodalInputArea({
       maxAttemptsReached,
       hasStudentContent: () =>
         messagesRef.current.some(
-          (m) => m.role === "student" && (m.content?.trim() ?? "") !== "",
+          (m) =>
+            (m.role === "student" &&
+              !m.hidden &&
+              (m.content?.trim() ?? "") !== "") ||
+            (m.action?.payload?.kind === "mcq" &&
+              m.action.answeredIndex !== undefined),
         ),
       onWarnNoStudentContent: () => {
         showWarningToast(
@@ -454,14 +497,21 @@ export function MultimodalInputArea({
             submissionId,
             questionOrder: question.order,
             attemptNumber,
-            messages: history.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
+            messages: history
+              .filter((m) => m.content.trim().length > 0)
+              .map((m) => ({
+                role: m.role,
+                content: m.content,
+                ...(m.hidden ? { hidden: true } : {}),
+              })),
             system_prompt: systemPrompt,
             greeting,
             language,
             ttsModelId,
+            availableActions:
+              botPromptConfig?.multimodal_actions?.availableActions ?? [],
+            endConversationConfig:
+              botPromptConfig?.multimodal_actions?.endConversation,
           }),
           signal: controller.signal,
         });
@@ -498,6 +548,45 @@ export function MultimodalInputArea({
             activeAssistantTurnRef.current.text = assistantText;
           } else if (event.type === "end_conversation") {
             didEndConversation = true;
+          } else if (event.type === "action_start") {
+            // The action is its own message. Commit the speech message first so
+            // it precedes the card, then append a loading card (appears while
+            // the agent is still speaking).
+            commitAssistantTurnToMessages({ turnId });
+            const cardMessage: ChatMessage = {
+              id: event.id,
+              role: "assistant",
+              content: "",
+              action: { id: event.id, kind: event.kind, state: "loading" },
+            };
+            setMessages((prev) => {
+              const next = [...prev, cardMessage];
+              messagesRef.current = next;
+              return next;
+            });
+          } else if (event.type === "action_payload") {
+            setMessages((prev) => {
+              const next = prev.map((m) =>
+                m.action?.id === event.id
+                  ? {
+                      ...m,
+                      action: {
+                        ...m.action,
+                        state: "ready" as const,
+                        payload: event.data,
+                      },
+                    }
+                  : m,
+              );
+              messagesRef.current = next;
+              return next;
+            });
+          } else if (event.type === "action_error") {
+            setMessages((prev) => {
+              const next = prev.filter((m) => m.action?.id !== event.id);
+              messagesRef.current = next;
+              return next;
+            });
           } else if (event.type === "speech_start") {
             if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
               sampleRate = event.sampleRate;
@@ -602,6 +691,7 @@ export function MultimodalInputArea({
     [
       assignmentId,
       attempts.length,
+      botPromptConfig?.multimodal_actions,
       greeting,
       language,
       onIntegrityAccessRevoked,
@@ -646,6 +736,101 @@ export function MultimodalInputArea({
     }
   }, [isStarting, maxAttemptsReached, runAssistantTurn]);
 
+  const handleMcqAnswer = React.useCallback(
+    async (messageId: string, choiceIndex: number) => {
+      // Allow answering while the bot is still speaking (we interrupt below);
+      // only block while the learner is recording or the bot is mid-thought
+      // before any speech.
+      if (isTranscribing || (isThinking && !isSpeaking)) {
+        return;
+      }
+      const target = messagesRef.current.find((m) => m.id === messageId);
+      const action = target?.action;
+      if (
+        !action ||
+        action.state !== "ready" ||
+        action.payload?.kind !== "mcq" ||
+        action.answeredIndex !== undefined
+      ) {
+        return;
+      }
+
+      // If the bot is still speaking (e.g. it just introduced this question),
+      // interrupt that turn so it can respond to the answer.
+      if (isSpeaking) {
+        botInterruptionRequestedRef.current = true;
+        activeAbortRef.current?.abort();
+        playback.reset();
+        commitAssistantTurnToMessages({
+          force: true,
+          turnId: assistantTurnSeqRef.current,
+        });
+        releaseAssistantTurnUi(assistantTurnSeqRef.current);
+      }
+
+      const mcq = action.payload;
+      const choiceText = mcq.choices[choiceIndex] ?? "";
+      const isCorrect = choiceIndex === mcq.correctIndex;
+
+      // Lock the card into its answered state (marks only the picked option).
+      const lockedMessages = messagesRef.current.map((m) =>
+        m.id === messageId && m.action
+          ? { ...m, action: { ...m.action, answeredIndex: choiceIndex } }
+          : m,
+      );
+      setMessages(lockedMessages);
+      messagesRef.current = lockedMessages;
+
+      // Persist the answer (fire-and-forget — UI already reflects it).
+      void fetch("/api/multimodal/mcq-answer", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId: action.id, answeredIndex: choiceIndex }),
+      }).catch((err) => {
+        console.error("Failed to persist MCQ answer", err);
+      });
+
+      // Inject a HIDDEN result note so the tutor can respond verbally and decide
+      // whether to re-ask. Not rendered to the learner (no answer/explanation
+      // shown on screen) and not logged to chat_messages.
+      const optionsList = mcq.choices
+        .map((c, i) => `${String.fromCharCode(65 + i)}) ${c}`)
+        .join("\n");
+      const correctText = mcq.choices[mcq.correctIndex] ?? "";
+      const resultNote = [
+        "[MCQ result — hidden from the learner]",
+        `Question: ${mcq.question}`,
+        `Options:\n${optionsList}`,
+        `The learner selected: ${choiceText} — ${isCorrect ? "CORRECT" : "INCORRECT"}.`,
+        `Correct answer: ${correctText}.`,
+        mcq.explanation ? `Explanation: ${mcq.explanation}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const hiddenMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "student",
+        content: resultNote,
+        hidden: true,
+      };
+      const nextHistory = [...lockedMessages, hiddenMessage];
+      setMessages(nextHistory);
+      messagesRef.current = nextHistory;
+
+      await runAssistantTurn(nextHistory);
+    },
+    [
+      isThinking,
+      isSpeaking,
+      isTranscribing,
+      playback,
+      commitAssistantTurnToMessages,
+      releaseAssistantTurnUi,
+      runAssistantTurn,
+    ],
+  );
+
   const handleRequestMic = React.useCallback(async () => {
     if (micRequestPending) return;
     setMicRequestPending(true);
@@ -669,6 +854,12 @@ export function MultimodalInputArea({
       commitAssistantTurnToMessages({
         force: true,
         turnId: assistantTurnSeqRef.current,
+      });
+      // Drop any still-loading action card so no ghost skeleton remains.
+      setMessages((prev) => {
+        const next = prev.filter((m) => m.action?.state !== "loading");
+        messagesRef.current = next;
+        return next;
       });
       releaseAssistantTurnUi(assistantTurnSeqRef.current);
       const started = await recorder.startRecording();
@@ -870,6 +1061,9 @@ export function MultimodalInputArea({
                 ...prev,
                 [messageId]: !prev[messageId],
               }))
+            }
+            onMcqAnswer={(messageId, choiceIndex) =>
+              void handleMcqAnswer(messageId, choiceIndex)
             }
           />
           <div

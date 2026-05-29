@@ -124,8 +124,33 @@ export function buildLoggedStreamTextRequest(input: {
   });
 }
 
+export interface LoggedStreamObjectRequest {
+  call: "streamObject";
+  system: string;
+  messages: Array<{ role: string; content: string }>;
+  schemaName?: string;
+  providerOptions: SharedV3ProviderOptions | null | undefined;
+  output: { type: "object"; schemaName?: string };
+}
+
+export function buildLoggedStreamObjectRequest(input: {
+  system: string;
+  messages: Array<{ role: string; content: string }>;
+  providerOptions?: SharedV3ProviderOptions;
+  schemaName?: string;
+}): LoggedStreamObjectRequest {
+  return redactSecrets({
+    call: "streamObject",
+    system: input.system,
+    messages: input.messages,
+    schemaName: input.schemaName,
+    providerOptions: input.providerOptions ?? null,
+    output: { type: "object", schemaName: input.schemaName },
+  });
+}
+
 /**
- * Extract serializable fields from a generateText / streamText result.
+ * Extract serializable fields from a generateText / streamText / streamObject result.
  */
 export async function buildLoggedSdkResponse(
   result: unknown,

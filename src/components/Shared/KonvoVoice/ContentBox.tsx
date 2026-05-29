@@ -2,6 +2,8 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { ActionCard } from "./ActionCard";
+import type { PendingAction } from "./actionTypes";
 
 type ContentDisplay = {
   kind: string;
@@ -17,9 +19,12 @@ interface ContentBoxProps {
     role: "student" | "assistant";
     content: string;
     status?: "transcribing";
+    action?: PendingAction;
+    hidden?: boolean;
   }>;
   expandedMessageIds?: Record<string, boolean>;
   onToggleExpanded?: (messageId: string) => void;
+  onMcqAnswer?: (messageId: string, choiceIndex: number) => void;
 }
 
 export function ContentBox({
@@ -27,6 +32,7 @@ export function ContentBox({
   messages,
   expandedMessageIds,
   onToggleExpanded,
+  onMcqAnswer,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
@@ -65,11 +71,18 @@ export function ContentBox({
       prevMessageCountRef.current = 0;
       return;
     }
-    if (count <= prevMessageCountRef.current) return;
-    prevMessageCountRef.current = count;
-
     const el = scrollRef.current;
     if (!el) return;
+
+    const isNewMessage = count > prevMessageCountRef.current;
+    prevMessageCountRef.current = count;
+
+    // Scroll on a new message, or when content (e.g. an MCQ card growing from
+    // skeleton to full question) changes while already near the bottom — so the
+    // user is never left scrolled up against their will.
+    const nearBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+    if (!isNewMessage && !nearBottom) return;
 
     const scrollToEnd = () => {
       const endTop = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -92,6 +105,15 @@ export function ContentBox({
             from { opacity: 0; }
             to { opacity: 1; }
           }
+          @keyframes konvoCardPop {
+            0% { opacity: 0; transform: translateY(8px) scale(0.96); }
+            55% { opacity: 1; transform: translateY(0) scale(1.015); }
+            100% { transform: scale(1); }
+          }
+          @keyframes konvoCardRing {
+            0% { box-shadow: 0 0 0 0 rgba(161,98,7,0.5); }
+            100% { box-shadow: 0 0 0 10px rgba(161,98,7,0); }
+          }
         `}
       </style>
     <div
@@ -110,7 +132,34 @@ export function ContentBox({
           <div className="min-h-0 flex-1 shrink-0" aria-hidden />
           <div className="flex flex-col gap-3">
             {messages?.map((m) => {
+            if (m.hidden) return null;
             const isStudent = m.role === "student";
+
+            // Action-only message (e.g. an MCQ card): render just the card.
+            if (m.action && !m.content) {
+              return (
+                <div
+                  key={m.id}
+                  className="flex flex-row"
+                  style={{ animation: "konvoCardPop 480ms ease-out both" }}
+                >
+                  <div
+                    className="w-full max-w-[95%] rounded-xl sm:max-w-[85%]"
+                    style={{ animation: "konvoCardRing 1100ms ease-out 220ms 1" }}
+                  >
+                    <ActionCard
+                      action={m.action}
+                      onMcqAnswer={
+                        onMcqAnswer
+                          ? (index) => onMcqAnswer(m.id, index)
+                          : undefined
+                      }
+                    />
+                  </div>
+                </div>
+              );
+            }
+
             const expanded = Boolean(expandedMessageIds?.[m.id]);
 
               return (

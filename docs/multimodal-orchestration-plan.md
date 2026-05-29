@@ -144,8 +144,8 @@ interface MultimodalTurnRequestBody {
 }
 
 interface EndConversationConfig {
-  afterBotTurns?: number;       // end after N bot responses (2–5)
-  afterMcqsAnswered?: number;   // end after learner answers N MCQs
+  // Optional extra guidance only. The default behavior (end on thorough
+  // completion or learner refusal) is always applied server-side.
   customInstruction?: string;   // e.g. "wrap up once the student demonstrates understanding"
 }
 ```
@@ -309,14 +309,15 @@ export async function handleMcqAction({
 create table chat_message_actions (
   id              uuid primary key,
   chat_message_id uuid not null references chat_messages(id) on delete cascade,
-  submission_id   uuid,
+  submission_id   text,                     -- denormalized convenience (also reachable via chat_message_id)
   kind            text not null,            -- 'mcq' | 'image' | 'equation' | ...
-  payload         jsonb not null,           -- full action payload for session replay
-  answered_index  int,                      -- MCQ: which choice the learner picked
-  answered_at     timestamptz,
+  payload         jsonb not null,           -- system-generated content (written once)
+  response        jsonb,                    -- learner interaction (nullable), generic per kind
   created_at      timestamptz default now()
 );
 ```
+
+`payload` = what the system generated (immutable). `response` = what the learner did (nullable, written on interaction) — generic across kinds: MCQ → `{ answeredIndex }`, future poll → `{ selected: [...] }`, etc. `where response is not null` answers "was this acted on?" for any kind. Correctness analytics: `where (response->>'answeredIndex')::int = (payload->>'correctIndex')::int`.
 
 ---
 
@@ -375,34 +376,30 @@ setMessages(prev => prev.map(m =>
 ));
 ```
 
-### 6c. Action reveal timing
+### 6c. Action message + reveal timing
 
-| Kind | Reveal when |
-|------|-------------|
-| `mcq` | After speech ends — gate on `isSpeaking === false` |
-| `image` *(future)* | Immediately on `action_payload` |
-| `equation` *(future)* | Immediately on `action_payload` |
-| `video` *(future)* | After speech ends |
-
-MCQ reveals after speech so the verbal setup ("I've prepared a question for you...") completes before the card appears.
+Each action is its **own** standalone message (`content:""`, `action` set) — not attached to the speech bubble. On `action_start` the speech message is committed first (so it precedes the card), then the card message is appended, so the MCQ card appears **while the agent is still speaking** (audio still playing). `action_payload` flips it to ready; `action_error` removes it. Interruption strips `state:"loading"` card messages.
 
 ### 6d. MCQ answer flow
 
 ```mermaid
 flowchart TD
-    A[MCQCard renders\nafter speech ends] --> B{Learner selects choice}
-    B --> C[Set answeredIndex — card locks, disables]
-    C --> D[PATCH /api/multimodal/mcq-answer\npersist answered_index + answered_at]
-    C --> E[Inject synthetic student message:\n MCQ Q: question — Student answered: choice text]
+    A[MCQ card message appears during speech] --> B{Learner selects choice}
+    B --> C[Set answeredIndex — lock card, mark ONLY the pick green/red]
+    C --> D[PATCH /api/multimodal/mcq-answer\npersist response jsonb]
+    C --> E[Inject HIDDEN student note:\n question + pick + correctness + correct answer + explanation]
     D & E --> F[runAssistantTurn with updated history]
-    F --> G[Bot responds verbally]
+    F --> G[Agent gives the hint VERBALLY]
+    G --> H{Wrong?}
+    H -->|yes| I[Agent re-asks same question via action.repeatPrevious -> new card]
+    H -->|no| J[Agent acknowledges and continues]
 ```
 
-The synthetic message format includes the question text so the LLM has full context on the next turn.
+The note is `hidden` — sent to the LLM but not rendered, not in the eval transcript, and not logged to `chat_messages`. The card never reveals the correct answer or an explanation; the tutor delivers the hint by voice. Retry re-shows the **same** question (`repeatPrevious` reuses the stored payload) as a new card.
 
 ### 6e. `ActionCard` component (extensible)
 
-Actions render inline within each assistant message in the scroll history. Cards persist indefinitely — answered MCQs show locked state with correct answer revealed.
+Action-only messages render as just the card (no speech bubble chrome) and persist in the scroll history. Answered MCQs show only the learner's pick marked (green+check / red+X) — the correct answer is not highlighted.
 
 ```ts
 // components/Shared/KonvoVoice/ActionCard.tsx
@@ -449,9 +446,7 @@ interface ActivityActionConfig {
 }
 
 interface EndConversationConfig {
-  afterBotTurns?: number;       // 2–5
-  afterMcqsAnswered?: number;
-  customInstruction?: string;
+  customInstruction?: string;   // optional; augments the always-on default
 }
 ```
 
@@ -473,11 +468,11 @@ System prompt includes both the list of available actions and the end condition 
 
 ### Phase 1 — MCQ + Teacher Config
 
-**Step 0 — Validate `streamObject` streaming first**
-- [ ] Write a minimal script: call `streamObject` with `{ speech: z.string(), action: z.null(), endConversation: z.null() }` against Gemini Flash, log each `partial.speech` delta with a timestamp
-- [ ] Confirm deltas arrive token-by-token (not buffered to end)
-- [ ] Confirm `shouldFlushFallbackTtsChunk` sentence-detection fires correctly on those deltas
-- [ ] **If buffered:** fall back to `streamText` for speech + parallel `generateObject` for action (two calls, transcript sent twice — acceptable fallback)
+**Step 0 — Validate `streamObject` streaming first — ✅ DONE**
+- [x] Spike against `gemini-3-flash-preview` (thinking minimal): `partial.speech` streamed in 3 progressive, sentence-sized chunks (50 / 162 / 98 chars), first delta ~2s, **not** buffered to the end.
+- [x] Speech reliably precedes the `action` field resolving → parallel dispatch holds.
+- [x] Sentence-sized chunks are fully compatible with the WS continuation sessions and `shouldFlushFallbackTtsChunk` (which flushes at ~120 chars / sentence boundaries anyway) — arguably better prosody than token-by-token.
+- [x] Fallback (`streamText` + parallel `generateObject`) **not needed**. Spike deleted after recording this result.
 
 **Backend**
 - [ ] Replace `streamText` with `streamObject` in `/api/multimodal/turn`
@@ -502,7 +497,7 @@ System prompt includes both the list of available actions and the end condition 
 **Teacher config**
 - [ ] `ActivityActionConfig` + `EndConversationConfig` persisted with assignment in DB
 - [ ] MCQ on/off toggle in assignment settings UI
-- [ ] "End conversation after" selector (2 / 3 / 4 / 5 turns, or custom instruction)
+- [ ] Optional "ending guidance" textarea (default end-on-thorough/refusal is always on; no turn-count selector)
 - [ ] Config flows through `botPromptConfig` → `useInterpolatedPrompts`
 
 ### Phase 2 — Image + Equation
@@ -527,15 +522,18 @@ System prompt includes both the list of available actions and the end condition 
 | Architecture | Single `streamObject` call — `speech` streams to TTS, `action` spawns agent in parallel |
 | Actions per turn | One maximum — `action` is a nullable field, not an array |
 | `end_conversation` | Migrated from tool call to `endConversation` schema field |
-| End condition config | Teacher sets turn count (2–5) or custom instruction; interpolated into system prompt |
+| End condition config | Always-on default: end on thorough completion or refusal (via `endConversation` schema field + server directive). Teacher may add optional custom guidance; no turn-count config |
 | Action persistence | `chat_message_actions` table; handler saves before SSE enqueue |
-| MCQ answer persistence | `PATCH /api/multimodal/mcq-answer` updates `answered_index` + `answered_at` |
+| MCQ answer persistence | `PATCH /api/multimodal/mcq-answer` writes `{ answeredIndex }` to the action's generic `response` jsonb column (separate from system-generated `payload`) |
 | Interruption — loading actions | Strip `"loading"` skeleton; payload safe in DB |
 | Interruption — delivered actions | Persist in scroll history; already delivered |
 | LLM flow on interruption | Not disrupted — next turn starts a fresh `streamObject` call |
-| MCQ card persistence | Stays in scroll history; `answeredIndex` locks it into answered state |
-| MCQ answer feedback | Bot always responds verbally via `runAssistantTurn`; no separate inline feedback |
-| MCQ question in history | Synthetic message: `"[MCQ] Q: <question> — Student answered: <choice>"` |
+| MCQ is its own message | Standalone action-only message, appended on `action_start`; appears while the agent is still speaking |
+| MCQ card persistence | Stays in scroll history; `answeredIndex` locks it; only the learner's pick is marked (no correct-answer reveal, no on-card hint) |
+| MCQ answer feedback | Hint delivered verbally by the agent via `runAssistantTurn` |
+| MCQ result to tutor | HIDDEN message (`hidden:true`) with pick + correctness + correct answer + explanation; sent to LLM but not rendered, not logged to `chat_messages` |
+| MCQ Q&A in evaluation | `formatFullStudentTranscript` reconstructs answered MCQs (question + selection + correctness) from the card messages into `{{answer_text}}` |
+| MCQ retry | Same question re-shown via `action.repeatPrevious` (reuses stored payload); agent decides when to stop |
 | `formatFullStudentTranscript` | MCQ answer injections included — richer signal for evaluator |
 | Teacher config timing | Ships in Phase 1 alongside MCQ |
 | Provider compatibility | `streamObject` is provider-agnostic via Vercel AI SDK |

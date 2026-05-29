@@ -1,4 +1,5 @@
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
+import type { MultimodalActionsConfig } from "@/lib/multimodal/turnConfig";
 
 export interface FileSubmissionConfig {
   required: boolean;
@@ -196,6 +197,11 @@ export interface BotPromptConfig {
    * Key is the question order (0-based index).
    */
   question_overrides?: Record<number, QuestionPromptOverride>;
+  /**
+   * Multimodal-only: which rich actions (MCQ, etc.) the tutor may use, and when
+   * to end the conversation. Only consulted in multimodal assessment mode.
+   */
+  multimodal_actions?: MultimodalActionsConfig;
 }
 
 export interface Assignment {
