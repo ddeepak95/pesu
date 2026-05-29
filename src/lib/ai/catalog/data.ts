@@ -342,6 +342,13 @@ export const CATALOG_FUNCTIONS: AppFunctionCatalogEntry[] = [
           "Generate rubrics and expected-answer keys in the assignment editor.",
         consumers: ["Assignment editor", "Rubric and expected answer AI"],
       },
+      {
+        key: "mcq_generation",
+        label: "MCQ generation",
+        description:
+          "Author multiple choice questions the tutor poses during multimodal chat.",
+        consumers: ["Multimodal assessment"],
+      },
     ],
   },
   {

@@ -8,7 +8,6 @@
  */
 
 import { z } from "zod";
-import type { ActionKind } from "./types";
 
 export const mcqActionInputSchema = z.object({
   kind: z.literal("mcq"),
@@ -31,6 +30,3 @@ export const actionInputSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type ActionInput = z.infer<typeof actionInputSchema>;
-
-/** Action kinds that currently have a working handler. */
-export const IMPLEMENTED_ACTION_KINDS: readonly ActionKind[] = ["mcq"];

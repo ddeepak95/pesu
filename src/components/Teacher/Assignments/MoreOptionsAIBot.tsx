@@ -16,6 +16,7 @@ import { BotPromptConfig, Question } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
 import { Eye, Pencil } from "lucide-react";
 import type { AssessmentMode } from "@/lib/settings/registry";
+import type { ActionKind } from "@/lib/multimodal/actions/types";
 
 interface MoreOptionsAIBotProps {
   assessmentMode: AssessmentMode;
@@ -39,6 +40,8 @@ interface MoreOptionsAIBotProps {
   dynamicQuestionsEnabled?: boolean;
   dynamicGenerationPrompt?: string;
   setDynamicGenerationPrompt?: (prompt: string) => void;
+  /** Action kinds whose content-generation model is configured + capable for this class. */
+  availableActionKinds?: ActionKind[];
 }
 
 /** Icon-only Edit/Preview switch shown to the right of the prompt-type tabs. */
@@ -104,6 +107,7 @@ export function MoreOptionsAIBot({
   dynamicQuestionsEnabled = false,
   dynamicGenerationPrompt = "",
   setDynamicGenerationPrompt,
+  availableActionKinds,
 }: MoreOptionsAIBotProps) {
   const isConversational =
     assessmentMode === "voice" ||
@@ -139,6 +143,7 @@ export function MoreOptionsAIBot({
           <MultimodalActionsConfigEditor
             config={botPromptConfig}
             onChange={setBotPromptConfig}
+            availableActionKinds={availableActionKinds}
             disabled={loading}
           />
         </SettingsCard>

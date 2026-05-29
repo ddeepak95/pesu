@@ -16,6 +16,7 @@ import {
   TURN_SCHEMA_NAME,
 } from "@/lib/ai/chat-stream-object";
 import { dispatchAction } from "@/lib/multimodal/actions/dispatcher";
+import { getActionDefinition } from "@/lib/multimodal/actions/registry";
 import type { ActionInput } from "@/lib/multimodal/actions/schema";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
@@ -557,11 +558,41 @@ export async function POST(request: NextRequest) {
             const actionId = crypto.randomUUID();
             const actionKind = resolvedAction.kind;
             enqueue({ type: "action_start", id: actionId, kind: actionKind });
+
+            // Resolve the action's own content-generation model (Call 2).
+            // Inherits the chat model unless an admin overrode the action's
+            // catalog sub-function (e.g. text.mcq_generation).
+            let actionModel = model;
+            let actionProviderOptions = providerOptions;
+            try {
+              const actionDef = getActionDefinition(actionKind);
+              const actionResolved = await getCachedResolveModelConfig({
+                classDbId,
+                appFunctionKey: actionDef.appFunctionKey,
+              });
+              actionModel = getLanguageModel(actionResolved.config);
+              actionProviderOptions = providerOptionsForConfig(
+                actionResolved.config,
+              );
+              console.log("[multimodal/turn] action model", {
+                kind: actionKind,
+                appFunctionKey: actionDef.appFunctionKey,
+                provider: actionResolved.config.provider,
+                modelId: actionResolved.config.modelId,
+                keySource: actionResolved.keySource,
+              });
+            } catch (modelErr) {
+              console.error(
+                "[multimodal/turn] Failed to resolve action model; using turn model:",
+                modelErr,
+              );
+            }
+
             pendingAction = dispatchAction({
               id: actionId,
               action: resolvedAction,
-              model,
-              providerOptions,
+              model: actionModel,
+              providerOptions: actionProviderOptions,
               enqueue,
               supabase,
               submissionId: submissionId ?? null,

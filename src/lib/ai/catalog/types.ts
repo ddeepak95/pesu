@@ -70,6 +70,14 @@ export interface AppSubFunctionCatalogEntry {
   label: string;
   description: string;
   consumers?: string[];
+  /**
+   * Tasks a model must support to be eligible for this sub-function. When
+   * omitted, the parent function's `requiredTasks` apply (e.g. MCQ generation
+   * inherits `text_generation`). Set this for sub-functions that need a
+   * different capability than their parent (e.g. a future image action that
+   * requires `image_generation`).
+   */
+  requiredTasks?: ModelTask[];
 }
 
 export interface AppFunctionCatalogEntry {

@@ -22,6 +22,7 @@ import {
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
 import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
+import type { ActionKind } from "@/lib/multimodal/actions/types";
 import {
   Question,
   RubricItem,
@@ -230,6 +231,36 @@ export default function AssignmentForm({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentAssessmentMode]);
+
+  // Which multimodal actions the class can actually run (capability gating for
+  // the teacher toggles). Undefined while unresolved / not multimodal → no gate.
+  const [availableActionKinds, setAvailableActionKinds] = useState<
+    ActionKind[] | undefined
+  >(undefined);
+  useEffect(() => {
+    if (currentAssessmentMode !== "multimodal" || !classDbId) {
+      setAvailableActionKinds(undefined);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/multimodal/available-actions?classDbId=${encodeURIComponent(
+            classDbId,
+          )}`,
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { availableActions?: ActionKind[] };
+        if (!cancelled) setAvailableActionKinds(data.availableActions ?? []);
+      } catch {
+        // Leave undefined → no gating rather than blocking the editor.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAssessmentMode, classDbId]);
 
   const [maxAttempts, setMaxAttempts] = useState(initialMaxAttempts);
   const [responderFieldsConfig, setResponderFieldsConfig] = useState<
@@ -897,6 +928,7 @@ export default function AssignmentForm({
                   }
                   dynamicGenerationPrompt={dynamicGenerationPrompt}
                   setDynamicGenerationPrompt={setDynamicGenerationPrompt}
+                  availableActionKinds={availableActionKinds}
                 />
               </TabsContent>
             </Tabs>

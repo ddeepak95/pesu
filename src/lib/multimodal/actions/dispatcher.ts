@@ -20,7 +20,11 @@ export interface DispatchActionArgs {
   id: string;
   /** The action the model requested this turn. */
   action: ActionInput;
-  /** Model + options reused for content generation (same provider as the turn). */
+  /**
+   * Model + options for this action's content generation, resolved from the
+   * action's own catalog binding (e.g. `text.mcq_generation`). Inherits the
+   * chat model unless an admin overrode that sub-function.
+   */
   model: LanguageModelV3;
   providerOptions?: SharedV3ProviderOptions;
   enqueue: EnqueueFn;

@@ -19,10 +19,9 @@ import { z } from "zod";
 import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
 
 import {
-  actionInputSchema,
-  IMPLEMENTED_ACTION_KINDS,
-  mcqActionInputSchema,
-} from "@/lib/multimodal/actions/schema";
+  buildActionSchemaField,
+  buildActionsDirective,
+} from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
 
@@ -44,34 +43,14 @@ const speechField = z
   );
 
 /**
- * Build the turn schema. The `action` field is only an actionable union when the
- * teacher has enabled at least one implemented action kind; otherwise it is
- * forced to null so the model never invents an action.
+ * Build the turn schema. The `action` field is an actionable union of the
+ * enabled + implemented action kinds (from the action registry); otherwise it
+ * is forced to null so the model never invents an action.
  */
 export function buildTurnSchema(availableActions: ActionKind[]) {
-  const enabled = availableActions.filter((k) =>
-    IMPLEMENTED_ACTION_KINDS.includes(k),
-  );
-
-  if (enabled.length === 0) {
-    return z.object({
-      speech: speechField,
-      action: z.null(),
-      endConversation: endConversationField,
-    });
-  }
-
-  // Phase 1: only mcq is implemented, so the union has a single member.
-  // As more kinds ship, swap this for a discriminatedUnion filtered by `enabled`.
-  const actionField = (
-    enabled.includes("mcq") ? mcqActionInputSchema : actionInputSchema
-  )
-    .nullable()
-    .describe("A single content action to show the learner, or null if none needed.");
-
   return z.object({
     speech: speechField,
-    action: actionField,
+    action: buildActionSchemaField(availableActions),
     endConversation: endConversationField,
   });
 }
@@ -83,10 +62,6 @@ export function buildMultimodalDirectives(input: {
   availableActions: ActionKind[];
   endConversation?: EndConversationConfig;
 }): string {
-  const enabled = input.availableActions.filter((k) =>
-    IMPLEMENTED_ACTION_KINDS.includes(k),
-  );
-
   const lines: string[] = ["", "[Multimodal turn instructions]"];
   lines.push(
     "Respond with a JSON object. The `speech` field is what you say aloud, so " +
@@ -100,29 +75,8 @@ export function buildMultimodalDirectives(input: {
       "inappropriate, or sexual. Always maintain a supportive, age-appropriate tone.",
   );
 
-  if (enabled.includes("mcq")) {
-    lines.push(
-      "Actively check the learner's understanding with multiple choice questions. " +
-        "After you explain or discuss a discrete concept, attach ONE question via the " +
-        "`action` field: set `action.kind` to \"mcq\", `action.topic` to the concept to " +
-        "assess, and `action.difficulty` to easy, medium, or hard. In your `speech`, " +
-        "briefly tell the learner that a question will appear in the content box on " +
-        "their screen for them to answer. Attach at most one action per turn — set " +
-        "`action` to null only while you are still explaining or the learner is " +
-        "mid-thought — but lean toward posing a question whenever you have just " +
-        "covered an idea worth checking.",
-    );
-    lines.push(
-      "When the learner answers, you receive a hidden note with the result, the " +
-        "correct answer, and an explanation. If they were WRONG, give a brief spoken " +
-        "hint WITHOUT stating the correct answer and re-ask the SAME question by " +
-        "setting `action.kind` to \"mcq\" with `action.repeatPrevious` set to true. If " +
-        "they were CORRECT, acknowledge it and move on (do not re-ask). If they have " +
-        "struggled several times, you may reveal the answer and move on instead of re-asking.",
-    );
-  } else {
-    lines.push("Always set `action` to null.");
-  }
+  // Per-action guidance (or the "always null" fallback) from the registry.
+  lines.push(buildActionsDirective(input.availableActions));
 
   // Ending behavior. The default (thorough completion / refusal) always
   // applies; the teacher's custom guidance, if any, only adds to it.

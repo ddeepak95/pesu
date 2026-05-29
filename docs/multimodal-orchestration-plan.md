@@ -544,3 +544,46 @@ System prompt includes both the list of available actions and the end condition 
 ## 10. Future Improvements
 
 - **Accessibility**: MCQ should be keyboard-navigable and ARIA-labelled (`role="radiogroup"`, `aria-checked`, etc.) for ears-on/eyes-off learners. Not blocking Phase 1.
+
+---
+
+## 11. Modular Action Capabilities
+
+### Two LLM calls per turn
+A turn that fires an action makes **two** model calls:
+- **Call 1 (orchestrator)** — `createMultimodalTurnStream` → `streamObject` produces `{ speech, action, endConversation }`. The `action` field is only the *request* (e.g. `{kind:"mcq", topic, difficulty}`), it does not author content. Resolves the model from the `text.chat_tutoring` catalog binding.
+- **Call 2 (content)** — the dispatched handler (e.g. `handleMcqAction` → `generateObject`) authors the actual payload, in parallel with TTS. Resolves the model from the **action's own** catalog binding (e.g. `text.mcq_generation`), which inherits the chat model unless an admin overrides it.
+
+### Action registry — single source of truth
+`src/lib/multimodal/actions/registry.ts` (client-safe; no server imports) holds one `ActionDefinition` per implemented kind:
+
+```ts
+interface ActionDefinition {
+  kind: ActionKind;
+  label: string;                  // teacher toggle label
+  description: string;            // teacher toggle helper text
+  implemented: boolean;
+  requiredTasks: ModelTask[];     // model-support gating
+  appFunctionKey: AppFunctionKey; // Call 2 model-config binding
+  inputSchema: z.ZodTypeAny;      // the action request schema
+  buildDirective: () => string;   // system-prompt guidance
+}
+```
+
+Helpers: `getActionDefinition`, `listImplementedActions`, `IMPLEMENTED_ACTION_KINDS`, `filterImplemented`, `buildActionSchemaField(enabled)` (builds the turn's nullable `action` field), `buildActionsDirective(enabled)` (per-action system-prompt lines). `chat-stream-object.ts` and the teacher toggle UI both read from the registry, so nothing is hardcoded per kind.
+
+### Per-action model config (Platform AI settings)
+Each action is a catalog **sub-function** under `text` (`text.mcq_generation` in `data.ts` + the `AppFunctionKey` union). It renders automatically as a "Customize per feature" row in platform/institution/class AI settings and inherits the parent `text` binding unless overridden. The turn route resolves Call 2's model via `getCachedResolveModelConfig({ classDbId, appFunctionKey })`.
+
+### Capability gating (model-support)
+Each action declares `requiredTasks` (`ModelTask[]`). `resolveAvailableActionKindsForClass(classDbId)` (server-only, mirrors `resolveMultimodalSpeechModelsForClass`) returns the kinds whose binding resolves to an available model with a provider key that `modelSupportsTasks`. The teacher editor fetches this via `GET /api/multimodal/available-actions?classDbId=` and **disables** the toggle for any kind not in the set (with an explanatory tooltip). Sub-functions may set their own `requiredTasks` (`AppSubFunctionCatalogEntry.requiredTasks`) when they need a different capability than the parent — e.g. a future image action requiring an `image_generation` task.
+
+### Checklist: add a new action kind
+1. `actions/types.ts` — add to `ActionKind` (+ a payload interface, `ActionPayload`).
+2. `actions/schema.ts` — add the *request* input schema; add it to `actionInputSchema`.
+3. `actions/<kind>.ts` — write the handler (`generateObject` + persist to `chat_message_actions` before SSE); register it in `dispatcher.ts`.
+4. `actions/registry.ts` — add an `ActionDefinition` (`implemented: true`, `requiredTasks`, `appFunctionKey`, `inputSchema`, `buildDirective`).
+5. `catalog/appFunctions.ts` + `catalog/data.ts` — add the `AppFunctionKey` + sub-function entry (set `requiredTasks` on the sub-function only if it differs from `text`'s `text_generation`).
+6. `catalog/types.ts` — add a new `ModelTask` (and tag capable models in `data.ts`) only if the action needs a capability beyond `text_generation`.
+7. `ActionCard.tsx` — add a render case for the new payload.
+8. Done — it auto-appears in the teacher toggle (gated by capability) and the turn schema/directives.

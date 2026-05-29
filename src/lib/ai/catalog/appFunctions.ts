@@ -9,6 +9,7 @@ export type AppFunctionKey =
   | "text.evaluation"
   | "text.dynamic_questions"
   | "text.rubric_generation"
+  | "text.mcq_generation"
   | "speech_to_text"
   | "text_to_speech";
 
