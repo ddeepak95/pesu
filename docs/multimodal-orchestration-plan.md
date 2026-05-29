@@ -579,6 +579,8 @@ Each action is a catalog **sub-function** under `text` (`text.mcq_generation` in
 Each action declares `requiredTasks` (`ModelTask[]`). `resolveAvailableActionKindsForClass(classDbId)` (server-only, mirrors `resolveMultimodalSpeechModelsForClass`) returns the kinds whose binding resolves to an available model with a provider key that `modelSupportsTasks`. The teacher editor fetches this via `GET /api/multimodal/available-actions?classDbId=` and **disables** the toggle for any kind not in the set (with an explanatory tooltip). Sub-functions may set their own `requiredTasks` (`AppSubFunctionCatalogEntry.requiredTasks`) when they need a different capability than the parent — e.g. a future image action requiring an `image_generation` task.
 
 ### Checklist: add a new action kind
+> Full walkthrough with code: [`adding-multimodal-actions.md`](./adding-multimodal-actions.md).
+
 1. `actions/types.ts` — add to `ActionKind` (+ a payload interface, `ActionPayload`).
 2. `actions/schema.ts` — add the *request* input schema; add it to `actionInputSchema`.
 3. `actions/<kind>.ts` — write the handler (`generateObject` + persist to `chat_message_actions` before SSE); register it in `dispatcher.ts`.
