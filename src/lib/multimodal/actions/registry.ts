@@ -38,23 +38,15 @@ export interface ActionDefinition {
   buildDirective: () => string;
 }
 
-const MCQ_DIRECTIVE = [
-  "Actively check the learner's understanding with multiple choice questions. " +
-    "After you explain or discuss a discrete concept, attach ONE question via the " +
-    '`action` field: set `action.kind` to "mcq", `action.topic` to the concept to ' +
-    "assess, and `action.difficulty` to easy, medium, or hard. In your `speech`, " +
-    "briefly tell the learner that a question will appear in the content box on " +
-    "their screen for them to answer. Attach at most one action per turn — set " +
-    "`action` to null only while you are still explaining or the learner is " +
-    "mid-thought — but lean toward posing a question whenever you have just " +
-    "covered an idea worth checking.",
-  "When the learner answers, you receive a hidden note with the result, the " +
-    "correct answer, and an explanation. If they were WRONG, give a brief spoken " +
-    "hint WITHOUT stating the correct answer and re-ask the SAME question by " +
-    'setting `action.kind` to "mcq" with `action.repeatPrevious` set to true. If ' +
-    "they were CORRECT, acknowledge it and move on (do not re-ask). If they have " +
-    "struggled several times, you may reveal the answer and move on instead of re-asking.",
-].join("\n");
+// One string per paragraph; joined for the orchestrator system prompt.
+const MCQ_DIRECTIVE_PARAGRAPHS = [
+  // Frequency: questions are deliberate checkpoints, not a reflex.
+  "You may pose multiple choice questions, but use them sparingly — as deliberate comprehension checkpoints, not after every point. Only pose one once you have explained a substantial concept and the learner has had a chance to engage with it, and space them out so the conversation stays a genuine back-and-forth: most turns should set `action` to null and keep explaining or discussing. When a real checkpoint is reached, attach at most ONE question: set `action.kind` to \"mcq\", `action.topic` to the concept to assess, and `action.difficulty` to easy, medium, or hard, and briefly tell the learner in your `speech` that a question will appear on their screen. When in doubt, favor continuing the conversation over quizzing.",
+  // Answer handling.
+  'When the learner answers, you receive a hidden note with the result, the correct answer, and an explanation. If they were WRONG, give a brief spoken hint WITHOUT stating the correct answer and re-ask the SAME question by setting `action.kind` to "mcq" with `action.repeatPrevious` set to true. If they were CORRECT, acknowledge it and move on (do not re-ask). If they have struggled several times, you may reveal the answer and move on instead of re-asking.',
+];
+
+const MCQ_DIRECTIVE = MCQ_DIRECTIVE_PARAGRAPHS.join("\n");
 
 /**
  * Only kinds with a real handler/schema appear here. Future kinds
