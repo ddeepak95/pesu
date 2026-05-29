@@ -1,20 +1,26 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { PromptConfigEditor } from "@/components/Teacher/Assignments/PromptConfigEditor";
 import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
 import { MultimodalActionsConfigEditor } from "@/components/Teacher/Assignments/MultimodalActionsConfigEditor";
+import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
+import { SettingsCard } from "@/components/ui/settings-card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { BotPromptConfig, Question } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
-import { Eye } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 import type { AssessmentMode } from "@/lib/settings/registry";
 
 interface MoreOptionsAIBotProps {
   assessmentMode: AssessmentMode;
   showBotPreview: boolean;
   setShowBotPreview: (show: boolean) => void;
-  previewQuestionOrder: 0 | 1;
-  setPreviewQuestionOrder: (order: 0 | 1) => void;
   botPromptConfig: BotPromptConfig;
   setBotPromptConfig: (config: BotPromptConfig) => void;
   evaluationPrompt: string;
@@ -26,19 +32,60 @@ interface MoreOptionsAIBotProps {
   preferredLanguage: string;
   maxAttempts: number;
   sharedContextEnabled: boolean;
+  setSharedContextEnabled: (enabled: boolean) => void;
   sharedContext: string;
+  setSharedContext: (context: string) => void;
   loading: boolean;
   dynamicQuestionsEnabled?: boolean;
   dynamicGenerationPrompt?: string;
   setDynamicGenerationPrompt?: (prompt: string) => void;
 }
 
+/** Icon-only Edit/Preview switch shown to the right of the prompt-type tabs. */
+function EditPreviewToggle({
+  preview,
+  onChange,
+}: {
+  preview: boolean;
+  onChange: (preview: boolean) => void;
+}) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tabs
+        value={preview ? "preview" : "edit"}
+        onValueChange={(v) => onChange(v === "preview")}
+      >
+        <TabsList>
+          <TabsTrigger value="edit" aria-label="Edit" className="px-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center">
+                  <Pencil className="h-4 w-4" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Edit</TooltipContent>
+            </Tooltip>
+          </TabsTrigger>
+          <TabsTrigger value="preview" aria-label="Preview" className="px-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center">
+                  <Eye className="h-4 w-4" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Preview</TooltipContent>
+            </Tooltip>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </TooltipProvider>
+  );
+}
+
 export function MoreOptionsAIBot({
   assessmentMode,
   showBotPreview,
   setShowBotPreview,
-  previewQuestionOrder,
-  setPreviewQuestionOrder,
   botPromptConfig,
   setBotPromptConfig,
   evaluationPrompt,
@@ -50,104 +97,97 @@ export function MoreOptionsAIBot({
   preferredLanguage,
   maxAttempts,
   sharedContextEnabled,
+  setSharedContextEnabled,
   sharedContext,
+  setSharedContext,
   loading,
   dynamicQuestionsEnabled = false,
   dynamicGenerationPrompt = "",
   setDynamicGenerationPrompt,
 }: MoreOptionsAIBotProps) {
+  const isConversational =
+    assessmentMode === "voice" ||
+    assessmentMode === "text_chat" ||
+    assessmentMode === "multimodal";
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
         Customize how the AI bot interacts with students and evaluates answers.
         Use variable placeholders to insert dynamic content.
       </p>
 
-      {/* Multimodal-only: which actions the tutor may use + end condition */}
+      {/* Additional Contextual Information for AI */}
+      <SharedContextSection
+        sharedContextEnabled={sharedContextEnabled}
+        setSharedContextEnabled={setSharedContextEnabled}
+        sharedContext={sharedContext}
+        setSharedContext={setSharedContext}
+        loading={loading}
+      />
+
+      {/* Actions (multimodal-only capability toggles) */}
       {assessmentMode === "multimodal" && (
-        <MultimodalActionsConfigEditor
-          config={botPromptConfig}
-          onChange={setBotPromptConfig}
-          disabled={loading}
-        />
-      )}
-
-      {/* Editor and Preview Toggle (only for voice and text_chat modes) */}
-      {(assessmentMode === "voice" ||
-        assessmentMode === "text_chat" ||
-        assessmentMode === "multimodal") && (
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant={showBotPreview ? "outline" : "default"}
-            size="sm"
-            onClick={() => setShowBotPreview(false)}
-          >
-            Edit
-          </Button>
-          <Button
-            type="button"
-            variant={showBotPreview ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowBotPreview(true)}
-          >
-            <Eye className="h-4 w-4 mr-1" />
-            Preview
-          </Button>
-        </div>
-      )}
-
-      {showBotPreview &&
-      (assessmentMode === "voice" ||
-        assessmentMode === "text_chat" ||
-        assessmentMode === "multimodal") ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Preview for:</span>
-            <Button
-              type="button"
-              variant={previewQuestionOrder === 0 ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPreviewQuestionOrder(0)}
-            >
-              First Question
-            </Button>
-            <Button
-              type="button"
-              variant={previewQuestionOrder === 1 ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPreviewQuestionOrder(1)}
-            >
-              Subsequent Questions
-            </Button>
+        <SettingsCard className="space-y-3">
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">Actions</h4>
+            <p className="text-xs text-muted-foreground">
+              Choose which rich content the tutor may use during the
+              conversation.
+            </p>
           </div>
-
-          <PromptPreview
+          <MultimodalActionsConfigEditor
             config={botPromptConfig}
-            assignment={{
-              title,
-              student_instructions: studentInstructions,
-              questions,
-              preferred_language: preferredLanguage,
-              max_attempts: maxAttempts,
-              shared_context: sharedContextEnabled ? sharedContext : undefined,
-            }}
-            question={questions[0]}
-            languageCode={preferredLanguage}
-            assessmentMode={assessmentMode}
-            previewQuestionOrder={previewQuestionOrder}
+            onChange={setBotPromptConfig}
+            disabled={loading}
           />
+        </SettingsCard>
+      )}
+
+      {/* Prompt Customizations */}
+      <SettingsCard className="space-y-4">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">
+            Prompt Customizations
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            Edit the prompts that drive the bot and its evaluation.
+          </p>
         </div>
+
+      {showBotPreview && isConversational ? (
+        <PromptPreview
+          config={botPromptConfig}
+          assignment={{
+            title,
+            student_instructions: studentInstructions,
+            questions,
+            preferred_language: preferredLanguage,
+            max_attempts: maxAttempts,
+            shared_context: sharedContextEnabled ? sharedContext : undefined,
+          }}
+          question={questions[0]}
+          languageCode={preferredLanguage}
+          assessmentMode={assessmentMode}
+          showBotPrompts={isConversational}
+          showEndConversation={assessmentMode === "multimodal"}
+          showDynamicGenerationPrompt={dynamicQuestionsEnabled}
+          evaluationPrompt={evaluationPrompt}
+          dynamicGenerationPrompt={dynamicGenerationPrompt}
+          rightSlot={
+            <EditPreviewToggle
+              preview={showBotPreview}
+              onChange={setShowBotPreview}
+            />
+          }
+        />
       ) : (
         <PromptConfigEditor
           config={botPromptConfig}
           onChange={setBotPromptConfig}
           disabled={loading}
-          showBotPrompts={
-            assessmentMode === "voice" ||
-        assessmentMode === "text_chat" ||
-        assessmentMode === "multimodal"
-          }
+          showBotPrompts={isConversational}
+          showEndConversation={assessmentMode === "multimodal"}
           evaluationPrompt={evaluationPrompt}
           onEvaluationPromptChange={setEvaluationPrompt}
           activityType={activityType}
@@ -155,8 +195,17 @@ export function MoreOptionsAIBot({
           showDynamicGenerationPrompt={dynamicQuestionsEnabled}
           dynamicGenerationPrompt={dynamicGenerationPrompt}
           onDynamicGenerationPromptChange={setDynamicGenerationPrompt}
+          rightSlot={
+            isConversational ? (
+              <EditPreviewToggle
+                preview={showBotPreview}
+                onChange={setShowBotPreview}
+              />
+            ) : undefined
+          }
         />
       )}
+      </SettingsCard>
     </div>
   );
 }

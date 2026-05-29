@@ -14,10 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  MutedPrimaryTabsList,
+  MutedPrimaryTabsTrigger,
+} from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
-import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
-import { FileSubmissionSection } from "@/components/Teacher/Assignments/FileSubmissionSection";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
 import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
 import {
@@ -187,8 +189,9 @@ export default function AssignmentForm({
   const [isPublic, setIsPublic] = useState(initialIsPublic);
   const [activityType, setActivityType] =
     useState<ActivityType>(initialActivityType);
-  const [assessmentMode, setAssessmentMode] =
-    useState<AssessmentMode>(initialAssessmentMode);
+  const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>(
+    initialAssessmentMode,
+  );
 
   // Pull the class's effective allowed assessment modes (institution → class).
   // Modes outside the allow list are disabled in the dropdown but the current
@@ -318,7 +321,6 @@ export default function AssignmentForm({
   const [error, setError] = useState<string | null>(null);
   const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
   const [showBotPreview, setShowBotPreview] = useState(false);
-  const [previewQuestionOrder, setPreviewQuestionOrder] = useState<0 | 1>(0);
 
   const handleQuestionChange = (
     questionIndex: number,
@@ -620,14 +622,14 @@ export default function AssignmentForm({
               required: true,
               allow_multiple: fileAllowMultiple,
               instructions: fileInstructions.trim() || undefined,
-              allowed_file_types: orderFileSubmissionExtensions(fileAllowedTypes),
+              allowed_file_types:
+                orderFileSubmissionExtensions(fileAllowedTypes),
             }
           : null,
         dynamicQuestionsEnabled,
-        dynamicGenerationPrompt:
-          dynamicQuestionsEnabled
-            ? dynamicGenerationPrompt.trim() || null
-            : null,
+        dynamicGenerationPrompt: dynamicQuestionsEnabled
+          ? dynamicGenerationPrompt.trim() || null
+          : null,
       });
 
       // Navigate based on mode
@@ -762,7 +764,8 @@ export default function AssignmentForm({
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="left">
-                              This interaction type isn&apos;t allowed for this class. Contact your admin to enable it.
+                              This interaction type isn&apos;t allowed for this
+                              class. Contact your admin to enable it.
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -781,36 +784,6 @@ export default function AssignmentForm({
         </div>
       </div>
 
-      {/* Contextual Information for AI (moved above More Options) */}
-      <SharedContextSection
-        sharedContextEnabled={sharedContextEnabled}
-        setSharedContextEnabled={setSharedContextEnabled}
-        sharedContext={sharedContext}
-        setSharedContext={setSharedContext}
-        loading={loading}
-      />
-
-      {/* Require File Upload (moved outside More Options) */}
-      <FileSubmissionSection
-        fileSubmissionEnabled={fileSubmissionEnabled}
-        setFileSubmissionEnabled={(enabled) => {
-          setFileSubmissionEnabled(enabled);
-          if (!enabled) {
-            setQuestions((prev) => stripDynamicFlagsFromQuestions(prev));
-          }
-          if (enabled && fileAllowedTypes.length === 0) {
-            setFileAllowedTypes([...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES]);
-          }
-        }}
-        fileAllowMultiple={fileAllowMultiple}
-        setFileAllowMultiple={setFileAllowMultiple}
-        fileAllowedTypes={fileAllowedTypes}
-        onToggleAllowedFileType={handleToggleAllowedFileType}
-        fileInstructions={fileInstructions}
-        setFileInstructions={setFileInstructions}
-        loading={loading}
-      />
-
       {/* More Options (with General & AI Bot subtabs) */}
       <div className="rounded-md border bg-background">
         <button
@@ -828,12 +801,22 @@ export default function AssignmentForm({
         </button>
 
         {isMoreOptionsOpen && (
-          <div className="p-4 pt-0 border-t">
+          <div className="p-4 pt-0 border-t bg-muted/90 rounded-b-md">
             <Tabs defaultValue="general">
-              <TabsList className="grid w-full grid-cols-2 mt-4">
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="aibot">AI Prompt Config</TabsTrigger>
-              </TabsList>
+              <MutedPrimaryTabsList className="mb-4 mt-4 h-auto w-auto gap-1 rounded-md p-1">
+                <MutedPrimaryTabsTrigger
+                  value="general"
+                  className="rounded-sm px-4 py-2"
+                >
+                  General
+                </MutedPrimaryTabsTrigger>
+                <MutedPrimaryTabsTrigger
+                  value="aibot"
+                  className="rounded-sm px-4 py-2"
+                >
+                  AI Config
+                </MutedPrimaryTabsTrigger>
+              </MutedPrimaryTabsList>
 
               <TabsContent value="general">
                 <MoreOptionsGeneral
@@ -865,6 +848,26 @@ export default function AssignmentForm({
                   setIsPublic={setIsPublic}
                   responderFieldsConfig={responderFieldsConfig}
                   setResponderFieldsConfig={setResponderFieldsConfig}
+                  fileSubmissionEnabled={fileSubmissionEnabled}
+                  setFileSubmissionEnabled={(enabled) => {
+                    setFileSubmissionEnabled(enabled);
+                    if (!enabled) {
+                      setQuestions((prev) =>
+                        stripDynamicFlagsFromQuestions(prev),
+                      );
+                    }
+                    if (enabled && fileAllowedTypes.length === 0) {
+                      setFileAllowedTypes([
+                        ...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES,
+                      ]);
+                    }
+                  }}
+                  fileAllowMultiple={fileAllowMultiple}
+                  setFileAllowMultiple={setFileAllowMultiple}
+                  fileAllowedTypes={fileAllowedTypes}
+                  onToggleAllowedFileType={handleToggleAllowedFileType}
+                  fileInstructions={fileInstructions}
+                  setFileInstructions={setFileInstructions}
                   loading={loading}
                 />
               </TabsContent>
@@ -874,8 +877,6 @@ export default function AssignmentForm({
                   assessmentMode={currentAssessmentMode}
                   showBotPreview={showBotPreview}
                   setShowBotPreview={setShowBotPreview}
-                  previewQuestionOrder={previewQuestionOrder}
-                  setPreviewQuestionOrder={setPreviewQuestionOrder}
                   botPromptConfig={botPromptConfig}
                   setBotPromptConfig={setBotPromptConfig}
                   evaluationPrompt={evaluationPrompt}
@@ -887,7 +888,9 @@ export default function AssignmentForm({
                   preferredLanguage={preferredLanguage}
                   maxAttempts={maxAttempts}
                   sharedContextEnabled={sharedContextEnabled}
+                  setSharedContextEnabled={setSharedContextEnabled}
                   sharedContext={sharedContext}
+                  setSharedContext={setSharedContext}
                   loading={loading}
                   dynamicQuestionsEnabled={
                     fileSubmissionEnabled && hasPerQuestionDynamic

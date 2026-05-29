@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
+import { SettingsCard } from "@/components/ui/settings-card";
 import { Textarea } from "@/components/ui/textarea";
 import {
   FILE_SUBMISSION_TYPE_OPTIONS,
@@ -36,7 +37,7 @@ export function FileSubmissionSection({
     fileAllowedTypes.length === 1 && fileAllowedTypes[0] === ".pdf";
 
   return (
-    <div className="space-y-3 rounded-md border bg-background p-4">
+    <SettingsCard className="space-y-3">
       <div className="flex items-center space-x-2">
         <Checkbox
           id="fileSubmissionEnabled"
@@ -127,6 +128,6 @@ export function FileSubmissionSection({
           </p>
         </div>
       )}
-    </div>
+    </SettingsCard>
   );
 }

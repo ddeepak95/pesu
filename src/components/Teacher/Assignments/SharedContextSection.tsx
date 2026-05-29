@@ -3,6 +3,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
+import { SettingsCard } from "@/components/ui/settings-card";
 import { Textarea } from "@/components/ui/textarea";
 
 interface SharedContextSectionProps {
@@ -21,7 +22,7 @@ export function SharedContextSection({
   loading,
 }: SharedContextSectionProps) {
   return (
-    <div className="space-y-3 rounded-md border bg-background p-4">
+    <SettingsCard className="space-y-3">
       <div className="flex items-center space-x-2">
         <Checkbox
           id="sharedContextEnabled"
@@ -64,6 +65,6 @@ export function SharedContextSection({
           </p>
         </div>
       )}
-    </div>
+    </SettingsCard>
   );
 }

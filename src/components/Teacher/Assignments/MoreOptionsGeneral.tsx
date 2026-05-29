@@ -2,8 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SettingsCard } from "@/components/ui/settings-card";
 import {
   Select,
   SelectContent,
@@ -15,6 +17,7 @@ import {
   AssignmentIntegritySettings,
   type AssignmentIntegritySettingsValues,
 } from "@/components/Shared/Integrity/AssignmentIntegritySettings";
+import { FileSubmissionSection } from "@/components/Teacher/Assignments/FileSubmissionSection";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { ResponderFieldConfig } from "@/types/assignment";
 import { Trash2, Plus } from "lucide-react";
@@ -48,6 +51,14 @@ interface MoreOptionsGeneralProps {
   setIsPublic: (isPublic: boolean) => void;
   responderFieldsConfig: ResponderFieldConfig[];
   setResponderFieldsConfig: (config: ResponderFieldConfig[]) => void;
+  fileSubmissionEnabled: boolean;
+  setFileSubmissionEnabled: (enabled: boolean) => void;
+  fileAllowMultiple: boolean;
+  setFileAllowMultiple: (allow: boolean) => void;
+  fileAllowedTypes: string[];
+  onToggleAllowedFileType: (ext: string, selected: boolean) => void;
+  fileInstructions: string;
+  setFileInstructions: (instructions: string) => void;
   loading: boolean;
 }
 
@@ -80,16 +91,39 @@ export function MoreOptionsGeneral({
   setIsPublic,
   responderFieldsConfig,
   setResponderFieldsConfig,
+  fileSubmissionEnabled,
+  setFileSubmissionEnabled,
+  fileAllowMultiple,
+  setFileAllowMultiple,
+  fileAllowedTypes,
+  onToggleAllowedFileType,
+  fileInstructions,
+  setFileInstructions,
   loading,
 }: MoreOptionsGeneralProps) {
   return (
     <div className="space-y-4">
-      {/* Language Settings */}
-      <div className="space-y-3 p-4 border rounded-md">
-        <Label className="text-sm font-medium">Language Settings</Label>
+      {/* Require File Submission */}
+      <FileSubmissionSection
+        fileSubmissionEnabled={fileSubmissionEnabled}
+        setFileSubmissionEnabled={setFileSubmissionEnabled}
+        fileAllowMultiple={fileAllowMultiple}
+        setFileAllowMultiple={setFileAllowMultiple}
+        fileAllowedTypes={fileAllowedTypes}
+        onToggleAllowedFileType={onToggleAllowedFileType}
+        fileInstructions={fileInstructions}
+        setFileInstructions={setFileInstructions}
+        loading={loading}
+      />
 
+      <div className="grid gap-4 md:grid-cols-2 md:items-start">
+      {/* Language Settings */}
+      <SettingsCard className="space-y-3">
         <div className="space-y-2">
-          <Label htmlFor="preferredLanguage">Preferred Language</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="preferredLanguage">Preferred Language</Label>
+            <InfoTooltip text="The language the AI bot uses to interact with students. Students can change it during the assessment unless you lock it below." />
+          </div>
           <Select
             value={preferredLanguage}
             onValueChange={setPreferredLanguage}
@@ -115,27 +149,25 @@ export function MoreOptionsGeneral({
             onCheckedChange={(checked) => setLockLanguage(checked === true)}
             disabled={loading}
           />
-          <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
             <Label
               htmlFor="lockLanguage"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
             >
               Lock language for students
             </Label>
-            <p className="text-sm text-muted-foreground">
-              When enabled, students cannot change the interaction language
-              during the assessment
-            </p>
+            <InfoTooltip text="When enabled, students cannot change the interaction language during the assessment." />
           </div>
         </div>
-      </div>
+      </SettingsCard>
 
       {/* Attempts & Completion */}
-      <div className="space-y-3 p-4 border rounded-md">
-        <Label className="text-sm font-medium">Attempts &amp; Completion</Label>
-
+      <SettingsCard className="space-y-3">
         <div className="space-y-2">
-          <Label htmlFor="maxAttempts">Maximum Attempts</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="maxAttempts">Maximum Attempts</Label>
+            <InfoTooltip text="Number of attempts students can make for this assignment. Default is 3." />
+          </div>
           <Input
             id="maxAttempts"
             type="number"
@@ -150,10 +182,6 @@ export function MoreOptionsGeneral({
             disabled={loading}
             placeholder="3"
           />
-          <p className="text-sm text-muted-foreground">
-            Number of attempts students can make for this assignment. Default is
-            3.
-          </p>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -165,30 +193,27 @@ export function MoreOptionsGeneral({
             }
             disabled={loading}
           />
-          <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
             <Label
               htmlFor="requireAllAttempts"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
             >
               Require all questions attempted to complete
             </Label>
-            <p className="text-sm text-muted-foreground">
-              When enabled, students must attempt all questions before they can
-              mark the assessment as complete
-            </p>
+            <InfoTooltip text="When enabled, students must attempt all questions before they can mark the assessment as complete." />
           </div>
         </div>
+      </SettingsCard>
+
       </div>
 
       {/* Display Settings */}
-      <div className="space-y-3 p-4 border rounded-md">
+      <SettingsCard className="space-y-3">
         <Label className="text-sm font-medium">Display Settings</Label>
 
+        <div className="grid gap-3 md:grid-cols-2 md:items-start">
         {/* Rubric Visibility */}
-        <div className="space-y-3 p-3 border rounded-md">
-          <Label className="text-xs font-medium text-muted-foreground">
-            Rubric Visibility
-          </Label>
+        <div className="space-y-3 p-3 border rounded-md bg-muted/30">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="showRubric"
@@ -201,17 +226,14 @@ export function MoreOptionsGeneral({
               }}
               disabled={loading}
             />
-            <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
               <Label
                 htmlFor="showRubric"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 Show rubric to students
               </Label>
-              <p className="text-sm text-muted-foreground">
-                When enabled, students can view the rubric criteria during the
-                assessment
-              </p>
+              <InfoTooltip text="When enabled, students can view the rubric criteria during the assessment." />
             </div>
           </div>
 
@@ -225,27 +247,21 @@ export function MoreOptionsGeneral({
                 }
                 disabled={loading}
               />
-              <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
                 <Label
                   htmlFor="showRubricPoints"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                 >
                   Show point values
                 </Label>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, students can see how many points each rubric
-                  item is worth
-                </p>
+                <InfoTooltip text="When enabled, students can see how many points each rubric item is worth." />
               </div>
             </div>
           )}
         </div>
 
         {/* Star Display */}
-        <div className="space-y-3 p-3 border rounded-md">
-          <Label className="text-xs font-medium text-muted-foreground">
-            Student Score Display
-          </Label>
+        <div className="space-y-3 p-3 border rounded-md bg-muted/30">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="useStarDisplay"
@@ -255,24 +271,25 @@ export function MoreOptionsGeneral({
               }
               disabled={loading}
             />
-            <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
               <Label
                 htmlFor="useStarDisplay"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 Show scores as stars to students
               </Label>
-              <p className="text-sm text-muted-foreground">
-                When enabled, students see star ratings instead of point scores
-              </p>
+              <InfoTooltip text="When enabled, students see star ratings instead of point scores." />
             </div>
           </div>
 
           {useStarDisplay && (
             <div className="ml-6 space-y-2">
-              <Label htmlFor="starScale" className="text-sm">
-                Star Scale
-              </Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="starScale" className="text-sm">
+                  Star Scale
+                </Label>
+                <InfoTooltip text="Number of stars in the rating scale (e.g., 5 for a 5-star scale). Students will see scores converted to this star scale, while rubrics remain in points." />
+              </div>
               <Input
                 id="starScale"
                 type="number"
@@ -283,22 +300,19 @@ export function MoreOptionsGeneral({
                 disabled={loading}
                 className="w-32"
               />
-              <p className="text-xs text-muted-foreground">
-                Number of stars in the rating scale (e.g., 5 for a 5-star
-                scale). Students will see scores converted to this star scale,
-                while rubrics remain in points.
-              </p>
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </SettingsCard>
 
       {/* Student Experience */}
-      <div className="space-y-3 p-4 border rounded-md">
+      <SettingsCard className="space-y-3">
         <Label className="text-sm font-medium">Student Experience</Label>
 
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
         {/* Experience Rating */}
-        <div className="space-y-3">
+        <div className="space-y-3 p-3 border rounded-md bg-muted/30">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="experienceRatingEnabled"
@@ -309,17 +323,14 @@ export function MoreOptionsGeneral({
               }}
               disabled={loading}
             />
-            <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
               <Label
                 htmlFor="experienceRatingEnabled"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 Enable Experience Rating
               </Label>
-              <p className="text-sm text-muted-foreground">
-                Ask students to rate their experience on a 5-point scale when
-                completing the assessment
-              </p>
+              <InfoTooltip text="Ask students to rate their experience on a 5-point scale when completing the assessment." />
             </div>
           </div>
 
@@ -333,46 +344,43 @@ export function MoreOptionsGeneral({
                 }
                 disabled={loading}
               />
-              <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
                 <Label
                   htmlFor="experienceRatingRequired"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                 >
                   Require rating
                 </Label>
-                <p className="text-sm text-muted-foreground">
-                  Students must provide a rating before completing (otherwise
-                  they can skip)
-                </p>
+                <InfoTooltip text="Students must provide a rating before completing (otherwise they can skip)." />
               </div>
             </div>
           )}
         </div>
 
         {/* Feedback Approval */}
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="feedbackRequiresApproval"
-            checked={feedbackRequiresApproval}
-            onCheckedChange={(checked) =>
-              setFeedbackRequiresApproval(checked === true)
-            }
-            disabled={loading}
-          />
-          <div className="space-y-1">
-            <Label
-              htmlFor="feedbackRequiresApproval"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              Require teacher approval before showing feedback
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              When enabled, AI-generated feedback is held for your review. You
-              can edit and approve it before students can see it
-            </p>
+        <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="feedbackRequiresApproval"
+              checked={feedbackRequiresApproval}
+              onCheckedChange={(checked) =>
+                setFeedbackRequiresApproval(checked === true)
+              }
+              disabled={loading}
+            />
+            <div className="flex items-center gap-1.5">
+              <Label
+                htmlFor="feedbackRequiresApproval"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Require teacher approval before showing feedback
+              </Label>
+              <InfoTooltip text="When enabled, AI-generated feedback is held for your review. You can edit and approve it before students can see it." />
+            </div>
           </div>
         </div>
-      </div>
+        </div>
+      </SettingsCard>
 
       {/* Assessment Integrity */}
       <AssignmentIntegritySettings
@@ -382,30 +390,27 @@ export function MoreOptionsGeneral({
       />
 
       {/* Public Access Toggle */}
-      <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/30">
+      <SettingsCard className="flex items-center space-x-2">
         <Checkbox
           id="isPublic"
           checked={isPublic}
           onCheckedChange={(checked) => setIsPublic(checked === true)}
           disabled={loading}
         />
-        <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
           <Label
             htmlFor="isPublic"
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
           >
             Make this assignment publicly accessible
           </Label>
-          <p className="text-sm text-muted-foreground">
-            Anyone with the link can view and complete this assignment without
-            logging in
-          </p>
+          <InfoTooltip text="Anyone with the link can view and complete this assignment without logging in." />
         </div>
-      </div>
+      </SettingsCard>
 
       {/* Responder Fields Configuration (only for public assignments) */}
       {isPublic && (
-        <div className="space-y-4 p-4 border rounded-md">
+        <SettingsCard className="space-y-4">
           <div className="space-y-2">
             <Label>Responder Information Fields</Label>
             <p className="text-sm text-muted-foreground">
@@ -586,7 +591,7 @@ export function MoreOptionsGeneral({
             <Plus className="h-4 w-4 mr-2" />
             Add Field
           </Button>
-        </div>
+        </SettingsCard>
       )}
     </div>
   );
