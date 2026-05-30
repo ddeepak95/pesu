@@ -25,6 +25,12 @@ export interface AssessmentInputProps {
   onVoiceMicPermissionRequestPendingChange?: (pending: boolean) => void;
 
   botPromptConfig?: BotPromptConfig;
+  /**
+   * Multimodal only: the learner-selected (or teacher-locked) support language
+   * the bulb button uses for re-explanations. Chosen alongside the main
+   * language before the activity starts.
+   */
+  supportLanguage?: string;
   maxAttempts?: number;
   sharedContext?: string;
   evaluationPrompt?: string;

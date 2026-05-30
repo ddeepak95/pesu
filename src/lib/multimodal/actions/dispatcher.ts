@@ -32,6 +32,11 @@ export interface DispatchActionArgs {
   submissionId: string | null;
   /** FK to the assistant chat_messages row this action belongs to. */
   chatMessageId: string;
+  /**
+   * Human-readable conversation (primary) language, e.g. "Hindi". Content
+   * handlers must author their payload in this language to match the chat.
+   */
+  languageLabel: string;
 }
 
 export async function dispatchAction(args: DispatchActionArgs): Promise<void> {

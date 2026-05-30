@@ -190,7 +190,7 @@ Your role:
 };
 
 const COMMON_INSTRUCTIONS = `Guidelines:
-- Use English for concept-specific words while keeping the conversation in {{language}}
+- Conduct the conversation in {{language}}
 - Be encouraging and supportive
 - Keep your questions and responses short and concise`;
 

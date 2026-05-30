@@ -121,8 +121,8 @@ export function MoreOptionsGeneral({
       <SettingsCard className="space-y-3">
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
-            <Label htmlFor="preferredLanguage">Preferred Language</Label>
-            <InfoTooltip text="The language the AI bot uses to interact with students. Students can change it during the assessment unless you lock it below." />
+            <Label htmlFor="preferredLanguage">Primary Language</Label>
+            <InfoTooltip text="The main language the AI bot speaks and interacts in with students. Students can change it during the assessment unless you lock it below." />
           </div>
           <Select
             value={preferredLanguage}
@@ -154,9 +154,9 @@ export function MoreOptionsGeneral({
               htmlFor="lockLanguage"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
             >
-              Lock language for students
+              Lock primary language for students
             </Label>
-            <InfoTooltip text="When enabled, students cannot change the interaction language during the assessment." />
+            <InfoTooltip text="When enabled, students cannot change the primary language during the assessment." />
           </div>
         </div>
       </SettingsCard>

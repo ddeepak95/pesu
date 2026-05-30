@@ -30,6 +30,14 @@ The **action registry** (`src/lib/multimodal/actions/registry.ts`) ties everythi
 together. Once you register a kind, the turn schema, system-prompt directives,
 the teacher toggle, and capability gating all pick it up automatically.
 
+> **Language.** Call 2 generates content in isolation — it does **not** inherit
+> the conversation's language from Call 1. The turn route passes the
+> conversation's primary language to every handler as `args.languageLabel`
+> (a human-readable name, e.g. `"Hindi"`). Your handler **must** instruct the
+> generator to author the payload in `languageLabel` so the card matches the
+> spoken conversation; otherwise content defaults to English. (Language *support*
+> turns don't generate actions — actions always use the primary language.)
+
 ---
 
 ## Step-by-step
@@ -101,14 +109,15 @@ type FlashcardAction = Extract<ActionInput, { kind: "flashcard" }>;
 export async function handleFlashcardAction(
   args: DispatchActionArgs & { action: FlashcardAction },
 ): Promise<void> {
-  const { id, action, model, providerOptions, enqueue, supabase, submissionId, chatMessageId } = args;
+  const { id, action, model, providerOptions, enqueue, supabase, submissionId, chatMessageId, languageLabel } = args;
 
   const { object } = await generateObject({
     model,            // ← the action's own model (Call 2), resolved by the route
     providerOptions,
     schema: flashcardResultSchema,
     system: "Write one concise flashcard (term + plain-language definition) for a tutoring session.",
-    prompt: `Topic: ${action.topic}`,
+    // Author the content in the conversation's primary language (see "Language" note above).
+    prompt: `Topic: ${action.topic}\nWrite the term and definition in ${languageLabel}.`,
   });
 
   const payload: FlashcardActionPayload = { kind: "flashcard", ...object };
@@ -245,7 +254,7 @@ Optionally extend `ActionSkeleton` with a kind-specific "Preparing …" label.
 
 - [ ] `actions/types.ts` — `ActionKind` + payload interface + `ActionPayload` union
 - [ ] `actions/schema.ts` — input schema + add to `actionInputSchema`
-- [ ] `actions/<kind>.ts` — handler (`generateObject`, persist before enqueue)
+- [ ] `actions/<kind>.ts` — handler (`generateObject`, author content in `args.languageLabel`, persist before enqueue)
 - [ ] `actions/dispatcher.ts` — `case` for the new kind
 - [ ] `actions/registry.ts` — `ActionDefinition` (`implemented: true`)
 - [ ] `catalog/appFunctions.ts` + `catalog/data.ts` — `AppFunctionKey` + sub-function

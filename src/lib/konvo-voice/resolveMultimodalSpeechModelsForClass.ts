@@ -25,6 +25,13 @@ export async function resolveMultimodalSpeechModelsForAssignment(
   const classDbId = assignment?.class_id as string | undefined;
   if (!classDbId) return null;
 
+  return resolveMultimodalSpeechModelsForClass(classDbId);
+}
+
+export async function resolveMultimodalSpeechModelsForClass(
+  classDbId: string,
+): Promise<ResolvedMultimodalSpeechModels> {
+  const service = createServiceRoleClient();
   const { data: classRow, error: classError } = await service
     .from("classes")
     .select("institution_id")

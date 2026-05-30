@@ -42,53 +42,162 @@ const speechField = z
       "this is read by a text-to-speech engine.",
   );
 
+const requestLanguageHelpField = z
+  .boolean()
+  .nullable()
+  .describe(
+    "Set to true ONLY when the learner asks you to explain/translate/speak in the " +
+      "support language (or clearly cannot follow and would benefit from it). When true, " +
+      "keep `speech` to a brief acknowledgment in the current language — the full " +
+      "explanation in the support language follows automatically. Otherwise null.",
+  );
+
 /**
  * Build the turn schema. The `action` field is an actionable union of the
  * enabled + implemented action kinds (from the action registry); otherwise it
  * is forced to null so the model never invents an action.
  */
-export function buildTurnSchema(availableActions: ActionKind[]) {
+export function buildTurnSchema(
+  availableActions: ActionKind[],
+  languageHelpAvailable?: boolean,
+) {
   return z.object({
     speech: speechField,
     action: buildActionSchemaField(availableActions),
     endConversation: endConversationField,
+    // Forced null unless support is available, mirroring the action field —
+    // so the model never raises a language-help request when it can't be served.
+    requestLanguageHelp: languageHelpAvailable
+      ? requestLanguageHelpField
+      : z.null(),
   });
 }
 
 export type TurnSchema = ReturnType<typeof buildTurnSchema>;
 
-/** Directives appended to the system prompt describing actions + end condition. */
-export function buildMultimodalDirectives(input: {
-  availableActions: ActionKind[];
-  endConversation?: EndConversationConfig;
-}): string {
-  const lines: string[] = ["", "[Multimodal turn instructions]"];
-  lines.push(
-    "Respond with a JSON object. The `speech` field is what you say aloud, so " +
-      "it is converted to speech: use complete, natural, conversational sentences " +
-      "with no markdown, code, or special formatting characters. Keep responses " +
-      "reasonably concise — a few sentences at a time, favoring back-and-forth " +
-      "over long monologues.",
-  );
-  lines.push(
-    "SAFETY: The users are students. Never output anything offensive, " +
-      "inappropriate, or sexual. Always maintain a supportive, age-appropriate tone.",
-  );
+/** Per-turn language-support instruction (the learner asked for help in another language). */
+export interface TurnLanguageSupport {
+  /** This turn's speech restates the previous point in the support language. */
+  active: boolean;
+  /** Human-readable support language name, e.g. "Tamil". */
+  languageLabel: string;
+  /** Human-readable primary/conversation language name, e.g. "English". */
+  primaryLanguageLabel?: string;
+}
 
-  // Per-action guidance (or the "always null" fallback) from the registry.
-  lines.push(buildActionsDirective(input.availableActions));
+// ── System-prompt directive units ──────────────────────────────────────────
+// Each turn-schema field has a matching directive. Static ones are module
+// constants; conditional ones are pure builders. `buildMultimodalDirectives`
+// composes them. The base system prompt conducts the conversation in the
+// primary language; these are appended on top.
 
-  // Ending behavior. The default (thorough completion / refusal) always
-  // applies; the teacher's custom guidance, if any, only adds to it.
-  const endLine =
+/** Always-on: how to format the spoken `speech` field. */
+const SPEECH_FORMAT_DIRECTIVE =
+  "Respond with a JSON object. The `speech` field is what you say aloud, so " +
+  "it is converted to speech: use complete, natural, conversational sentences " +
+  "with no markdown, code, or special formatting characters. Keep responses " +
+  "reasonably concise — a few sentences at a time, favoring back-and-forth " +
+  "over long monologues.";
+
+/** Always-on safety guidance. */
+const SAFETY_DIRECTIVE =
+  "SAFETY: The users are students. Never output anything offensive, " +
+  "inappropriate, or sexual. Always maintain a supportive, age-appropriate tone.";
+
+/**
+ * When + how to end the conversation via the `endConversation` field. The
+ * default (thorough completion / refusal) always applies; the teacher's custom
+ * guidance, if any, only adds to it.
+ */
+function buildEndConversationDirective(config?: EndConversationConfig): string {
+  const base =
     'End the conversation by setting `endConversation`: use "thorough" once the ' +
     "learner has engaged with and reasonably covered the topic, and \"refusal\" if " +
     "the learner is off-topic or refuses to engage. Otherwise keep it null. When " +
     "you set it, make your `speech` a warm closing message.";
-  const custom = input.endConversation?.customInstruction?.trim();
-  lines.push(
-    custom ? `${endLine} Additional guidance on when to wrap up: ${custom}` : endLine,
-  );
+  const custom = config?.customInstruction?.trim();
+  return custom
+    ? `${base} Additional guidance on when to wrap up: ${custom}`
+    : base;
+}
+
+/**
+ * Language-support guidance. Returns null when support is neither active nor
+ * available this turn. These instructions add the support-language behavior on
+ * top of the primary-language base prompt (no need to contradict it).
+ */
+function buildLanguageSupportDirective(input: {
+  languageSupport?: TurnLanguageSupport;
+  languageHelpAvailable?: { languageLabel: string };
+}): string | null {
+  // Active: this turn restates the previous point in the support language (its
+  // TTS voice is already set to match) — a faithful restatement, nothing new.
+  if (input.languageSupport?.active) {
+    const { languageLabel: label, primaryLanguageLabel: primaryLabel } =
+      input.languageSupport;
+    const termClause = primaryLabel
+      ? ` Keep technical and academic terms in ${primaryLabel} exactly as you used them before — ` +
+        `only the surrounding explanation should be in ${label}.`
+      : ` Keep technical and academic terms in their original language exactly as you used them ` +
+        `before — only the surrounding explanation should be in ${label}.`;
+    const line =
+      `LANGUAGE SUPPORT — RESTATE IN ${label.toUpperCase()}: The learner asked to hear your ` +
+      `previous point in ${label}. For this one response, give the explanation in ${label} and ` +
+      `restate ONLY what you already said before — translate and reiterate the same point. ` +
+      `Do NOT add any new information, examples, steps, hints, or questions; reveal nothing ` +
+      `beyond what was already covered.` +
+      termClause +
+      ` Keep it a clear, supportive restatement, then resume the conversation in the usual ` +
+      `language on the next turn.`;
+    return line;
+  }
+
+  // Available: this turn is in the primary language, but the model may offer to
+  // restate in the support language when the learner asks.
+  if (input.languageHelpAvailable) {
+    const label = input.languageHelpAvailable.languageLabel;
+    return (
+      `LANGUAGE SUPPORT AVAILABLE: You may also help this learner in ${label}. If they ask ` +
+      `you to explain or translate a point in ${label} — or say they didn't understand and ` +
+      `would follow it better in ${label} — set \`requestLanguageHelp\` to true and keep ` +
+      `your \`speech\` to a brief, warm acknowledgment (e.g. "Sure — let me put that in ` +
+      `${label}."). The same point will then be restated in ${label} automatically, so do ` +
+      `not give the ${label} explanation yourself this turn. Otherwise leave ` +
+      `\`requestLanguageHelp\` null and continue normally.`
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Directives appended to the system prompt: speech format, safety, actions,
+ * ending, and language support. Composes the directive units above.
+ */
+export function buildMultimodalDirectives(input: {
+  availableActions: ActionKind[];
+  endConversation?: EndConversationConfig;
+  languageSupport?: TurnLanguageSupport;
+  /**
+   * Support is available (but this turn is spoken in the normal language). Lets
+   * the model offer help in `languageLabel` by setting `requestLanguageHelp`.
+   */
+  languageHelpAvailable?: { languageLabel: string };
+}): string {
+  const lines: string[] = [
+    "",
+    "[Multimodal turn instructions]",
+    SPEECH_FORMAT_DIRECTIVE,
+    SAFETY_DIRECTIVE,
+    buildActionsDirective(input.availableActions),
+    buildEndConversationDirective(input.endConversation),
+  ];
+
+  const languageDirective = buildLanguageSupportDirective({
+    languageSupport: input.languageSupport,
+    languageHelpAvailable: input.languageHelpAvailable,
+  });
+  if (languageDirective) lines.push(languageDirective);
 
   return lines.join("\n");
 }
@@ -101,6 +210,8 @@ export interface MultimodalTurnStreamOptions {
   providerOptions?: SharedV3ProviderOptions;
   availableActions: ActionKind[];
   endConversation?: EndConversationConfig;
+  languageSupport?: TurnLanguageSupport;
+  languageHelpAvailable?: { languageLabel: string };
 }
 
 export interface ResolvedMultimodalTurnCall {
@@ -122,6 +233,8 @@ export function resolveMultimodalTurnCall(
     buildMultimodalDirectives({
       availableActions,
       endConversation: options.endConversation,
+      languageSupport: options.languageSupport,
+      languageHelpAvailable: options.languageHelpAvailable,
     });
 
   if (greeting && messages.length === 0) {
@@ -136,7 +249,10 @@ export function resolveMultimodalTurnCall(
   return {
     system,
     messages: sdkMessages,
-    schema: buildTurnSchema(availableActions),
+    schema: buildTurnSchema(
+      availableActions,
+      Boolean(options.languageHelpAvailable),
+    ),
     providerOptions,
   };
 }

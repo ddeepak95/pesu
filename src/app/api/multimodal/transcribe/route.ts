@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
 
     const stt = getSttProvider(sessionConfig.sttModelId);
     const apiModelId = getSpeechApiModelId(sessionConfig.sttModelId);
+    const autoDetect = formData.get("autoDetectLanguage") === "true";
 
     const transcribeSegment = async (audio: Blob) => {
       const buffer = Buffer.from(await audio.arrayBuffer());
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
         filename,
         mimeType,
         language: sessionConfig.language,
+        autoDetect,
         apiModelId,
         providerApiKey: sttProviderApiKey ?? undefined,
       });

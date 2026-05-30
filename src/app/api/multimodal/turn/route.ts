@@ -20,6 +20,7 @@ import { getActionDefinition } from "@/lib/multimodal/actions/registry";
 import type { ActionInput } from "@/lib/multimodal/actions/schema";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
+import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
   DEFAULT_MAX_ATTEMPTS,
@@ -79,6 +80,18 @@ interface MultimodalTurnRequestBody {
   system_prompt: string;
   greeting?: string;
   language: string;
+  /**
+   * Language this turn's speech should be spoken in. Defaults to `language`.
+   * Set to the support language for a language-support turn so the TTS voice
+   * matches and the model is instructed to respond in that language.
+   */
+  speechLanguage?: string;
+  /**
+   * The support language available this turn (when language support is enabled
+   * but the turn is spoken normally). Lets the orchestrator offer to switch if
+   * the learner verbally asks for help.
+   */
+  supportLanguageAvailable?: string;
   ttsModelId: string;
   availableActions?: ActionKind[];
   endConversationConfig?: EndConversationConfig;
@@ -110,6 +123,19 @@ export async function POST(request: NextRequest) {
 
     const enabledActions: ActionKind[] = availableActions ?? [];
 
+    // The language this turn is spoken in (support language when the learner
+    // asked for help, otherwise the conversation language).
+    const speechLanguage = body.speechLanguage?.trim() || language;
+    const isSupportTurn = speechLanguage !== language;
+
+    // Support is offered (but not active this turn): the orchestrator may raise
+    // `requestLanguageHelp` if the learner verbally asks for help.
+    const supportAvail = body.supportLanguageAvailable?.trim();
+    const languageHelpAvailable =
+      !!supportAvail && supportAvail !== language && !isSupportTurn;
+    const localeLabel = (code: string) =>
+      getLocaleRegistryMap().get(code)?.label ?? code;
+
     if (
       !assignmentId ||
       questionOrder === undefined ||
@@ -137,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     let voice: string;
     try {
-      voice = resolveTtsVoice(ttsModelId, language);
+      voice = resolveTtsVoice(ttsModelId, speechLanguage);
     } catch (error) {
       if (error instanceof KonvoLocaleVoiceError) {
         return NextResponse.json({ error: error.message }, { status: 400 });
@@ -290,7 +316,7 @@ export async function POST(request: NextRequest) {
 
           const synthInput = {
             text: trimmed,
-            language,
+            language: speechLanguage,
             voice,
             apiModelId: getSpeechApiModelId(ttsModelId),
             providerApiKey: ttsProviderApiKey ?? undefined,
@@ -372,7 +398,7 @@ export async function POST(request: NextRequest) {
             cartesiaSession = await CartesiaTtsContinuationSession.open({
               modelId: getSpeechApiModelId(ttsModelId) ?? "sonic-3.5",
               voiceId: voice,
-              language,
+              language: speechLanguage,
               apiKey: ttsProviderApiKey ?? undefined,
             });
             audioPump = startAudioPump(cartesiaSession.consumeAudio());
@@ -380,7 +406,7 @@ export async function POST(request: NextRequest) {
             sarvamSession = await SarvamTtsWebSocketSession.open({
               modelId: getSpeechApiModelId(ttsModelId) ?? "bulbul:v3",
               speaker: voice,
-              language,
+              language: speechLanguage,
               apiKey: ttsProviderApiKey ?? undefined,
             });
             audioPump = startAudioPump(sarvamSession.consumeAudio());
@@ -393,6 +419,17 @@ export async function POST(request: NextRequest) {
             providerOptions,
             availableActions: enabledActions,
             endConversation: endConversationConfig,
+            languageSupport: isSupportTurn
+              ? {
+                  active: true,
+                  languageLabel: localeLabel(speechLanguage),
+                  primaryLanguageLabel: localeLabel(language),
+                }
+              : undefined,
+            languageHelpAvailable:
+              languageHelpAvailable && supportAvail
+                ? { languageLabel: localeLabel(supportAvail) }
+                : undefined,
           };
 
           attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
@@ -496,6 +533,9 @@ export async function POST(request: NextRequest) {
                 if (finalObject.action) {
                   resolvedAction = finalObject.action as ActionInput;
                 }
+                if (finalObject.requestLanguageHelp === true && !aborted) {
+                  enqueue({ type: "language_help_requested" });
+                }
               }
 
               if (invocationId) {
@@ -597,6 +637,7 @@ export async function POST(request: NextRequest) {
               supabase,
               submissionId: submissionId ?? null,
               chatMessageId: assistantChatMessageId,
+              languageLabel: localeLabel(language),
             }).catch((actionErr) => {
               const message =
                 actionErr instanceof Error ? actionErr.message : "Action failed";

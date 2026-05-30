@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCard } from "./ActionCard";
 import type { PendingAction } from "./actionTypes";
@@ -19,6 +20,7 @@ interface ContentBoxProps {
     role: "student" | "assistant";
     content: string;
     status?: "transcribing";
+    streaming?: boolean;
     action?: PendingAction;
     hidden?: boolean;
   }>;
@@ -160,6 +162,7 @@ export function ContentBox({
               );
             }
 
+            const isStreaming = m.role === "assistant" && Boolean(m.streaming);
             const expanded = Boolean(expandedMessageIds?.[m.id]);
 
               return (
@@ -191,16 +194,25 @@ export function ContentBox({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className={`h-auto px-0 text-sm font-normal underline-offset-2 hover:underline ${
-                        isStudent
-                          ? "text-foreground/80 hover:text-foreground"
-                          : "text-foreground/80 hover:text-foreground"
-                      }`}
+                      className="h-auto px-0 text-sm font-normal text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
                       aria-label={expanded ? "Hide message" : "View message"}
                       aria-pressed={expanded}
                       onClick={() => onToggleExpanded?.(m.id)}
                     >
-                      {expanded ? "Hide message" : "View message"}
+                      {isStreaming ? (
+                        <span className="inline-flex items-center gap-0.5 italic">
+                          Speaking
+                          {expanded ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
+                        </span>
+                      ) : expanded ? (
+                        "Hide message"
+                      ) : (
+                        "View message"
+                      )}
                     </Button>
                   </div>
 

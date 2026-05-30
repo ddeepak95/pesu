@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
-import { Loader2, Play } from "lucide-react";
+import { Lightbulb, Loader2, Play } from "lucide-react";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
 import { Button } from "@/components/ui/button";
+import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/Shared/KonvoVoice/defaultSessionConfig";
@@ -36,6 +37,8 @@ interface ChatMessage {
   role: "student" | "assistant";
   content: string;
   status?: "transcribing";
+  /** True while the assistant bubble is still streaming text in this turn. */
+  streaming?: boolean;
   /** Set on a standalone action-only message (empty content). */
   action?: PendingAction;
   /** Hidden context sent to the LLM but not rendered (e.g. MCQ result note). */
@@ -59,6 +62,7 @@ type MultimodalTurnEvent =
   | { type: "action_start"; id: string; kind: ActionKind }
   | { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
   | { type: "action_error"; id: string; kind: ActionKind; error?: string }
+  | { type: "language_help_requested" }
   | { type: "done" }
   | { type: "error"; error?: string; message?: string };
 
@@ -162,6 +166,7 @@ export function MultimodalInputArea({
   maxAttempts,
   sharedContext,
   botPromptConfig,
+  supportLanguage,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [expandedMessageIds, setExpandedMessageIds] = React.useState<
@@ -192,6 +197,15 @@ export function MultimodalInputArea({
   });
 
   const { data: speechModels } = useMultimodalSpeechModels(assignmentId);
+
+  // Language support: an additional language the tutor can re-explain in. The
+  // active language is chosen in the shell (alongside the main language) and
+  // passed in as `supportLanguage`.
+  const supportEnabled =
+    (botPromptConfig?.multimodal_actions?.languageSupport?.enabled ?? false) &&
+    Boolean(supportLanguage) &&
+    supportLanguage !== language;
+
   const recorder = useAudioRecorder();
   const playback = useStreamingSpeechPlayback();
   const { state: micPermission, requestAccess } = useMicrophonePermission();
@@ -386,6 +400,54 @@ export function MultimodalInputArea({
     await onSubmitForEvaluation(answerText);
   }, [onSubmitForEvaluation]);
 
+  // Live streaming bubble: the assistant message is appended as soon as text
+  // starts arriving and updated in place as more streams in. `commit` then just
+  // finalizes it (clears the streaming flag).
+  const liveAssistantMessageIdRef = React.useRef<string | null>(null);
+
+  const upsertLiveAssistantMessage = React.useCallback(
+    (text: string, options?: { turnId?: number }) => {
+      if (
+        options?.turnId !== undefined &&
+        options.turnId !== assistantTurnSeqRef.current
+      ) {
+        return;
+      }
+      // Once the turn is finalized, ignore any trailing deltas (e.g. buffered
+      // events after an interruption) so they can't spawn a second bubble.
+      if (activeAssistantTurnRef.current.committed) return;
+
+      // Resolve the live message id OUTSIDE the state updater so it is stable
+      // (the updater must stay pure — no id minting / ref writes inside it).
+      let liveId = liveAssistantMessageIdRef.current;
+      if (!liveId) {
+        liveId = crypto.randomUUID();
+        liveAssistantMessageIdRef.current = liveId;
+      }
+      const id = liveId;
+      setMessages((prev) => {
+        const next = prev.some((m) => m.id === id)
+          ? prev.map((m) =>
+              m.id === id
+                ? { ...m, content: text || "...", streaming: true }
+                : m,
+            )
+          : [
+              ...prev,
+              {
+                id,
+                role: "assistant" as const,
+                content: text || "...",
+                streaming: true,
+              },
+            ];
+        messagesRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
   const commitAssistantTurnToMessages = React.useCallback(
     (options?: { force?: boolean; turnId?: number }) => {
       if (
@@ -399,12 +461,25 @@ export function MultimodalInputArea({
       const content = turn.text.trim();
       if (!options?.force && !content && !turn.ttsStarted) return false;
       turn.committed = true;
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: content || "...",
-      };
+      const liveId = liveAssistantMessageIdRef.current;
+      liveAssistantMessageIdRef.current = null;
       setMessages((prev) => {
+        // Finalize the live streaming bubble if it exists; otherwise append one
+        // (e.g. interrupted before any text streamed).
+        if (liveId && prev.some((m) => m.id === liveId)) {
+          const next = prev.map((m) =>
+            m.id === liveId
+              ? { ...m, content: content || "...", streaming: false }
+              : m,
+          );
+          messagesRef.current = next;
+          return next;
+        }
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: content || "...",
+        };
         const next = [...prev, assistantMessage];
         messagesRef.current = next;
         return next;
@@ -452,7 +527,7 @@ export function MultimodalInputArea({
   );
 
   const runAssistantTurn = React.useCallback(
-    async (history: ChatMessage[]) => {
+    async (history: ChatMessage[], speechLanguage?: string) => {
       const turnId = ++assistantTurnSeqRef.current;
       setIsAssistantTurnActive(true);
       setIsThinking(true);
@@ -471,6 +546,7 @@ export function MultimodalInputArea({
       let speechSegmentEnded = false;
       let assistantText = "";
       let didEndConversation = false;
+      let languageHelpRequested = false;
 
       playback.beginTurn({
         onPlaybackStart: () => {
@@ -487,6 +563,7 @@ export function MultimodalInputArea({
         ttsStarted: false,
         committed: false,
       };
+      liveAssistantMessageIdRef.current = null;
 
       try {
         const response = await fetch("/api/multimodal/turn", {
@@ -508,6 +585,11 @@ export function MultimodalInputArea({
             greeting,
             language,
             ttsModelId,
+            ...(speechLanguage && speechLanguage !== language
+              ? { speechLanguage }
+              : supportEnabled && supportLanguage
+                ? { supportLanguageAvailable: supportLanguage }
+                : {}),
             availableActions:
               botPromptConfig?.multimodal_actions?.availableActions ?? [],
             endConversationConfig:
@@ -546,13 +628,17 @@ export function MultimodalInputArea({
           if (event.type === "text-delta") {
             assistantText += event.content;
             activeAssistantTurnRef.current.text = assistantText;
+            // Stream the text live into the bot's bubble as it arrives.
+            upsertLiveAssistantMessage(assistantText, { turnId });
           } else if (event.type === "end_conversation") {
             didEndConversation = true;
           } else if (event.type === "action_start") {
-            // The action is its own message. Commit the speech message first so
-            // it precedes the card, then append a loading card (appears while
-            // the agent is still speaking).
-            commitAssistantTurnToMessages({ turnId });
+            // The action is its own message. Ensure the (live) speech bubble
+            // exists first so it precedes the card; it keeps streaming while the
+            // loading card appears below.
+            if (assistantText.trim()) {
+              upsertLiveAssistantMessage(assistantText, { turnId });
+            }
             const cardMessage: ChatMessage = {
               id: event.id,
               role: "assistant",
@@ -587,6 +673,8 @@ export function MultimodalInputArea({
               messagesRef.current = next;
               return next;
             });
+          } else if (event.type === "language_help_requested") {
+            languageHelpRequested = true;
           } else if (event.type === "speech_start") {
             if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
               sampleRate = event.sampleRate;
@@ -660,6 +748,21 @@ export function MultimodalInputArea({
         if (didEndConversation) {
           scheduleAutoFinish();
         }
+
+        // The orchestrator acknowledged a verbal request for language help; run
+        // a follow-up support turn so the explanation comes back in the support
+        // language with a matching voice (same path as the bulb button).
+        if (
+          languageHelpRequested &&
+          !botInterruptionRequestedRef.current &&
+          supportEnabled &&
+          supportLanguage
+        ) {
+          void runAssistantTurnRef.current(
+            messagesRef.current,
+            supportLanguage,
+          );
+        }
       } catch (turnError) {
         if (
           turnError instanceof DOMException &&
@@ -701,11 +804,19 @@ export function MultimodalInputArea({
       releaseAssistantTurnUi,
       scheduleAutoFinish,
       commitAssistantTurnToMessages,
+      upsertLiveAssistantMessage,
       speechModels?.ttsModelId,
       submissionId,
+      supportEnabled,
+      supportLanguage,
       systemPrompt,
     ],
   );
+
+  // Self-reference so a turn can trigger a follow-up support turn (verbal
+  // language-help request) without a stale closure.
+  const runAssistantTurnRef = React.useRef(runAssistantTurn);
+  runAssistantTurnRef.current = runAssistantTurn;
 
   const handleStart = React.useCallback(async () => {
     if (maxAttemptsReached) {
@@ -831,6 +942,62 @@ export function MultimodalInputArea({
     ],
   );
 
+  const handleLanguageSupport = React.useCallback(async () => {
+    // Same gating as the mic: don't fire while transcribing or while the bot
+    // is mid-thought before any speech.
+    if (
+      isTranscribing ||
+      (isThinking && !isSpeaking) ||
+      !supportLanguage ||
+      supportLanguage === language
+    ) {
+      return;
+    }
+
+    // Interrupt an in-progress spoken turn so the tutor can re-explain.
+    if (isSpeaking) {
+      botInterruptionRequestedRef.current = true;
+      activeAbortRef.current?.abort();
+      playback.reset();
+      commitAssistantTurnToMessages({
+        force: true,
+        turnId: assistantTurnSeqRef.current,
+      });
+      setMessages((prev) => {
+        const next = prev.filter((m) => m.action?.state !== "loading");
+        messagesRef.current = next;
+        return next;
+      });
+      releaseAssistantTurnUi(assistantTurnSeqRef.current);
+    }
+
+    const label =
+      getLocaleRegistryMap().get(supportLanguage)?.label ?? supportLanguage;
+    // Hidden nudge: sent to the LLM (so it knows what to re-explain) but never
+    // rendered or logged — the spoken reply is the visible result.
+    const hiddenMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "student",
+      content: `Could you please explain that again in ${label}? I understand it better in ${label}.`,
+      hidden: true,
+    };
+    const nextHistory = [...messagesRef.current, hiddenMessage];
+    setMessages(nextHistory);
+    messagesRef.current = nextHistory;
+
+    await runAssistantTurn(nextHistory, supportLanguage);
+  }, [
+    isTranscribing,
+    isThinking,
+    isSpeaking,
+    supportLanguage,
+    language,
+    playback,
+    commitAssistantTurnToMessages,
+    releaseAssistantTurnUi,
+    runAssistantTurn,
+  ]);
+
   const handleRequestMic = React.useCallback(async () => {
     if (micRequestPending) return;
     setMicRequestPending(true);
@@ -914,6 +1081,11 @@ export function MultimodalInputArea({
           new File([wavBlob], "recording.wav", { type: "audio/wav" }),
         );
         formData.append("assignmentId", assignmentId);
+        // With language support on, the learner may speak the primary OR the
+        // support language — let STT auto-detect instead of forcing one.
+        if (supportEnabled) {
+          formData.append("autoDetectLanguage", "true");
+        }
         const response = await fetch("/api/multimodal/transcribe", {
           method: "POST",
           body: formData,
@@ -993,6 +1165,7 @@ export function MultimodalInputArea({
     runAssistantTurn,
     speechModels?.sttModelId,
     speechModels?.ttsModelId,
+    supportEnabled,
   ]);
 
   return (
@@ -1052,20 +1225,39 @@ export function MultimodalInputArea({
             </div>
           ) : null}
 
-          <ContentBox
-            content={null}
-            messages={messages}
-            expandedMessageIds={expandedMessageIds}
-            onToggleExpanded={(messageId) =>
-              setExpandedMessageIds((prev) => ({
-                ...prev,
-                [messageId]: !prev[messageId],
-              }))
-            }
-            onMcqAnswer={(messageId, choiceIndex) =>
-              void handleMcqAnswer(messageId, choiceIndex)
-            }
-          />
+          <div className="relative">
+            <ContentBox
+              content={null}
+              messages={messages}
+              expandedMessageIds={expandedMessageIds}
+              onToggleExpanded={(messageId) =>
+                setExpandedMessageIds((prev) => ({
+                  ...prev,
+                  [messageId]: !prev[messageId],
+                }))
+              }
+              onMcqAnswer={(messageId, choiceIndex) =>
+                void handleMcqAnswer(messageId, choiceIndex)
+              }
+            />
+            {supportEnabled ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                onClick={() => void handleLanguageSupport()}
+                disabled={isTranscribing || (isThinking && !isSpeaking)}
+                title={`Explain again in ${
+                  getLocaleRegistryMap().get(supportLanguage ?? "")?.label ??
+                  "your support language"
+                }`}
+                aria-label="Explain again in your support language"
+                className="absolute bottom-3 right-3 z-10 h-11 w-11 rounded-full border border-amber-300 bg-amber-50 text-amber-600 shadow-md hover:bg-amber-100 hover:text-amber-700"
+              >
+                <Lightbulb className="h-5 w-5" />
+              </Button>
+            ) : null}
+          </div>
           <div
             ref={botUserCardsRef}
             className="flex flex-col md:flex-row gap-4 shrink-0 min-h-[150px]"

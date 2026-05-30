@@ -20,6 +20,7 @@ import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputAre
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
 import { MultimodalInputArea } from "@/components/Shared/AssessmentInputs/MultimodalInputArea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext";
@@ -41,6 +42,8 @@ export interface AssessmentShellProps {
   isLastQuestion: boolean;
   existingAnswer?: string;
   onLanguageChange?: (language: string) => void;
+  /** When true, the student can't change the primary language (shown disabled). */
+  languageLocked?: boolean;
   maxAttempts?: number;
   botPromptConfig?: BotPromptConfig;
   contentItemId?: string | null;
@@ -101,6 +104,7 @@ export function AssessmentShell({
   isLastQuestion,
   existingAnswer,
   onLanguageChange,
+  languageLocked = false,
   maxAttempts,
   botPromptConfig,
   contentItemId,
@@ -386,6 +390,46 @@ export function AssessmentShell({
     }
   }, [isMultimodal, language, multimodalSpeechModels, onLanguageChange]);
 
+  // Language Support: an additional language the tutor can re-explain in.
+  // Chosen here, alongside the main language, before the activity starts.
+  const languageSupportConfig = botPromptConfig?.multimodal_actions?.languageSupport;
+  const supportEnabled = isMultimodal && (languageSupportConfig?.enabled ?? false);
+  const supportLocked = languageSupportConfig?.locked ?? false;
+  const supportLanguageOptions = React.useMemo(() => {
+    if (!supportEnabled) return [];
+    return multimodalSupportedLocales
+      .filter((code) => code !== language)
+      .map((code) => ({ value: code, label: getLocaleLabel(code) }));
+  }, [supportEnabled, multimodalSupportedLocales, language]);
+  const [supportLanguage, setSupportLanguage] = React.useState<string>(
+    languageSupportConfig?.defaultLanguage ?? "",
+  );
+  // Keep the support language valid: locked → teacher default; otherwise keep
+  // the current pick, falling back to the default or the first option.
+  React.useEffect(() => {
+    if (!supportEnabled) return;
+    if (supportLocked && languageSupportConfig?.defaultLanguage) {
+      setSupportLanguage(languageSupportConfig.defaultLanguage);
+      return;
+    }
+    if (supportLanguageOptions.length === 0) return;
+    setSupportLanguage((prev) => {
+      if (prev && supportLanguageOptions.some((o) => o.value === prev)) {
+        return prev;
+      }
+      const fallback = languageSupportConfig?.defaultLanguage;
+      if (fallback && supportLanguageOptions.some((o) => o.value === fallback)) {
+        return fallback;
+      }
+      return supportLanguageOptions[0]?.value ?? prev;
+    });
+  }, [
+    supportEnabled,
+    supportLocked,
+    languageSupportConfig?.defaultLanguage,
+    supportLanguageOptions,
+  ]);
+
   const languageSelectorDisabled =
     languageDisabled ||
     isEvaluating ||
@@ -453,16 +497,39 @@ export function AssessmentShell({
             <>
               {showInCardLanguageSelector && (
                 <div className="flex flex-col items-center justify-center gap-1">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="text-sm text-muted-foreground">Language:</span>
-                    <SearchableSelect
-                      value={language}
-                      onValueChange={handleLanguageValueChange}
-                      options={languageOptions}
-                      placeholder="Select language..."
-                      disabled={languageSelectorDisabled}
-                      className="w-[180px]"
-                    />
+                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <span>
+                          {supportEnabled ? "Primary language:" : "Language:"}
+                        </span>
+                        <InfoTooltip text="The main language the AI tutor speaks and converses in throughout the activity." />
+                      </div>
+                      <SearchableSelect
+                        value={language}
+                        onValueChange={handleLanguageValueChange}
+                        options={languageOptions}
+                        placeholder="Select language..."
+                        disabled={languageSelectorDisabled || languageLocked}
+                        className="w-[180px]"
+                      />
+                    </div>
+                    {supportEnabled && supportLanguageOptions.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <span>Support language:</span>
+                          <InfoTooltip text="An extra language the tutor can re-explain a point in when you tap the lightbulb (💡) help button. Technical terms stay in the primary language." />
+                        </div>
+                        <SearchableSelect
+                          value={supportLanguage}
+                          onValueChange={setSupportLanguage}
+                          options={supportLanguageOptions}
+                          placeholder="Select language..."
+                          disabled={languageSelectorDisabled || supportLocked}
+                          className="w-[180px]"
+                        />
+                      </div>
+                    )}
                   </div>
                   {multimodalNoLocales && (
                     <p className="text-xs text-muted-foreground text-center max-w-md">
@@ -475,7 +542,12 @@ export function AssessmentShell({
               {assessmentMode === "voice" && <VoiceInputArea {...inputProps} />}
               {assessmentMode === "text_chat" && <ChatInputArea {...inputProps} />}
               {assessmentMode === "static_text" && <StaticTextInputArea {...inputProps} />}
-              {assessmentMode === "multimodal" && <MultimodalInputArea {...inputProps} />}
+              {assessmentMode === "multimodal" && (
+                <MultimodalInputArea
+                  {...inputProps}
+                  supportLanguage={supportLanguage}
+                />
+              )}
             </>
           )}
         </AssessmentQuestionCard>

@@ -262,6 +262,36 @@ export default function AssignmentForm({
     };
   }, [currentAssessmentMode, classDbId]);
 
+  // Locales the class's STT + TTS models both support — restricts the teacher's
+  // support-language picker to capable languages. Undefined while unresolved.
+  const [supportedLocales, setSupportedLocales] = useState<
+    string[] | undefined
+  >(undefined);
+  useEffect(() => {
+    if (currentAssessmentMode !== "multimodal" || !classDbId) {
+      setSupportedLocales(undefined);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/multimodal/supported-locales?classDbId=${encodeURIComponent(
+            classDbId,
+          )}`,
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { supportedLocales?: string[] };
+        if (!cancelled) setSupportedLocales(data.supportedLocales ?? []);
+      } catch {
+        // Leave undefined → fall back to the full locale list.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAssessmentMode, classDbId]);
+
   const [maxAttempts, setMaxAttempts] = useState(initialMaxAttempts);
   const [responderFieldsConfig, setResponderFieldsConfig] = useState<
     ResponderFieldConfig[]
@@ -929,6 +959,7 @@ export default function AssignmentForm({
                   dynamicGenerationPrompt={dynamicGenerationPrompt}
                   setDynamicGenerationPrompt={setDynamicGenerationPrompt}
                   availableActionKinds={availableActionKinds}
+                  supportedLocales={supportedLocales}
                 />
               </TabsContent>
             </Tabs>

@@ -410,11 +410,6 @@ export default function AssignmentResponseCore({
       suspendTabLeaveTracking: voiceMicPermissionPending,
     });
 
-  // If language is locked, don't allow students to change it
-  const languageChangeHandler = assignmentData.lock_language
-    ? undefined
-    : handleLanguageChange;
-
   return (
     <>
       <TabSwitchWarningDialog
@@ -578,7 +573,8 @@ export default function AssignmentResponseCore({
           isFirstQuestion={currentStepIndex === 0}
           isLastQuestion={isLastQuestion}
           existingAnswer={answers[currentQuestion.order]}
-          onLanguageChange={languageChangeHandler}
+          onLanguageChange={handleLanguageChange}
+          languageLocked={assignmentData.lock_language ?? false}
           maxAttempts={assignmentData.max_attempts ?? 1}
           botPromptConfig={assignmentData.bot_prompt_config}
           contentItemId={contentItemId}

@@ -29,8 +29,17 @@ type McqAction = Extract<ActionInput, { kind: "mcq" }>;
 export async function handleMcqAction(
   args: DispatchActionArgs & { action: McqAction },
 ): Promise<void> {
-  const { id, action, model, providerOptions, enqueue, supabase, submissionId, chatMessageId } =
-    args;
+  const {
+    id,
+    action,
+    model,
+    providerOptions,
+    enqueue,
+    supabase,
+    submissionId,
+    chatMessageId,
+    languageLabel,
+  } = args;
 
   // Retry: re-present the exact same question the learner just attempted.
   let payload: McqActionPayload | null = action.repeatPrevious
@@ -50,7 +59,11 @@ export async function handleMcqAction(
         "use **bold**, *italics*, `inline code`, and fenced code blocks where they " +
         "make the content clearer. Use Unicode for simple scientific notation (e.g. " +
         "O₂, H₂O, x²). Keep each choice concise.",
-      prompt: `Topic: ${action.topic}\nDifficulty: ${action.difficulty}`,
+      prompt:
+        `Topic: ${action.topic}\n` +
+        `Difficulty: ${action.difficulty}\n` +
+        `Write the question, all four choices, and the explanation in ${languageLabel} ` +
+        `to match the conversation language.`,
     });
     payload = { kind: "mcq", ...object };
   }

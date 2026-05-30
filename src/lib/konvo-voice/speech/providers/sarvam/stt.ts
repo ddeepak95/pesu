@@ -12,11 +12,14 @@ export const sarvamSttProvider: SttProvider = {
 
   async transcribe(input) {
     const model = input.apiModelId ?? "saaras:v3";
-    const languageCode = input.language
-      ? toSarvamLanguageCode(input.language)
-      : "en-IN";
+    // Auto-detect: Sarvam treats "unknown" as detect-the-spoken-language.
+    const languageCode = input.autoDetect
+      ? "unknown"
+      : input.language
+        ? toSarvamLanguageCode(input.language)
+        : "en-IN";
     console.log(
-      `[konvo-voice/stt] provider=sarvam model=${model} locale=${input.language ?? ""} language_code=${languageCode} audioBytes=${input.audio.length}`,
+      `[konvo-voice/stt] provider=sarvam model=${model} locale=${input.language ?? ""} language_code=${languageCode} autoDetect=${Boolean(input.autoDetect)} audioBytes=${input.audio.length}`,
     );
 
     const { mimeType, filename } = normalizeSarvamRestUpload(
