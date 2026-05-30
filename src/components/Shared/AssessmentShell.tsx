@@ -438,6 +438,9 @@ export function AssessmentShell({
 
   const showInCardLanguageSelector =
     Boolean(onLanguageChange) &&
+    // Hide the language selectors once the activity has started; before that
+    // they show (disabled when teacher-locked).
+    !languageDisabled &&
     (assessmentMode === "voice" ||
       assessmentMode === "text_chat" ||
       assessmentMode === "multimodal");

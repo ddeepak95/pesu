@@ -7,6 +7,12 @@ import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
 import { Button } from "@/components/ui/button";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/Shared/KonvoVoice/defaultSessionConfig";
@@ -205,6 +211,16 @@ export function MultimodalInputArea({
     (botPromptConfig?.multimodal_actions?.languageSupport?.enabled ?? false) &&
     Boolean(supportLanguage) &&
     supportLanguage !== language;
+
+  // STT input language toggle: which language the learner is about to speak, so
+  // the transcriber gets an explicit (more accurate) hint. Defaults to primary;
+  // only meaningful when support is enabled.
+  const [inputIsSupport, setInputIsSupport] = React.useState(false);
+  React.useEffect(() => {
+    if (!supportEnabled) setInputIsSupport(false);
+  }, [supportEnabled]);
+  const sttLanguage =
+    supportEnabled && inputIsSupport && supportLanguage ? supportLanguage : language;
 
   const recorder = useAudioRecorder();
   const playback = useStreamingSpeechPlayback();
@@ -973,12 +989,12 @@ export function MultimodalInputArea({
 
     const label =
       getLocaleRegistryMap().get(supportLanguage)?.label ?? supportLanguage;
-    // Hidden nudge: sent to the LLM (so it knows what to re-explain) but never
+    // Hidden nudge: sent to the LLM (so it knows what to translate) but never
     // rendered or logged — the spoken reply is the visible result.
     const hiddenMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "student",
-      content: `Could you please explain that again in ${label}? I understand it better in ${label}.`,
+      content: `Please translate your previous message into ${label}.`,
       hidden: true,
     };
     const nextHistory = [...messagesRef.current, hiddenMessage];
@@ -1067,7 +1083,8 @@ export function MultimodalInputArea({
         formData.append(
           "sessionConfig",
           JSON.stringify({
-            language,
+            // Explicit per-utterance STT hint (primary or support) for accuracy.
+            language: sttLanguage,
             activityType,
             sttModelId,
             ttsModelId:
@@ -1081,11 +1098,6 @@ export function MultimodalInputArea({
           new File([wavBlob], "recording.wav", { type: "audio/wav" }),
         );
         formData.append("assignmentId", assignmentId);
-        // With language support on, the learner may speak the primary OR the
-        // support language — let STT auto-detect instead of forcing one.
-        if (supportEnabled) {
-          formData.append("autoDetectLanguage", "true");
-        }
         const response = await fetch("/api/multimodal/transcribe", {
           method: "POST",
           body: formData,
@@ -1155,7 +1167,6 @@ export function MultimodalInputArea({
     isSpeaking,
     isThinking,
     isTranscribing,
-    language,
     maxAttemptsReached,
     persistUtteranceAudio,
     playback,
@@ -1165,7 +1176,7 @@ export function MultimodalInputArea({
     runAssistantTurn,
     speechModels?.sttModelId,
     speechModels?.ttsModelId,
-    supportEnabled,
+    sttLanguage,
   ]);
 
   return (
@@ -1288,6 +1299,46 @@ export function MultimodalInputArea({
                 recorder={recorder}
                 onMicPress={() => void handleMicPress()}
                 onSend={() => void handleMicPress()}
+                micAccessory={
+                  supportEnabled && supportLanguage ? (
+                    <TooltipProvider delayDuration={200}>
+                      <div className="inline-flex rounded-full border border-border bg-muted/40 p-0.5">
+                        {[
+                          { code: language, isSupport: false },
+                          { code: supportLanguage, isSupport: true },
+                        ].map(({ code, isSupport }) => {
+                          const label =
+                            getLocaleRegistryMap().get(code)?.label ?? code;
+                          const active = inputIsSupport === isSupport;
+                          return (
+                            <Tooltip key={code}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => setInputIsSupport(isSupport)}
+                                  disabled={isTranscribing}
+                                  aria-pressed={active}
+                                  aria-label={`I'm speaking in ${label}`}
+                                  className={cn(
+                                    "rounded-full px-2 py-0.5 text-[11px] font-medium uppercase leading-none transition-colors disabled:opacity-50",
+                                    active
+                                      ? "bg-background text-foreground shadow-sm"
+                                      : "text-muted-foreground hover:text-foreground",
+                                  )}
+                                >
+                                  {code.split("-")[0]}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                I&apos;m speaking in {label}
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        })}
+                      </div>
+                    </TooltipProvider>
+                  ) : null
+                }
               />
             </div>
           </div>

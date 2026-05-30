@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import { Mic, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ interface UserInputPanelProps {
   recorder: UseAudioRecorderResult;
   onMicPress: () => void;
   onSend: () => void;
+  /** Optional control rendered directly above the mic button (e.g. STT language toggle). */
+  micAccessory?: ReactNode;
 }
 
 export function UserInputPanel({
@@ -28,6 +30,7 @@ export function UserInputPanel({
   recorder,
   onMicPress,
   onSend,
+  micAccessory,
 }: UserInputPanelProps) {
   const micDisabled = ui.actionButton === "mic" && !ui.micEnabled;
 
@@ -95,7 +98,9 @@ export function UserInputPanel({
           )}
         </div>
 
-        <div className="relative shrink-0 size-14 overflow-visible">
+        <div className="relative shrink-0 flex flex-col items-center gap-2">
+          {micAccessory}
+          <div className="relative size-14 overflow-visible">
           {ui.actionButton === "send" ? (
             <Button
               type="button"
@@ -119,7 +124,8 @@ export function UserInputPanel({
               <Mic className="h-6 w-6" />
             </Button>
           )}
-          <ActionButtonRings active={showRings} ringClassName={ringClassName} />
+            <ActionButtonRings active={showRings} ringClassName={ringClassName} />
+          </div>
         </div>
       </div>
 

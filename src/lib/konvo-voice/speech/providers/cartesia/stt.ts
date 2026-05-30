@@ -20,22 +20,17 @@ export const cartesiaSttProvider: SttProvider = {
     });
 
     const model = input.apiModelId ?? "ink-whisper";
-    // Auto-detect: omit `language` so the Whisper model detects it. (Cartesia's
-    // auto-detect support should be confirmed in a live test.)
-    const language =
-      input.autoDetect || !input.language
-        ? undefined
-        : getProviderLanguageCodeForKonvo(input.language);
+    const language = input.language
+      ? getProviderLanguageCodeForKonvo(input.language)
+      : "en";
     console.log(
-      `[konvo-voice/stt] provider=cartesia model=${model} locale=${input.language ?? ""} language=${language ?? "(auto)"} autoDetect=${Boolean(input.autoDetect)} audioBytes=${input.audio.length}`,
+      `[konvo-voice/stt] provider=cartesia model=${model} locale=${input.language ?? ""} language=${language} audioBytes=${input.audio.length}`,
     );
 
     const form = new FormData();
     form.append("file", file);
     form.append("model", model);
-    if (language) {
-      form.append("language", language);
-    }
+    form.append("language", language);
 
     const response = await fetch(`${CARTESIA_API_BASE}/audio/transcriptions`, {
       method: "POST",

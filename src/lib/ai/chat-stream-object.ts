@@ -130,40 +130,41 @@ function buildLanguageSupportDirective(input: {
   languageSupport?: TurnLanguageSupport;
   languageHelpAvailable?: { languageLabel: string };
 }): string | null {
-  // Active: this turn restates the previous point in the support language (its
-  // TTS voice is already set to match) — a faithful restatement, nothing new.
+  // Active: this turn TRANSLATES your previous message into the support language
+  // (its TTS voice is already set to match) — a precursor + faithful translation,
+  // nothing new.
   if (input.languageSupport?.active) {
     const { languageLabel: label, primaryLanguageLabel: primaryLabel } =
       input.languageSupport;
     const termClause = primaryLabel
-      ? ` Keep technical and academic terms in ${primaryLabel} exactly as you used them before — ` +
-        `only the surrounding explanation should be in ${label}.`
-      : ` Keep technical and academic terms in their original language exactly as you used them ` +
-        `before — only the surrounding explanation should be in ${label}.`;
+      ? ` Keep technical and academic terms in ${primaryLabel} exactly as they appeared — ` +
+        `translate only the surrounding wording into ${label}.`
+      : ` Keep technical and academic terms in their original language exactly as they appeared — ` +
+        `translate only the surrounding wording into ${label}.`;
     const line =
-      `LANGUAGE SUPPORT — RESTATE IN ${label.toUpperCase()}: The learner asked to hear your ` +
-      `previous point in ${label}. For this one response, give the explanation in ${label} and ` +
-      `restate ONLY what you already said before — translate and reiterate the same point. ` +
-      `Do NOT add any new information, examples, steps, hints, or questions; reveal nothing ` +
-      `beyond what was already covered.` +
+      `LANGUAGE SUPPORT — TRANSLATE INTO ${label.toUpperCase()}: The learner asked for a ` +
+      `${label} translation of your previous message. For this one response, speak entirely in ` +
+      `${label}: start with a short precursor telling them this is what you just said (the ` +
+      `${label} for something like "Translation:"), then give a faithful, complete ` +
+      `translation of your previous message into ${label}. Translate only — do NOT add, expand, ` +
+      `summarize, omit, or answer anything new.` +
       termClause +
-      ` Keep it a clear, supportive restatement, then resume the conversation in the usual ` +
-      `language on the next turn.`;
+      ` Resume the conversation in the usual language on the next turn.`;
     return line;
   }
 
   // Available: this turn is in the primary language, but the model may offer to
-  // restate in the support language when the learner asks.
+  // translate its message into the support language when the learner asks.
   if (input.languageHelpAvailable) {
     const label = input.languageHelpAvailable.languageLabel;
     return (
-      `LANGUAGE SUPPORT AVAILABLE: You may also help this learner in ${label}. If they ask ` +
-      `you to explain or translate a point in ${label} — or say they didn't understand and ` +
-      `would follow it better in ${label} — set \`requestLanguageHelp\` to true and keep ` +
-      `your \`speech\` to a brief, warm acknowledgment (e.g. "Sure — let me put that in ` +
-      `${label}."). The same point will then be restated in ${label} automatically, so do ` +
-      `not give the ${label} explanation yourself this turn. Otherwise leave ` +
-      `\`requestLanguageHelp\` null and continue normally.`
+      `LANGUAGE SUPPORT AVAILABLE: You may also translate your message into ${label} for this ` +
+      `learner. If they ask you to say or translate something in ${label} — or say they didn't ` +
+      `understand and would follow it better in ${label} — set \`requestLanguageHelp\` to true ` +
+      `and keep your \`speech\` to a brief, warm acknowledgment (e.g. "Sure — here's that in ` +
+      `${label}."). A ${label} translation of your message will then follow automatically, so ` +
+      `do not translate it yourself this turn. Otherwise leave \`requestLanguageHelp\` null and ` +
+      `continue normally.`
     );
   }
 

@@ -17,13 +17,11 @@ export const openaiSttProvider: SttProvider = {
     });
 
     const model = input.apiModelId ?? OPENAI_STT_MODEL;
-    // Auto-detect: omit `language` so Whisper detects the spoken language.
-    const language =
-      input.autoDetect || !input.language
-        ? undefined
-        : getProviderLanguageCodeForKonvo(input.language);
+    const language = input.language
+      ? getProviderLanguageCodeForKonvo(input.language)
+      : undefined;
     console.log(
-      `[konvo-voice/stt] provider=openai model=${model} locale=${input.language ?? ""} language=${language ?? "(auto)"} autoDetect=${Boolean(input.autoDetect)} audioBytes=${input.audio.length}`,
+      `[konvo-voice/stt] provider=openai model=${model} locale=${input.language ?? ""} language=${language ?? ""} audioBytes=${input.audio.length}`,
     );
 
     const result = await openai.audio.transcriptions.create({

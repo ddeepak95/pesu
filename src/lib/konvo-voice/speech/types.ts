@@ -5,12 +5,6 @@ export interface TranscribeInput {
   filename: string;
   mimeType?: string;
   language?: string;
-  /**
-   * Let the provider auto-detect the spoken language instead of forcing
-   * `language`. Used when language support is enabled so a learner may speak
-   * either the primary or the support language. Detection is per-utterance.
-   */
-  autoDetect?: boolean;
   apiModelId?: string;
   providerApiKey?: string;
 }
