@@ -14,6 +14,8 @@ import {
   expectedOnlySchema,
 } from "@/lib/ai/schemas/rubric-generation";
 import { generateStructured } from "@/lib/ai/structured";
+import { getActivityTypeGenerationCopy } from "@/lib/activityTypes/registry";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
 interface GenerateRubricAndAnswerRequestBody {
   questionPrompt: string;
@@ -29,6 +31,8 @@ interface GenerateRubricAndAnswerRequestBody {
   generateExpectedAnswer?: boolean;
   /** When set, resolve catalog for this class; otherwise platform catalog. */
   classDbId?: string;
+  /** Activity type — tailors the generation wording. Defaults to "learning". */
+  activityType?: ActivityTypeKind;
 }
 
 interface GenerateRubricAndAnswerResponse {
@@ -51,7 +55,11 @@ export async function POST(request: NextRequest) {
       generateRubric = true,
       generateExpectedAnswer = true,
       classDbId,
+      activityType = "learning",
     } = body;
+
+    const copy = getActivityTypeGenerationCopy(activityType);
+    const guidanceBlock = copy.guidance ? `\n\n${copy.guidance}` : "";
 
     if (!questionPrompt) {
       return NextResponse.json(
@@ -151,28 +159,28 @@ Preferred Language (fallback if detection uncertain): ${preferredLanguageName}`;
           {
             role: "system",
             content: `You are an expert educational content creator. Your task is to:
-1. First, identify the language of the question prompt
-2. Then generate a comprehensive rubric and expected answer in that same language
+1. First, identify the language of the ${copy.conceptNoun} prompt
+2. Then generate a comprehensive ${copy.rubricNoun} and ${copy.expectedAnswerNoun} in that same language
 
-IMPORTANT: 
-- Detect the language from the question prompt
-- Generate ALL content (rubric items and expected answer) in the detected language
+IMPORTANT:
+- Detect the language from the ${copy.conceptNoun} prompt
+- Generate ALL content (${copy.rubricNoun} items and ${copy.expectedAnswerNoun}) in the detected language
 - If you cannot confidently detect the language, use the preferred language provided as fallback
 - Write naturally in the detected language
-- You may receive additional context such as the assignment title, instructions, contextual information, and teacher's additional instructions. Use all available context to produce more relevant and aligned rubric items and expected answers.
+- You may receive additional context such as the assignment title, instructions, contextual information, and teacher's additional instructions. Use all available context to produce more relevant and aligned content.${guidanceBlock}
 
-For the rubric:
-- Generate 3-5 rubric items that comprehensively cover what a good answer should include
+For the ${copy.rubricNoun}:
+- Generate 3-5 items that comprehensively cover ${copy.rubricCoverage}
 - Distribute points appropriately (typically 20-40 points per item, with total points between 60-100)
-- Make rubric items specific, measurable, and aligned with the question
-- Each rubric item should describe a distinct aspect of a quality answer
-- Write rubric items in the detected language
+- Make items specific, measurable, and aligned with the ${copy.conceptNoun}
+- Each item should describe a distinct aspect
+- Write items in the detected language
 
-For the expected answer:
-- Provide key points that the answer should definitely cover (as bullet points)
+For the ${copy.expectedAnswerNoun}:
+- Provide ${copy.expectedAnswerCoverage} (as bullet points)
 - Keep it concise - just the essential elements
 - Format as clear, actionable pointers
-- This guides AI evaluation, not a sample answer for students
+- This guides AI evaluation, not a sample shown to students
 - Write in the detected language`,
           },
           {
@@ -180,9 +188,9 @@ For the expected answer:
             content: `${baseUser}
 
 Please:
-1. Detect the language of the question (respond with ISO 639-1 code: en, hi, kn, ta, ml, or de)
-2. Generate a rubric with 3-5 items in the detected language
-3. Generate expected answer as key pointers in the detected language`,
+1. Detect the language of the ${copy.conceptNoun} (respond with ISO 639-1 code: en, hi, kn, ta, ml, or de)
+2. Generate a ${copy.rubricNoun} with 3-5 items in the detected language
+3. Generate ${copy.expectedAnswerNoun} as key pointers in the detected language`,
           },
         ],
       });
@@ -223,13 +231,13 @@ Please:
         messages: [
           {
             role: "system",
-            content: `You are an expert educational content creator. Detect the language of the question, then generate ONLY a rubric in that language (3-5 items). Use assignment context when provided. Distribute points so the total is reasonable for classroom use (e.g. 60-100 total).`,
+            content: `You are an expert educational content creator. Detect the language of the ${copy.conceptNoun}, then generate ONLY a ${copy.rubricNoun} in that language (3-5 items) covering ${copy.rubricCoverage}. Use assignment context when provided. Distribute points so the total is reasonable for classroom use (e.g. 60-100 total).${guidanceBlock}`,
           },
           {
             role: "user",
             content: `${baseUser}
 
-Please detect language (ISO 639-1) and generate only the rubric.`,
+Please detect language (ISO 639-1) and generate only the ${copy.rubricNoun}.`,
           },
         ],
       });
@@ -268,13 +276,13 @@ Please detect language (ISO 639-1) and generate only the rubric.`,
         messages: [
           {
             role: "system",
-            content: `You are an expert educational content creator. Detect the language of the question, then generate ONLY an expected answer key (bullet-style key points the student's answer should cover). This guides AI evaluation, not a sample for students.`,
+            content: `You are an expert educational content creator. Detect the language of the ${copy.conceptNoun}, then generate ONLY a ${copy.expectedAnswerNoun} (bullet-style key points capturing ${copy.expectedAnswerCoverage}). This guides AI evaluation, not a sample for students.${guidanceBlock}`,
           },
           {
             role: "user",
             content: `${baseUser}
 
-Please detect language (ISO 639-1) and generate only the expected answer key points.`,
+Please detect language (ISO 639-1) and generate only the ${copy.expectedAnswerNoun} key points.`,
           },
         ],
       });

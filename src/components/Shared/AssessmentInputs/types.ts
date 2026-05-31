@@ -40,8 +40,8 @@ export interface AssessmentInputProps {
   onIntegrityAccessRevoked?: () => void;
   /** Pre-fetched formatted content of uploaded files for prompt interpolation */
   fileSubmissionsContent?: string;
-  /** Activity type for prompt defaults (assessment vs learning) */
-  activityType?: "assessment" | "learning";
+  /** Activity type for prompt defaults (learning / assessment / speaking practice). */
+  activityType?: import("@/lib/activityTypes/types").ActivityTypeKind;
   /** Assignment title for prompt interpolation */
   title?: string;
   /** Student instructions for prompt interpolation */

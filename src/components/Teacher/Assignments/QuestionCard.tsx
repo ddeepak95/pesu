@@ -24,6 +24,8 @@ import {
   QuestionPromptOverride,
   teacherPromptOrFocus,
 } from "@/types/assignment";
+import { getActivityTypeLabels } from "@/lib/activityTypes/registry";
+import type { ActivityType } from "@/lib/promptTemplates";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   ArrowUp,
@@ -33,12 +35,6 @@ import {
   Loader2,
   Bot,
 } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 
 interface QuestionCardProps {
   question: Question;
@@ -78,6 +74,8 @@ interface QuestionCardProps {
   defaultConversationStart?: string;
   /** Class DB id for catalog-backed rubric generation. */
   classDbId?: string | null;
+  /** Activity type — drives field labels (e.g. Question → Scenario). */
+  activityType?: ActivityType;
 }
 
 const DYNAMIC_PROMPT_INFO_TOOLTIP =
@@ -108,7 +106,9 @@ export default function QuestionCard({
   defaultSystemPrompt = "",
   defaultConversationStart = "",
   classDbId = null,
+  activityType = "learning",
 }: QuestionCardProps) {
+  const labels = getActivityTypeLabels(activityType);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isBotOverrideOpen, setIsBotOverrideOpen] = useState(false);
@@ -144,7 +144,7 @@ export default function QuestionCard({
   const handleGenerateWithAI = async () => {
     if (!genRubric && !genExpected) {
       setGenerationError(
-        "Select at least one: generate rubric or expected answer",
+        `Select at least one: generate ${labels.rubric.toLowerCase()} or ${labels.expectedAnswer.toLowerCase()}`,
       );
       return;
     }
@@ -152,14 +152,16 @@ export default function QuestionCard({
     if (!teacherPromptOrFocus(question).trim()) {
       setGenerationError(
         dynamicPrompt
-          ? "Please enter guidelines for the question first"
-          : "Please enter a question prompt first",
+          ? `Please enter guidelines for the ${labels.questionNoun} first`
+          : `Please enter a ${labels.questionNoun} first`,
       );
       return;
     }
 
     if (!question.total_points || question.total_points <= 0) {
-      setGenerationError("Please enter total points for this question first");
+      setGenerationError(
+        `Please enter total points for this ${labels.questionNoun} first`,
+      );
       return;
     }
 
@@ -182,6 +184,7 @@ export default function QuestionCard({
           generateRubric: genRubric,
           generateExpectedAnswer: genExpected,
           classDbId: classDbId ?? undefined,
+          activityType,
         }),
       });
 
@@ -289,7 +292,9 @@ export default function QuestionCard({
   return (
     <div className="border rounded-lg p-6 space-y-4 bg-card">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Question {index + 1}</h3>
+        <h3 className="text-lg font-semibold">
+          {labels.question} {index + 1}
+        </h3>
         <div className="flex gap-2">
           {showBotOverride && onQuestionOverrideChange && (
             <Button
@@ -367,7 +372,7 @@ export default function QuestionCard({
             htmlFor={`prompt-${index}`}
             className="text-sm font-medium min-w-0 flex-1"
           >
-            {dynamicPrompt ? "Guidelines for the question" : "Question"}{" "}
+            {dynamicPrompt ? "Guidelines for the question" : labels.question}{" "}
             <span className="text-destructive">*</span>
           </Label>
           <div className="flex items-center gap-2 shrink-0">
@@ -399,7 +404,7 @@ export default function QuestionCard({
           placeholder={
             dynamicPrompt
               ? "Describe what the generated question should cover (guidelines for the AI)"
-              : "Enter the question text"
+              : labels.questionPlaceholder
           }
           rows={4}
         />
@@ -428,13 +433,15 @@ export default function QuestionCard({
           <Sparkles className="h-4 w-4 mr-2" />
           {isGenerating
             ? "Generating..."
-            : "Generate Rubric & Expected Answer with AI"}
+            : `Generate ${labels.rubric} & ${labels.expectedAnswer} with AI`}
         </Button>
         {isGenerating && (
           <div className="flex items-center gap-2 p-4 border rounded-md bg-muted/30">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <div className="text-sm">
-              <p className="font-medium">AI is processing your question...</p>
+              <p className="font-medium">
+                AI is processing your {labels.questionNoun}...
+              </p>
               <p className="text-muted-foreground">
                 Detecting language and generating content
               </p>
@@ -451,11 +458,14 @@ export default function QuestionCard({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
-              Generate Rubric &amp; Expected Answer
+              Generate {labels.rubric} &amp; {labels.expectedAnswer}
             </DialogTitle>
             <DialogDescription>
               Choose what to generate. The model uses your{" "}
-              {dynamicPrompt ? "guidelines for the question" : "question"} text
+              {dynamicPrompt
+                ? `guidelines for the ${labels.questionNoun}`
+                : labels.questionNoun}{" "}
+              text
               {focusGuidance.trim()
                 ? " and your extra instructions below."
                 : "."}
@@ -472,7 +482,7 @@ export default function QuestionCard({
                 htmlFor={`gen-rubric-${index}`}
                 className="font-normal cursor-pointer"
               >
-                Generate rubric
+                Generate {labels.rubric.toLowerCase()}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
@@ -485,7 +495,7 @@ export default function QuestionCard({
                 htmlFor={`gen-expected-${index}`}
                 className="font-normal cursor-pointer"
               >
-                Generate expected answer
+                Generate {labels.expectedAnswer.toLowerCase()}
               </Label>
             </div>
             <Textarea
@@ -527,7 +537,7 @@ export default function QuestionCard({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <Label className="text-sm font-medium">
-              Rubric <span className="text-destructive">*</span>
+              {labels.rubric} <span className="text-destructive">*</span>
             </Label>
             <div className="flex items-center gap-2 shrink-0">
               <InfoTooltip text={DYNAMIC_RUBRIC_INFO_TOOLTIP} />
@@ -543,7 +553,7 @@ export default function QuestionCard({
             </div>
           </div>
           <div className="flex gap-8 mt-2 text-sm text-muted-foreground">
-            <span>Item</span>
+            <span>{labels.rubricItemNoun}</span>
             <span className="ml-auto">Points</span>
           </div>
 
@@ -558,6 +568,7 @@ export default function QuestionCard({
                 }
                 onRemove={(rubricIdx) => onRemoveRubricItem(index, rubricIdx)}
                 disabled={disabled}
+                itemPlaceholder={labels.rubricItemPlaceholder}
               />
             ))}
           </div>
@@ -573,13 +584,13 @@ export default function QuestionCard({
             disabled={disabled}
             size="sm"
           >
-            Add Rubric Item
+            Add {labels.rubricItemNoun}
           </Button>
         </div>
       ) : (
         <div className="space-y-2 rounded-md border border-dashed p-4 bg-muted/20">
           <div className="flex items-center justify-between gap-3">
-            <Label className="text-sm font-medium">Rubric</Label>
+            <Label className="text-sm font-medium">{labels.rubric}</Label>
             <div className="flex items-center gap-2 shrink-0">
               <InfoTooltip text={DYNAMIC_RUBRIC_INFO_TOOLTIP} />
               <span className="text-xs text-muted-foreground">Dynamic</span>
@@ -603,41 +614,21 @@ export default function QuestionCard({
 
       {!dynamicRubric && (
         <div className="space-y-2">
-          <Label htmlFor={`expectedAnswer-${index}`}>Expected Answer</Label>
+          <Label htmlFor={`expectedAnswer-${index}`}>{labels.expectedAnswer}</Label>
           <Textarea
             id={`expectedAnswer-${index}`}
             value={question.expected_answer || ""}
             onChange={(e) => onChange(index, "expected_answer", e.target.value)}
             disabled={disabled}
-            placeholder="Enter details about what the answer should cover (optional)"
+            placeholder={labels.expectedAnswerPlaceholder}
             rows={4}
           />
           <p className="text-xs text-muted-foreground">
-            Key points the answer should cover. Guides AI evaluation; not shown
-            to learners.
+            {labels.expectedAnswerHelp}
           </p>
         </div>
       )}
 
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value={`supporting-content-${index}`}>
-          <AccordionTrigger>Supporting Content</AccordionTrigger>
-          <AccordionContent>
-            <div className="space-y-2">
-              <Textarea
-                id={`supportingContent-${index}`}
-                value={question.supporting_content}
-                onChange={(e) =>
-                  onChange(index, "supporting_content", e.target.value)
-                }
-                disabled={disabled}
-                placeholder="Enter any supporting content or instructions"
-                rows={4}
-              />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
 
       {showBotOverride && onQuestionOverrideChange && (
         <Dialog open={isBotOverrideOpen} onOpenChange={setIsBotOverrideOpen}>
@@ -645,7 +636,7 @@ export default function QuestionCard({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Bot className="h-5 w-5" />
-                Bot Behavior for Question {index + 1}
+                Bot Behavior for {labels.question} {index + 1}
               </DialogTitle>
               <DialogDescription>
                 Customize how the AI bot interacts with students for this

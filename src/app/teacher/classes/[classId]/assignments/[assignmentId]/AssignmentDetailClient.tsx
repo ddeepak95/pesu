@@ -303,9 +303,7 @@ export default function AssignmentDetailClient({
             <Pill purpose="assignmentActivityType" size="lg">
               <BookOpen className="h-4 w-4" />
               <span>
-                {assignmentData.activity_type === "assessment"
-                  ? "Assessment"
-                  : "Learning"}
+                {assignmentData.activity_type === "assessment" ? "Assessment" : assignmentData.activity_type === "speaking_practice" ? "Speaking Practice" : "Learning"}
               </span>
             </Pill>
 

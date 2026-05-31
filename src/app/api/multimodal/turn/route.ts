@@ -20,6 +20,7 @@ import { getActionDefinition } from "@/lib/multimodal/actions/registry";
 import type { ActionInput } from "@/lib/multimodal/actions/schema";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
@@ -95,6 +96,8 @@ interface MultimodalTurnRequestBody {
   ttsModelId: string;
   availableActions?: ActionKind[];
   endConversationConfig?: EndConversationConfig;
+  /** Activity type — varies the multimodal + language-support directives. */
+  activityType?: ActivityTypeKind;
 }
 
 function shouldFlushFallbackTtsChunk(buffer: string): boolean {
@@ -430,6 +433,7 @@ export async function POST(request: NextRequest) {
               languageHelpAvailable && supportAvail
                 ? { languageLabel: localeLabel(supportAvail) }
                 : undefined,
+            activityType: body.activityType,
           };
 
           attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {

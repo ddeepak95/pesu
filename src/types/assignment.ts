@@ -227,7 +227,7 @@ export interface Assignment {
    * Activity type for this assignment.
    * Defaults to "learning" for legacy assignments where this field is missing.
    */
-  activity_type?: "assessment" | "learning";
+  activity_type?: "assessment" | "learning" | "speaking_practice";
   /**
    * Configuration for responder details collection in public assignments.
    * Defines what fields to collect from public responders.

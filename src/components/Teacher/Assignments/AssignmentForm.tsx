@@ -47,6 +47,11 @@ import {
   buildDefaultDynamicGenerationPrompt,
   type ActivityType,
 } from "@/lib/promptTemplates";
+import {
+  listActivityTypes,
+  getActivityTypeDefinition,
+  getActivityTypeLabels,
+} from "@/lib/activityTypes/registry";
 import { ChevronDown, Lock } from "lucide-react";
 import {
   Tooltip,
@@ -558,6 +563,50 @@ export default function AssignmentForm({
       : botPromptConfig.conversation_start.subsequent_questions;
   };
 
+  // Switch activity type: rebuild the default prompts and apply the type's
+  // preselected config (interaction type + multimodal language support/actions).
+  const handleActivityTypeChange = (value: string) => {
+    const newType = value as ActivityType;
+    setActivityType(newType);
+
+    const def = getActivityTypeDefinition(newType);
+
+    // Switch interaction type when the type asks for one and the class allows it.
+    let targetMode = currentAssessmentMode;
+    const desired = def.defaults?.interactionType;
+    if (desired && allowedAssessmentModes.has(desired)) {
+      targetMode = desired;
+      setAssessmentMode(desired);
+    }
+
+    let nextConfig = buildDefaultBotPromptConfig(newType, targetMode);
+
+    // Multimodal preselection (language support + actions) for the new type.
+    const mm = def.defaults?.multimodal;
+    if (mm && targetMode === "multimodal") {
+      nextConfig = {
+        ...nextConfig,
+        multimodal_actions: {
+          ...nextConfig.multimodal_actions,
+          ...(mm.availableActions !== undefined
+            ? { availableActions: mm.availableActions }
+            : {}),
+          ...(mm.languageSupportEnabled !== undefined
+            ? {
+                languageSupport: {
+                  ...nextConfig.multimodal_actions?.languageSupport,
+                  enabled: mm.languageSupportEnabled,
+                },
+              }
+            : {}),
+        },
+      };
+    }
+
+    setBotPromptConfig(nextConfig);
+    setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
+  };
+
   const handleSubmit = async (e: React.FormEvent, draft: boolean = false) => {
     e.preventDefault();
     setError(null);
@@ -585,7 +634,7 @@ export default function AssignmentForm({
 
       if (!teacherPromptOrFocus(question).trim()) {
         setError(
-          `Question ${i + 1}: ${question.dynamic_prompt ? "Guidelines for the question" : "Question"} is required`,
+          `Question ${i + 1}: ${question.dynamic_prompt ? "Guidelines for the question" : getActivityTypeLabels(activityType).question} is required`,
         );
         return;
       }
@@ -765,22 +814,18 @@ export default function AssignmentForm({
           </Label>
           <Select
             value={activityType}
-            onValueChange={(value) => {
-              const newType = value as ActivityType;
-              setActivityType(newType);
-              setBotPromptConfig(
-                buildDefaultBotPromptConfig(newType, currentAssessmentMode),
-              );
-              setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
-            }}
+            onValueChange={handleActivityTypeChange}
             disabled={loading}
           >
             <SelectTrigger id="activityType">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="learning">Learning</SelectItem>
-              <SelectItem value="assessment">Assessment</SelectItem>
+              {listActivityTypes().map((def) => (
+                <SelectItem key={def.kind} value={def.kind}>
+                  {def.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -995,6 +1040,7 @@ export default function AssignmentForm({
             }
             onQuestionOverrideChange={handleQuestionOverrideChange}
             classDbId={classDbId}
+            activityType={activityType}
             defaultSystemPrompt={botPromptConfig.system_prompt}
             defaultConversationStart={getDefaultConversationStart(
               question.order,
@@ -1010,7 +1056,7 @@ export default function AssignmentForm({
           onClick={handleAddQuestion}
           disabled={loading}
         >
-          + Add Question
+          + Add {getActivityTypeLabels(activityType).question}
         </Button>
       </div>
 

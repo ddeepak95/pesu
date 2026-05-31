@@ -4,6 +4,8 @@ import {
   Question,
   teacherPromptOrFocus,
 } from "@/types/assignment";
+import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
 /**
  * Supported variable placeholders for prompt templates.
@@ -62,6 +64,12 @@ export const PROMPT_VARIABLES = {
     description: "The selected language name (e.g., English, Tamil)",
     category: "static" as const,
   },
+  feedback_language: {
+    placeholder: "{{feedback_language}}",
+    description:
+      "Language the evaluation feedback should be written in (the support language for Speaking Practice, otherwise the conversation language)",
+    category: "static" as const,
+  },
   total_questions: {
     placeholder: "{{total_questions}}",
     description: "Total number of questions in the assignment",
@@ -107,87 +115,13 @@ export function getVariablesByCategory(category: "static" | "runtime") {
 // Fragment-based prompt builder
 // ---------------------------------------------------------------------------
 
-export type ActivityType = "assessment" | "learning";
+/** Re-exported from the activity-type registry (single source of truth). */
+export type ActivityType = ActivityTypeKind;
 export type InteractionType =
   | "voice"
   | "text_chat"
   | "static_text"
   | "multimodal";
-
-const PERSONA: Record<ActivityType, string> = {
-assessment:
-`You are a teacher assistant named Konvo, conducting assessment with a student in {{language}}.
-
-The title of the assessment is: {{title}}
-
-{{#if instructions}}
-The instructions for the assessment shared to the student are:
-{{instructions}}
-{{/if}}
-
-{{#if context_for_ai}}
-Here is the additional assessment context:
-{{context_for_ai}}
-{{/if}}
-`,
-learning:
-`You are a friendly tutor named Konvo, helping a student learn and explore a topic in {{language}}.
-
-The title of the activity is: {{title}}
-
-{{#if instructions}}
-The instructions for the activity shared to the student are:
-{{instructions}}
-{{/if}}
-
-{{#if context_for_ai}}
-Here is the activity context:
-{{context_for_ai}}
-{{/if}}
-`,
-};
-
-const TASK_INSTRUCTIONS: Record<ActivityType, string> = {  
-assessment: `{{#if file_submissions}}
-The student has uploaded the following files as submission:
-{{file_submissions}}
-
-The questions need to be asked based on the submission and the context provided.
-{{/if}}
-
-The student needs to answer this question:
-{{question_prompt}}
-
-They will be evaluated based on the following criteria. Make sure to cover all the criteria in your interaction.
-{{rubric}}
-
-Your role:
-1. Have a natural conversation to understand their thinking
-2. Ask follow-up questions to gauge depth of understanding
-3. Never give away the answer`,
-  
-learning: `{{#if file_submissions}}
-The student has uploaded the following files. Use this as part of the activity.
-{{file_submissions}}
-{{/if}}
-
-The student needs to answer this question:
-{{question_prompt}}
-
-Use the following rubric to guide the student's learning.
-{{rubric}}
-
-{{#if expected_answer}}
-Expected answer guidance (for your reference only, do NOT reveal to the student):
-{{expected_answer}}
-{{/if}}  
-  
-Your role:
-1. Explain concepts clearly and provide helpful examples
-2. Encourage the student to ask questions and think critically
-3. Guide them toward understanding rather than just giving answers
-4. Adapt your explanations based on the student's responses`,
-};
 
 const COMMON_INSTRUCTIONS = `Guidelines:
 - Conduct the conversation in {{language}}
@@ -212,10 +146,11 @@ export function buildDefaultSystemPrompt(
   activityType: ActivityType,
   interactionType: InteractionType,
 ): string {
+  const def = getActivityTypeDefinition(activityType);
   return [
-    PERSONA[activityType],
+    def.persona,
     "",
-    TASK_INSTRUCTIONS[activityType],
+    def.taskInstructions,
     "",
     COMMON_INSTRUCTIONS,
     "",
@@ -223,95 +158,18 @@ export function buildDefaultSystemPrompt(
   ].join("\n");
 }
 
-const CONVERSATION_START_FIRST: Record<ActivityType, string> = {
-  assessment:
-    "Speaking in {{language}}, introduce yourself as Konvo. Say you are going to conduct an assessment with them. Ask if the student is ready to start. If they are ready, start the assessment.",
-  learning:
-    "Speaking in {{language}}, introduce yourself as Konvo. Say we are going to explore a topic together today. Ask if the student is ready to start. If they are ready, start the activity.",
-};
-
-const CONVERSATION_START_SUBSEQUENT: Record<ActivityType, string> = {
-  assessment:
-    "Speaking in {{language}}, acknowledge we're moving to the next question, then ask the student to answer it.",
-  learning:
-    "Speaking in {{language}}, acknowledge we're moving to the next topic, then start the next topic.",
-};
-
 /**
  * Build default conversation start messages.
  */
 export function buildDefaultConversationStart(
   activityType: ActivityType,
 ): { first_question: string; subsequent_questions: string } {
+  const { conversationStart } = getActivityTypeDefinition(activityType);
   return {
-    first_question: CONVERSATION_START_FIRST[activityType],
-    subsequent_questions: CONVERSATION_START_SUBSEQUENT[activityType],
+    first_question: conversationStart.first_question,
+    subsequent_questions: conversationStart.subsequent_questions,
   };
 }
-
-const EVALUATION_BASE_ASSESSMENT = `
-The title of the assessment is: {{title}}
-{{#if instructions}}
-The instructions for the assessment shared to the student are:
-{{instructions}}
-{{/if}}
-{{#if context_for_ai}}
-Here is the assessment context provided by the teacher:
-{{context_for_ai}}
-{{/if}}
-{{#if file_submissions}}
-The student has uploaded the following files as submission:
-{{file_submissions}}
-{{/if}}
-
-Question: {{question_prompt}}
-
-Evaluation Rubric:
-{{rubric}}
-
-Student's Answer:
-{{answer_text}}
-
-Please evaluate this answer according to the rubric. For each rubric item:
-1. Assign points earned (0 to the maximum points for that item - do not exceed the maximum)
-2. Set points_possible to match the rubric item's maximum points
-3. Provide specific, constructive feedback in {{language}}
-
-Then provide overall feedback in {{language}} that is encouraging and helps the student understand their strengths and areas for improvement.
-
-IMPORTANT: All feedback text must be written in {{language}}.`;
-
-const EVALUATION_BASE_LEARNING = `
-The title of the activity is: {{title}}
-{{#if instructions}}
-The instructions for the activity shared to the student are:
-{{instructions}}
-{{/if}}
-{{#if context_for_ai}}
-Here is the activity context provided by the teacher:
-{{context_for_ai}}
-{{/if}}
-{{#if file_submissions}}
-The student has uploaded the following files as submission:
-{{file_submissions}}
-{{/if}}
-
-Question: {{question_prompt}}
-
-Evaluation Rubric:
-{{rubric}}
-
-Student's Answer:
-{{answer_text}}
-
-Please evaluate this answer with a focus on the student's learning progress. For each rubric item:
-1. Assign points earned (0 to the maximum points for that item - do not exceed the maximum)
-2. Set points_possible to match the rubric item's maximum points
-3. Provide feedback that highlights what the student understood well and offers guidance for deeper understanding in {{language}}
-
-Then provide overall feedback in {{language}} that encourages continued learning and suggests next steps.
-
-IMPORTANT: All feedback text must be written in {{language}}.`;
 
 /**
  * Build the default evaluation prompt based on activity type.
@@ -319,9 +177,7 @@ IMPORTANT: All feedback text must be written in {{language}}.`;
 export function buildDefaultEvaluationPrompt(
   activityType: ActivityType,
 ): string {
-  return activityType === "assessment"
-    ? EVALUATION_BASE_ASSESSMENT
-    : EVALUATION_BASE_LEARNING;
+  return getActivityTypeDefinition(activityType).evaluationPrompt;
 }
 
 /**

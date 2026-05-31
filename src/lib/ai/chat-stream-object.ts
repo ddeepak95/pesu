@@ -24,6 +24,8 @@ import {
 } from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
+import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
 export const TURN_SCHEMA_NAME = "multimodal_turn";
 
@@ -129,6 +131,7 @@ function buildEndConversationDirective(config?: EndConversationConfig): string {
 function buildLanguageSupportDirective(input: {
   languageSupport?: TurnLanguageSupport;
   languageHelpAvailable?: { languageLabel: string };
+  activityType?: ActivityTypeKind;
 }): string | null {
   // Active: this turn TRANSLATES your previous message into the support language
   // (its TTS voice is already set to match) — a precursor + faithful translation,
@@ -136,6 +139,19 @@ function buildLanguageSupportDirective(input: {
   if (input.languageSupport?.active) {
     const { languageLabel: label, primaryLanguageLabel: primaryLabel } =
       input.languageSupport;
+
+    // Activity-type override (e.g. speaking practice continues the role-play in
+    // the support language rather than giving a literal translation).
+    if (input.activityType) {
+      const override = getActivityTypeDefinition(
+        input.activityType,
+      ).buildLanguageSupportActiveDirective?.({
+        languageLabel: label,
+        primaryLanguageLabel: primaryLabel,
+      });
+      if (override) return override;
+    }
+
     const termClause = primaryLabel
       ? ` Keep technical and academic terms in ${primaryLabel} exactly as they appeared — ` +
         `translate only the surrounding wording into ${label}.`
@@ -184,6 +200,8 @@ export function buildMultimodalDirectives(input: {
    * the model offer help in `languageLabel` by setting `requestLanguageHelp`.
    */
   languageHelpAvailable?: { languageLabel: string };
+  /** Activity type — may contribute an extra directive (e.g. speaking practice). */
+  activityType?: ActivityTypeKind;
 }): string {
   const lines: string[] = [
     "",
@@ -194,9 +212,17 @@ export function buildMultimodalDirectives(input: {
     buildEndConversationDirective(input.endConversation),
   ];
 
+  if (input.activityType) {
+    const activityDirective = getActivityTypeDefinition(
+      input.activityType,
+    ).buildMultimodalDirective?.();
+    if (activityDirective) lines.push(activityDirective);
+  }
+
   const languageDirective = buildLanguageSupportDirective({
     languageSupport: input.languageSupport,
     languageHelpAvailable: input.languageHelpAvailable,
+    activityType: input.activityType,
   });
   if (languageDirective) lines.push(languageDirective);
 
@@ -213,6 +239,7 @@ export interface MultimodalTurnStreamOptions {
   endConversation?: EndConversationConfig;
   languageSupport?: TurnLanguageSupport;
   languageHelpAvailable?: { languageLabel: string };
+  activityType?: ActivityTypeKind;
 }
 
 export interface ResolvedMultimodalTurnCall {
@@ -236,6 +263,7 @@ export function resolveMultimodalTurnCall(
       endConversation: options.endConversation,
       languageSupport: options.languageSupport,
       languageHelpAvailable: options.languageHelpAvailable,
+      activityType: options.activityType,
     });
 
   if (greeting && messages.length === 0) {

@@ -82,7 +82,7 @@ export interface AssessmentShellProps {
   /** Pre-fetched formatted content of uploaded files for prompt interpolation */
   fileSubmissionsContent?: string;
   /** Activity type for prompt defaults */
-  activityType?: "assessment" | "learning";
+  activityType?: import("@/lib/activityTypes/types").ActivityTypeKind;
   /** Assignment title for prompt interpolation */
   title?: string;
   /** Student instructions for prompt interpolation */
@@ -178,6 +178,82 @@ export function AssessmentShell({
 
   const maxAttemptsReached = maxAttempts != null && attempts.length >= maxAttempts;
 
+  const isMultimodal = assessmentMode === "multimodal";
+  const { data: multimodalSpeechModels } = useMultimodalSpeechModels(
+    isMultimodal ? assignmentId : null,
+  );
+  const multimodalLocalesLoading = isMultimodal && multimodalSpeechModels === undefined;
+  const multimodalSupportedLocales = React.useMemo(
+    () => multimodalSpeechModels?.supportedLocales ?? [],
+    [multimodalSpeechModels],
+  );
+  const multimodalNoLocales =
+    isMultimodal &&
+    multimodalSpeechModels !== undefined &&
+    multimodalSupportedLocales.length === 0;
+
+  const languageOptions = React.useMemo(() => {
+    if (isMultimodal && multimodalSpeechModels) {
+      return multimodalSupportedLocales.map((code) => ({
+        value: code,
+        label: getLocaleLabel(code),
+      }));
+    }
+    return supportedLanguages.map((lang) => ({
+      value: lang.code,
+      label: lang.name,
+    }));
+  }, [isMultimodal, multimodalSpeechModels, multimodalSupportedLocales]);
+
+  React.useEffect(() => {
+    if (!isMultimodal || !multimodalSpeechModels) return;
+    const { supportedLocales } = multimodalSpeechModels;
+    if (supportedLocales.length === 0) return;
+    if (!supportedLocales.includes(language)) {
+      onLanguageChange?.(supportedLocales[0]);
+    }
+  }, [isMultimodal, language, multimodalSpeechModels, onLanguageChange]);
+
+  // Language Support: an additional language the tutor can re-explain in.
+  // Chosen here, alongside the main language, before the activity starts.
+  const languageSupportConfig = botPromptConfig?.multimodal_actions?.languageSupport;
+  const supportEnabled = isMultimodal && (languageSupportConfig?.enabled ?? false);
+  const supportLocked = languageSupportConfig?.locked ?? false;
+  const supportLanguageOptions = React.useMemo(() => {
+    if (!supportEnabled) return [];
+    return multimodalSupportedLocales
+      .filter((code) => code !== language)
+      .map((code) => ({ value: code, label: getLocaleLabel(code) }));
+  }, [supportEnabled, multimodalSupportedLocales, language]);
+  const [supportLanguage, setSupportLanguage] = React.useState<string>(
+    languageSupportConfig?.defaultLanguage ?? "",
+  );
+  // Keep the support language valid: locked → teacher default; otherwise keep
+  // the current pick, falling back to the default or the first option.
+  React.useEffect(() => {
+    if (!supportEnabled) return;
+    if (supportLocked && languageSupportConfig?.defaultLanguage) {
+      setSupportLanguage(languageSupportConfig.defaultLanguage);
+      return;
+    }
+    if (supportLanguageOptions.length === 0) return;
+    setSupportLanguage((prev) => {
+      if (prev && supportLanguageOptions.some((o) => o.value === prev)) {
+        return prev;
+      }
+      const fallback = languageSupportConfig?.defaultLanguage;
+      if (fallback && supportLanguageOptions.some((o) => o.value === fallback)) {
+        return fallback;
+      }
+      return supportLanguageOptions[0]?.value ?? prev;
+    });
+  }, [
+    supportEnabled,
+    supportLocked,
+    languageSupportConfig?.defaultLanguage,
+    supportLanguageOptions,
+  ]);
+
   const { buildEvaluationPrompt } = useInterpolatedPrompts({
     question,
     language,
@@ -189,6 +265,7 @@ export function AssessmentShell({
     fileSubmissionsContent,
     assessmentMode,
     activityType,
+    supportLanguage,
     title,
     studentInstructions,
     totalQuestions,
@@ -353,82 +430,6 @@ export function AssessmentShell({
     }),
     [logEvent]
   );
-
-  const isMultimodal = assessmentMode === "multimodal";
-  const { data: multimodalSpeechModels } = useMultimodalSpeechModels(
-    isMultimodal ? assignmentId : null,
-  );
-  const multimodalLocalesLoading = isMultimodal && multimodalSpeechModels === undefined;
-  const multimodalSupportedLocales = React.useMemo(
-    () => multimodalSpeechModels?.supportedLocales ?? [],
-    [multimodalSpeechModels],
-  );
-  const multimodalNoLocales =
-    isMultimodal &&
-    multimodalSpeechModels !== undefined &&
-    multimodalSupportedLocales.length === 0;
-
-  const languageOptions = React.useMemo(() => {
-    if (isMultimodal && multimodalSpeechModels) {
-      return multimodalSupportedLocales.map((code) => ({
-        value: code,
-        label: getLocaleLabel(code),
-      }));
-    }
-    return supportedLanguages.map((lang) => ({
-      value: lang.code,
-      label: lang.name,
-    }));
-  }, [isMultimodal, multimodalSpeechModels, multimodalSupportedLocales]);
-
-  React.useEffect(() => {
-    if (!isMultimodal || !multimodalSpeechModels) return;
-    const { supportedLocales } = multimodalSpeechModels;
-    if (supportedLocales.length === 0) return;
-    if (!supportedLocales.includes(language)) {
-      onLanguageChange?.(supportedLocales[0]);
-    }
-  }, [isMultimodal, language, multimodalSpeechModels, onLanguageChange]);
-
-  // Language Support: an additional language the tutor can re-explain in.
-  // Chosen here, alongside the main language, before the activity starts.
-  const languageSupportConfig = botPromptConfig?.multimodal_actions?.languageSupport;
-  const supportEnabled = isMultimodal && (languageSupportConfig?.enabled ?? false);
-  const supportLocked = languageSupportConfig?.locked ?? false;
-  const supportLanguageOptions = React.useMemo(() => {
-    if (!supportEnabled) return [];
-    return multimodalSupportedLocales
-      .filter((code) => code !== language)
-      .map((code) => ({ value: code, label: getLocaleLabel(code) }));
-  }, [supportEnabled, multimodalSupportedLocales, language]);
-  const [supportLanguage, setSupportLanguage] = React.useState<string>(
-    languageSupportConfig?.defaultLanguage ?? "",
-  );
-  // Keep the support language valid: locked → teacher default; otherwise keep
-  // the current pick, falling back to the default or the first option.
-  React.useEffect(() => {
-    if (!supportEnabled) return;
-    if (supportLocked && languageSupportConfig?.defaultLanguage) {
-      setSupportLanguage(languageSupportConfig.defaultLanguage);
-      return;
-    }
-    if (supportLanguageOptions.length === 0) return;
-    setSupportLanguage((prev) => {
-      if (prev && supportLanguageOptions.some((o) => o.value === prev)) {
-        return prev;
-      }
-      const fallback = languageSupportConfig?.defaultLanguage;
-      if (fallback && supportLanguageOptions.some((o) => o.value === fallback)) {
-        return fallback;
-      }
-      return supportLanguageOptions[0]?.value ?? prev;
-    });
-  }, [
-    supportEnabled,
-    supportLocked,
-    languageSupportConfig?.defaultLanguage,
-    supportLanguageOptions,
-  ]);
 
   const languageSelectorDisabled =
     languageDisabled ||

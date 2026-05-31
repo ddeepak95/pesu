@@ -11,6 +11,8 @@ interface RubricItemRowProps {
   onChange: (index: number, field: keyof RubricItem, value: string | number) => void;
   onRemove: (index: number) => void;
   disabled?: boolean;
+  /** Placeholder for the item text input (varies by activity type). */
+  itemPlaceholder?: string;
 }
 
 export default function RubricItemRow({
@@ -19,12 +21,13 @@ export default function RubricItemRow({
   onChange,
   onRemove,
   disabled = false,
+  itemPlaceholder = "Rubric item description",
 }: RubricItemRowProps) {
   return (
     <div className="flex gap-2 items-start">
       <div className="flex-1">
         <Input
-          placeholder="Rubric item description"
+          placeholder={itemPlaceholder}
           value={item.item}
           onChange={(e) => onChange(index, "item", e.target.value)}
           disabled={disabled}

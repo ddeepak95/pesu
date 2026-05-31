@@ -586,6 +586,7 @@ export function MultimodalInputArea({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            activityType,
             assignmentId,
             submissionId,
             questionOrder: question.order,
@@ -808,6 +809,7 @@ export function MultimodalInputArea({
       }
     },
     [
+      activityType,
       assignmentId,
       attempts.length,
       botPromptConfig?.multimodal_actions,
