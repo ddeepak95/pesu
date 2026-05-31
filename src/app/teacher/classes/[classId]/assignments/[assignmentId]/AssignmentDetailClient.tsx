@@ -406,6 +406,7 @@ export default function AssignmentDetailClient({
                     index={index}
                     showDynamicBadges
                     showRubric
+                    activityType={assignmentData.activity_type}
                   />
                 ))}
             </TabsContent>

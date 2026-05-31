@@ -10,6 +10,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { getActivityTypeLabels } from "@/lib/activityTypes/registry";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
 const DYNAMIC_QUESTION_BADGE_INFO =
   "Dynamic question: When on, each student's question is generated from their uploaded files and your guidelines for the question. Turn it off to write the exact question shown to everyone.";
@@ -24,6 +26,8 @@ interface QuestionViewProps {
   showDynamicBadges?: boolean;
   showRubric?: boolean;
   showSupportingContent?: boolean;
+  /** Activity type driving the UI labels (Question→Scenario, Rubric→Aspects to cover, …). */
+  activityType?: ActivityTypeKind;
 }
 
 /**
@@ -36,7 +40,9 @@ export default function QuestionView({
   showDynamicBadges = false,
   showRubric = false,
   showSupportingContent = true,
+  activityType = "learning",
 }: QuestionViewProps) {
+  const labels = getActivityTypeLabels(activityType);
   const hasRubric =
     showRubric && question.rubric && question.rubric.length > 0;
   const expectedAnswer = question.expected_answer?.trim() ?? "";
@@ -72,7 +78,7 @@ export default function QuestionView({
             </div>
           )}
         <CardTitle className="text-sm">
-          Question {index + 1} ({question.total_points} points)
+          {labels.question} {index + 1} ({question.total_points} points)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -80,7 +86,7 @@ export default function QuestionView({
           <h4 className="font-semibold text-sm text-muted-foreground mb-2">
             {question.dynamic_prompt
               ? "Guidelines for the question"
-              : "Question"}
+              : labels.question}
           </h4>
           <p className="whitespace-pre-wrap">
             {teacherPromptOrFocus(question)}
@@ -99,7 +105,7 @@ export default function QuestionView({
                 className={!hasExpectedAnswer ? "border-b-0" : undefined}
               >
                 <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline">
-                  Rubric
+                  {labels.rubric}
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-2 pb-2">
@@ -121,7 +127,7 @@ export default function QuestionView({
             {hasExpectedAnswer && (
               <AccordionItem value="expected" className="border-b-0">
                 <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline">
-                  Expected answer
+                  {labels.expectedAnswer}
                 </AccordionTrigger>
                 <AccordionContent>
                   <p className="whitespace-pre-wrap text-muted-foreground pb-2">
