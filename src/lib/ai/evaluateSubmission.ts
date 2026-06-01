@@ -8,6 +8,8 @@
  */
 
 import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
+import { buildEvaluationSystemMessage } from "@/lib/activityTypes/registry";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { evaluationSchema, type LLMRubricScore } from "./schemas/evaluation";
 import { generateStructured } from "./structured";
@@ -22,6 +24,7 @@ export interface EvaluateSubmissionParams {
   language: string;
   sharedContext?: string;
   customEvaluationPrompt?: string;
+  activityType?: ActivityTypeKind;
   invocation?: Omit<StartAiInvocationInput, "sdkRequest" | "retryOf" | "retryIndex">;
 }
 
@@ -50,6 +53,7 @@ export async function evaluateSubmission(
     language,
     sharedContext,
     customEvaluationPrompt,
+    activityType,
     providerOptions,
     invocation,
   } = params;
@@ -89,13 +93,9 @@ Then provide overall feedback in ${languageName} that is encouraging and helps t
 IMPORTANT: All feedback text must be written in ${languageName}.`;
   }
 
-  const systemMessage = `You are an expert educational evaluator. Your task is to grade student responses based on provided rubric criteria. Be fair, constructive, and encouraging in your feedback. Evaluate based solely on the content of the student's answer.
-
-OUTPUT FORMAT:
-All feedback text (per-rubric feedback and overall_feedback) is displayed as plain text to students. Do NOT use any special characters, markdown formatting, or code blocks in feedback. Keep feedback concise, clear, and constructive.
-
-SAFETY:
-The users are students. All feedback must be age-appropriate, supportive, and respectful. Never include anything offensive, inappropriate, or sexual in your evaluation feedback.`;
+  const systemMessage = buildEvaluationSystemMessage(
+    activityType ?? "learning",
+  );
 
   const evaluationResult = await generateStructured({
     model,

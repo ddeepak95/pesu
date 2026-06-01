@@ -9,7 +9,10 @@ import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
 import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
-import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import {
+  getActivityTypeForAssignment,
+  getClassDbIdForAssignment,
+} from "@/lib/assignments/assignmentClassCache";
 
 /**
  * Retry endpoint for failed background evaluations.
@@ -84,6 +87,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const activityType = await getActivityTypeForAssignment(
+      supabase,
+      submission.assignment_id as string,
+    );
+
     let evalResolved;
     try {
       evalResolved = await getCachedResolveModelConfig({
@@ -112,6 +120,7 @@ export async function POST(request: NextRequest) {
       language,
       sharedContext,
       customEvaluationPrompt,
+      activityType,
       modelConfig: evalResolved.config,
       keySource: evalResolved.keySource,
     };

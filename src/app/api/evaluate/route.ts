@@ -13,7 +13,10 @@ import { modelMetaFromResolved } from "@/lib/ai/logging/types";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
-import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import {
+  getActivityTypeForAssignment,
+  getClassDbIdForAssignment,
+} from "@/lib/assignments/assignmentClassCache";
 
 interface EvaluateRequestBody {
   submissionId: string;
@@ -106,6 +109,11 @@ export async function POST(request: NextRequest) {
         { status: 404 },
       );
     }
+
+    const activityType = await getActivityTypeForAssignment(
+      supabase,
+      assignmentId,
+    );
 
     let evalResolved;
     try {
@@ -236,6 +244,7 @@ export async function POST(request: NextRequest) {
             language,
             sharedContext,
             customEvaluationPrompt,
+            activityType,
             modelConfig: evalModelConfig,
             keySource: evalKeySource,
           });
@@ -265,6 +274,7 @@ export async function POST(request: NextRequest) {
         language,
         sharedContext,
         customEvaluationPrompt,
+        activityType,
         invocation: {
           appFunctionKey: "text.evaluation",
           classId: classDbId,

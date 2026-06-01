@@ -7,6 +7,7 @@ import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import type { AiConfigSource } from "@/types/aiSettings";
 
 export interface BackgroundEvaluationParams {
@@ -21,6 +22,7 @@ export interface BackgroundEvaluationParams {
   language: string;
   sharedContext?: string;
   customEvaluationPrompt?: string;
+  activityType: ActivityTypeKind;
   modelConfig: ResolvedModelConfig;
   keySource: AiConfigSource;
 }
@@ -48,6 +50,7 @@ export async function runBackgroundEvaluation(
     language,
     sharedContext,
     customEvaluationPrompt,
+    activityType,
     keySource,
   } = params;
 
@@ -66,6 +69,7 @@ export async function runBackgroundEvaluation(
       language,
       sharedContext,
       customEvaluationPrompt,
+      activityType,
       invocation: {
         appFunctionKey: "text.evaluation",
         classId: classDbId,

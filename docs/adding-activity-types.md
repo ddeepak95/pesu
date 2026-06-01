@@ -52,7 +52,8 @@ unaffected. The persisted column type also widens —
 ### 2. Registry entry — `src/lib/activityTypes/registry.ts`
 
 Add an `ActivityTypeDefinition`. Required fields: `label`, `persona`,
-`taskInstructions`, `conversationStart`, `evaluationPrompt`, `labels`.
+`taskInstructions`, `conversationStart`, `evaluationPrompt`,
+`evaluationSystemPersona`, `labels`.
 Prompt strings use the same `{{variable}}` / `{{#if variable}}…{{/if}}`
 interpolation as the other types (see `promptInterpolation.ts`).
 
@@ -64,6 +65,7 @@ speaking_practice: {
   taskInstructions: SPEAKING_TASK,            // reinterprets {{rubric}} as "aspects to cover"
   conversationStart: { first_question: "…", subsequent_questions: "…" },
   evaluationPrompt: SPEAKING_EVALUATION,       // use {{feedback_language}} (not {{language}}) in feedback lines
+  evaluationSystemPersona: SPEAKING_EVALUATION_SYSTEM_PERSONA, // LLM system message persona (plain text)
   evaluationFeedbackLanguage: "support",       // optional: write feedback in the support language
   labels: {                                   // UI overrides; omit a key to keep the default
     question: "Scenario",

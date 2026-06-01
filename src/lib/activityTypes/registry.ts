@@ -87,6 +87,8 @@ Then provide overall feedback in {{language}} that encourages continued learning
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
+const LEARNING_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evaluator focused on learning progress. Your task is to review student responses against the rubric. Be fair, constructive, and encouraging. Highlight what the student understood well and offer guidance for deeper understanding. Evaluate based solely on the content of the student's answer.`;
+
 // ── assessment ───────────────────────────────────────────────────────────────
 const ASSESSMENT_PERSONA = `You are a teacher assistant named Konvo, conducting assessment with a student in {{language}}.
 
@@ -153,6 +155,8 @@ Then provide overall feedback in {{language}} that is encouraging and helps the 
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
+const ASSESSMENT_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evaluator. Your task is to grade student responses based on provided rubric criteria. Be fair, constructive, and encouraging in your feedback. Evaluate based solely on the content of the student's answer.`;
+
 // ── speaking_practice ────────────────────────────────────────────────────────
 const SPEAKING_PERSONA = `You are Konvo, a friendly conversation partner helping a student practice speaking in {{language}} through a realistic scenario.
 
@@ -214,14 +218,33 @@ Aspects to cover in the scenario:
 Student's spoken responses:
 {{answer_text}}
 
-Please evaluate how well the student handled the speaking scenario. For each aspect:
-1. Assign points earned (0 to the maximum points for that aspect - do not exceed the maximum)
-2. Set points_possible to match the aspect's maximum points
-3. Provide specific, constructive feedback in {{feedback_language}} on how well the student covered the aspect and communicated within the scenario
+Please review this speaking practice with primary emphasis on actionable feedback (scores are secondary).
 
-Then provide overall feedback in {{feedback_language}} that is encouraging and helps the student improve their speaking and communication.
+For each aspect:
+1. Assign points_earned generously: reward partial effort and good-faith attempts; prefer the upper part of the range when the student addressed the aspect reasonably, and only deduct meaningfully for clear gaps (0 to the maximum for that aspect - do not exceed the maximum)
+2. Set points_possible to match the aspect's maximum points
+3. In {{feedback_language}}, write feedback that (a) briefly acknowledges what worked, if anything, (b) states specifically what the speaker did wrong or missed for this aspect, tied to the transcript, and (c) gives a concrete correction—what to say or do differently next time
+
+Then provide overall feedback in {{feedback_language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Keep a supportive tone; prioritize teaching over judging.
 
 IMPORTANT: All feedback text must be written in {{feedback_language}}.`;
+
+const SPEAKING_EVALUATION_SYSTEM_PERSONA = `You are a supportive speaking coach reviewing a role-play conversation. Your main job is actionable feedback, not strict grading. Score generously when the student made a good-faith attempt. For each rubric item and in overall feedback, name what the speaker did wrong or missed and give a concrete correction (what to say or do next time). Evaluate only from the transcript.`;
+
+/** Shared output-format and safety rules appended to every evaluation system message. */
+export const EVALUATION_SYSTEM_SHARED_FOOTER = `OUTPUT FORMAT:
+All feedback text (per-rubric feedback and overall_feedback) is displayed as plain text to students. Do NOT use any special characters, markdown formatting, or code blocks in feedback. Keep feedback concise, clear, and constructive.
+
+SAFETY:
+The users are students. All feedback must be age-appropriate, supportive, and respectful. Never include anything offensive, inappropriate, or sexual in your evaluation feedback.`;
+
+export function buildEvaluationSystemMessage(
+  activityType: ActivityTypeKind = "learning",
+): string {
+  const persona =
+    getActivityTypeDefinition(activityType).evaluationSystemPersona;
+  return `${persona}\n\n${EVALUATION_SYSTEM_SHARED_FOOTER}`;
+}
 
 const SPEAKING_LABELS: Partial<ActivityTypeLabels> = {
   question: "Scenario",
@@ -253,6 +276,7 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
         "Speaking in {{language}}, acknowledge we're moving to the next topic, then start the next topic.",
     },
     evaluationPrompt: LEARNING_EVALUATION,
+    evaluationSystemPersona: LEARNING_EVALUATION_SYSTEM_PERSONA,
     labels: {},
   },
   assessment: {
@@ -267,6 +291,7 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
         "Speaking in {{language}}, acknowledge we're moving to the next question, then ask the student to answer it.",
     },
     evaluationPrompt: ASSESSMENT_EVALUATION,
+    evaluationSystemPersona: ASSESSMENT_EVALUATION_SYSTEM_PERSONA,
     labels: {},
   },
   speaking_practice: {
@@ -281,6 +306,7 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
         "Speaking in {{language}}, briefly transition into the next scenario and set the scene, then invite the student to begin.",
     },
     evaluationPrompt: SPEAKING_EVALUATION,
+    evaluationSystemPersona: SPEAKING_EVALUATION_SYSTEM_PERSONA,
     evaluationFeedbackLanguage: "support",
     labels: SPEAKING_LABELS,
     defaults: {

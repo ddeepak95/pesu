@@ -84,6 +84,12 @@ export interface ActivityTypeDefinition {
   /** Default evaluation prompt template. */
   evaluationPrompt: string;
   /**
+   * Type-specific evaluator persona for the LLM evaluation system message
+   * (plain text, not Handlebars). Combined with a shared output/safety footer
+   * via `buildEvaluationSystemMessage`.
+   */
+  evaluationSystemPersona: string;
+  /**
    * Language the evaluation feedback should be written in. "primary" (default) =
    * the conversation language; "support" = the learner's support language (falls
    * back to primary when none is configured). Resolves the `{{feedback_language}}`
