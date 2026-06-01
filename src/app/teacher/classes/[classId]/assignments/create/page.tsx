@@ -18,6 +18,7 @@ import {
   FileSubmissionConfig,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
+import type { ClassLanguageConfig } from "@/types/class";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import type { AssessmentMode } from "@/lib/settings/registry";
 
@@ -32,6 +33,8 @@ export default function CreateAssignmentPage() {
   const [classDbId, setClassDbId] = useState<string | null>(null);
   const [classGroupId, setClassGroupId] = useState<string | null>(null);
   const [classLanguage, setClassLanguage] = useState<string>("en");
+  const [classLanguageConfig, setClassLanguageConfig] =
+    useState<ClassLanguageConfig | null>(null);
   const [loadingClass, setLoadingClass] = useState(true);
 
   const backToContentHref = useMemo(() => {
@@ -49,6 +52,7 @@ export default function CreateAssignmentPage() {
         if (classData) {
           setClassDbId(classData.id);
           setClassLanguage(classData.preferred_language);
+          setClassLanguageConfig(classData.language_config ?? null);
         } else {
           setError("Class not found");
         }
@@ -216,7 +220,9 @@ export default function CreateAssignmentPage() {
           mode="create"
           classId={classId}
           classDbId={classDbId}
+          classLanguageConfig={classLanguageConfig}
           initialLanguage={classLanguage}
+          initialLockLanguage={classLanguageConfig?.lockPrimaryLanguage ?? false}
           onSubmit={handleSubmit}
         />
         <div className="mt-6 flex justify-center">

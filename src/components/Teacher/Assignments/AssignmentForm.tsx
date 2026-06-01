@@ -36,6 +36,7 @@ import {
   stripDynamicFlagsFromQuestions,
   teacherPromptOrFocus,
 } from "@/types/assignment";
+import type { ClassLanguageConfig } from "@/types/class";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
 import { type AssignmentIntegritySettingsValues } from "@/components/Shared/Integrity/AssignmentIntegritySettings";
@@ -66,6 +67,40 @@ import {
   type AssessmentMode,
 } from "@/lib/settings/registry";
 
+/**
+ * Seed a multimodal bot config's language-support block from the class-level
+ * language defaults. Used in create mode only: the class config provides the
+ * default support language and the support lock; the support-enabled flag is the
+ * OR of the class default and whatever the activity type already turned on (so
+ * e.g. Speaking Practice still enables it even when the class default is off).
+ * No-op for non-multimodal modes or when no class config is present.
+ */
+function withClassLanguageDefaults(
+  config: BotPromptConfig,
+  interactionType: AssessmentMode,
+  classLang: ClassLanguageConfig | null | undefined,
+): BotPromptConfig {
+  if (interactionType !== "multimodal" || !classLang) return config;
+  const existing = config.multimodal_actions ?? {};
+  const existingLS = existing.languageSupport ?? {};
+  return {
+    ...config,
+    multimodal_actions: {
+      ...existing,
+      languageSupport: {
+        ...existingLS,
+        enabled:
+          (existingLS.enabled ?? false) ||
+          (classLang.supportLanguageEnabled ?? false),
+        ...(classLang.defaultSupportLanguage
+          ? { defaultLanguage: classLang.defaultSupportLanguage }
+          : {}),
+        locked: classLang.lockSupportLanguage ?? false,
+      },
+    },
+  };
+}
+
 interface AssignmentFormProps {
   mode: "create" | "edit";
   classId: string;
@@ -74,6 +109,12 @@ interface AssignmentFormProps {
    * filtered to the institution/class's effective `allowed_assessment_modes`.
    */
   classDbId?: string | null;
+  /**
+   * Class-level language defaults (primary/support locks + default support
+   * language). In create mode these seed the form; ignored in edit mode, where
+   * the saved assignment config is authoritative.
+   */
+  classLanguageConfig?: ClassLanguageConfig | null;
   assignmentId?: string;
   initialTitle?: string;
   initialQuestions?: Question[];
@@ -141,6 +182,7 @@ export default function AssignmentForm({
   mode,
   classId,
   classDbId = null,
+  classLanguageConfig = null,
   assignmentId: _assignmentId,
   initialTitle = "",
   initialQuestions = [
@@ -199,6 +241,17 @@ export default function AssignmentForm({
     initialAssessmentMode,
   );
 
+  // In create mode, seed multimodal bot configs from the class language defaults
+  // (support enabled/default/lock). No-op in edit mode — the saved assignment
+  // config is authoritative there.
+  const applyClassLang = useCallback(
+    (config: BotPromptConfig, interactionType: AssessmentMode): BotPromptConfig =>
+      mode === "create"
+        ? withClassLanguageDefaults(config, interactionType, classLanguageConfig)
+        : config,
+    [mode, classLanguageConfig],
+  );
+
   // Pull the class's effective allowed assessment modes (institution → class).
   // Modes outside the allow list are disabled in the dropdown but the current
   // value remains visible so existing assignments stay editable.
@@ -232,7 +285,10 @@ export default function AssignmentForm({
     if (currentAssessmentMode === assessmentMode) return;
     setAssessmentMode(currentAssessmentMode);
     setBotPromptConfig(
-      buildDefaultBotPromptConfig(activityType, currentAssessmentMode),
+      applyClassLang(
+        buildDefaultBotPromptConfig(activityType, currentAssessmentMode),
+        currentAssessmentMode,
+      ),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentAssessmentMode]);
@@ -603,7 +659,9 @@ export default function AssignmentForm({
       };
     }
 
-    setBotPromptConfig(nextConfig);
+    // Layer the class language defaults under the activity type's preselection
+    // (the activity type's support-enabled flag wins where it sets one).
+    setBotPromptConfig(applyClassLang(nextConfig, targetMode));
     setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
   };
 
@@ -840,7 +898,10 @@ export default function AssignmentForm({
               const newMode = value as AssessmentMode;
               setAssessmentMode(newMode);
               setBotPromptConfig(
-                buildDefaultBotPromptConfig(activityType, newMode),
+                applyClassLang(
+                  buildDefaultBotPromptConfig(activityType, newMode),
+                  newMode,
+                ),
               );
             }}
             disabled={loading}

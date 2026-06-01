@@ -24,7 +24,7 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
   console.log("Fetching classes for user:", userId);
 
   const CLASS_COLUMNS =
-    "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
+    "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, language_config, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
 
   const { data: teachRows, error: teachError } = await supabase
     .from("class_teachers")
@@ -113,12 +113,12 @@ export async function updateClass(
  */
 export async function updateClass(
   classId: string,
-  updates: Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock" | "student_assignment_strategy">>
+  updates: Partial<Pick<Class, "name" | "preferred_language" | "language_config" | "enable_progressive_unlock" | "student_assignment_strategy">>
 ): Promise<Class>;
 
 export async function updateClass(
   classId: string,
-  nameOrUpdates: string | Partial<Pick<Class, "name" | "preferred_language" | "enable_progressive_unlock" | "student_assignment_strategy">>,
+  nameOrUpdates: string | Partial<Pick<Class, "name" | "preferred_language" | "language_config" | "enable_progressive_unlock" | "student_assignment_strategy">>,
   userId?: string,
   preferredLanguage?: string
 ): Promise<Class> {
@@ -210,7 +210,7 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
 
   const { data, error } = await supabase
     .from("classes")
-    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, language_config, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id")
     .eq("class_id", classId)
     .eq("status", "active")
     .single();
@@ -262,7 +262,7 @@ export async function getClassesByStudent(studentId: string): Promise<Class[]> {
   // Fetch the actual class data
   const { data: classes, error: classesError } = await supabase
     .from("classes")
-    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id")
+    .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, language_config, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id")
     .in("id", classDbIds)
     .eq("status", "active");
 
@@ -335,7 +335,7 @@ export async function saveProgressViewConfig(
 }
 
 const CLASS_COLUMNS_FULL =
-  "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
+  "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, language_config, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
 
 /**
  * Duplicate a class with all settings, profile fields, groups, and content.
@@ -374,6 +374,7 @@ export async function duplicateClass(
     created_by: userId,
     status: "active" as const,
     preferred_language: source.preferred_language ?? "en",
+    language_config: source.language_config ?? null,
     group_count: source.group_count ?? 1,
     enable_progressive_unlock: source.enable_progressive_unlock ?? false,
     student_assignment_strategy: source.student_assignment_strategy ?? "round_robin",

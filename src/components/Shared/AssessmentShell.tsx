@@ -27,6 +27,12 @@ import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext
 import { getLocaleLabel } from "@/lib/locales";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
+// Sentinel for the "None" choice in the support-language selector. Maps to an
+// empty support language downstream, which turns off all language-support
+// features (the lightbulb help button, the support directive, support-language
+// feedback) while keeping the option visible in the dropdown.
+const SUPPORT_LANGUAGE_NONE = "__none__";
+
 export interface AssessmentShellProps {
   assessmentMode: "voice" | "text_chat" | "static_text" | "multimodal";
   question: Question;
@@ -229,7 +235,8 @@ export function AssessmentShell({
     languageSupportConfig?.defaultLanguage ?? "",
   );
   // Keep the support language valid: locked → teacher default; otherwise keep
-  // the current pick, falling back to the default or the first option.
+  // the current pick (including an explicit "None"), falling back to the default
+  // or the first option.
   React.useEffect(() => {
     if (!supportEnabled) return;
     if (supportLocked && languageSupportConfig?.defaultLanguage) {
@@ -238,6 +245,8 @@ export function AssessmentShell({
     }
     if (supportLanguageOptions.length === 0) return;
     setSupportLanguage((prev) => {
+      // The student explicitly turned support off — don't auto-fill it back.
+      if (prev === SUPPORT_LANGUAGE_NONE) return prev;
       if (prev && supportLanguageOptions.some((o) => o.value === prev)) {
         return prev;
       }
@@ -254,6 +263,22 @@ export function AssessmentShell({
     supportLanguageOptions,
   ]);
 
+  // The selector lets the student opt out via "None" (unless the teacher locked
+  // the support language). The sentinel maps to an empty effective language,
+  // which disables every support feature downstream.
+  const supportLanguageSelectOptions = React.useMemo(
+    () =>
+      supportLocked
+        ? supportLanguageOptions
+        : [
+            { value: SUPPORT_LANGUAGE_NONE, label: "None" },
+            ...supportLanguageOptions,
+          ],
+    [supportLocked, supportLanguageOptions],
+  );
+  const effectiveSupportLanguage =
+    supportLanguage === SUPPORT_LANGUAGE_NONE ? "" : supportLanguage;
+
   const { buildEvaluationPrompt } = useInterpolatedPrompts({
     question,
     language,
@@ -265,7 +290,7 @@ export function AssessmentShell({
     fileSubmissionsContent,
     assessmentMode,
     activityType,
-    supportLanguage,
+    supportLanguage: effectiveSupportLanguage,
     title,
     studentInstructions,
     totalQuestions,
@@ -527,7 +552,7 @@ export function AssessmentShell({
                         <SearchableSelect
                           value={supportLanguage}
                           onValueChange={setSupportLanguage}
-                          options={supportLanguageOptions}
+                          options={supportLanguageSelectOptions}
                           placeholder="Select language..."
                           disabled={languageSelectorDisabled || supportLocked}
                           className="w-[180px]"
@@ -549,7 +574,7 @@ export function AssessmentShell({
               {assessmentMode === "multimodal" && (
                 <MultimodalInputArea
                   {...inputProps}
-                  supportLanguage={supportLanguage}
+                  supportLanguage={effectiveSupportLanguage}
                 />
               )}
             </>
