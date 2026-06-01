@@ -5,7 +5,6 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
-import { Button } from "@/components/ui/button";
 import AssignmentForm from "@/components/Teacher/Assignments/AssignmentForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { createAssignment } from "@/lib/queries/assignments";
@@ -224,16 +223,8 @@ export default function CreateAssignmentPage() {
           initialLanguage={classLanguage}
           initialLockLanguage={classLanguageConfig?.lockPrimaryLanguage ?? false}
           onSubmit={handleSubmit}
+          onCancel={() => router.push(backToContentHref)}
         />
-        <div className="mt-6 flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push(backToContentHref)}
-          >
-            Cancel
-          </Button>
-        </div>
       </div>
     </PageLayout>
   );

@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   MutedPrimaryTabsList,
   MutedPrimaryTabsTrigger,
@@ -24,6 +24,7 @@ import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptions
 import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
 import { AssignmentLanguageSection } from "@/components/Teacher/Assignments/AssignmentLanguageSection";
 import { CollapsibleSection } from "@/components/Teacher/Assignments/CollapsibleSection";
+import { AssignmentFormFooter } from "@/components/Teacher/Assignments/AssignmentFormFooter";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import {
   Question,
@@ -178,6 +179,8 @@ interface AssignmentFormProps {
     dynamicQuestionsEnabled?: boolean;
     dynamicGenerationPrompt?: string | null;
   }) => Promise<void>;
+  /** Cancel/close action rendered in the sticky footer. */
+  onCancel?: () => void;
 }
 
 export default function AssignmentForm({
@@ -230,6 +233,7 @@ export default function AssignmentForm({
   initialDynamicGenerationPrompt,
   initialIsDraft = false,
   onSubmit,
+  onCancel,
 }: AssignmentFormProps) {
   const router = useTrackedRouter();
   const [title, setTitle] = useState(initialTitle);
@@ -247,9 +251,16 @@ export default function AssignmentForm({
   // (support enabled/default/lock). No-op in edit mode — the saved assignment
   // config is authoritative there.
   const applyClassLang = useCallback(
-    (config: BotPromptConfig, interactionType: AssessmentMode): BotPromptConfig =>
+    (
+      config: BotPromptConfig,
+      interactionType: AssessmentMode,
+    ): BotPromptConfig =>
       mode === "create"
-        ? withClassLanguageDefaults(config, interactionType, classLanguageConfig)
+        ? withClassLanguageDefaults(
+            config,
+            interactionType,
+            classLanguageConfig,
+          )
         : config,
     [mode, classLanguageConfig],
   );
@@ -383,8 +394,8 @@ export default function AssignmentForm({
     // In create mode, honor the activity type's display default (e.g. speaking
     // practice → stars on); edit mode always uses the saved value.
     mode === "create"
-      ? getActivityTypeDefinition(initialActivityType).defaults?.display
-          ?.useStarDisplay ?? initialUseStarDisplay
+      ? (getActivityTypeDefinition(initialActivityType).defaults?.display
+          ?.useStarDisplay ?? initialUseStarDisplay)
       : initialUseStarDisplay,
   );
   const [starScale, setStarScale] = useState(initialStarScale);
@@ -839,321 +850,316 @@ export default function AssignmentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Assignment Title */}
-      <div className="space-y-2">
-        <Label htmlFor="title">
-          Title <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          id="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          disabled={loading}
-          placeholder="Enter title"
-        />
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6 pb-28">
+      <Tabs defaultValue="content" className="w-full">
+        <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
+          <TabsTrigger
+            value="content"
+            className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+          >
+            Content
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+          >
+            Settings
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Instructions (markdown) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="studentInstructions">Instructions</Label>
-            <InfoTooltip text="Enter the instructions for the activity." />
+        <TabsContent value="content" className="space-y-6 pt-6">
+          {/* Assignment Title */}
+          <div className="space-y-2">
+            <Label htmlFor="title">
+              Title <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={loading}
+              placeholder="Enter title"
+            />
           </div>
-          <span className="text-xs text-muted-foreground">
-            Markdown supported
-          </span>
-        </div>
-        <MarkdownEditor
-          id="studentInstructions"
-          value={studentInstructions}
-          onChange={setStudentInstructions}
-          disabled={loading}
-          placeholder="Enter instructions for the activity..."
-          rows={4}
-        />
-      </div>
 
-      {/* Activity Type & Interaction Type (side by side) */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="activityType">
-            Activity Type <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={activityType}
-            onValueChange={handleActivityTypeChange}
-            disabled={loading}
-          >
-            <SelectTrigger id="activityType">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {listActivityTypes().map((def) => (
-                <SelectItem key={def.kind} value={def.kind}>
-                  {def.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+          {/* Instructions (markdown) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="studentInstructions">Instructions</Label>
+                <InfoTooltip text="Enter the instructions for the activity." />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Markdown supported
+              </span>
+            </div>
+            <MarkdownEditor
+              id="studentInstructions"
+              value={studentInstructions}
+              onChange={setStudentInstructions}
+              disabled={loading}
+              placeholder="Enter instructions for the activity..."
+              rows={4}
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="assessmentMode">
-            Interaction Type <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={currentAssessmentMode}
-            onValueChange={(value) => {
-              const newMode = value as AssessmentMode;
-              setAssessmentMode(newMode);
-              setBotPromptConfig(
-                applyClassLang(
-                  buildDefaultBotPromptConfig(activityType, newMode),
-                  newMode,
-                ),
-              );
-            }}
-            disabled={loading}
-          >
-            <SelectTrigger id="assessmentMode">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ASSESSMENT_MODE_OPTIONS.map((opt) => {
-                const isAllowed = allowedAssessmentModes.has(opt.value);
-                const isCurrent = opt.value === currentAssessmentMode;
-                // Disabled if the institution restricts it, unless this is the
-                // current value (so existing assignments remain editable).
-                if (!isAllowed && !isCurrent) {
-                  return (
-                    <SelectItem key={opt.value} value={opt.value} disabled>
-                      <span className="flex w-full items-center justify-between gap-3">
-                        <span>{opt.label}</span>
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="pointer-events-auto inline-flex">
-                                <Lock
-                                  className="h-3.5 w-3.5 text-muted-foreground"
-                                  aria-label="Restricted"
-                                />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="left">
-                              This interaction type isn&apos;t allowed for this
-                              class. Contact your admin to enable it.
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </span>
+          {/* Activity Type & Interaction Type (side by side) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="activityType">
+                Activity Type <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={activityType}
+                onValueChange={handleActivityTypeChange}
+                disabled={loading}
+              >
+                <SelectTrigger id="activityType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {listActivityTypes().map((def) => (
+                    <SelectItem key={def.kind} value={def.kind}>
+                      {def.label}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="assessmentMode">
+                Interaction Type <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={currentAssessmentMode}
+                onValueChange={(value) => {
+                  const newMode = value as AssessmentMode;
+                  setAssessmentMode(newMode);
+                  setBotPromptConfig(
+                    applyClassLang(
+                      buildDefaultBotPromptConfig(activityType, newMode),
+                      newMode,
+                    ),
                   );
-                }
-                return (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Language (primary + support) */}
-      <CollapsibleSection title="Language" disabled={loading}>
-        <AssignmentLanguageSection
-          preferredLanguage={preferredLanguage}
-          setPreferredLanguage={setPreferredLanguage}
-          lockLanguage={lockLanguage}
-          setLockLanguage={setLockLanguage}
-          botPromptConfig={botPromptConfig}
-          setBotPromptConfig={setBotPromptConfig}
-          supportedLocales={supportedLocales}
-          loading={loading}
-        />
-      </CollapsibleSection>
-
-      {/* More Options (with General & AI Bot subtabs) */}
-      <CollapsibleSection
-        title="More Options"
-        disabled={loading}
-        contentClassName="bg-muted/90"
-      >
-            <Tabs defaultValue="general">
-              <MutedPrimaryTabsList className="mb-4 mt-4 h-auto w-auto gap-1 rounded-md p-1">
-                <MutedPrimaryTabsTrigger
-                  value="general"
-                  className="rounded-sm px-4 py-2"
-                >
-                  General
-                </MutedPrimaryTabsTrigger>
-                <MutedPrimaryTabsTrigger
-                  value="aibot"
-                  className="rounded-sm px-4 py-2"
-                >
-                  AI Config
-                </MutedPrimaryTabsTrigger>
-              </MutedPrimaryTabsList>
-
-              <TabsContent value="general">
-                <MoreOptionsGeneral
-                  maxAttempts={maxAttempts}
-                  setMaxAttempts={setMaxAttempts}
-                  requireAllAttempts={requireAllAttempts}
-                  setRequireAllAttempts={setRequireAllAttempts}
-                  showRubric={showRubric}
-                  setShowRubric={setShowRubric}
-                  showRubricPoints={showRubricPoints}
-                  setShowRubricPoints={setShowRubricPoints}
-                  useStarDisplay={useStarDisplay}
-                  setUseStarDisplay={setUseStarDisplay}
-                  starScale={starScale}
-                  setStarScale={setStarScale}
-                  experienceRatingEnabled={experienceRatingEnabled}
-                  setExperienceRatingEnabled={setExperienceRatingEnabled}
-                  experienceRatingRequired={experienceRatingRequired}
-                  setExperienceRatingRequired={setExperienceRatingRequired}
-                  feedbackRequiresApproval={feedbackRequiresApproval}
-                  setFeedbackRequiresApproval={setFeedbackRequiresApproval}
-                  integritySettings={integritySettings}
-                  setIntegritySettings={setIntegritySettings}
-                  isPublic={isPublic}
-                  setIsPublic={setIsPublic}
-                  responderFieldsConfig={responderFieldsConfig}
-                  setResponderFieldsConfig={setResponderFieldsConfig}
-                  fileSubmissionEnabled={fileSubmissionEnabled}
-                  setFileSubmissionEnabled={(enabled) => {
-                    setFileSubmissionEnabled(enabled);
-                    if (!enabled) {
-                      setQuestions((prev) =>
-                        stripDynamicFlagsFromQuestions(prev),
+                }}
+                disabled={loading}
+              >
+                <SelectTrigger id="assessmentMode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSESSMENT_MODE_OPTIONS.map((opt) => {
+                    const isAllowed = allowedAssessmentModes.has(opt.value);
+                    const isCurrent = opt.value === currentAssessmentMode;
+                    // Disabled if the institution restricts it, unless this is the
+                    // current value (so existing assignments remain editable).
+                    if (!isAllowed && !isCurrent) {
+                      return (
+                        <SelectItem key={opt.value} value={opt.value} disabled>
+                          <span className="flex w-full items-center justify-between gap-3">
+                            <span>{opt.label}</span>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="pointer-events-auto inline-flex">
+                                    <Lock
+                                      className="h-3.5 w-3.5 text-muted-foreground"
+                                      aria-label="Restricted"
+                                    />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  This interaction type isn&apos;t allowed for
+                                  this class. Contact your admin to enable it.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </span>
+                        </SelectItem>
                       );
                     }
-                    if (enabled && fileAllowedTypes.length === 0) {
-                      setFileAllowedTypes([
-                        ...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES,
-                      ]);
-                    }
-                  }}
-                  fileAllowMultiple={fileAllowMultiple}
-                  setFileAllowMultiple={setFileAllowMultiple}
-                  fileAllowedTypes={fileAllowedTypes}
-                  onToggleAllowedFileType={handleToggleAllowedFileType}
-                  fileInstructions={fileInstructions}
-                  setFileInstructions={setFileInstructions}
-                  loading={loading}
-                />
-              </TabsContent>
+                    return (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-              <TabsContent value="aibot">
-                <MoreOptionsAIBot
-                  assessmentMode={currentAssessmentMode}
-                  showBotPreview={showBotPreview}
-                  setShowBotPreview={setShowBotPreview}
-                  botPromptConfig={botPromptConfig}
-                  setBotPromptConfig={setBotPromptConfig}
-                  evaluationPrompt={evaluationPrompt}
-                  setEvaluationPrompt={setEvaluationPrompt}
-                  activityType={activityType}
-                  questions={questions}
-                  title={title}
-                  studentInstructions={studentInstructions}
-                  preferredLanguage={preferredLanguage}
-                  maxAttempts={maxAttempts}
-                  sharedContextEnabled={sharedContextEnabled}
-                  setSharedContextEnabled={setSharedContextEnabled}
-                  sharedContext={sharedContext}
-                  setSharedContext={setSharedContext}
-                  loading={loading}
-                  dynamicQuestionsEnabled={
-                    fileSubmissionEnabled && hasPerQuestionDynamic
+          {/* Language (primary + support) */}
+          <CollapsibleSection title="Language" disabled={loading}>
+            <AssignmentLanguageSection
+              preferredLanguage={preferredLanguage}
+              setPreferredLanguage={setPreferredLanguage}
+              lockLanguage={lockLanguage}
+              setLockLanguage={setLockLanguage}
+              botPromptConfig={botPromptConfig}
+              setBotPromptConfig={setBotPromptConfig}
+              supportedLocales={supportedLocales}
+              loading={loading}
+            />
+          </CollapsibleSection>
+
+          <div className="space-y-4">
+            {questions.map((question, index) => (
+              <QuestionCard
+                key={index}
+                question={question}
+                index={index}
+                totalQuestions={questions.length}
+                onChange={handleQuestionChange}
+                onRubricChange={handleRubricChange}
+                onAddRubricItem={handleAddRubricItem}
+                onRemoveRubricItem={handleRemoveRubricItem}
+                onMoveUp={handleMoveQuestionUp}
+                onMoveDown={handleMoveQuestionDown}
+                onDelete={handleDeleteQuestion}
+                disabled={loading}
+                fileSubmissionEnabled={fileSubmissionEnabled}
+                title={title}
+                studentInstructions={studentInstructions}
+                contextForAI={sharedContext}
+                showBotOverride={
+                  currentAssessmentMode === "voice" ||
+                  currentAssessmentMode === "text_chat"
+                }
+                questionOverride={
+                  botPromptConfig.question_overrides?.[question.order]
+                }
+                onQuestionOverrideChange={handleQuestionOverrideChange}
+                classDbId={classDbId}
+                activityType={activityType}
+                defaultSystemPrompt={botPromptConfig.system_prompt}
+                defaultConversationStart={getDefaultConversationStart(
+                  question.order,
+                )}
+              />
+            ))}
+          </div>
+
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddQuestion}
+              disabled={loading}
+            >
+              + Add {getActivityTypeLabels(activityType).question}
+            </Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="settings" className="pt-6">
+          <Tabs defaultValue="general">
+            <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
+              <MutedPrimaryTabsTrigger
+                value="general"
+                className="rounded-sm px-4 py-2"
+              >
+                General
+              </MutedPrimaryTabsTrigger>
+              <MutedPrimaryTabsTrigger
+                value="aibot"
+                className="rounded-sm px-4 py-2"
+              >
+                AI Config
+              </MutedPrimaryTabsTrigger>
+            </MutedPrimaryTabsList>
+
+            <TabsContent value="general">
+              <MoreOptionsGeneral
+                maxAttempts={maxAttempts}
+                setMaxAttempts={setMaxAttempts}
+                requireAllAttempts={requireAllAttempts}
+                setRequireAllAttempts={setRequireAllAttempts}
+                showRubric={showRubric}
+                setShowRubric={setShowRubric}
+                showRubricPoints={showRubricPoints}
+                setShowRubricPoints={setShowRubricPoints}
+                useStarDisplay={useStarDisplay}
+                setUseStarDisplay={setUseStarDisplay}
+                starScale={starScale}
+                setStarScale={setStarScale}
+                experienceRatingEnabled={experienceRatingEnabled}
+                setExperienceRatingEnabled={setExperienceRatingEnabled}
+                experienceRatingRequired={experienceRatingRequired}
+                setExperienceRatingRequired={setExperienceRatingRequired}
+                feedbackRequiresApproval={feedbackRequiresApproval}
+                setFeedbackRequiresApproval={setFeedbackRequiresApproval}
+                integritySettings={integritySettings}
+                setIntegritySettings={setIntegritySettings}
+                isPublic={isPublic}
+                setIsPublic={setIsPublic}
+                responderFieldsConfig={responderFieldsConfig}
+                setResponderFieldsConfig={setResponderFieldsConfig}
+                fileSubmissionEnabled={fileSubmissionEnabled}
+                setFileSubmissionEnabled={(enabled) => {
+                  setFileSubmissionEnabled(enabled);
+                  if (!enabled) {
+                    setQuestions((prev) =>
+                      stripDynamicFlagsFromQuestions(prev),
+                    );
                   }
-                  dynamicGenerationPrompt={dynamicGenerationPrompt}
-                  setDynamicGenerationPrompt={setDynamicGenerationPrompt}
-                  availableActionKinds={availableActionKinds}
-                />
-              </TabsContent>
-            </Tabs>
-      </CollapsibleSection>
+                  if (enabled && fileAllowedTypes.length === 0) {
+                    setFileAllowedTypes([
+                      ...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES,
+                    ]);
+                  }
+                }}
+                fileAllowMultiple={fileAllowMultiple}
+                setFileAllowMultiple={setFileAllowMultiple}
+                fileAllowedTypes={fileAllowedTypes}
+                onToggleAllowedFileType={handleToggleAllowedFileType}
+                fileInstructions={fileInstructions}
+                setFileInstructions={setFileInstructions}
+                loading={loading}
+              />
+            </TabsContent>
 
-      <div className="space-y-4">
-        {questions.map((question, index) => (
-          <QuestionCard
-            key={index}
-            question={question}
-            index={index}
-            totalQuestions={questions.length}
-            onChange={handleQuestionChange}
-            onRubricChange={handleRubricChange}
-            onAddRubricItem={handleAddRubricItem}
-            onRemoveRubricItem={handleRemoveRubricItem}
-            onMoveUp={handleMoveQuestionUp}
-            onMoveDown={handleMoveQuestionDown}
-            onDelete={handleDeleteQuestion}
-            disabled={loading}
-            fileSubmissionEnabled={fileSubmissionEnabled}
-            title={title}
-            studentInstructions={studentInstructions}
-            contextForAI={sharedContext}
-            showBotOverride={
-              currentAssessmentMode === "voice" ||
-              currentAssessmentMode === "text_chat"
-            }
-            questionOverride={
-              botPromptConfig.question_overrides?.[question.order]
-            }
-            onQuestionOverrideChange={handleQuestionOverrideChange}
-            classDbId={classDbId}
-            activityType={activityType}
-            defaultSystemPrompt={botPromptConfig.system_prompt}
-            defaultConversationStart={getDefaultConversationStart(
-              question.order,
-            )}
-          />
-        ))}
-      </div>
+            <TabsContent value="aibot">
+              <MoreOptionsAIBot
+                assessmentMode={currentAssessmentMode}
+                showBotPreview={showBotPreview}
+                setShowBotPreview={setShowBotPreview}
+                botPromptConfig={botPromptConfig}
+                setBotPromptConfig={setBotPromptConfig}
+                evaluationPrompt={evaluationPrompt}
+                setEvaluationPrompt={setEvaluationPrompt}
+                activityType={activityType}
+                questions={questions}
+                title={title}
+                studentInstructions={studentInstructions}
+                preferredLanguage={preferredLanguage}
+                maxAttempts={maxAttempts}
+                sharedContextEnabled={sharedContextEnabled}
+                setSharedContextEnabled={setSharedContextEnabled}
+                sharedContext={sharedContext}
+                setSharedContext={setSharedContext}
+                loading={loading}
+                dynamicQuestionsEnabled={
+                  fileSubmissionEnabled && hasPerQuestionDynamic
+                }
+                dynamicGenerationPrompt={dynamicGenerationPrompt}
+                setDynamicGenerationPrompt={setDynamicGenerationPrompt}
+                availableActionKinds={availableActionKinds}
+              />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+      </Tabs>
 
-      <div className="flex justify-center">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleAddQuestion}
-          disabled={loading}
-        >
-          + Add {getActivityTypeLabels(activityType).question}
-        </Button>
-      </div>
-
-      {/* Error Message */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {/* Submit Buttons */}
-      <div className="flex justify-center gap-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={(e) => handleSubmit(e, true)}
-          disabled={loading}
-        >
-          {loading ? "Saving..." : "Save as Draft"}
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading
-            ? mode === "edit"
-              ? initialIsDraft
-                ? "Publishing..."
-                : "Updating..."
-              : "Creating..."
-            : mode === "edit"
-              ? initialIsDraft
-                ? "Publish"
-                : "Update Assignment"
-              : "Create Assignment"}
-        </Button>
-      </div>
+      <AssignmentFormFooter
+        mode={mode}
+        initialIsDraft={initialIsDraft}
+        loading={loading}
+        error={error}
+        onCancel={onCancel}
+        onSaveDraft={(e) => handleSubmit(e, true)}
+      />
     </form>
   );
 }
