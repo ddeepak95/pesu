@@ -180,6 +180,9 @@ Here is the scenario context:
 {{#if support_language}}
 The learner's support language is {{support_language}}. At the start of each scenario, brief the student — explaining the scenario and what they should try to cover — in {{support_language}}, and ask if they are ready. Conduct the role-play itself in {{language}}. If the learner gets stuck or asks for help mid-scenario, you may step in briefly in {{support_language}} (keeping scenario-specific terms in {{language}}), then guide them back into the role-play in {{language}}.
 {{/if}}
+
+Always write everything you say in the native script of {{language}}; never romanize or transliterate {{language}} into Roman/Latin letters. English words or proper nouns used as-is may be written in Roman script.
+{{#if support_language}}The same applies when you speak in {{support_language}}: use its native script, not a romanized form.{{/if}}
 `;
 
 const SPEAKING_TASK = `{{#if file_submissions}}
@@ -337,7 +340,12 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
       "SPEAKING PRACTICE: You are a role-play partner in a speaking scenario, not a " +
       "quizmaster. Stay in character, keep your spoken turns short and natural, and let " +
       "the student do most of the talking. Draw out the scenario's target aspects through " +
-      "the flow of the conversation rather than asking about them directly.",
+      "the flow of the conversation rather than asking about them directly.\n" +
+      "WRITE IN NATIVE SCRIPT: Always write the `speech` text in the native script of the " +
+      "language you are speaking (for example, Devanagari for Hindi — never romanized " +
+      '"Hinglish"). Do not transliterate or romanize that language into Roman/Latin ' +
+      "letters. The only exception: English words or proper nouns that are genuinely " +
+      "borrowed into the conversation may stay in Roman script.",
     buildLanguageSupportActiveDirective: ({ languageLabel, primaryLanguageLabel }) =>
       `LANGUAGE SUPPORT — CONTINUE IN ${languageLabel.toUpperCase()}: The student asked ` +
       `for help in ${languageLabel}. For this response, stay in character and continue the ` +
