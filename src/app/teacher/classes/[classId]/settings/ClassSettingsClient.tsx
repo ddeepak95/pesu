@@ -13,6 +13,7 @@ import ProgressiveUnlockSection from "@/components/Teacher/Classes/Settings/Prog
 import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetProgressSection";
 import DuplicateClassSection from "@/components/Teacher/Classes/Settings/DuplicateClassSection";
 import ArchiveClassSection from "@/components/Teacher/Classes/Settings/ArchiveClassSection";
+import { ArchivedClassBanner } from "@/components/Shared/ArchivedClassBanner";
 import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneSection";
 import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
 import ClassAiManagementTab from "@/components/Settings/ClassAiManagementTab";
@@ -90,6 +91,12 @@ export default function ClassSettingsClient({
         <p className="text-muted-foreground mb-8">
           Manage settings for this class.
         </p>
+
+        {initialClassData.status === "archived" && (
+          <div className="mb-6">
+            <ArchivedClassBanner />
+          </div>
+        )}
 
         {initialClassData.institution_id && (
           <div className="mb-6">

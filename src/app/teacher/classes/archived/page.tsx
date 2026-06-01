@@ -3,7 +3,7 @@
 import PageLayout from "@/components/PageLayout";
 import InnerPageLayout from "@/components/Layout/InnerPageLayout";
 import BackButton from "@/components/ui/back-button";
-import ArchivedClassCard from "@/components/Teacher/Classes/ArchivedClassCard";
+import ClassCard from "@/components/Teacher/Classes/ClassCard";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
 import { useArchivedClassesByUser } from "@/hooks/swr";
@@ -15,7 +15,6 @@ export default function ArchivedClassesPage() {
     data: classes = [],
     error: classesError,
     isLoading: classesLoading,
-    mutate: mutateClasses,
   } = useArchivedClassesByUser(user?.id ?? null);
 
   const loading = classesLoading;
@@ -50,11 +49,7 @@ export default function ArchivedClassesPage() {
           <List
             items={classes}
             renderItem={(classItem) => (
-              <ArchivedClassCard
-                key={classItem.id}
-                classData={classItem}
-                onRestored={() => mutateClasses()}
-              />
+              <ClassCard key={classItem.id} classData={classItem} />
             )}
             emptyMessage="No archived classes."
           />

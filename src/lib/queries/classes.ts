@@ -301,8 +301,10 @@ export async function restoreClass(
 }
 
 /**
- * Get a single class by its unique class_id
- * Only returns active classes (excludes deleted ones)
+ * Get a single class by its unique class_id.
+ * Returns active and archived classes (excludes deleted ones) so teachers can
+ * still open an archived class's detail/settings pages. This is teacher-only:
+ * no student-side code path uses this fetcher.
  */
 export async function getClassByClassId(classId: string): Promise<Class | null> {
   const supabase = createClient();
@@ -311,7 +313,7 @@ export async function getClassByClassId(classId: string): Promise<Class | null> 
     .from("classes")
     .select("id, name, class_id, created_by, created_at, updated_at, status, preferred_language, language_config, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id")
     .eq("class_id", classId)
-    .eq("status", "active")
+    .in("status", ["active", "archived"])
     .single();
 
   if (error) {

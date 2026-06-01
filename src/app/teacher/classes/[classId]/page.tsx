@@ -27,7 +27,7 @@ export default async function ClassDetailPage({
     .from("classes")
     .select(CLASS_COLUMNS)
     .eq("class_id", classId)
-    .eq("status", "active")
+    .in("status", ["active", "archived"])
     .single();
 
   if (!classData) notFound();
