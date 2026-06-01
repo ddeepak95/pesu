@@ -13,7 +13,6 @@ import {
   type ActivityType,
   type InteractionType,
 } from "@/lib/promptTemplates";
-import { resolveFeedbackLanguageCode } from "@/lib/activityTypes/registry";
 
 interface UseInterpolatedPromptsArgs {
   question: Question;
@@ -68,11 +67,6 @@ export function useInterpolatedPrompts({
   studentInstructions,
   totalQuestions,
 }: UseInterpolatedPromptsArgs): InterpolatedPrompts {
-  const feedbackLanguageCode = resolveFeedbackLanguageCode(
-    activityType,
-    language,
-    supportLanguage,
-  );
   const effectiveConfig = useMemo(
     () => botPromptConfig ?? buildDefaultBotPromptConfig(activityType, assessmentMode),
     [botPromptConfig, activityType, assessmentMode],
@@ -101,6 +95,7 @@ export function useInterpolatedPrompts({
       language,
       attemptNumber,
       fileSubmissionsContent,
+      supportLanguage,
     );
 
     let sp = result?.system_prompt ?? "";
@@ -121,6 +116,7 @@ export function useInterpolatedPrompts({
     fileSubmissionsContent,
     assessmentMode,
     languageName,
+    supportLanguage,
   ]);
 
   const buildEvaluationPrompt = useCallback(
@@ -135,7 +131,7 @@ export function useInterpolatedPrompts({
         question.order,
         answerText,
         fileSubmissionsContent,
-        feedbackLanguageCode,
+        supportLanguage,
       );
       return interpolatePrompt(evaluationPromptTemplate, evalContext);
     },
@@ -146,7 +142,7 @@ export function useInterpolatedPrompts({
       language,
       attemptNumber,
       fileSubmissionsContent,
-      feedbackLanguageCode,
+      supportLanguage,
     ],
   );
 

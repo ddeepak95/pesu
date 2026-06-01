@@ -223,14 +223,18 @@ export function AssessmentShell({
   // Language Support: an additional language the tutor can re-explain in.
   // Chosen here, alongside the main language, before the activity starts.
   const languageSupportConfig = botPromptConfig?.multimodal_actions?.languageSupport;
-  const supportEnabled = isMultimodal && (languageSupportConfig?.enabled ?? false);
+  // Support is configurable for every interaction type (feeds {{support_language}}),
+  // but the in-activity selector — letting learners re-explain in another language —
+  // is multimodal-only.
+  const supportConfigEnabled = languageSupportConfig?.enabled ?? false;
+  const showSupportSelector = isMultimodal && supportConfigEnabled;
   const supportLocked = languageSupportConfig?.locked ?? false;
   const supportLanguageOptions = React.useMemo(() => {
-    if (!supportEnabled) return [];
+    if (!showSupportSelector) return [];
     return multimodalSupportedLocales
       .filter((code) => code !== language)
       .map((code) => ({ value: code, label: getLocaleLabel(code) }));
-  }, [supportEnabled, multimodalSupportedLocales, language]);
+  }, [showSupportSelector, multimodalSupportedLocales, language]);
   const [supportLanguage, setSupportLanguage] = React.useState<string>(
     languageSupportConfig?.defaultLanguage ?? "",
   );
@@ -238,7 +242,7 @@ export function AssessmentShell({
   // the current pick (including an explicit "None"), falling back to the default
   // or the first option.
   React.useEffect(() => {
-    if (!supportEnabled) return;
+    if (!showSupportSelector) return;
     if (supportLocked && languageSupportConfig?.defaultLanguage) {
       setSupportLanguage(languageSupportConfig.defaultLanguage);
       return;
@@ -257,7 +261,7 @@ export function AssessmentShell({
       return supportLanguageOptions[0]?.value ?? prev;
     });
   }, [
-    supportEnabled,
+    showSupportSelector,
     supportLocked,
     languageSupportConfig?.defaultLanguage,
     supportLanguageOptions,
@@ -276,8 +280,15 @@ export function AssessmentShell({
           ],
     [supportLocked, supportLanguageOptions],
   );
-  const effectiveSupportLanguage =
-    supportLanguage === SUPPORT_LANGUAGE_NONE ? "" : supportLanguage;
+  // Non-multimodal modes have no in-activity selector, so the support language is
+  // the teacher-configured default; multimodal uses the learner's pick ("None" → "").
+  const effectiveSupportLanguage = !supportConfigEnabled
+    ? ""
+    : isMultimodal
+      ? supportLanguage === SUPPORT_LANGUAGE_NONE
+        ? ""
+        : supportLanguage
+      : (languageSupportConfig?.defaultLanguage ?? "");
 
   const { buildEvaluationPrompt } = useInterpolatedPrompts({
     question,
@@ -530,7 +541,7 @@ export function AssessmentShell({
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <span>
-                          {supportEnabled ? "Primary language:" : "Language:"}
+                          {showSupportSelector ? "Primary language:" : "Language:"}
                         </span>
                         <InfoTooltip text="The main language the AI tutor speaks and converses in throughout the activity." />
                       </div>
@@ -543,7 +554,7 @@ export function AssessmentShell({
                         className="w-[180px]"
                       />
                     </div>
-                    {supportEnabled && supportLanguageOptions.length > 0 && (
+                    {showSupportSelector && supportLanguageOptions.length > 0 && (
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <span>Support language:</span>

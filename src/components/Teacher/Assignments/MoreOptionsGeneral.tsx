@@ -18,15 +18,10 @@ import {
   type AssignmentIntegritySettingsValues,
 } from "@/components/Shared/Integrity/AssignmentIntegritySettings";
 import { FileSubmissionSection } from "@/components/Teacher/Assignments/FileSubmissionSection";
-import { supportedLanguages } from "@/utils/supportedLanguages";
 import { ResponderFieldConfig } from "@/types/assignment";
 import { Trash2, Plus } from "lucide-react";
 
 interface MoreOptionsGeneralProps {
-  preferredLanguage: string;
-  setPreferredLanguage: (lang: string) => void;
-  lockLanguage: boolean;
-  setLockLanguage: (lock: boolean) => void;
   maxAttempts: number;
   setMaxAttempts: (attempts: number) => void;
   requireAllAttempts: boolean;
@@ -63,10 +58,6 @@ interface MoreOptionsGeneralProps {
 }
 
 export function MoreOptionsGeneral({
-  preferredLanguage,
-  setPreferredLanguage,
-  lockLanguage,
-  setLockLanguage,
   maxAttempts,
   setMaxAttempts,
   requireAllAttempts,
@@ -116,51 +107,6 @@ export function MoreOptionsGeneral({
         loading={loading}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 md:items-start">
-      {/* Language Settings */}
-      <SettingsCard className="space-y-3">
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="preferredLanguage">Primary Language</Label>
-            <InfoTooltip text="The main language the AI bot speaks and interacts in with students. Students can change it during the assessment unless you lock it below." />
-          </div>
-          <Select
-            value={preferredLanguage}
-            onValueChange={setPreferredLanguage}
-            disabled={loading}
-          >
-            <SelectTrigger id="preferredLanguage">
-              <SelectValue placeholder="Select a language" />
-            </SelectTrigger>
-            <SelectContent>
-              {supportedLanguages.map((lang) => (
-                <SelectItem key={lang.code} value={lang.code}>
-                  {lang.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="lockLanguage"
-            checked={lockLanguage}
-            onCheckedChange={(checked) => setLockLanguage(checked === true)}
-            disabled={loading}
-          />
-          <div className="flex items-center gap-1.5">
-            <Label
-              htmlFor="lockLanguage"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              Lock primary language for students
-            </Label>
-            <InfoTooltip text="When enabled, students cannot change the primary language during the assessment." />
-          </div>
-        </div>
-      </SettingsCard>
-
       {/* Attempts & Completion */}
       <SettingsCard className="space-y-3">
         <div className="space-y-2">
@@ -204,8 +150,6 @@ export function MoreOptionsGeneral({
           </div>
         </div>
       </SettingsCard>
-
-      </div>
 
       {/* Display Settings */}
       <SettingsCard className="space-y-3">

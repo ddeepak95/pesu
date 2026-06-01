@@ -93,6 +93,13 @@ interface MultimodalTurnRequestBody {
    * the learner verbally asks for help.
    */
   supportLanguageAvailable?: string;
+  /**
+   * True when this is a speaking-practice scenario intro spoken in the support
+   * language (briefing + "ready?"). The TTS still uses `speechLanguage`, but the
+   * "learner asked for help" support directive is suppressed — the greeting
+   * instruction drives the briefing.
+   */
+  introBrief?: boolean;
   ttsModelId: string;
   availableActions?: ActionKind[];
   endConversationConfig?: EndConversationConfig;
@@ -130,6 +137,9 @@ export async function POST(request: NextRequest) {
     // asked for help, otherwise the conversation language).
     const speechLanguage = body.speechLanguage?.trim() || language;
     const isSupportTurn = speechLanguage !== language;
+    // A speaking-practice intro brief is spoken in the support language but is
+    // not a "learner asked for help" turn — suppress the active support directive.
+    const introBrief = body.introBrief === true;
 
     // Support is offered (but not active this turn): the orchestrator may raise
     // `requestLanguageHelp` if the learner verbally asks for help.
@@ -422,7 +432,7 @@ export async function POST(request: NextRequest) {
             providerOptions,
             availableActions: enabledActions,
             endConversation: endConversationConfig,
-            languageSupport: isSupportTurn
+            languageSupport: isSupportTurn && !introBrief
               ? {
                   active: true,
                   languageLabel: localeLabel(speechLanguage),

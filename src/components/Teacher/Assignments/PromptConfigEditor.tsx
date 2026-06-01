@@ -23,6 +23,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { showSuccessToast } from "@/lib/toast";
 import { AlertCircle, RotateCcw, Variable } from "lucide-react";
 
 interface PromptConfigEditorProps {
@@ -252,6 +261,46 @@ export function PromptConfigEditor({
   const handleResetGeneration = useCallback(() => {
     onDynamicGenerationPromptChange?.(buildDefaultDynamicGenerationPrompt());
   }, [onDynamicGenerationPromptChange]);
+
+  // Reset is confirmed via a dialog so a single click can't wipe a teacher's
+  // edits. `resetTarget` holds which prompt the pending confirmation applies to.
+  type ResetTarget = "bot" | "evaluation" | "generation";
+  const [resetTarget, setResetTarget] = React.useState<ResetTarget | null>(null);
+
+  const resetCopy: Record<
+    ResetTarget,
+    { title: string; description: string; toast: string; run: () => void }
+  > = {
+    bot: {
+      title: "Reset bot prompts to default?",
+      description:
+        "This replaces the System Prompt and Conversation Start with the defaults for this activity type. Your current edits will be lost.",
+      toast: "Bot prompts reset to default.",
+      run: handleResetBotPrompts,
+    },
+    evaluation: {
+      title: "Reset evaluation prompt to default?",
+      description:
+        "This replaces the Evaluation Prompt with the default for this activity type. Your current edits will be lost.",
+      toast: "Evaluation prompt reset to default.",
+      run: handleResetEvaluation,
+    },
+    generation: {
+      title: "Reset question generation prompt to default?",
+      description:
+        "This replaces the Question Generation Prompt with the default. Your current edits will be lost.",
+      toast: "Question generation prompt reset to default.",
+      run: handleResetGeneration,
+    },
+  };
+
+  const confirmReset = () => {
+    if (!resetTarget) return;
+    const { run, toast } = resetCopy[resetTarget];
+    run();
+    showSuccessToast(toast);
+    setResetTarget(null);
+  };
 
   const updateEndConversation = useCallback(
     (instruction: string) => {
@@ -499,7 +548,7 @@ export function PromptConfigEditor({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleResetEvaluation}
+                  onClick={() => setResetTarget("evaluation")}
                   disabled={disabled}
                   type="button"
                 >
@@ -539,7 +588,7 @@ export function PromptConfigEditor({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleResetGeneration}
+                    onClick={() => setResetTarget("generation")}
                     disabled={disabled}
                     type="button"
                   >
@@ -560,7 +609,7 @@ export function PromptConfigEditor({
           <Button
             variant="outline"
             size="sm"
-            onClick={handleResetBotPrompts}
+            onClick={() => setResetTarget("bot")}
             disabled={disabled}
             type="button"
           >
@@ -569,6 +618,43 @@ export function PromptConfigEditor({
           </Button>
         </div>
       )}
+
+      {/* Reset confirmation (shared by all three Reset to Default buttons) */}
+      <Dialog
+        open={resetTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setResetTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5" />
+              {resetTarget ? resetCopy[resetTarget].title : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {resetTarget ? resetCopy[resetTarget].description : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setResetTarget(null)}
+              type="button"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmReset}
+              type="button"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset to Default
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </TooltipProvider>
   );

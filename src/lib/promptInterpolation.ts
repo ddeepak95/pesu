@@ -12,8 +12,8 @@ import { getLocaleLabel } from "@/lib/locales";
  */
 export interface InterpolationContext {
   language: string;
-  /** Language the evaluation feedback should be written in (defaults to `language`). */
-  feedback_language: string;
+  /** Learner's support language name; "" when none is selected/configured. */
+  support_language: string;
   title: string;
   instructions: string;
   question_prompt: string;
@@ -134,7 +134,8 @@ export function getLanguageName(languageCode: string): string {
 export function buildPreviewContext(
   assignment: Partial<Assignment>,
   question?: Partial<Question>,
-  languageCode?: string
+  languageCode?: string,
+  supportLanguageCode?: string
 ): InterpolationContext {
   const lang = languageCode || assignment.preferred_language || "en";
   const additionalContextText =
@@ -145,7 +146,7 @@ export function buildPreviewContext(
 
   return {
     language: getLanguageName(lang),
-    feedback_language: getLanguageName(lang),
+    support_language: supportLanguageCode ? getLanguageName(supportLanguageCode) : "",
     title: assignment.title || "[Assignment title]",
     instructions: assignment.student_instructions || "",
     question_prompt: question
@@ -184,12 +185,12 @@ export function buildRuntimeContext(
   questionOrder: number,
   answerText?: string,
   fileSubmissions?: string,
-  feedbackLanguageCode?: string,
+  supportLanguageCode?: string,
 ): InterpolationContext {
   const additionalContextText = assignment.shared_context || "";
   return {
     language: getLanguageName(languageCode),
-    feedback_language: getLanguageName(feedbackLanguageCode ?? languageCode),
+    support_language: supportLanguageCode ? getLanguageName(supportLanguageCode) : "",
     title: assignment.title,
     instructions: assignment.student_instructions || "",
     question_prompt: teacherPromptOrFocus(question),
@@ -238,6 +239,7 @@ export function interpolatePromptsForRuntime(
   languageCode: string,
   attemptNumber: number,
   fileSubmissions?: string,
+  supportLanguageCode?: string,
 ): { system_prompt: string; greeting: string } | null {
   const config = assignment.bot_prompt_config;
 
@@ -253,6 +255,7 @@ export function interpolatePromptsForRuntime(
     question.order,
     undefined,
     fileSubmissions,
+    supportLanguageCode,
   );
 
   // Check for question-specific overrides

@@ -24,7 +24,6 @@ The **activity-type registry**
 | `AssignmentForm.tsx` | `label` (dropdown), `defaults` (preselection on change) |
 | `QuestionCard.tsx` (editor) | `labels` (Question → Scenario, Rubric → …) |
 | `Shared/QuestionView.tsx` (read-only preview) | `labels` — same relabeling in the assignment-detail / content-tab preview |
-| `useInterpolatedPrompts.ts` | `evaluationFeedbackLanguage` → which language the feedback is written in |
 | `api/generate-rubric-and-answer/route.ts` | `generation` copy for the rubric/expected-answer generator |
 | `chat-stream-object.ts` (server) | `buildMultimodalDirective`, `buildLanguageSupportActiveDirective` |
 
@@ -64,9 +63,8 @@ speaking_practice: {
   persona: SPEAKING_PERSONA,                  // {{language}}, {{title}}, {{#if instructions}}…
   taskInstructions: SPEAKING_TASK,            // reinterprets {{rubric}} as "aspects to cover"
   conversationStart: { first_question: "…", subsequent_questions: "…" },
-  evaluationPrompt: SPEAKING_EVALUATION,       // use {{feedback_language}} (not {{language}}) in feedback lines
+  evaluationPrompt: SPEAKING_EVALUATION,       // {{language}} base + {{#if support_language}} override (see step 4)
   evaluationSystemPersona: SPEAKING_EVALUATION_SYSTEM_PERSONA, // LLM system message persona (plain text)
-  evaluationFeedbackLanguage: "support",       // optional: write feedback in the support language
   labels: {                                   // UI overrides; omit a key to keep the default
     question: "Scenario",
     rubric: "Aspects to cover",
@@ -118,21 +116,34 @@ Both are optional hooks read by `buildMultimodalDirectives` in
 (`MultimodalInputArea.tsx`) sends it in the `/api/multimodal/turn` body and the
 route threads it through `resolveMultimodalTurnCall`.
 
-### 4. Optional: evaluation feedback language
+### 4. Optional: support language in prompts
 
-By default feedback is written in the conversation (primary) language. To write
-it in the learner's **support** language instead (e.g. speaking practice, where
-the learner is being taught a new language but wants feedback they understand):
+There is a single `{{support_language}}` variable — the learner's selected/configured
+support language name, or **empty string** when none. It's available in every prompt
+(system, conversation start, evaluation) and resolves entirely client-side: the
+learner's choice flows from `AssessmentShell.tsx` → `useInterpolatedPrompts`
+(`supportLanguage` prop) → `buildRuntimeContext`/`interpolatePromptsForRuntime`.
 
-1. Set `evaluationFeedbackLanguage: "support"` on the registry entry.
-2. In your `evaluationPrompt`, use the `{{feedback_language}}` placeholder
-   wherever you say "write feedback in …" (instead of `{{language}}`).
+Because it's empty when unset, gate any support-specific text with
+`{{#if support_language}}…{{/if}}` so it disappears cleanly when no support language
+is configured.
 
-This resolves **entirely client-side** — no `/api/evaluate` change. The chain:
-`resolveFeedbackLanguageCode(kind, primaryCode, supportCode)` →
-`useInterpolatedPrompts` (which must have `supportLanguage` in scope — see
-`AssessmentShell.tsx`) → `buildRuntimeContext` resolves `{{feedback_language}}`,
-and the pre-rendered prompt is sent as `custom_evaluation_prompt`.
+To write **feedback in the support language** (e.g. speaking practice, where the
+learner is being taught a new language but wants feedback they understand) while
+falling back to the primary language otherwise, keep the base instruction in
+`{{language}}` and add an override block (the interpolation engine has `{{#if}}`
+but no `else`):
+
+```
+IMPORTANT: All feedback text must be written in {{language}}.
+{{#if support_language}}
+LANGUAGE OVERRIDE: The learner had {{support_language}} available as a support language.
+Write ALL feedback in {{support_language}} instead of {{language}}.
+{{/if}}
+```
+
+`SPEAKING_EVALUATION` is the reference. No `/api/evaluate` change — the pre-rendered
+prompt is sent as `custom_evaluation_prompt`.
 
 ### 5. Optional: rubric/expected-answer generator copy
 
@@ -151,8 +162,7 @@ The dropdown (`listActivityTypes()`), the Question Card + preview labels
 (`getActivityTypeLabels()`), the default prompt/eval builders
 (`buildDefaultSystemPrompt` / `buildDefaultEvaluationPrompt` /
 `buildDefaultConversationStart`), the rubric/answer generator
-(`getActivityTypeGenerationCopy()`), the feedback-language resolution
-(`resolveFeedbackLanguageCode()`), and the multimodal directive composition all
+(`getActivityTypeGenerationCopy()`), and the multimodal directive composition all
 read the registry — no per-type wiring needed.
 
 ---
@@ -160,8 +170,8 @@ read the registry — no per-type wiring needed.
 ## Checklist
 
 - [ ] `activityTypes/types.ts` — add the kind to `ActivityTypeKind`
-- [ ] `activityTypes/registry.ts` — `ActivityTypeDefinition` (prompts, labels, defaults, optional `generation` / `evaluationFeedbackLanguage` / directives)
-- [ ] _(if feedback-language differs)_ use `{{feedback_language}}` in the `evaluationPrompt`
+- [ ] `activityTypes/registry.ts` — `ActivityTypeDefinition` (prompts, labels, defaults, optional `generation` / directives)
+- [ ] _(if feedback should use the support language)_ `{{language}}` base + `{{#if support_language}}` override in the `evaluationPrompt`
 - [ ] `types/assignment.ts` — widen `activity_type` (persisted text column; no migration). Also widen any other narrow `"learning" | "assessment"` literals (search the codebase).
 - [ ] _(if it should show a friendly name)_ `AssignmentDetailClient.tsx` Pill display label
 - [ ] `npx tsc --noEmit` + `npx eslint` clean
@@ -178,8 +188,8 @@ read the registry — no per-type wiring needed.
 3. **Runtime** (multimodal): the assembled system prompt contains the type's
    persona + `buildMultimodalDirective`; a language-help turn uses its
    `buildLanguageSupportActiveDirective` when provided.
-4. **Evaluation**: scoring uses the type's `evaluationPrompt`; if
-   `evaluationFeedbackLanguage: "support"`, the feedback is written in the
-   selected support language.
+4. **Evaluation**: scoring uses the type's `evaluationPrompt`; if it has a
+   `{{#if support_language}}` override and a support language is selected, the
+   feedback is written in that support language (otherwise the primary language).
 5. **Persistence**: create → reload edit; `activity_type` round-trips; legacy
    rows still default to `learning`.

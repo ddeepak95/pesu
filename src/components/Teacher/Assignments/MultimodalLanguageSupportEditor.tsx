@@ -55,14 +55,11 @@ export function MultimodalLanguageSupportEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-4">
-        <div className="space-y-0.5">
+        <div className="flex items-center gap-1.5">
           <Label htmlFor="language-support-toggle" className="text-sm">
             Enable language support
           </Label>
-          <p className="text-xs text-muted-foreground">
-            Lets learners ask the tutor to re-explain a point in an additional
-            language, with a matching voice.
-          </p>
+          <InfoTooltip text="Lets the tutor offer help in an additional language (and write feedback in it) when the learner needs it. In multimodal activities, learners can also ask the tutor to re-explain in this language." />
         </div>
         <Switch
           id="language-support-toggle"
@@ -74,7 +71,7 @@ export function MultimodalLanguageSupportEditor({
 
       {languageSupport.enabled && (
         <div className="space-y-3 border-t pt-3">
-          <div className="space-y-2">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="support-language" className="text-sm">
                 Default support language
@@ -90,7 +87,7 @@ export function MultimodalLanguageSupportEditor({
               options={languageOptions}
               placeholder="Select a language"
               disabled={disabled}
-              className="w-full"
+              className="w-[220px]"
             />
           </div>
 

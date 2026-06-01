@@ -22,6 +22,8 @@ import {
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
 import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
+import { AssignmentLanguageSection } from "@/components/Teacher/Assignments/AssignmentLanguageSection";
+import { CollapsibleSection } from "@/components/Teacher/Assignments/CollapsibleSection";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import {
   Question,
@@ -53,7 +55,7 @@ import {
   getActivityTypeDefinition,
   getActivityTypeLabels,
 } from "@/lib/activityTypes/registry";
-import { ChevronDown, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -377,7 +379,14 @@ export default function AssignmentForm({
   const [showRubricPoints, setShowRubricPoints] = useState(
     initialShowRubricPoints,
   );
-  const [useStarDisplay, setUseStarDisplay] = useState(initialUseStarDisplay);
+  const [useStarDisplay, setUseStarDisplay] = useState(
+    // In create mode, honor the activity type's display default (e.g. speaking
+    // practice → stars on); edit mode always uses the saved value.
+    mode === "create"
+      ? getActivityTypeDefinition(initialActivityType).defaults?.display
+          ?.useStarDisplay ?? initialUseStarDisplay
+      : initialUseStarDisplay,
+  );
   const [starScale, setStarScale] = useState(initialStarScale);
   const [requireAllAttempts, setRequireAllAttempts] = useState(
     initialRequireAllAttempts,
@@ -441,7 +450,6 @@ export default function AssignmentForm({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
   const [showBotPreview, setShowBotPreview] = useState(false);
 
   const handleQuestionChange = (
@@ -663,6 +671,9 @@ export default function AssignmentForm({
     // (the activity type's support-enabled flag wins where it sets one).
     setBotPromptConfig(applyClassLang(nextConfig, targetMode));
     setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
+
+    // Apply the type's display-setting defaults (e.g. speaking practice → stars).
+    setUseStarDisplay(def.defaults?.display?.useStarDisplay ?? false);
   };
 
   const handleSubmit = async (e: React.FormEvent, draft: boolean = false) => {
@@ -951,24 +962,26 @@ export default function AssignmentForm({
         </div>
       </div>
 
-      {/* More Options (with General & AI Bot subtabs) */}
-      <div className="rounded-md border bg-background">
-        <button
-          type="button"
-          onClick={() => setIsMoreOptionsOpen(!isMoreOptionsOpen)}
-          className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/50"
-          disabled={loading}
-        >
-          <h3 className="text-sm font-semibold">More Options</h3>
-          <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform ${
-              isMoreOptionsOpen ? "rotate-180" : ""
-            }`}
-          />
-        </button>
+      {/* Language (primary + support) */}
+      <CollapsibleSection title="Language" disabled={loading}>
+        <AssignmentLanguageSection
+          preferredLanguage={preferredLanguage}
+          setPreferredLanguage={setPreferredLanguage}
+          lockLanguage={lockLanguage}
+          setLockLanguage={setLockLanguage}
+          botPromptConfig={botPromptConfig}
+          setBotPromptConfig={setBotPromptConfig}
+          supportedLocales={supportedLocales}
+          loading={loading}
+        />
+      </CollapsibleSection>
 
-        {isMoreOptionsOpen && (
-          <div className="p-4 pt-0 border-t bg-muted/90 rounded-b-md">
+      {/* More Options (with General & AI Bot subtabs) */}
+      <CollapsibleSection
+        title="More Options"
+        disabled={loading}
+        contentClassName="bg-muted/90"
+      >
             <Tabs defaultValue="general">
               <MutedPrimaryTabsList className="mb-4 mt-4 h-auto w-auto gap-1 rounded-md p-1">
                 <MutedPrimaryTabsTrigger
@@ -987,10 +1000,6 @@ export default function AssignmentForm({
 
               <TabsContent value="general">
                 <MoreOptionsGeneral
-                  preferredLanguage={preferredLanguage}
-                  setPreferredLanguage={setPreferredLanguage}
-                  lockLanguage={lockLanguage}
-                  setLockLanguage={setLockLanguage}
                   maxAttempts={maxAttempts}
                   setMaxAttempts={setMaxAttempts}
                   requireAllAttempts={requireAllAttempts}
@@ -1065,13 +1074,10 @@ export default function AssignmentForm({
                   dynamicGenerationPrompt={dynamicGenerationPrompt}
                   setDynamicGenerationPrompt={setDynamicGenerationPrompt}
                   availableActionKinds={availableActionKinds}
-                  supportedLocales={supportedLocales}
                 />
               </TabsContent>
             </Tabs>
-          </div>
-        )}
-      </div>
+      </CollapsibleSection>
 
       <div className="space-y-4">
         {questions.map((question, index) => (

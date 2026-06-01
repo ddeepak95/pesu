@@ -60,11 +60,17 @@ export function PromptPreview({
   dynamicGenerationPrompt = "",
   rightSlot,
 }: PromptPreviewProps) {
+  // Preview the configured support language (when enabled) so {{support_language}}
+  // blocks render as they would for a learner who has it selected.
+  const previewSupportLanguage = config.multimodal_actions?.languageSupport?.enabled
+    ? config.multimodal_actions.languageSupport.defaultLanguage
+    : undefined;
+
   // Build preview context with sample values
   const previewContext = useMemo(
     (): InterpolationContext =>
-      buildPreviewContext(assignment, question, languageCode),
-    [assignment, question, languageCode]
+      buildPreviewContext(assignment, question, languageCode, previewSupportLanguage),
+    [assignment, question, languageCode, previewSupportLanguage]
   );
 
   // Interpolate the system prompt

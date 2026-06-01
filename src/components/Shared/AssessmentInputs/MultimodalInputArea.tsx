@@ -554,6 +554,17 @@ export function MultimodalInputArea({
       const ttsModelId =
         speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
       const attemptNumber = attempts.length + 1;
+
+      // Speaking practice opens each scenario with a briefing spoken in the
+      // support language (scenario + requirements + "ready?"), then switches to
+      // the target language for the role-play. The intro is the first turn of
+      // the scenario (empty history) when a support language is configured.
+      const isIntroBrief =
+        history.length === 0 &&
+        activityType === "speaking_practice" &&
+        supportEnabled &&
+        Boolean(supportLanguage);
+      const turnSpeechLanguage = isIntroBrief ? supportLanguage : speechLanguage;
       let sampleRate = 24000;
       let ttsStarted = false;
       let interrupted = false;
@@ -602,8 +613,11 @@ export function MultimodalInputArea({
             greeting,
             language,
             ttsModelId,
-            ...(speechLanguage && speechLanguage !== language
-              ? { speechLanguage }
+            ...(turnSpeechLanguage && turnSpeechLanguage !== language
+              ? {
+                  speechLanguage: turnSpeechLanguage,
+                  ...(isIntroBrief ? { introBrief: true } : {}),
+                }
               : supportEnabled && supportLanguage
                 ? { supportLanguageAvailable: supportLanguage }
                 : {}),

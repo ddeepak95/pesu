@@ -31,6 +31,9 @@ The instructions for the activity shared to the student are:
 Here is the activity context:
 {{context_for_ai}}
 {{/if}}
+{{#if support_language}}
+If the student struggles, you may briefly explain or clarify in {{support_language}} to help them understand, then continue in {{language}}.
+{{/if}}
 `;
 
 const LEARNING_TASK = `{{#if file_submissions}}
@@ -103,6 +106,9 @@ The instructions for the assessment shared to the student are:
 Here is the additional assessment context:
 {{context_for_ai}}
 {{/if}}
+{{#if support_language}}
+If the student is confused, you may briefly clarify a question in {{support_language}}, then return to {{language}}. Do not give away answers.
+{{/if}}
 `;
 
 const ASSESSMENT_TASK = `{{#if file_submissions}}
@@ -171,6 +177,9 @@ The instructions for the activity shared to the student are:
 Here is the scenario context:
 {{context_for_ai}}
 {{/if}}
+{{#if support_language}}
+The learner's support language is {{support_language}}. At the start of each scenario, brief the student — explaining the scenario and what they should try to cover — in {{support_language}}, and ask if they are ready. Conduct the role-play itself in {{language}}. If the learner gets stuck or asks for help mid-scenario, you may step in briefly in {{support_language}} (keeping scenario-specific terms in {{language}}), then guide them back into the role-play in {{language}}.
+{{/if}}
 `;
 
 const SPEAKING_TASK = `{{#if file_submissions}}
@@ -223,11 +232,14 @@ Please review this speaking practice with primary emphasis on actionable feedbac
 For each aspect:
 1. Assign points_earned generously: reward partial effort and good-faith attempts; prefer the upper part of the range when the student addressed the aspect reasonably, and only deduct meaningfully for clear gaps (0 to the maximum for that aspect - do not exceed the maximum)
 2. Set points_possible to match the aspect's maximum points
-3. In {{feedback_language}}, write feedback that (a) briefly acknowledges what worked, if anything, (b) states specifically what the speaker did wrong or missed for this aspect, tied to the transcript, and (c) gives a concrete correction—what to say or do differently next time
+3. In {{language}}, write feedback that (a) briefly acknowledges what worked, if anything, (b) states specifically what the speaker did wrong or missed for this aspect, tied to the transcript, and (c) gives a concrete correction—what to say or do differently next time
 
-Then provide overall feedback in {{feedback_language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Keep a supportive tone; prioritize teaching over judging.
+Then provide overall feedback in {{language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Keep a supportive tone; prioritize teaching over judging.
 
-IMPORTANT: All feedback text must be written in {{feedback_language}}.`;
+IMPORTANT: All feedback text must be written in {{language}}.
+{{#if support_language}}
+LANGUAGE OVERRIDE: The learner had {{support_language}} available as a support language. Write ALL feedback (both per-aspect and overall) in {{support_language}} instead of {{language}}.
+{{/if}}`;
 
 const SPEAKING_EVALUATION_SYSTEM_PERSONA = `You are a supportive speaking coach reviewing a role-play conversation. Your main job is actionable feedback, not strict grading. Score generously when the student made a good-faith attempt. For each rubric item and in overall feedback, name what the speaker did wrong or missed and give a concrete correction (what to say or do next time). Evaluate only from the transcript.`;
 
@@ -301,17 +313,17 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
     taskInstructions: SPEAKING_TASK,
     conversationStart: {
       first_question:
-        "Speaking in {{language}}, introduce yourself as Konvo and briefly set the scene for the speaking scenario. Invite the student into the role-play and ask if they are ready to begin.",
+        "Introduce yourself as Konvo and set the scene for this speaking scenario, then ask if the student is ready to begin. {{#if support_language}}Deliver this entire opening in {{support_language}}: explain the scenario and what the student should try to do/cover, and ask if they are ready. Do NOT start the role-play yet — once they confirm, conduct the role-play itself in {{language}}.{{/if}}",
       subsequent_questions:
-        "Speaking in {{language}}, briefly transition into the next scenario and set the scene, then invite the student to begin.",
+        "Briefly set the scene for the next speaking scenario, then ask if the student is ready to begin. {{#if support_language}}Deliver this entire opening in {{support_language}}: explain the new scenario and what the student should try to do/cover, and ask if they are ready. Do NOT start the role-play yet — once they confirm, conduct the role-play itself in {{language}}.{{/if}}",
     },
     evaluationPrompt: SPEAKING_EVALUATION,
     evaluationSystemPersona: SPEAKING_EVALUATION_SYSTEM_PERSONA,
-    evaluationFeedbackLanguage: "support",
     labels: SPEAKING_LABELS,
     defaults: {
       interactionType: "multimodal",
       multimodal: { languageSupportEnabled: true, availableActions: [] },
+      display: { useStarDisplay: true },
     },
     generation: {
       rubricCoverage:
@@ -347,23 +359,6 @@ export function getActivityTypeDefinition(
 /** All activity types in dropdown order. */
 export function listActivityTypes(): ActivityTypeDefinition[] {
   return Object.values(ACTIVITY_TYPE_REGISTRY);
-}
-
-/**
- * Resolve the language the evaluation feedback should be written in. Returns the
- * support language when the activity type requests it and one is available;
- * otherwise the primary (conversation) language.
- */
-export function resolveFeedbackLanguageCode(
-  kind: ActivityTypeKind,
-  primaryLanguageCode: string,
-  supportLanguageCode?: string,
-): string {
-  const def = getActivityTypeDefinition(kind);
-  if (def.evaluationFeedbackLanguage === "support" && supportLanguageCode) {
-    return supportLanguageCode;
-  }
-  return primaryLanguageCode;
 }
 
 export const ACTIVITY_TYPE_KINDS = Object.keys(

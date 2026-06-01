@@ -66,6 +66,11 @@ export interface ActivityTypeDefaults {
     languageSupportEnabled?: boolean;
     availableActions?: ActionKind[];
   };
+  /** Display-setting presets applied when this activity type is chosen. */
+  display?: {
+    /** Default the "show scores as stars" toggle to this value. */
+    useStarDisplay?: boolean;
+  };
 }
 
 export interface ActivityTypeDefinition {
@@ -89,13 +94,6 @@ export interface ActivityTypeDefinition {
    * via `buildEvaluationSystemMessage`.
    */
   evaluationSystemPersona: string;
-  /**
-   * Language the evaluation feedback should be written in. "primary" (default) =
-   * the conversation language; "support" = the learner's support language (falls
-   * back to primary when none is configured). Resolves the `{{feedback_language}}`
-   * placeholder via `resolveFeedbackLanguageCode`.
-   */
-  evaluationFeedbackLanguage?: "primary" | "support";
   /** UI label overrides; empty = use DEFAULT_ACTIVITY_TYPE_LABELS. */
   labels: Partial<ActivityTypeLabels>;
   /** Config preselected when the teacher picks this type. */

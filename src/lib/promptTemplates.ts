@@ -64,10 +64,10 @@ export const PROMPT_VARIABLES = {
     description: "The selected language name (e.g., English, Tamil)",
     category: "static" as const,
   },
-  feedback_language: {
-    placeholder: "{{feedback_language}}",
+  support_language: {
+    placeholder: "{{support_language}}",
     description:
-      "Language the evaluation feedback should be written in (the support language for Speaking Practice, otherwise the conversation language)",
+      "The learner's selected support language (a secondary language the tutor may use to help / write feedback in); empty when none is configured/selected",
     category: "static" as const,
   },
   total_questions: {

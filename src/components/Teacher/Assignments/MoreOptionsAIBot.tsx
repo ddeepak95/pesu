@@ -3,7 +3,6 @@
 import { PromptConfigEditor } from "@/components/Teacher/Assignments/PromptConfigEditor";
 import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
 import { MultimodalActionsConfigEditor } from "@/components/Teacher/Assignments/MultimodalActionsConfigEditor";
-import { MultimodalLanguageSupportEditor } from "@/components/Teacher/Assignments/MultimodalLanguageSupportEditor";
 import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
 import { SettingsCard } from "@/components/ui/settings-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -43,8 +42,6 @@ interface MoreOptionsAIBotProps {
   setDynamicGenerationPrompt?: (prompt: string) => void;
   /** Action kinds whose content-generation model is configured + capable for this class. */
   availableActionKinds?: ActionKind[];
-  /** Locales the class's STT + TTS models both support (restricts support-language picker). */
-  supportedLocales?: string[];
 }
 
 /** Icon-only Edit/Preview switch shown to the right of the prompt-type tabs. */
@@ -111,7 +108,6 @@ export function MoreOptionsAIBot({
   dynamicGenerationPrompt = "",
   setDynamicGenerationPrompt,
   availableActionKinds,
-  supportedLocales,
 }: MoreOptionsAIBotProps) {
   const isConversational =
     assessmentMode === "voice" ||
@@ -133,18 +129,6 @@ export function MoreOptionsAIBot({
         setSharedContext={setSharedContext}
         loading={loading}
       />
-
-      {/* Language Support (multimodal-only) */}
-      {assessmentMode === "multimodal" && (
-        <SettingsCard className="space-y-3">
-          <MultimodalLanguageSupportEditor
-            config={botPromptConfig}
-            onChange={setBotPromptConfig}
-            supportedLocales={supportedLocales}
-            disabled={loading}
-          />
-        </SettingsCard>
-      )}
 
       {/* Actions (multimodal-only capability toggles) */}
       {assessmentMode === "multimodal" && (
