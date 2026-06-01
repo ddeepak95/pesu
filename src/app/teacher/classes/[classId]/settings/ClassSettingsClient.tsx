@@ -12,6 +12,7 @@ import ProfileFieldsSection from "@/components/Teacher/Classes/Settings/ProfileF
 import ProgressiveUnlockSection from "@/components/Teacher/Classes/Settings/ProgressiveUnlockSection";
 import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetProgressSection";
 import DuplicateClassSection from "@/components/Teacher/Classes/Settings/DuplicateClassSection";
+import ArchiveClassSection from "@/components/Teacher/Classes/Settings/ArchiveClassSection";
 import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneSection";
 import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
 import ClassAiManagementTab from "@/components/Settings/ClassAiManagementTab";
@@ -161,6 +162,11 @@ export default function ClassSettingsClient({
                 classData={initialClassData}
                 isOwner={sectionMayEdit}
                 onDuplicated={handleUpdated}
+              />
+
+              <ArchiveClassSection
+                classData={initialClassData}
+                canArchive={hasFullClassControlView}
               />
 
               <DangerZoneSection

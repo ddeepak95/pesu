@@ -2,6 +2,7 @@
 export {
   useClassData,
   useClassesByUser,
+  useArchivedClassesByUser,
   useClassesByStudent,
   useProgressViewConfig,
 } from "./useClasses";

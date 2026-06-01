@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import InnerPageLayout from "@/components/Layout/InnerPageLayout";
-import CreateClass from "@/components/Teacher/Classes/CreateClass";
-import ClassCard from "@/components/Teacher/Classes/ClassCard";
+import BackButton from "@/components/ui/back-button";
+import ArchivedClassCard from "@/components/Teacher/Classes/ArchivedClassCard";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
-import { useClassesByUser } from "@/hooks/swr";
+import { useArchivedClassesByUser } from "@/hooks/swr";
 
-export default function ClassesPage() {
+export default function ArchivedClassesPage() {
   const { user, loading: authLoading } = useAuth();
 
   const {
@@ -17,7 +16,7 @@ export default function ClassesPage() {
     error: classesError,
     isLoading: classesLoading,
     mutate: mutateClasses,
-  } = useClassesByUser(user?.id ?? null);
+  } = useArchivedClassesByUser(user?.id ?? null);
 
   const loading = classesLoading;
   const error = classesError?.message ?? null;
@@ -33,25 +32,12 @@ export default function ClassesPage() {
     );
   }
 
-  const emptyMessage =
-    "No classes yet. Create your first class to get started!";
-
   return (
     <PageLayout>
-      <InnerPageLayout
-        title="Classes"
-        action={
-          <div className="flex items-center gap-4">
-            <Link
-              href="/teacher/classes/archived"
-              className="text-muted-foreground hover:text-foreground text-sm"
-            >
-              Archived
-            </Link>
-            <CreateClass onClassCreated={() => mutateClasses()} />
-          </div>
-        }
-      >
+      <div className="mb-4">
+        <BackButton />
+      </div>
+      <InnerPageLayout title="Archived Classes">
         {loading ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground">Loading classes...</p>
@@ -64,9 +50,13 @@ export default function ClassesPage() {
           <List
             items={classes}
             renderItem={(classItem) => (
-              <ClassCard key={classItem.id} classData={classItem} />
+              <ArchivedClassCard
+                key={classItem.id}
+                classData={classItem}
+                onRestored={() => mutateClasses()}
+              />
             )}
-            emptyMessage={emptyMessage}
+            emptyMessage="No archived classes."
           />
         )}
       </InnerPageLayout>

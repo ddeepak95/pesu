@@ -65,6 +65,50 @@ export async function getClassesByUser(userId: string): Promise<Class[]> {
 }
 
 /**
+ * Get all archived classes for a specific user (created by them or co-teaching).
+ * Mirrors getClassesByUser but filters to status = 'archived'.
+ */
+export async function getArchivedClassesByUser(userId: string): Promise<Class[]> {
+  const supabase = createClient();
+
+  const CLASS_COLUMNS =
+    "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, language_config, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
+
+  const { data: teachRows, error: teachError } = await supabase
+    .from("class_teachers")
+    .select("class_id")
+    .eq("teacher_id", userId);
+
+  if (teachError) {
+    console.error("Error fetching class_teachers rows:", teachError);
+    throw teachError;
+  }
+
+  const classDbIds = Array.from(
+    new Set((teachRows || []).map((r) => (r as { class_id: string }).class_id))
+  ).filter(Boolean);
+
+  if (classDbIds.length === 0) {
+    return [];
+  }
+
+  const { data: classes, error: classesError } = await supabase
+    .from("classes")
+    .select(CLASS_COLUMNS)
+    .in("id", classDbIds)
+    .eq("status", "archived");
+
+  if (classesError) {
+    console.error("Error fetching archived classes for teacher:", classesError);
+    throw classesError;
+  }
+
+  return ((classes || []) as Class[]).sort((a, b) =>
+    b.created_at.localeCompare(a.created_at)
+  );
+}
+
+/**
  * Create a new class
  */
 export async function createClass(
@@ -197,6 +241,61 @@ export async function deleteClass(
 
   if (error) {
     console.error("Error deleting class:", error);
+    throw error;
+  }
+}
+
+/**
+ * Archive a class (sets status to 'archived'). Hides it from the main teacher
+ * and student listings while keeping it fully recoverable via restoreClass.
+ *
+ * Authorization is delegated to RLS plus the `guard_classes_immutable_and_delete`
+ * trigger, which (as of the archived-status migration) requires full class
+ * control, institution admin, or platform super admin to archive. The `userId`
+ * parameter is retained for call-site compatibility.
+ */
+export async function archiveClass(
+  classId: string,
+  userId: string
+): Promise<void> {
+  const supabase = createClient();
+  void userId;
+
+  const { error } = await supabase
+    .from("classes")
+    .update({
+      status: "archived",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", classId);
+
+  if (error) {
+    console.error("Error archiving class:", error);
+    throw error;
+  }
+}
+
+/**
+ * Restore an archived class back to 'active', returning it to the main
+ * teacher and student listings.
+ */
+export async function restoreClass(
+  classId: string,
+  userId: string
+): Promise<void> {
+  const supabase = createClient();
+  void userId;
+
+  const { error } = await supabase
+    .from("classes")
+    .update({
+      status: "active",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", classId);
+
+  if (error) {
+    console.error("Error restoring class:", error);
     throw error;
   }
 }

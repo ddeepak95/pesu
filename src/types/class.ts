@@ -28,7 +28,7 @@ export interface Class {
   created_by: string;
   created_at: string;
   updated_at: string;
-  status: "active" | "deleted";
+  status: "active" | "deleted" | "archived";
   preferred_language: string;
   language_config?: ClassLanguageConfig | null;
   group_count?: number;

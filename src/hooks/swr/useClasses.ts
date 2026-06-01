@@ -2,6 +2,7 @@ import useSWR from "swr";
 import {
   getClassByClassId,
   getClassesByUser,
+  getArchivedClassesByUser,
   getClassesByStudent,
   getProgressViewConfig,
 } from "@/lib/queries/classes";
@@ -24,6 +25,16 @@ export function useClassesByUser(userId: string | null) {
   return useSWR<Class[]>(
     userId ? ["classesByUser", userId] : null,
     () => getClassesByUser(userId!)
+  );
+}
+
+/**
+ * Fetch all archived classes for a teacher (owned + co-teaching)
+ */
+export function useArchivedClassesByUser(userId: string | null) {
+  return useSWR<Class[]>(
+    userId ? ["archivedClassesByUser", userId] : null,
+    () => getArchivedClassesByUser(userId!)
   );
 }
 
