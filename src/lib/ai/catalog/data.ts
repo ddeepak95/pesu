@@ -349,6 +349,13 @@ export const CATALOG_FUNCTIONS: AppFunctionCatalogEntry[] = [
           "Author multiple choice questions the tutor poses during multimodal chat.",
         consumers: ["Multimodal assessment"],
       },
+      {
+        key: "transliteration",
+        label: "Transliteration / Translation",
+        description:
+          "Transliterate and translate bot messages into the student's support language for inline display.",
+        consumers: ["Multimodal assessment (transliteration panel)"],
+      },
     ],
   },
   {

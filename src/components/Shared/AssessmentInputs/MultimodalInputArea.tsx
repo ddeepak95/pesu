@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Lightbulb, Loader2, Play } from "lucide-react";
+import type { TransliterationResult } from "@/lib/ai/schemas/transliteration";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
@@ -179,6 +180,8 @@ export function MultimodalInputArea({
   const [expandedMessageIds, setExpandedMessageIds] = React.useState<
     Record<string, boolean>
   >({});
+  const [transliterations, setTransliterations] = React.useState<Record<string, TransliterationResult>>({});
+  const [transliterationPending, setTransliterationPending] = React.useState<Record<string, boolean>>({});
   const [isStarting, setIsStarting] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [isAssistantTurnActive, setIsAssistantTurnActive] =
@@ -213,6 +216,8 @@ export function MultimodalInputArea({
     (botPromptConfig?.multimodal_actions?.languageSupport?.enabled ?? false) &&
     Boolean(supportLanguage) &&
     supportLanguage !== language;
+
+  const transliterationEnabled = supportEnabled;
 
   const recorder = useAudioRecorder();
   const playback = useStreamingSpeechPlayback();
@@ -1103,6 +1108,36 @@ export function MultimodalInputArea({
     runAssistantTurn,
   ]);
 
+  const handleRequestTransliteration = React.useCallback(
+    async (messageId: string) => {
+      const msg = messagesRef.current.find((m) => m.id === messageId);
+      if (!msg || msg.role !== "assistant" || !msg.content?.trim()) return;
+      if (transliterations[messageId] || transliterationPending[messageId]) return;
+
+      setTransliterationPending((prev) => ({ ...prev, [messageId]: true }));
+      try {
+        const res = await fetch("/api/multimodal/transliterate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: msg.content,
+            fromLanguage: language,
+            toLanguage: supportLanguage,
+            assignmentId,
+          }),
+        });
+        const data = (await res.json()) as TransliterationResult & { error?: string };
+        if (!res.ok) throw new Error(data.error ?? "Transliteration failed");
+        setTransliterations((prev) => ({ ...prev, [messageId]: data }));
+      } catch (err) {
+        showErrorToast(err instanceof Error ? err.message : "Transliteration failed");
+      } finally {
+        setTransliterationPending((prev) => ({ ...prev, [messageId]: false }));
+      }
+    },
+    [assignmentId, language, supportLanguage, transliterations, transliterationPending],
+  );
+
   const handleRequestMic = React.useCallback(async () => {
     if (micRequestPending) return;
     setMicRequestPending(true);
@@ -1355,6 +1390,10 @@ export function MultimodalInputArea({
               onMcqAnswer={(messageId, choiceIndex) =>
                 void handleMcqAnswer(messageId, choiceIndex)
               }
+              transliterationEnabled={transliterationEnabled}
+              transliterations={transliterations}
+              transliterationPending={transliterationPending}
+              onRequestTransliteration={(id) => void handleRequestTransliteration(id)}
             />
             {supportEnabled ? (
               <Button
