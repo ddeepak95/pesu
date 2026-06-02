@@ -182,6 +182,10 @@ export function MultimodalInputArea({
   >({});
   const [transliterations, setTransliterations] = React.useState<Record<string, TransliterationResult>>({});
   const [transliterationPending, setTransliterationPending] = React.useState<Record<string, boolean>>({});
+  const messageAudioUrlsRef = React.useRef<Map<string, string>>(new Map());
+  const [messageAudioAvailableIds, setMessageAudioAvailableIds] = React.useState<Set<string>>(new Set());
+  const replayAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [playingMessageId, setPlayingMessageId] = React.useState<string | null>(null);
   const [isStarting, setIsStarting] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [isAssistantTurnActive, setIsAssistantTurnActive] =
@@ -393,13 +397,16 @@ export function MultimodalInputArea({
             },
           ),
         );
-        await fetch("/api/multimodal/audio/utterance", {
+        const res = await fetch("/api/multimodal/audio/utterance", {
           method: "POST",
           body: formData,
         });
+        const data = (await res.json().catch(() => ({}))) as { audioFileUrl?: string };
         await flushSessionChunk(input.audioBlob);
+        return { audioFileUrl: data.audioFileUrl ?? "" };
       } catch (utteranceError) {
         console.error("Failed to persist utterance audio", utteranceError);
+        return null;
       }
     },
     [
@@ -575,6 +582,9 @@ export function MultimodalInputArea({
       let didEndConversation = false;
       let languageHelpRequested = false;
 
+      replayAudioRef.current?.pause();
+      replayAudioRef.current = null;
+      setPlayingMessageId(null);
       playback.beginTurn({
         onPlaybackStart: () => {
           if (assistantTurnSeqRef.current !== turnId) return;
@@ -792,6 +802,7 @@ export function MultimodalInputArea({
           await playback.drainScheduledPlayback();
         }
 
+        const committedMsgId = liveAssistantMessageIdRef.current;
         if (!botInterruptionRequestedRef.current) {
           commitAssistantTurnToMessages({ turnId });
         }
@@ -822,6 +833,11 @@ export function MultimodalInputArea({
             content: assistantText.trim(),
             generatedContent: assistantText.trim(),
             interrupted,
+          }).then((result) => {
+            if (result?.audioFileUrl && committedMsgId && !botInterruptionRequestedRef.current) {
+              messageAudioUrlsRef.current.set(committedMsgId, result.audioFileUrl);
+              setMessageAudioAvailableIds((prev) => new Set([...prev, committedMsgId]));
+            }
           });
         }
         if (didEndConversation) {
@@ -1138,6 +1154,31 @@ export function MultimodalInputArea({
     [assignmentId, language, supportLanguage, transliterations, transliterationPending],
   );
 
+  const handleReplayAudio = React.useCallback((messageId: string) => {
+    const current = replayAudioRef.current;
+    // Pause if this message is already playing
+    if (current && !current.paused) {
+      current.pause();
+      setPlayingMessageId(null);
+      return;
+    }
+    // Stop any other replay in progress
+    if (current) {
+      current.pause();
+      replayAudioRef.current = null;
+    }
+    const url = messageAudioUrlsRef.current.get(messageId);
+    if (!url) return;
+    const audio = new Audio(url);
+    replayAudioRef.current = audio;
+    audio.onended = () => {
+      replayAudioRef.current = null;
+      setPlayingMessageId(null);
+    };
+    setPlayingMessageId(messageId);
+    void audio.play();
+  }, []);
+
   const handleRequestMic = React.useCallback(async () => {
     if (micRequestPending) return;
     setMicRequestPending(true);
@@ -1394,6 +1435,9 @@ export function MultimodalInputArea({
               transliterations={transliterations}
               transliterationPending={transliterationPending}
               onRequestTransliteration={(id) => void handleRequestTransliteration(id)}
+              audioAvailableIds={messageAudioAvailableIds}
+              onReplayAudio={handleReplayAudio}
+              playingMessageId={playingMessageId}
             />
             {supportEnabled ? (
               <Button

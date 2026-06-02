@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCard } from "./ActionCard";
 import type { PendingAction } from "./actionTypes";
@@ -32,6 +32,9 @@ interface ContentBoxProps {
   transliterations?: Record<string, TransliterationResult>;
   transliterationPending?: Record<string, boolean>;
   onRequestTransliteration?: (messageId: string) => void;
+  audioAvailableIds?: Set<string>;
+  onReplayAudio?: (messageId: string) => void;
+  playingMessageId?: string | null;
 }
 
 export function ContentBox({
@@ -44,19 +47,14 @@ export function ContentBox({
   transliterations,
   transliterationPending,
   onRequestTransliteration,
+  audioAvailableIds,
+  onReplayAudio,
+  playingMessageId,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
   const [knownMessageIds, setKnownMessageIds] = React.useState<Set<string>>(
     () => new Set(),
-  );
-  // Dotted WhatsApp-style background, kept subtle for readability.
-  const staticWaveHeights = React.useMemo(
-    () => [
-      22, 12, 17, 10, 14, 19, 13, 9, 15, 11, 20, 16, 12, 18, 10, 15, 19, 9, 14,
-      17,
-    ],
-    [],
   );
 
   const newMessageIds = React.useMemo(() => {
@@ -94,9 +92,6 @@ export function ContentBox({
     const isNewMessage = count > prevMessageCountRef.current;
     prevMessageCountRef.current = count;
 
-    // Scroll on a new message, or when content (e.g. an MCQ card growing from
-    // skeleton to full question) changes while already near the bottom — so the
-    // user is never left scrolled up against their will.
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
     if (!isNewMessage && !nearBottom) return;
 
@@ -107,7 +102,6 @@ export function ContentBox({
       }
     };
 
-    // Instant scroll before paint; one rAF retry if layout was not ready yet.
     scrollToEnd();
     const raf = requestAnimationFrame(scrollToEnd);
     return () => cancelAnimationFrame(raf);
@@ -149,9 +143,7 @@ export function ContentBox({
             <div className="flex flex-col gap-3">
               {messages?.map((m) => {
                 if (m.hidden) return null;
-                const isStudent = m.role === "student";
 
-                // Action-only message (e.g. an MCQ card): render just the card.
                 if (m.action && !m.content) {
                   return (
                     <div
@@ -178,114 +170,21 @@ export function ContentBox({
                   );
                 }
 
-                const isStreaming =
-                  m.role === "assistant" && Boolean(m.streaming);
-                const expanded = Boolean(expandedMessageIds?.[m.id]);
-
                 return (
-                  <div
+                  <MessageBubble
                     key={m.id}
-                    className={`flex items-end gap-2 ${isStudent ? "flex-row-reverse" : "flex-row"}`}
-                    style={
-                      newMessageIdsSet.has(m.id)
-                        ? { animation: "konvoBubbleIn 900ms ease-out both" }
-                        : undefined
-                    }
-                  >
-                    <div
-                      className={`relative max-w-[95%] sm:max-w-[80%] px-3 py-2 text-sm whitespace-pre-wrap shadow-sm transition-all duration-500 ease-out ${
-                        isStudent
-                          ? "bg-muted text-foreground border border-border/60 rounded-2xl rounded-br-sm"
-                          : "bg-muted/70 border border-border/60 text-foreground rounded-2xl rounded-bl-sm"
-                      }`}
-                    >
-                      <div
-                        className={`mb-2 flex items-center ${isStudent ? "justify-between" : "justify-between"}`}
-                      >
-                        <div className="text-sm font-semibold text-foreground">
-                          {isStudent ? "You" : "Konvo"}
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-auto px-0 text-sm font-normal text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
-                          aria-label={
-                            expanded ? "Hide message" : "View message"
-                          }
-                          aria-pressed={expanded}
-                          onClick={() => onToggleExpanded?.(m.id)}
-                        >
-                          {isStreaming ? (
-                            <span className="inline-flex items-center gap-0.5 italic">
-                              Speaking
-                              {expanded ? (
-                                <ChevronDown className="h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              )}
-                            </span>
-                          ) : expanded ? (
-                            "Hide message"
-                          ) : (
-                            "View message"
-                          )}
-                        </Button>
-                      </div>
-
-                      <div>
-                        {!expanded ? (
-                          <div className="flex h-9 items-end gap-1">
-                            {staticWaveHeights.map((h, index) => (
-                              <span
-                                key={`${m.id}-bar-${index}`}
-                                className={`block w-1 rounded-full ${
-                                  isStudent
-                                    ? "bg-foreground/90"
-                                    : "bg-foreground/90"
-                                }`}
-                                style={{ height: `${h}px` }}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="mt-1">{m.content}</div>
-                        )}
-                        {!isStudent && expanded && transliterationEnabled ? (
-                          <div className="mt-2 border-t border-border/40 pt-2">
-                            {transliterations?.[m.id] ? (
-                              <div className="space-y-1">
-                                {transliterations[m.id].transliteration ? (
-                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                                    {transliterations[m.id].transliteration}
-                                  </p>
-                                ) : null}
-                                <p className="text-xs text-muted-foreground italic whitespace-pre-wrap">
-                                  {transliterations[m.id].translation}
-                                </p>
-                              </div>
-                            ) : transliterationPending?.[m.id] ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                <Loader2 className="h-3 w-3 animate-spin" />{" "}
-                                Translating...
-                              </span>
-                            ) : (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto px-0 text-xs text-muted-foreground hover:text-foreground"
-                                disabled={Boolean(m.streaming)}
-                                onClick={() => onRequestTransliteration?.(m.id)}
-                              >
-                                Translate
-                              </Button>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
+                    message={m}
+                    isNew={newMessageIdsSet.has(m.id)}
+                    expanded={Boolean(expandedMessageIds?.[m.id])}
+                    onToggleExpanded={() => onToggleExpanded?.(m.id)}
+                    audioAvailable={audioAvailableIds?.has(m.id)}
+                    isPlaying={playingMessageId === m.id}
+                    onReplayAudio={() => onReplayAudio?.(m.id)}
+                    transliterationEnabled={transliterationEnabled}
+                    transliteration={transliterations?.[m.id]}
+                    transliterationPending={Boolean(transliterationPending?.[m.id])}
+                    onRequestTransliteration={() => onRequestTransliteration?.(m.id)}
+                  />
                 );
               })}
             </div>
@@ -325,5 +224,157 @@ export function ContentBox({
         </div>
       </div>
     </>
+  );
+}
+
+const STATIC_WAVE_HEIGHTS = [
+  22, 12, 17, 10, 14, 19, 13, 9, 15, 11, 20, 16, 12, 18, 10, 15, 19, 9, 14, 17,
+];
+
+interface MessageBubbleProps {
+  message: {
+    id: string;
+    role: "student" | "assistant";
+    content: string;
+    status?: "transcribing";
+    streaming?: boolean;
+  };
+  isNew: boolean;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  audioAvailable?: boolean;
+  isPlaying?: boolean;
+  onReplayAudio?: () => void;
+  transliterationEnabled?: boolean;
+  transliteration?: TransliterationResult;
+  transliterationPending?: boolean;
+  onRequestTransliteration?: () => void;
+}
+
+function MessageBubble({
+  message: m,
+  isNew,
+  expanded,
+  onToggleExpanded,
+  audioAvailable,
+  isPlaying,
+  onReplayAudio,
+  transliterationEnabled,
+  transliteration,
+  transliterationPending,
+  onRequestTransliteration,
+}: MessageBubbleProps) {
+  const isStudent = m.role === "student";
+  const isStreaming = m.role === "assistant" && Boolean(m.streaming);
+
+  return (
+    <div
+      className={`flex items-end gap-2 ${isStudent ? "flex-row-reverse" : "flex-row"}`}
+      style={isNew ? { animation: "konvoBubbleIn 900ms ease-out both" } : undefined}
+    >
+      <div
+        className={`relative max-w-[95%] sm:max-w-[80%] px-3 py-2 text-sm whitespace-pre-wrap shadow-sm transition-all duration-500 ease-out ${
+          isStudent
+            ? "bg-muted text-foreground border border-border/60 rounded-2xl rounded-br-sm"
+            : "bg-muted/70 border border-border/60 text-foreground rounded-2xl rounded-bl-sm"
+        }`}
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-sm font-semibold text-foreground">
+            {isStudent ? "You" : "Konvo"}
+          </div>
+          <div className="flex items-center gap-1">
+            {!isStudent && !isStreaming && audioAvailable ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-1 text-foreground/60 hover:text-foreground"
+                aria-label={isPlaying ? "Pause audio" : "Play audio"}
+                onClick={onReplayAudio}
+              >
+                {isPlaying ? (
+                  <Pause className="h-3.5 w-3.5" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-auto px-0 text-sm font-normal text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+              aria-label={expanded ? "Hide message" : "View message"}
+              aria-pressed={expanded}
+              onClick={onToggleExpanded}
+            >
+              {isStreaming ? (
+                <span className="inline-flex items-center gap-0.5 italic">
+                  Speaking
+                  {expanded ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
+                </span>
+              ) : expanded ? (
+                "Hide message"
+              ) : (
+                "View message"
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div>
+          {!expanded ? (
+            <div className="flex h-9 items-end gap-1">
+              {STATIC_WAVE_HEIGHTS.map((h, index) => (
+                <span
+                  key={`${m.id}-bar-${index}`}
+                  className="block w-1 rounded-full bg-foreground/90"
+                  style={{ height: `${h}px` }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-1">{m.content}</div>
+          )}
+          {!isStudent && expanded && transliterationEnabled ? (
+            <div className="mt-2 border-t border-border/40 pt-2">
+              {transliteration ? (
+                <div className="space-y-1">
+                  {transliteration.transliteration ? (
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                      {transliteration.transliteration}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground italic whitespace-pre-wrap">
+                    {transliteration.translation}
+                  </p>
+                </div>
+              ) : transliterationPending ? (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />{" "}
+                  Translating...
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 text-xs text-muted-foreground hover:text-foreground"
+                  disabled={Boolean(m.streaming)}
+                  onClick={onRequestTransliteration}
+                >
+                  Translate
+                </Button>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
