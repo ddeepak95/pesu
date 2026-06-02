@@ -114,6 +114,19 @@ export interface ActivityTypeDefinition {
     languageLabel: string;
     primaryLanguageLabel?: string;
   }) => string | null;
+  /**
+   * Optional override of the AVAILABLE language-support directive (turns where
+   * support is configured but the learner has not yet invoked it).
+   *
+   * Return a string to replace the default directive text.
+   * Return null to suppress language-help entirely for this activity type —
+   *   the `requestLanguageHelp` schema field is also forced to null so the
+   *   model cannot signal a help request.
+   * Return undefined (or omit the hook) to use the default directive.
+   */
+  buildLanguageSupportAvailableDirective?: (input: {
+    languageLabel: string;
+  }) => string | null | undefined;
 }
 
 export const DEFAULT_ACTIVITY_TYPE_LABELS: ActivityTypeLabels = {

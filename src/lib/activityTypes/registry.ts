@@ -355,6 +355,16 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
         ? `Keep proper nouns and any scenario-specific terms from ${primaryLanguageLabel} as they were. `
         : "") +
       `Resume in the usual language on the next turn.`,
+    buildLanguageSupportAvailableDirective: ({ languageLabel }) =>
+      `LANGUAGE SUPPORT AVAILABLE: A ${languageLabel} support channel is available. ` +
+      `Set \`requestLanguageHelp\` to true — and set \`speech\` to EMPTY STRING — only when ` +
+      `the learner explicitly asks for help in ${languageLabel} mid-scenario (e.g. asks you ` +
+      `to explain something in ${languageLabel}, says they are confused and want ${languageLabel} ` +
+      `help, or speaks in ${languageLabel} seeking clarification). ` +
+      `A full ${languageLabel} response will follow automatically — leave \`speech\` completely ` +
+      `empty. Do NOT interrupt the role-play to offer ${languageLabel} help unprompted — wait ` +
+      `until the learner asks. If they ask a doubt in the primary language, answer it in character. ` +
+      `Otherwise leave \`requestLanguageHelp\` null and continue the scenario normally.`,
   },
 };
 

@@ -193,6 +193,15 @@ function buildLanguageSupportDirective(input: {
   // the support language when the learner explicitly requests it.
   if (input.languageHelpAvailable) {
     const label = input.languageHelpAvailable.languageLabel;
+
+    if (input.activityType) {
+      const override = getActivityTypeDefinition(
+        input.activityType,
+      ).buildLanguageSupportAvailableDirective?.({ languageLabel: label });
+      if (override === null) return null; // activity type suppresses help entirely
+      if (override !== undefined) return override;
+    }
+
     return (
       `LANGUAGE SUPPORT AVAILABLE: A ${label} support channel is available for this learner. ` +
       `Set \`requestLanguageHelp\` to true — and set \`speech\` to EMPTY STRING — only when: ` +
@@ -209,6 +218,26 @@ function buildLanguageSupportDirective(input: {
   }
 
   return null;
+}
+
+/**
+ * Returns true when language help should be offered this turn — i.e. support is
+ * configured AND the activity type has not suppressed the offer. Used to gate
+ * both the `requestLanguageHelp` schema field and the available directive.
+ */
+function shouldOfferLanguageHelp(
+  languageHelpAvailable: { languageLabel: string } | undefined,
+  activityType: ActivityTypeKind | undefined,
+): boolean {
+  if (!languageHelpAvailable) return false;
+  if (!activityType) return true;
+  const def = getActivityTypeDefinition(activityType);
+  if (!def.buildLanguageSupportAvailableDirective) return true;
+  return (
+    def.buildLanguageSupportAvailableDirective({
+      languageLabel: languageHelpAvailable.languageLabel,
+    }) !== null
+  );
 }
 
 /**
@@ -323,7 +352,7 @@ export function resolveMultimodalTurnCall(
     messages: sdkMessages,
     schema: buildTurnSchema(
       availableActions,
-      Boolean(options.languageHelpAvailable),
+      shouldOfferLanguageHelp(options.languageHelpAvailable, options.activityType),
       Boolean(options.dualTranscript),
     ),
     providerOptions,
