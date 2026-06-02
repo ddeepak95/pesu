@@ -7,12 +7,6 @@ import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
 import { Button } from "@/components/ui/button";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
 import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/Shared/KonvoVoice/defaultSessionConfig";
@@ -49,6 +43,12 @@ interface ChatMessage {
   action?: PendingAction;
   /** Hidden context sent to the LLM but not rendered (e.g. MCQ result note). */
   hidden?: boolean;
+  /**
+   * Both transcript candidates when dual-language transcription was used.
+   * Present only on the latest student message while the LLM is resolving
+   * which reading is correct. Cleared once `user_transcript` arrives.
+   */
+  transcriptCandidates?: { language: string; text: string }[];
 }
 
 type ChatPhase =
@@ -69,6 +69,7 @@ type MultimodalTurnEvent =
   | { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
   | { type: "action_error"; id: string; kind: ActionKind; error?: string }
   | { type: "language_help_requested" }
+  | { type: "user_transcript"; text: string }
   | { type: "done" }
   | { type: "error"; error?: string; message?: string };
 
@@ -200,6 +201,7 @@ export function MultimodalInputArea({
     botPromptConfig,
     fileSubmissionsContent,
     assessmentMode: "multimodal",
+    supportLanguage,
   });
 
   const { data: speechModels } = useMultimodalSpeechModels(assignmentId);
@@ -212,22 +214,15 @@ export function MultimodalInputArea({
     Boolean(supportLanguage) &&
     supportLanguage !== language;
 
-  // STT input language toggle: which language the learner is about to speak, so
-  // the transcriber gets an explicit (more accurate) hint. Defaults to primary;
-  // only meaningful when support is enabled.
-  const [inputIsSupport, setInputIsSupport] = React.useState(false);
-  React.useEffect(() => {
-    if (!supportEnabled) setInputIsSupport(false);
-  }, [supportEnabled]);
-  const sttLanguage =
-    supportEnabled && inputIsSupport && supportLanguage ? supportLanguage : language;
-
   const recorder = useAudioRecorder();
   const playback = useStreamingSpeechPlayback();
   const { state: micPermission, requestAccess } = useMicrophonePermission();
   const messagesRef = React.useRef<ChatMessage[]>([]);
   const userOrdinalRef = React.useRef(0);
   const botOrdinalRef = React.useRef(0);
+  // In dual-transcript mode, the WAV blob is stored here keyed by pending message
+  // id so we can persist audio after `user_transcript` arrives from the server.
+  const deferredStudentAudioRef = React.useRef<Map<string, Blob>>(new Map());
   const botInterruptionRequestedRef = React.useRef(false);
   const assistantTurnSeqRef = React.useRef(0);
   const activeAbortRef = React.useRef<AbortController | null>(null);
@@ -592,6 +587,14 @@ export function MultimodalInputArea({
       };
       liveAssistantMessageIdRef.current = null;
 
+      // If the latest history message has dual candidates, pass them to the turn
+      // route so the LLM can pick the coherent reading.
+      const latestMsg = history[history.length - 1];
+      const latestTranscriptCandidates =
+        latestMsg?.role === "student" && latestMsg.transcriptCandidates?.length
+          ? latestMsg.transcriptCandidates
+          : undefined;
+
       try {
         const response = await fetch("/api/multimodal/turn", {
           method: "POST",
@@ -621,6 +624,9 @@ export function MultimodalInputArea({
               : supportEnabled && supportLanguage
                 ? { supportLanguageAvailable: supportLanguage }
                 : {}),
+            ...(latestTranscriptCandidates
+              ? { latestTranscriptCandidates }
+              : {}),
             availableActions:
               botPromptConfig?.multimodal_actions?.availableActions ?? [],
             endConversationConfig:
@@ -706,6 +712,43 @@ export function MultimodalInputArea({
             });
           } else if (event.type === "language_help_requested") {
             languageHelpRequested = true;
+          } else if (event.type === "user_transcript") {
+            // The LLM chose the coherent transcript. Update the pending student
+            // bubble and persist the deferred audio.
+            const chosenText = event.text;
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (
+                  m.role === "student" &&
+                  m.transcriptCandidates?.length &&
+                  m.status === "transcribing"
+                ) {
+                  return { ...m, content: chosenText, transcriptCandidates: undefined, status: undefined };
+                }
+                return m;
+              }),
+            );
+            messagesRef.current = messagesRef.current.map((m) => {
+              if (
+                m.role === "student" &&
+                m.transcriptCandidates?.length &&
+                m.status === "transcribing"
+              ) {
+                return { ...m, content: chosenText, transcriptCandidates: undefined, status: undefined };
+              }
+              return m;
+            });
+            // Persist the deferred audio with the resolved canonical text.
+            for (const [msgId, audioBlob] of deferredStudentAudioRef.current) {
+              void persistUtteranceAudio({
+                dbRole: "student",
+                storageRole: "user",
+                ordinal: userOrdinalRef.current,
+                audioBlob,
+                content: chosenText,
+              });
+              deferredStudentAudioRef.current.delete(msgId);
+            }
           } else if (event.type === "speech_start") {
             if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
               sampleRate = event.sampleRate;
@@ -795,6 +838,36 @@ export function MultimodalInputArea({
           );
         }
       } catch (turnError) {
+        // Fallback: if the turn errored before user_transcript arrived, resolve
+        // any pending dual-transcript bubble to the primary candidate text.
+        for (const [msgId, audioBlob] of deferredStudentAudioRef.current) {
+          const primaryText = messagesRef.current
+            .find((m) => m.role === "student" && m.transcriptCandidates?.length)
+            ?.transcriptCandidates?.[0]?.text ?? "";
+          if (primaryText) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.role === "student" && m.transcriptCandidates?.length
+                  ? { ...m, content: primaryText, transcriptCandidates: undefined, status: undefined }
+                  : m,
+              ),
+            );
+            messagesRef.current = messagesRef.current.map((m) =>
+              m.role === "student" && m.transcriptCandidates?.length
+                ? { ...m, content: primaryText, transcriptCandidates: undefined, status: undefined }
+                : m,
+            );
+            void persistUtteranceAudio({
+              dbRole: "student",
+              storageRole: "user",
+              ordinal: userOrdinalRef.current,
+              audioBlob,
+              content: primaryText,
+            });
+          }
+          deferredStudentAudioRef.current.delete(msgId);
+        }
+
         if (
           turnError instanceof DOMException &&
           (turnError.name === "AbortError" ||
@@ -1099,8 +1172,10 @@ export function MultimodalInputArea({
         formData.append(
           "sessionConfig",
           JSON.stringify({
-            // Explicit per-utterance STT hint (primary or support) for accuracy.
-            language: sttLanguage,
+            language,
+            // When support is active, send both languages so the server
+            // transcribes in parallel and returns both candidates.
+            ...(supportEnabled && supportLanguage ? { supportLanguage } : {}),
             activityType,
             sttModelId,
             ttsModelId:
@@ -1120,6 +1195,7 @@ export function MultimodalInputArea({
         });
         const body = (await response.json().catch(() => ({}))) as {
           text?: string;
+          candidates?: { language: string; text: string }[];
           error?: string;
           details?: string;
         };
@@ -1134,10 +1210,14 @@ export function MultimodalInputArea({
           );
           return;
         }
+
+        const isDual = Array.isArray(body.candidates) && body.candidates.length >= 2;
+
         const studentMessage: ChatMessage = {
           id: pendingMessageId,
           role: "student",
-          content: text,
+          content: isDual ? text : text,
+          ...(isDual ? { transcriptCandidates: body.candidates, status: "transcribing" as const } : {}),
         };
         setMessages((prev) =>
           prev.map((m) => (m.id === pendingMessageId ? studentMessage : m)),
@@ -1147,13 +1227,20 @@ export function MultimodalInputArea({
         );
         messagesRef.current = nextHistory;
         userOrdinalRef.current += 1;
-        await persistUtteranceAudio({
-          dbRole: "student",
-          storageRole: "user",
-          ordinal: userOrdinalRef.current,
-          audioBlob: wavBlob,
-          content: text,
-        });
+
+        if (isDual) {
+          // Defer audio persistence until the user_transcript SSE event resolves.
+          deferredStudentAudioRef.current.set(pendingMessageId, wavBlob);
+        } else {
+          await persistUtteranceAudio({
+            dbRole: "student",
+            storageRole: "user",
+            ordinal: userOrdinalRef.current,
+            audioBlob: wavBlob,
+            content: text,
+          });
+        }
+
         setIsTranscribing(false);
         await runAssistantTurn(nextHistory);
       } catch (sendError) {
@@ -1192,7 +1279,9 @@ export function MultimodalInputArea({
     runAssistantTurn,
     speechModels?.sttModelId,
     speechModels?.ttsModelId,
-    sttLanguage,
+    language,
+    supportEnabled,
+    supportLanguage,
   ]);
 
   return (
@@ -1315,46 +1404,7 @@ export function MultimodalInputArea({
                 recorder={recorder}
                 onMicPress={() => void handleMicPress()}
                 onSend={() => void handleMicPress()}
-                micAccessory={
-                  supportEnabled && supportLanguage ? (
-                    <TooltipProvider delayDuration={200}>
-                      <div className="inline-flex rounded-full border border-border bg-muted/40 p-0.5">
-                        {[
-                          { code: language, isSupport: false },
-                          { code: supportLanguage, isSupport: true },
-                        ].map(({ code, isSupport }) => {
-                          const label =
-                            getLocaleRegistryMap().get(code)?.label ?? code;
-                          const active = inputIsSupport === isSupport;
-                          return (
-                            <Tooltip key={code}>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  onClick={() => setInputIsSupport(isSupport)}
-                                  disabled={isTranscribing}
-                                  aria-pressed={active}
-                                  aria-label={`I'm speaking in ${label}`}
-                                  className={cn(
-                                    "rounded-full px-2 py-0.5 text-[11px] font-medium uppercase leading-none transition-colors disabled:opacity-50",
-                                    active
-                                      ? "bg-background text-foreground shadow-sm"
-                                      : "text-muted-foreground hover:text-foreground",
-                                  )}
-                                >
-                                  {code.split("-")[0]}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                I&apos;m speaking in {label}
-                              </TooltipContent>
-                            </Tooltip>
-                          );
-                        })}
-                      </div>
-                    </TooltipProvider>
-                  ) : null
-                }
+                micAccessory={null}
               />
             </div>
           </div>

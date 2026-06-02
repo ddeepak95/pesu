@@ -54,6 +54,17 @@ function collectAudioSegments(formData: FormData): Blob[] {
   return [];
 }
 
+export interface TranscribeCandidate {
+  language: string;
+  text: string;
+}
+
+export interface TranscribeResponse {
+  text: string;
+  /** Present only when dual transcription was performed (two non-empty candidates). */
+  candidates?: TranscribeCandidate[];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -125,11 +136,35 @@ export async function POST(request: NextRequest) {
     const stt = getSttProvider(sessionConfig.sttModelId);
     const apiModelId = getSpeechApiModelId(sessionConfig.sttModelId);
 
-    const transcribeSegment = async (audio: Blob) => {
-      const buffer = Buffer.from(await audio.arrayBuffer());
-      if (buffer.length < 500) {
-        return "";
+    /** Transcribe all segments for a given language hint, returning joined text. */
+    const transcribeAll = async (language: string): Promise<string> => {
+      if (isChunked) {
+        const parts: string[] = [];
+        for (const segment of segments) {
+          const buffer = Buffer.from(await segment.arrayBuffer());
+          if (buffer.length < 500) continue;
+          const filename =
+            segment instanceof File && segment.name
+              ? segment.name
+              : "recording.webm";
+          const mimeType = segment.type || "audio/webm";
+          const result = await stt.transcribe({
+            audio: buffer,
+            filename,
+            mimeType,
+            language,
+            apiModelId,
+            providerApiKey: sttProviderApiKey ?? undefined,
+          });
+          const part = (result.text ?? "").trim();
+          if (part) parts.push(part);
+        }
+        return parts.join(" ");
       }
+
+      const audio = segments[0]!;
+      const buffer = Buffer.from(await audio.arrayBuffer());
+      if (buffer.length < 500) return "";
       const filename =
         audio instanceof File && audio.name ? audio.name : "recording.webm";
       const mimeType = audio.type || "audio/webm";
@@ -137,20 +172,94 @@ export async function POST(request: NextRequest) {
         audio: buffer,
         filename,
         mimeType,
-        language: sessionConfig.language,
+        language,
         apiModelId,
         providerApiKey: sttProviderApiKey ?? undefined,
       });
       return (result.text ?? "").trim();
     };
 
+    const supportLanguage = sessionConfig.supportLanguage?.trim();
+    const isDual =
+      Boolean(supportLanguage) && supportLanguage !== sessionConfig.language;
+
+    if (isDual) {
+      // Parallel transcription: same audio, two language hints.
+      const [primaryResult, supportResult] = await Promise.allSettled([
+        transcribeAll(sessionConfig.language),
+        transcribeAll(supportLanguage!),
+      ]);
+
+      const primaryText =
+        primaryResult.status === "fulfilled" ? primaryResult.value : "";
+      const supportText =
+        supportResult.status === "fulfilled" ? supportResult.value : "";
+
+      if (primaryResult.status === "rejected") {
+        console.warn(
+          "[konvo-voice/transcribe] primary language transcription failed:",
+          primaryResult.reason,
+        );
+      }
+      if (supportResult.status === "rejected") {
+        console.warn(
+          "[konvo-voice/transcribe] support language transcription failed:",
+          supportResult.reason,
+        );
+      }
+
+      const candidates: TranscribeCandidate[] = [];
+      if (primaryText) candidates.push({ language: sessionConfig.language, text: primaryText });
+      if (supportText) candidates.push({ language: supportLanguage!, text: supportText });
+
+      console.log(
+        `[konvo-voice/transcribe] dual primary=${sessionConfig.language} support=${supportLanguage} ` +
+          `primaryLen=${primaryText.length} supportLen=${supportText.length}`,
+      );
+
+      if (candidates.length === 0) {
+        return NextResponse.json(
+          {
+            error: "No speech detected",
+            details:
+              "The transcription service returned no text. The recording may be silent or unsupported.",
+          },
+          { status: 422 },
+        );
+      }
+
+      if (candidates.length === 1) {
+        // Only one reading succeeded — treat as single mode (no dual-pick needed).
+        return NextResponse.json({ text: candidates[0]!.text } satisfies TranscribeResponse);
+      }
+
+      return NextResponse.json({
+        text: primaryText,
+        candidates,
+      } satisfies TranscribeResponse);
+    }
+
+    // ── Single-language path (unchanged behavior) ──────────────────────────
     if (isChunked) {
       const parts: string[] = [];
       for (const segment of segments) {
-        const part = await transcribeSegment(segment);
-        if (part) {
-          parts.push(part);
-        }
+        const buffer = Buffer.from(await segment.arrayBuffer());
+        if (buffer.length < 500) continue;
+        const filename =
+          segment instanceof File && segment.name
+            ? segment.name
+            : "recording.webm";
+        const mimeType = segment.type || "audio/webm";
+        const result = await stt.transcribe({
+          audio: buffer,
+          filename,
+          mimeType,
+          language: sessionConfig.language,
+          apiModelId,
+          providerApiKey: sttProviderApiKey ?? undefined,
+        });
+        const part = (result.text ?? "").trim();
+        if (part) parts.push(part);
       }
 
       const text = parts.join(" ");
@@ -184,7 +293,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const text = await transcribeSegment(audio);
+    const text = await transcribeAll(sessionConfig.language);
     if (!text) {
       return NextResponse.json(
         {

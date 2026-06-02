@@ -48,22 +48,29 @@ const requestLanguageHelpField = z
   .boolean()
   .nullable()
   .describe(
-    "Set to true ONLY when the learner asks you to explain/translate/speak in the " +
-      "support language (or clearly cannot follow and would benefit from it). When true, " +
-      "keep `speech` to a brief acknowledgment in the current language — the full " +
-      "explanation in the support language follows automatically. Otherwise null.",
+    "Set to true ONLY when the learner explicitly wants a response in the support language: " +
+      "they asked you to translate, explain, or speak in the support language, OR they spoke " +
+      "in the support language seeking help or clarification. When true, set `speech` to an " +
+      "EMPTY STRING — the full response in the support language follows automatically. " +
+      "Do NOT set this for questions or doubts asked in the primary language — answer those " +
+      "normally in the primary language. Otherwise null.",
   );
 
 /**
  * Build the turn schema. The `action` field is an actionable union of the
  * enabled + implemented action kinds (from the action registry); otherwise it
  * is forced to null so the model never invents an action.
+ *
+ * When `dualTranscript` is true, a `userTranscript` field is prepended as the
+ * FIRST field so it resolves early in the stream — the model writes the chosen
+ * reading before generating speech. When false/absent, the field is omitted.
  */
 export function buildTurnSchema(
   availableActions: ActionKind[],
   languageHelpAvailable?: boolean,
+  dualTranscript?: boolean,
 ) {
-  return z.object({
+  const base = {
     speech: speechField,
     action: buildActionSchemaField(availableActions),
     endConversation: endConversationField,
@@ -72,7 +79,21 @@ export function buildTurnSchema(
     requestLanguageHelp: languageHelpAvailable
       ? requestLanguageHelpField
       : z.null(),
-  });
+  };
+
+  if (dualTranscript) {
+    return z.object({
+      userTranscript: z
+        .string()
+        .describe(
+          "The learner's utterance as you understood it. Copy the coherent " +
+            "reading verbatim (fixing only obvious STT mis-recognitions). " +
+            "This field MUST be the transcript you respond to.",
+        ),
+      ...base,
+    });
+  }
+  return z.object(base);
 }
 
 export type TurnSchema = ReturnType<typeof buildTurnSchema>;
@@ -158,29 +179,32 @@ function buildLanguageSupportDirective(input: {
       : ` Keep technical and academic terms in their original language exactly as they appeared — ` +
         `translate only the surrounding wording into ${label}.`;
     const line =
-      `LANGUAGE SUPPORT — TRANSLATE INTO ${label.toUpperCase()}: The learner asked for a ` +
-      `${label} translation of your previous message. For this one response, speak entirely in ` +
-      `${label}: start with a short precursor telling them this is what you just said (the ` +
-      `${label} for something like "Translation:"), then give a faithful, complete ` +
-      `translation of your previous message into ${label}. Translate only — do NOT add, expand, ` +
-      `summarize, omit, or answer anything new.` +
+      `LANGUAGE SUPPORT — RESPOND IN ${label.toUpperCase()}: The learner needs a response in ` +
+      `${label}. For this one response, speak entirely and directly in ${label} — no preamble, ` +
+      `no primary-language intro. If they asked for a translation: give a faithful, complete ` +
+      `translation of your previous message into ${label}. If they asked a clarifying question ` +
+      `or expressed confusion: answer or explain directly in ${label}.` +
       termClause +
       ` Resume the conversation in the usual language on the next turn.`;
     return line;
   }
 
-  // Available: this turn is in the primary language, but the model may offer to
-  // translate its message into the support language when the learner asks.
+  // Available: this turn is in the primary language, but the model may switch to
+  // the support language when the learner explicitly requests it.
   if (input.languageHelpAvailable) {
     const label = input.languageHelpAvailable.languageLabel;
     return (
-      `LANGUAGE SUPPORT AVAILABLE: You may also translate your message into ${label} for this ` +
-      `learner. If they ask you to say or translate something in ${label} — or say they didn't ` +
-      `understand and would follow it better in ${label} — set \`requestLanguageHelp\` to true ` +
-      `and keep your \`speech\` to a brief, warm acknowledgment (e.g. "Sure — here's that in ` +
-      `${label}."). A ${label} translation of your message will then follow automatically, so ` +
-      `do not translate it yourself this turn. Otherwise leave \`requestLanguageHelp\` null and ` +
-      `continue normally.`
+      `LANGUAGE SUPPORT AVAILABLE: A ${label} support channel is available for this learner. ` +
+      `Set \`requestLanguageHelp\` to true — and set \`speech\` to EMPTY STRING — only when: ` +
+      `(a) the learner explicitly asks to hear something in ${label}, requests a translation, ` +
+      `or asks you to explain something in ${label}, or ` +
+      `(b) the learner speaks in ${label} (rather than the primary language) seeking help or ` +
+      `clarification. ` +
+      `A full ${label} response will follow automatically — do NOT say anything in the primary ` +
+      `language first; leave \`speech\` completely empty. ` +
+      `If the learner asks a doubt or question in the primary language, answer it normally in ` +
+      `the primary language — do NOT set \`requestLanguageHelp\`. ` +
+      `Otherwise leave \`requestLanguageHelp\` null and continue normally.`
     );
   }
 
@@ -202,6 +226,11 @@ export function buildMultimodalDirectives(input: {
   languageHelpAvailable?: { languageLabel: string };
   /** Activity type — may contribute an extra directive (e.g. speaking practice). */
   activityType?: ActivityTypeKind;
+  /**
+   * When set, the learner's audio was transcribed in two languages simultaneously.
+   * The model must pick the coherent reading and write it to `userTranscript`.
+   */
+  dualTranscript?: { primaryLabel: string; supportLabel: string };
 }): string {
   const lines: string[] = [
     "",
@@ -226,6 +255,17 @@ export function buildMultimodalDirectives(input: {
   });
   if (languageDirective) lines.push(languageDirective);
 
+  if (input.dualTranscript) {
+    const { primaryLabel, supportLabel } = input.dualTranscript;
+    lines.push(
+      `DUAL TRANSCRIPT: The learner's audio was transcribed in two languages simultaneously ` +
+        `(${primaryLabel} and ${supportLabel}). The message you receive contains both readings. ` +
+        `Exactly one is coherent and correct — the other is garbled output from the wrong language ` +
+        `model. Identify the coherent reading, copy it verbatim into \`userTranscript\` (fixing ` +
+        `only obvious mis-recognitions), and respond to it. Ignore the garbled reading entirely.`,
+    );
+  }
+
   return lines.join("\n");
 }
 
@@ -240,6 +280,8 @@ export interface MultimodalTurnStreamOptions {
   languageSupport?: TurnLanguageSupport;
   languageHelpAvailable?: { languageLabel: string };
   activityType?: ActivityTypeKind;
+  /** Present when the latest user message contains two transcript candidates. */
+  dualTranscript?: { primaryLabel: string; supportLabel: string };
 }
 
 export interface ResolvedMultimodalTurnCall {
@@ -264,6 +306,7 @@ export function resolveMultimodalTurnCall(
       languageSupport: options.languageSupport,
       languageHelpAvailable: options.languageHelpAvailable,
       activityType: options.activityType,
+      dualTranscript: options.dualTranscript,
     });
 
   if (greeting && messages.length === 0) {
@@ -281,6 +324,7 @@ export function resolveMultimodalTurnCall(
     schema: buildTurnSchema(
       availableActions,
       Boolean(options.languageHelpAvailable),
+      Boolean(options.dualTranscript),
     ),
     providerOptions,
   };

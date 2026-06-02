@@ -72,6 +72,11 @@ interface MultimodalTurnMessage {
   hidden?: boolean;
 }
 
+interface TranscriptCandidate {
+  language: string;
+  text: string;
+}
+
 interface MultimodalTurnRequestBody {
   assignmentId: string;
   submissionId?: string;
@@ -105,6 +110,12 @@ interface MultimodalTurnRequestBody {
   endConversationConfig?: EndConversationConfig;
   /** Activity type — varies the multimodal + language-support directives. */
   activityType?: ActivityTypeKind;
+  /**
+   * When the latest student utterance was transcribed in two languages in parallel,
+   * both candidates are passed here so the model can pick the coherent one.
+   * Must have exactly 2 entries; first entry corresponds to the primary language.
+   */
+  latestTranscriptCandidates?: TranscriptCandidate[];
 }
 
 function shouldFlushFallbackTtsChunk(buffer: string): boolean {
@@ -148,6 +159,17 @@ export async function POST(request: NextRequest) {
       !!supportAvail && supportAvail !== language && !isSupportTurn;
     const localeLabel = (code: string) =>
       getLocaleRegistryMap().get(code)?.label ?? code;
+
+    // Dual-transcript mode: the latest student message was transcribed in two
+    // languages. The model picks the coherent reading via the `userTranscript` field.
+    const candidates = body.latestTranscriptCandidates;
+    const dualTranscriptDescriptor =
+      Array.isArray(candidates) && candidates.length >= 2
+        ? {
+            primaryLabel: localeLabel(candidates[0]!.language),
+            supportLabel: localeLabel(candidates[1]!.language),
+          }
+        : undefined;
 
     if (
       !assignmentId ||
@@ -232,29 +254,60 @@ export async function POST(request: NextRequest) {
     };
     const invocationModel = modelMetaFromResolved(config, keySource);
 
-    try {
-      const studentMessages = messages.filter(
-        (m) => m.role === "student" && m.content?.trim() && !m.hidden,
-      );
-      const latestStudent = studentMessages[studentMessages.length - 1];
-      if (latestStudent) {
-        await insertChatMessage(supabase, {
-          submission_id: submissionId ?? null,
-          assignment_id: assignmentId,
-          question_order: questionOrder,
-          role: "student",
-          content: latestStudent.content,
-          attempt_number: attemptNumber ?? null,
-        });
+    // In single-transcript mode, log the student message upfront (existing behavior).
+    // In dual-transcript mode, we defer until the model resolves `userTranscript`.
+    if (!dualTranscriptDescriptor) {
+      try {
+        const studentMessages = messages.filter(
+          (m) => m.role === "student" && m.content?.trim() && !m.hidden,
+        );
+        const latestStudent = studentMessages[studentMessages.length - 1];
+        if (latestStudent) {
+          await insertChatMessage(supabase, {
+            submission_id: submissionId ?? null,
+            assignment_id: assignmentId,
+            question_order: questionOrder,
+            role: "student",
+            content: latestStudent.content,
+            attempt_number: attemptNumber ?? null,
+          });
+        }
+      } catch (error) {
+        console.error("[multimodal/turn] Failed to log student chat message:", error);
       }
-    } catch (error) {
-      console.error("[multimodal/turn] Failed to log student chat message:", error);
     }
 
-    const sdkMessages = messages.map((msg) => ({
-      role: msg.role === "student" ? ("user" as const) : ("assistant" as const),
-      content: msg.content,
-    }));
+    // Build SDK messages. In dual mode, replace the last user message with the
+    // both-candidates payload so the model can choose the coherent reading.
+    const sdkMessages = messages.map((msg, idx) => {
+      const isLast = idx === messages.length - 1;
+      const isDualUserMessage =
+        isLast &&
+        msg.role === "student" &&
+        dualTranscriptDescriptor &&
+        Array.isArray(candidates) &&
+        candidates.length >= 2;
+
+      if (isDualUserMessage) {
+        const primaryLabel = dualTranscriptDescriptor!.primaryLabel;
+        const supportLabel = dualTranscriptDescriptor!.supportLabel;
+        const primaryText = candidates![0]!.text;
+        const supportText = candidates![1]!.text;
+        const dualContent =
+          `[Your audio was transcribed two ways because two languages are active. ` +
+          `Exactly one reading is coherent — pick it, ignore the other. ` +
+          `Set \`userTranscript\` to the reading you chose (verbatim; fix only obvious mis-recognitions), ` +
+          `then reply to it.]\n` +
+          `- As ${primaryLabel}: ${primaryText}\n` +
+          `- As ${supportLabel}: ${supportText}`;
+        return { role: "user" as const, content: dualContent };
+      }
+
+      return {
+        role: msg.role === "student" ? ("user" as const) : ("assistant" as const),
+        content: msg.content,
+      };
+    });
 
     const tts = getTtsProvider(ttsModelId);
     const useCartesiaWs = tts.id === "cartesia";
@@ -274,6 +327,13 @@ export async function POST(request: NextRequest) {
         let endConversationReason: string | null = null;
         let resolvedAction: ActionInput | null = null;
         let firstInvocationId: string | null = null;
+        // Dual-transcript tracking: emit `user_transcript` SSE once the model resolves it.
+        // We track the last-seen partial value and flush it the moment speech starts
+        // streaming — at that point the JSON parser has moved past `userTranscript`,
+        // meaning the field is complete.
+        let userTranscriptEmitted = false;
+        let userTranscriptResolved: string | null = null;
+        let lastPartialUserTranscript = "";
         let winningInvocationId: string | null = null;
         let winningStartedAtMs: number | undefined;
         let lastStreamResult: ReturnType<
@@ -444,6 +504,7 @@ export async function POST(request: NextRequest) {
                 ? { languageLabel: localeLabel(supportAvail) }
                 : undefined,
             activityType: body.activityType,
+            dualTranscript: dualTranscriptDescriptor,
           };
 
           attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
@@ -487,10 +548,46 @@ export async function POST(request: NextRequest) {
               for await (const partial of result.partialObjectStream) {
                 if (aborted) break attemptLoop;
 
+                // Track the growing userTranscript value across partials.
+                // We do NOT emit yet — we wait until speech starts (see below),
+                // which guarantees userTranscript is fully output in the JSON.
+                if (dualTranscriptDescriptor && !userTranscriptEmitted) {
+                  const ut = (partial as { userTranscript?: string }).userTranscript;
+                  if (typeof ut === "string" && ut.length > lastPartialUserTranscript.length) {
+                    lastPartialUserTranscript = ut;
+                  }
+                }
+
                 if (
                   typeof partial.speech === "string" &&
                   partial.speech.length > lastSpeechLength
                 ) {
+                  // speech is now streaming → userTranscript is fully resolved.
+                  // Emit user_transcript BEFORE pushing any speech delta.
+                  if (dualTranscriptDescriptor && !userTranscriptEmitted) {
+                    const chosen = lastPartialUserTranscript.trim();
+                    if (chosen) {
+                      userTranscriptResolved = chosen;
+                      userTranscriptEmitted = true;
+                      enqueue({ type: "user_transcript", text: chosen });
+                      try {
+                        await insertChatMessage(supabase, {
+                          submission_id: submissionId ?? null,
+                          assignment_id: assignmentId,
+                          question_order: questionOrder,
+                          role: "student",
+                          content: chosen,
+                          attempt_number: attemptNumber ?? null,
+                        });
+                      } catch (dbErr) {
+                        console.error(
+                          "[multimodal/turn] Failed to log dual-transcript student message:",
+                          dbErr,
+                        );
+                      }
+                    }
+                  }
+
                   const delta = partial.speech.slice(lastSpeechLength);
                   lastSpeechLength = partial.speech.length;
                   deliveredToClient = true;
@@ -525,6 +622,35 @@ export async function POST(request: NextRequest) {
               }
 
               if (finalObject) {
+                // Final-object fallback for userTranscript (in case speech never
+                // triggered the partial-stream path, e.g. short replies or edge cases).
+                if (dualTranscriptDescriptor && !userTranscriptEmitted) {
+                  const fromFinal = (finalObject as { userTranscript?: string }).userTranscript;
+                  const chosen = (
+                    typeof fromFinal === "string" ? fromFinal : lastPartialUserTranscript
+                  ).trim();
+                  if (chosen) {
+                    userTranscriptResolved = chosen;
+                    userTranscriptEmitted = true;
+                    enqueue({ type: "user_transcript", text: chosen });
+                    try {
+                      await insertChatMessage(supabase, {
+                        submission_id: submissionId ?? null,
+                        assignment_id: assignmentId,
+                        question_order: questionOrder,
+                        role: "student",
+                        content: chosen,
+                        attempt_number: attemptNumber ?? null,
+                      });
+                    } catch (dbErr) {
+                      console.error(
+                        "[multimodal/turn] Failed to log dual-transcript student message (final):",
+                        dbErr,
+                      );
+                    }
+                  }
+                }
+
                 if (
                   typeof finalObject.speech === "string" &&
                   finalObject.speech.length > lastSpeechLength
@@ -578,6 +704,32 @@ export async function POST(request: NextRequest) {
                 enqueue({ type: "error", error: errMsg });
               }
               break attemptLoop;
+            }
+          }
+
+          if (dualTranscriptDescriptor && !userTranscriptEmitted) {
+            // The model didn't populate userTranscript — fall back to the primary candidate.
+            const fallbackText = candidates?.[0]?.text ?? "";
+            console.warn(
+              "[multimodal/turn] userTranscript never resolved in dual mode; falling back to primary candidate.",
+            );
+            if (fallbackText) {
+              enqueue({ type: "user_transcript", text: fallbackText });
+              try {
+                await insertChatMessage(supabase, {
+                  submission_id: submissionId ?? null,
+                  assignment_id: assignmentId,
+                  question_order: questionOrder,
+                  role: "student",
+                  content: fallbackText,
+                  attempt_number: attemptNumber ?? null,
+                });
+              } catch (dbErr) {
+                console.error(
+                  "[multimodal/turn] Failed to log fallback dual-transcript student message:",
+                  dbErr,
+                );
+              }
             }
           }
 
@@ -668,14 +820,27 @@ export async function POST(request: NextRequest) {
           }
 
           if (!aborted) {
-            if (useCartesiaWs && cartesiaSession) {
-              cartesiaSession.pushTranscript("", false);
-              await audioPump;
-            } else if (useSarvamWs && sarvamSession) {
-              sarvamSession.flush();
-              await audioPump;
+            // Only finalize TTS if speech was actually generated. When speech=""
+            // (e.g. requestLanguageHelp with empty speech), sending a finalization
+            // signal to the TTS session with no prior transcript causes an error.
+            if (fullReply.trim()) {
+              if (useCartesiaWs && cartesiaSession) {
+                cartesiaSession.pushTranscript("", false);
+                await audioPump;
+              } else if (useSarvamWs && sarvamSession) {
+                sarvamSession.flush();
+                await audioPump;
+              } else {
+                await finalizeFallbackTts();
+              }
             } else {
-              await finalizeFallbackTts();
+              // No speech — close WebSocket sessions cleanly without sending content.
+              if (useCartesiaWs && cartesiaSession) {
+                cartesiaSession.cancelContext();
+              } else if (useSarvamWs && sarvamSession) {
+                sarvamSession.close();
+              }
+              // Fallback TTS has nothing to flush; finalizeFallbackTts guards itself.
             }
           }
 
