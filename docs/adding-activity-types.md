@@ -48,13 +48,25 @@ export type ActivityTypeKind = "learning" | "assessment" | "speaking_practice";
 unaffected. The persisted column type also widens —
 `Assignment.activity_type` in `src/types/assignment.ts`.
 
-### 2. Registry entry — `src/lib/activityTypes/registry.ts`
+### 2. Type definition file — `src/lib/activityTypes/<kind>.ts`
 
-Add an `ActivityTypeDefinition`. Required fields: `label`, `persona`,
-`taskInstructions`, `conversationStart`, `evaluationPrompt`,
-`evaluationSystemPersona`, `labels`.
+Create a new file for the activity type (e.g. `speaking_practice.ts`).
+Define your prompt constants and export a single `ActivityTypeDefinition`.
+Required fields: `label`, `persona`, `taskInstructions`, `conversationStart`,
+`evaluationPrompt`, `evaluationSystemPersona`, `labels`.
 Prompt strings use the same `{{variable}}` / `{{#if variable}}…{{/if}}`
 interpolation as the other types (see `promptInterpolation.ts`).
+
+Then import and register it in `src/lib/activityTypes/registry.ts`:
+
+```ts
+import { SPEAKING_PRACTICE_DEFINITION } from "./speaking_practice";
+
+export const ACTIVITY_TYPE_REGISTRY = {
+  // …existing types…
+  speaking_practice: SPEAKING_PRACTICE_DEFINITION,
+};
+```
 
 ```ts
 speaking_practice: {
@@ -170,7 +182,8 @@ read the registry — no per-type wiring needed.
 ## Checklist
 
 - [ ] `activityTypes/types.ts` — add the kind to `ActivityTypeKind`
-- [ ] `activityTypes/registry.ts` — `ActivityTypeDefinition` (prompts, labels, defaults, optional `generation` / directives)
+- [ ] `activityTypes/<kind>.ts` — create the file with prompt constants + exported `<KIND>_DEFINITION` (`ActivityTypeDefinition` with prompts, labels, defaults, optional `generation` / directives)
+- [ ] `activityTypes/registry.ts` — import `<KIND>_DEFINITION` and add it to `ACTIVITY_TYPE_REGISTRY`
 - [ ] _(if feedback should use the support language)_ `{{language}}` base + `{{#if support_language}}` override in the `evaluationPrompt`
 - [ ] `types/assignment.ts` — widen `activity_type` (persisted text column; no migration). Also widen any other narrow `"learning" | "assessment"` literals (search the codebase).
 - [ ] _(if it should show a friendly name)_ `AssignmentDetailClient.tsx` Pill display label
