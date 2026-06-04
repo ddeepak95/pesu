@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ActionInput } from "./schema";
 import { handleMcqAction } from "./mcq";
+import { handleSuggestedResponseAction } from "./suggested-response";
 
 export type EnqueueFn = (data: Record<string, unknown>) => void;
 
@@ -37,12 +38,24 @@ export interface DispatchActionArgs {
    * handlers must author their payload in this language to match the chat.
    */
   languageLabel: string;
+  /**
+   * Human-readable support language, e.g. "English". Used by handlers that
+   * need to generate a translation (e.g. suggested_response).
+   */
+  supportLanguageLabel?: string;
+  /**
+   * Recent conversation turns (last few messages), oldest first. Lets handlers
+   * understand the conversational context and roles without the full history.
+   */
+  recentMessages?: Array<{ role: "student" | "assistant"; content: string }>;
 }
 
 export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
   switch (args.action.kind) {
     case "mcq":
       return handleMcqAction({ ...args, action: args.action });
+    case "suggested_response":
+      return handleSuggestedResponseAction({ ...args, action: args.action });
     // case "image": return handleImageAction(args);
     // case "equation": return handleEquationAction(args);
     default:

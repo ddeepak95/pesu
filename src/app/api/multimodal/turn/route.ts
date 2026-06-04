@@ -108,6 +108,11 @@ interface MultimodalTurnRequestBody {
   ttsModelId: string;
   availableActions?: ActionKind[];
   endConversationConfig?: EndConversationConfig;
+  /**
+   * When true, the turn produces no spoken speech (e.g. a silent action-only
+   * turn like suggested_response). Skips opening the TTS session entirely.
+   */
+  noSpeech?: boolean;
   /** Activity type — varies the multimodal + language-support directives. */
   activityType?: ActivityTypeKind;
   /**
@@ -310,8 +315,9 @@ export async function POST(request: NextRequest) {
     });
 
     const tts = getTtsProvider(ttsModelId);
-    const useCartesiaWs = tts.id === "cartesia";
-    const useSarvamWs = tts.id === "sarvam";
+    const noSpeech = body.noSpeech === true;
+    const useCartesiaWs = !noSpeech && tts.id === "cartesia";
+    const useSarvamWs = !noSpeech && tts.id === "sarvam";
     const useStreamingWs = useCartesiaWs || useSarvamWs;
     const { mimeType, sampleRate } = tts.streamFormat;
     const abortSignal = request.signal;
@@ -419,6 +425,7 @@ export async function POST(request: NextRequest) {
         };
 
         const finalizeFallbackTts = async () => {
+          if (noSpeech) return;
           if (pendingFallbackTts.trim()) {
             await flushFallbackTts(pendingFallbackTts, false);
             pendingFallbackTts = "";
@@ -433,6 +440,9 @@ export async function POST(request: NextRequest) {
         const pushSpeechDelta = async (delta: string) => {
           if (!delta) return;
           fullReply += delta;
+          // noSpeech turns: accumulate text for persistence but emit neither
+          // text-delta nor any audio — the action card is the entire response.
+          if (noSpeech) return;
           enqueue({ type: "text-delta", content: delta });
           if (useCartesiaWs && cartesiaSession) {
             cartesiaSession.pushTranscript(delta, true);
@@ -456,7 +466,10 @@ export async function POST(request: NextRequest) {
                 enqueue({ type: "speech_end", index: 0 });
               }
             } catch (audioError) {
-              if (!aborted) {
+              // Only surface errors if speech was actually started — if the
+              // session was cancelled before any audio was sent (e.g. the LLM
+              // produced empty speech), the cancellation error is harmless.
+              if (!aborted && speechStartSent) {
                 const message =
                   audioError instanceof Error
                     ? audioError.message
@@ -794,6 +807,11 @@ export async function POST(request: NextRequest) {
               );
             }
 
+            const recentMessages = messages
+              .filter((m) => !m.hidden && m.content.trim())
+              .slice(-6)
+              .map((m) => ({ role: m.role, content: m.content }));
+
             pendingAction = dispatchAction({
               id: actionId,
               action: resolvedAction,
@@ -804,6 +822,8 @@ export async function POST(request: NextRequest) {
               submissionId: submissionId ?? null,
               chatMessageId: assistantChatMessageId,
               languageLabel: localeLabel(language),
+              ...(supportAvail ? { supportLanguageLabel: localeLabel(supportAvail) } : {}),
+              recentMessages,
             }).catch((actionErr) => {
               const message =
                 actionErr instanceof Error ? actionErr.message : "Action failed";

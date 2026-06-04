@@ -350,6 +350,13 @@ export const CATALOG_FUNCTIONS: AppFunctionCatalogEntry[] = [
         consumers: ["Multimodal assessment"],
       },
       {
+        key: "suggested_response_generation",
+        label: "Suggested response generation",
+        description:
+          "Generate sample learner responses for speaking practice hint cards.",
+        consumers: ["Multimodal assessment"],
+      },
+      {
         key: "transliteration",
         label: "Transliteration / Translation",
         description:

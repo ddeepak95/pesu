@@ -10,6 +10,7 @@ export type AppFunctionKey =
   | "text.dynamic_questions"
   | "text.rubric_generation"
   | "text.mcq_generation"
+  | "text.suggested_response_generation"
   | "text.transliteration"
   | "speech_to_text"
   | "text_to_speech";

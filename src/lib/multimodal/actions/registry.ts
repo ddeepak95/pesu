@@ -16,9 +16,28 @@ import { z } from "zod";
 
 import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import type { ModelTask } from "@/lib/ai/catalog/types";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
-import { mcqActionInputSchema } from "./schema";
+import { mcqActionInputSchema, suggestedResponseActionInputSchema } from "./schema";
 import type { ActionKind } from "./types";
+
+/**
+ * Client-side trigger metadata for actions that can be activated directly by
+ * the learner (e.g. via the bulb button), independently of the LLM's own
+ * decision to fire an action mid-turn.
+ */
+export interface ActionClientTrigger {
+  /** Hidden message injected into conversation history before the triggered turn. */
+  hiddenMessage: string;
+  /** When true, the triggered turn skips TTS — the card is the entire response. */
+  noSpeech?: boolean;
+  /** Activity types where the bulb button should trigger this action. */
+  bulbForActivityTypes?: ActivityTypeKind[];
+  /** Tooltip shown on the bulb button when this action is the bulb target. */
+  bulbTooltip?: string;
+  /** Activity types where this action is always prepended to availableActions. */
+  autoAvailableForActivityTypes?: ActivityTypeKind[];
+}
 
 export interface ActionDefinition {
   kind: ActionKind;
@@ -36,6 +55,8 @@ export interface ActionDefinition {
   inputSchema: z.ZodTypeAny;
   /** System-prompt guidance describing when/how the model should use this action. */
   buildDirective: () => string;
+  /** Optional metadata for actions the learner can trigger directly from the UI. */
+  clientTrigger?: ActionClientTrigger;
 }
 
 // One string per paragraph; joined for the orchestrator system prompt.
@@ -53,6 +74,33 @@ const MCQ_DIRECTIVE = MCQ_DIRECTIVE_PARAGRAPHS.join("\n");
  * (image/video/equation/animation) are added once their handler ships.
  */
 export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
+  suggested_response: {
+    kind: "suggested_response",
+    label: "Suggested responses",
+    description:
+      "Show the learner a sample response they can say, with audio and translation.",
+    implemented: true,
+    requiredTasks: ["text_generation"],
+    appFunctionKey: "text.suggested_response_generation",
+    inputSchema: suggestedResponseActionInputSchema,
+    buildDirective: () =>
+      "SUGGESTED RESPONSE: Use this action in two situations — in both cases set `speech` to an EMPTY STRING, the card is the entire reply:\n" +
+      "1. Silent hint (bulb button): a hidden system message requests a suggested response. " +
+      'Set `action.kind` to "suggested_response" and `action.botUtterance` to your most recent ' +
+      "spoken utterance (what the learner needs to respond to).\n" +
+      "2. Verbal request: the learner asks mid-conversation how to say something or what to say " +
+      "(e.g. \"how do I say I want tea?\", \"what should I say?\", \"how do I respond?\"). " +
+      'Set `action.kind` to "suggested_response" and `action.botUtterance` to the phrase or idea ' +
+      "they want to express in the target language.",
+    clientTrigger: {
+      hiddenMessage: "I need a suggested response for your last message.",
+      noSpeech: true,
+      bulbForActivityTypes: ["speaking_practice"],
+      bulbTooltip:
+        "Get a suggested response — see a sample phrase you could say, with audio and translation",
+      autoAvailableForActivityTypes: ["speaking_practice"],
+    },
+  },
   mcq: {
     kind: "mcq",
     label: "Multiple choice questions",
@@ -112,6 +160,28 @@ export function buildActionSchemaField(enabledKinds: ActionKind[]): z.ZodTypeAny
   return union
     .nullable()
     .describe("A single content action to show the learner, or null if none needed.");
+}
+
+/**
+ * Returns the action definition whose bulb button should be shown for the
+ * given activity type, or undefined if no action claims the bulb there.
+ */
+export function getBulbActionForActivityType(
+  activityType: ActivityTypeKind,
+): ActionDefinition | undefined {
+  return Object.values(ACTION_REGISTRY).find((def) =>
+    def?.clientTrigger?.bulbForActivityTypes?.includes(activityType),
+  );
+}
+
+/**
+ * Returns action kinds that should always be included in availableActions for
+ * the given activity type, regardless of teacher configuration.
+ */
+export function getAutoAvailableActions(activityType: ActivityTypeKind): ActionKind[] {
+  return Object.values(ACTION_REGISTRY)
+    .filter((def) => def?.clientTrigger?.autoAvailableForActivityTypes?.includes(activityType))
+    .map((def) => def!.kind);
 }
 
 /**

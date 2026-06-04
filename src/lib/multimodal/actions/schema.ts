@@ -22,9 +22,21 @@ export const mcqActionInputSchema = z.object({
     ),
 });
 
+export const suggestedResponseActionInputSchema = z.object({
+  kind: z.literal("suggested_response"),
+  botUtterance: z
+    .string()
+    .describe(
+      "Either (a) the exact bot utterance the learner needs to respond to — copy from the most recent assistant turn — " +
+      "or (b) the phrase or idea the learner is asking how to express in the target language " +
+      "(e.g. if they ask 'how do I say I want tea?', put 'I want tea' here).",
+    ),
+});
+
 // Add future action input schemas here, then list them in actionInputSchemas.
 export const actionInputSchema = z.discriminatedUnion("kind", [
   mcqActionInputSchema,
+  suggestedResponseActionInputSchema,
   // z.object({ kind: z.literal("image"), query: z.string() }),
   // z.object({ kind: z.literal("equation"), latex: z.string() }),
 ]);

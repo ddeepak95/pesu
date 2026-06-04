@@ -217,29 +217,47 @@ The gating then "just works": `resolveAvailableActionKindsForClass` only marks
 the action available when a configured model satisfies `requiredTasks`, and the
 teacher toggle is disabled (with a tooltip) otherwise.
 
-### 7. Frontend rendering — `src/components/Shared/KonvoVoice/ActionCard.tsx`
+### 7. Frontend rendering
 
-Add a render case for your payload. The SSE plumbing
-(`action_start` → skeleton, `action_payload` → ready, `action_error` → drop) in
-`MultimodalInputArea.tsx` is generic and needs no change.
+Each action kind has its own card component file. Create
+`src/components/Shared/KonvoVoice/cards/FlashcardCard.tsx` and export your
+component from it:
 
 ```tsx
-switch (action.payload.kind) {
-  case "mcq":
-    return <MCQCard … />;
-  case "flashcard":
-    return (
-      <div className="rounded-xl border border-border/60 bg-background/70 p-3">
-        <p className="text-sm font-semibold">{action.payload.term}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{action.payload.definition}</p>
-      </div>
-    );
-  default:
-    return null;
+// cards/FlashcardCard.tsx
+"use client";
+export interface FlashcardCardProps { payload: FlashcardActionPayload; }
+
+export function FlashcardCard({ payload }: FlashcardCardProps) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/70 p-3">
+      <p className="text-sm font-semibold">{payload.term}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{payload.definition}</p>
+    </div>
+  );
 }
 ```
 
-Optionally extend `ActionSkeleton` with a kind-specific "Preparing …" label.
+Then add an import and a case in `ActionCard.tsx` (the switch dispatcher):
+
+```tsx
+import { FlashcardCard } from "./cards/FlashcardCard";
+
+// inside ActionCard's switch:
+case "flashcard":
+  return <FlashcardCard payload={action.payload} />;
+```
+
+Optionally extend `ActionSkeleton` in `ActionCard.tsx` with a kind-specific
+"Preparing …" label.
+
+The SSE plumbing (`action_start` → skeleton, `action_payload` → ready,
+`action_error` → drop) in `MultimodalInputArea.tsx` is generic and needs no
+change.
+
+> **Cards that play audio** (like `suggested_response`): import `TtsConfig`
+> from `../ActionCard` and accept it as a prop. `ActionCard` receives
+> `ttsConfig` and forwards it to your card.
 
 > **Learner-interactive actions** (like MCQ, where the learner answers): add the
 > interaction field to `PendingAction` in `actionTypes.ts` (MCQ uses
@@ -259,7 +277,8 @@ Optionally extend `ActionSkeleton` with a kind-specific "Preparing …" label.
 - [ ] `actions/registry.ts` — `ActionDefinition` (`implemented: true`)
 - [ ] `catalog/appFunctions.ts` + `catalog/data.ts` — `AppFunctionKey` + sub-function
 - [ ] `catalog/types.ts` + `catalog/data.ts` — new `ModelTask` **(only if** capability beyond text)
-- [ ] `ActionCard.tsx` — render case (+ skeleton label)
+- [ ] `cards/<kind>Card.tsx` — new card component file
+- [ ] `ActionCard.tsx` — import card + add case in switch (+ skeleton label)
 - [ ] _(interactive only)_ `actionTypes.ts` response field + `PATCH` route + `chatMessageActions` helper
 
 What you **don't** touch: `chat-stream-object.ts` (turn schema + directives read

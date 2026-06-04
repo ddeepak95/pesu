@@ -3,7 +3,7 @@
 import React from "react";
 import { ChevronDown, ChevronRight, Loader2, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ActionCard } from "./ActionCard";
+import { ActionCard, type TtsConfig } from "./ActionCard";
 import type { PendingAction } from "./actionTypes";
 import type { TransliterationResult } from "@/lib/ai/schemas/transliteration";
 
@@ -35,6 +35,7 @@ interface ContentBoxProps {
   audioAvailableIds?: Set<string>;
   onReplayAudio?: (messageId: string) => void;
   playingMessageId?: string | null;
+  ttsConfig?: TtsConfig;
 }
 
 export function ContentBox({
@@ -50,6 +51,7 @@ export function ContentBox({
   audioAvailableIds,
   onReplayAudio,
   playingMessageId,
+  ttsConfig,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
@@ -164,6 +166,7 @@ export function ContentBox({
                               ? (index) => onMcqAnswer(m.id, index)
                               : undefined
                           }
+                          ttsConfig={ttsConfig}
                         />
                       </div>
                     </div>

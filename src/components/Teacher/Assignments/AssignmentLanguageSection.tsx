@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { MultimodalLanguageSupportEditor } from "@/components/Teacher/Assignments/MultimodalLanguageSupportEditor";
 import { supportedLanguages } from "@/utils/supportedLanguages";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import type { BotPromptConfig } from "@/types/assignment";
 
 interface AssignmentLanguageSectionProps {
@@ -24,6 +25,7 @@ interface AssignmentLanguageSectionProps {
   setBotPromptConfig: (config: BotPromptConfig) => void;
   supportedLocales?: string[];
   loading: boolean;
+  activityType?: ActivityTypeKind;
 }
 
 /**
@@ -41,15 +43,28 @@ export function AssignmentLanguageSection({
   setBotPromptConfig,
   supportedLocales,
   loading,
+  activityType,
 }: AssignmentLanguageSectionProps) {
+  const isSpeakingPractice = activityType === "speaking_practice";
+  const primaryLanguageLabel = isSpeakingPractice ? "Learning Language" : "Primary Language";
+  const primaryLanguageTooltip = isSpeakingPractice
+    ? "The language students are learning and will speak during the role-play. Students can change it unless you lock it below."
+    : "The main language the AI bot speaks and interacts in with students. Students can change it during the assessment unless you lock it below.";
+  const lockLabel = isSpeakingPractice
+    ? "Lock learning language for students"
+    : "Lock primary language for students";
+  const lockTooltip = isSpeakingPractice
+    ? "When enabled, students cannot change the learning language during the activity."
+    : "When enabled, students cannot change the primary language during the assessment.";
+
   return (
     <div className="space-y-4 pt-4">
-      {/* Primary Language */}
+      {/* Primary / Learning Language */}
       <SettingsCard className="space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-1.5">
-            <Label htmlFor="preferredLanguage">Primary Language</Label>
-            <InfoTooltip text="The main language the AI bot speaks and interacts in with students. Students can change it during the assessment unless you lock it below." />
+            <Label htmlFor="preferredLanguage">{primaryLanguageLabel}</Label>
+            <InfoTooltip text={primaryLanguageTooltip} />
           </div>
           <Select
             value={preferredLanguage}
@@ -81,9 +96,9 @@ export function AssignmentLanguageSection({
               htmlFor="lockLanguage"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
             >
-              Lock primary language for students
+              {lockLabel}
             </Label>
-            <InfoTooltip text="When enabled, students cannot change the primary language during the assessment." />
+            <InfoTooltip text={lockTooltip} />
           </div>
         </div>
       </SettingsCard>

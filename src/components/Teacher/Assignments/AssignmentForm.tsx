@@ -1001,6 +1001,7 @@ export default function AssignmentForm({
               setBotPromptConfig={setBotPromptConfig}
               supportedLocales={supportedLocales}
               loading={loading}
+              activityType={activityType}
             />
           </CollapsibleSection>
 

@@ -27,6 +27,11 @@ import type {
   ActionKind,
   ActionPayload,
 } from "@/lib/multimodal/actions/types";
+import {
+  type ActionDefinition,
+  getBulbActionForActivityType,
+  getAutoAvailableActions,
+} from "@/lib/multimodal/actions/registry";
 import { useEndConversationFinish } from "./useEndConversationFinish";
 import type { AssessmentInputProps } from "./types";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
@@ -550,7 +555,11 @@ export function MultimodalInputArea({
   );
 
   const runAssistantTurn = React.useCallback(
-    async (history: ChatMessage[], speechLanguage?: string) => {
+    async (
+      history: ChatMessage[],
+      speechLanguage?: string,
+      opts?: { availableActionsOverride?: ActionKind[]; noSpeech?: boolean },
+    ) => {
       const turnId = ++assistantTurnSeqRef.current;
       setIsAssistantTurnActive(true);
       setIsThinking(true);
@@ -642,10 +651,15 @@ export function MultimodalInputArea({
             ...(latestTranscriptCandidates
               ? { latestTranscriptCandidates }
               : {}),
-            availableActions:
-              botPromptConfig?.multimodal_actions?.availableActions ?? [],
+            availableActions: (() => {
+              if (opts?.availableActionsOverride) return opts.availableActionsOverride;
+              const auto = getAutoAvailableActions(activityType);
+              const configured = botPromptConfig?.multimodal_actions?.availableActions ?? [];
+              return [...auto, ...configured.filter((k) => !auto.includes(k))];
+            })(),
             endConversationConfig:
               botPromptConfig?.multimodal_actions?.endConversation,
+            ...(opts?.noSpeech ? { noSpeech: true } : {}),
           }),
           signal: controller.signal,
         });
@@ -1124,6 +1138,54 @@ export function MultimodalInputArea({
     runAssistantTurn,
   ]);
 
+  const handleClientTriggeredAction = React.useCallback(
+    async (def: ActionDefinition) => {
+      const trigger = def.clientTrigger;
+      if (!trigger) return;
+      if (isTranscribing || (isThinking && !isSpeaking)) return;
+
+      if (isSpeaking) {
+        botInterruptionRequestedRef.current = true;
+        activeAbortRef.current?.abort();
+        playback.reset();
+        commitAssistantTurnToMessages({
+          force: true,
+          turnId: assistantTurnSeqRef.current,
+        });
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.action?.state !== "loading");
+          messagesRef.current = next;
+          return next;
+        });
+        releaseAssistantTurnUi(assistantTurnSeqRef.current);
+      }
+
+      const hiddenMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "student",
+        content: trigger.hiddenMessage,
+        hidden: true,
+      };
+      const nextHistory = [...messagesRef.current, hiddenMessage];
+      setMessages(nextHistory);
+      messagesRef.current = nextHistory;
+
+      await runAssistantTurn(nextHistory, undefined, {
+        availableActionsOverride: [def.kind],
+        noSpeech: trigger.noSpeech,
+      });
+    },
+    [
+      isTranscribing,
+      isThinking,
+      isSpeaking,
+      playback,
+      commitAssistantTurnToMessages,
+      releaseAssistantTurnUi,
+      runAssistantTurn,
+    ],
+  );
+
   const handleRequestTransliteration = React.useCallback(
     async (messageId: string) => {
       const msg = messagesRef.current.find((m) => m.id === messageId);
@@ -1438,8 +1500,34 @@ export function MultimodalInputArea({
               audioAvailableIds={messageAudioAvailableIds}
               onReplayAudio={handleReplayAudio}
               playingMessageId={playingMessageId}
+              ttsConfig={{
+                ttsModelId:
+                  speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId,
+                assignmentId,
+                language,
+              }}
             />
-            {supportEnabled ? (
+            {(() => {
+              const bulbDef = getBulbActionForActivityType(activityType);
+              if (bulbDef) {
+                return (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    onClick={() => void handleClientTriggeredAction(bulbDef)}
+                    disabled={isTranscribing || (isThinking && !isSpeaking)}
+                    title={bulbDef.clientTrigger?.bulbTooltip ?? "Get help"}
+                    aria-label={bulbDef.clientTrigger?.bulbTooltip ?? "Get help"}
+                    className="absolute bottom-3 right-3 z-10 h-11 w-11 rounded-full border border-amber-300 bg-amber-50 text-amber-600 shadow-md hover:bg-amber-100 hover:text-amber-700"
+                  >
+                    <Lightbulb className="h-5 w-5" />
+                  </Button>
+                );
+              }
+              return null;
+            })()}
+            {!getBulbActionForActivityType(activityType) && supportEnabled ? (
               <Button
                 type="button"
                 variant="secondary"

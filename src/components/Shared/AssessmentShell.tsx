@@ -541,9 +541,21 @@ export function AssessmentShell({
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <span>
-                          {showSupportSelector ? "Primary language:" : "Language:"}
+                          {activityType === "speaking_practice"
+                            ? showSupportSelector
+                              ? "Learning language:"
+                              : "Language:"
+                            : showSupportSelector
+                              ? "Primary language:"
+                              : "Language:"}
                         </span>
-                        <InfoTooltip text="The main language the AI tutor speaks and converses in throughout the activity." />
+                        <InfoTooltip
+                          text={
+                            activityType === "speaking_practice"
+                              ? "The language you are learning and will speak during the role-play."
+                              : "The main language the AI tutor speaks and converses in throughout the activity."
+                          }
+                        />
                       </div>
                       <SearchableSelect
                         value={language}
@@ -558,7 +570,13 @@ export function AssessmentShell({
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <span>Support language:</span>
-                          <InfoTooltip text="An extra language the tutor can re-explain a point in when you tap the lightbulb (💡) help button. Technical terms stay in the primary language." />
+                          <InfoTooltip
+                            text={
+                              activityType === "speaking_practice"
+                                ? "Your native or support language. Tap the lightbulb (💡) to get a suggested response in the learning language, with a translation below."
+                                : "An extra language the tutor can re-explain a point in when you tap the lightbulb (💡) help button. Technical terms stay in the primary language."
+                            }
+                          />
                         </div>
                         <SearchableSelect
                           value={supportLanguage}
