@@ -84,15 +84,15 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     appFunctionKey: "text.suggested_response_generation",
     inputSchema: suggestedResponseActionInputSchema,
     buildDirective: () =>
-      "SUGGESTED RESPONSE: Use this action in two situations — in both cases set `speech` to an EMPTY STRING, the card is the entire reply:\n" +
-      '1. Silent hint (bulb button): a hidden system message requests a suggested response. Set `action.kind` to "suggested_response", ' +
-      '`action.triggerKind` to "reply", and `action.botUtterance` to your most recent spoken utterance verbatim.\n' +
-      "2. Verbal request: the learner asks how to say something in the target language " +
-      '(e.g. "how do I say I want tea?", "how do I ask for a ticket?"). Set `action.kind` to "suggested_response", ' +
-      '`action.triggerKind` to "express", and `action.botUtterance` to the phrase or idea they want to express ' +
-      '(e.g. "I want tea", "I want to buy a ticket").',
+      "SUGGESTED RESPONSE: Use this action ONLY when the learner explicitly asks how to say a specific phrase or idea in the target language " +
+      '— e.g. "how do I say I want tea?", "how do I ask for directions?", "what\'s the word for thank you?". ' +
+      "Do NOT trigger this when the learner is speaking naturally in the target language, practicing a phrase, reading back something they already have, or responding to the tutor. " +
+      'When triggered: set `speech` to an EMPTY STRING, `action.kind` to "suggested_response", `action.triggerKind` to "express", ' +
+      'and `action.botUtterance` to the phrase or idea they want to express (e.g. "I want tea").',
     clientTrigger: {
-      hiddenMessage: "I need a suggested response for your last message.",
+      hiddenMessage:
+        '[System] Provide a suggested response for your last spoken message. Set action.kind to "suggested_response", ' +
+        'action.triggerKind to "reply", and action.botUtterance to your most recent spoken utterance verbatim. Set speech to an empty string.',
       noSpeech: true,
       bulbForActivityTypes: ["speaking_practice"],
       bulbTooltip:
