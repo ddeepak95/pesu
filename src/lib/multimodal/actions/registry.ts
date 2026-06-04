@@ -85,13 +85,12 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     inputSchema: suggestedResponseActionInputSchema,
     buildDirective: () =>
       "SUGGESTED RESPONSE: Use this action in two situations — in both cases set `speech` to an EMPTY STRING, the card is the entire reply:\n" +
-      "1. Silent hint (bulb button): a hidden system message requests a suggested response. " +
-      'Set `action.kind` to "suggested_response" and `action.botUtterance` to your most recent ' +
-      "spoken utterance (what the learner needs to respond to).\n" +
-      "2. Verbal request: the learner asks mid-conversation how to say something or what to say " +
-      "(e.g. \"how do I say I want tea?\", \"what should I say?\", \"how do I respond?\"). " +
-      'Set `action.kind` to "suggested_response" and `action.botUtterance` to the phrase or idea ' +
-      "they want to express in the target language.",
+      '1. Silent hint (bulb button): a hidden system message requests a suggested response. Set `action.kind` to "suggested_response", ' +
+      '`action.triggerKind` to "reply", and `action.botUtterance` to your most recent spoken utterance verbatim.\n' +
+      "2. Verbal request: the learner asks how to say something in the target language " +
+      '(e.g. "how do I say I want tea?", "how do I ask for a ticket?"). Set `action.kind` to "suggested_response", ' +
+      '`action.triggerKind` to "express", and `action.botUtterance` to the phrase or idea they want to express ' +
+      '(e.g. "I want tea", "I want to buy a ticket").',
     clientTrigger: {
       hiddenMessage: "I need a suggested response for your last message.",
       noSpeech: true,
