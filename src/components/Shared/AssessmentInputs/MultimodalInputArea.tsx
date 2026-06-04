@@ -549,6 +549,7 @@ export function MultimodalInputArea({
       setIsAssistantTurnActive(false);
       setIsThinking(false);
       setIsSpeaking(false);
+      setIsStarting(false);
       playback.releasePlayback();
     },
     [playback],
