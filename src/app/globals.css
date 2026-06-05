@@ -28,10 +28,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
 
 
 @theme inline {
@@ -73,6 +69,53 @@ a {
   --color-sidebar-ring: var(--sidebar-ring);
   --color-tabs-active: var(--tabs-active);
   --color-tabs-active-foreground: var(--tabs-active-foreground);
+  /* Glaucous palette */
+  --color-glaucous-50: var(--color-glaucous-50);
+  --color-glaucous-100: var(--color-glaucous-100);
+  --color-glaucous-200: var(--color-glaucous-200);
+  --color-glaucous-300: var(--color-glaucous-300);
+  --color-glaucous-400: var(--color-glaucous-400);
+  --color-glaucous-500: var(--color-glaucous-500);
+  --color-glaucous-600: var(--color-glaucous-600);
+  --color-glaucous-700: var(--color-glaucous-700);
+  --color-glaucous-800: var(--color-glaucous-800);
+  --color-glaucous-900: var(--color-glaucous-900);
+  --color-glaucous-950: var(--color-glaucous-950);
+  /* Pink Mist palette */
+  --color-pink-mist-50: var(--color-pink-mist-50);
+  --color-pink-mist-100: var(--color-pink-mist-100);
+  --color-pink-mist-200: var(--color-pink-mist-200);
+  --color-pink-mist-300: var(--color-pink-mist-300);
+  --color-pink-mist-400: var(--color-pink-mist-400);
+  --color-pink-mist-500: var(--color-pink-mist-500);
+  --color-pink-mist-600: var(--color-pink-mist-600);
+  --color-pink-mist-700: var(--color-pink-mist-700);
+  --color-pink-mist-800: var(--color-pink-mist-800);
+  --color-pink-mist-900: var(--color-pink-mist-900);
+  --color-pink-mist-950: var(--color-pink-mist-950);
+  /* Electric Aqua palette */
+  --color-electric-aqua-50: var(--color-electric-aqua-50);
+  --color-electric-aqua-100: var(--color-electric-aqua-100);
+  --color-electric-aqua-200: var(--color-electric-aqua-200);
+  --color-electric-aqua-300: var(--color-electric-aqua-300);
+  --color-electric-aqua-400: var(--color-electric-aqua-400);
+  --color-electric-aqua-500: var(--color-electric-aqua-500);
+  --color-electric-aqua-600: var(--color-electric-aqua-600);
+  --color-electric-aqua-700: var(--color-electric-aqua-700);
+  --color-electric-aqua-800: var(--color-electric-aqua-800);
+  --color-electric-aqua-900: var(--color-electric-aqua-900);
+  --color-electric-aqua-950: var(--color-electric-aqua-950);
+  /* Beige palette */
+  --color-beige-50: var(--color-beige-50);
+  --color-beige-100: var(--color-beige-100);
+  --color-beige-200: var(--color-beige-200);
+  --color-beige-300: var(--color-beige-300);
+  --color-beige-400: var(--color-beige-400);
+  --color-beige-500: var(--color-beige-500);
+  --color-beige-600: var(--color-beige-600);
+  --color-beige-700: var(--color-beige-700);
+  --color-beige-800: var(--color-beige-800);
+  --color-beige-900: var(--color-beige-900);
 }
 
 :root {
@@ -408,6 +451,10 @@ a {
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
   }
   body {
     @apply bg-canvas text-foreground;

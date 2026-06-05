@@ -42,8 +42,14 @@ const markdownComponents: Components = {
       {children}
     </li>
   ),
-  a: ({ children, ...props }) => (
-    <a className="text-primary underline underline-offset-4" {...props}>
+  a: ({ children, href, ...props }) => (
+    <a
+      className="text-glaucous-600 underline underline-offset-4 hover:text-glaucous-700"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      {...props}
+    >
       {children}
     </a>
   ),
