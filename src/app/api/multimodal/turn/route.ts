@@ -641,7 +641,6 @@ export async function POST(request: NextRequest) {
                     typeof fromFinal === "string" ? fromFinal : lastPartialUserTranscript
                   ).trim();
                   if (chosen) {
-                    userTranscriptResolved = chosen;
                     userTranscriptEmitted = true;
                     enqueue({ type: "user_transcript", text: chosen });
                     try {
