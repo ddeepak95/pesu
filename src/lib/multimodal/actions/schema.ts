@@ -32,10 +32,24 @@ export const suggestedResponseActionInputSchema = z.object({
     .describe("Copy the bot's most recent spoken utterance here verbatim."),
 });
 
+export const displayMarkdownActionInputSchema = z.object({
+  kind: z.literal("display_markdown"),
+  content: z
+    .string()
+    .describe(
+      "The markdown to display in the content box. Use a fenced code block for code snippets (e.g. ```python\\n...\\n```).",
+    ),
+  title: z
+    .string()
+    .optional()
+    .describe("Short label shown above the content, e.g. a function name or section heading."),
+});
+
 // Add future action input schemas here, then list them in actionInputSchemas.
 export const actionInputSchema = z.discriminatedUnion("kind", [
   mcqActionInputSchema,
   suggestedResponseActionInputSchema,
+  displayMarkdownActionInputSchema,
   // z.object({ kind: z.literal("image"), query: z.string() }),
   // z.object({ kind: z.literal("equation"), latex: z.string() }),
 ]);

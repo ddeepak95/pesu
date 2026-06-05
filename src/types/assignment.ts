@@ -1,5 +1,6 @@
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import type { MultimodalActionsConfig } from "@/lib/multimodal/turnConfig";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
 export interface FileSubmissionConfig {
   required: boolean;
@@ -227,7 +228,7 @@ export interface Assignment {
    * Activity type for this assignment.
    * Defaults to "learning" for legacy assignments where this field is missing.
    */
-  activity_type?: "assessment" | "learning" | "speaking_practice";
+  activity_type?: ActivityTypeKind;
   /**
    * Configuration for responder details collection in public assignments.
    * Defines what fields to collect from public responders.

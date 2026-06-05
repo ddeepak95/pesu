@@ -18,7 +18,11 @@ import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import type { ModelTask } from "@/lib/ai/catalog/types";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
-import { mcqActionInputSchema, suggestedResponseActionInputSchema } from "./schema";
+import {
+  displayMarkdownActionInputSchema,
+  mcqActionInputSchema,
+  suggestedResponseActionInputSchema,
+} from "./schema";
 import type { ActionKind } from "./types";
 
 /**
@@ -103,6 +107,26 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     appFunctionKey: "text.mcq_generation",
     inputSchema: mcqActionInputSchema,
     buildDirective: () => MCQ_DIRECTIVE,
+  },
+  display_markdown: {
+    kind: "display_markdown",
+    label: "Display code / markdown",
+    description:
+      "The tutor can show a code snippet or formatted content in the content box instead of reading it aloud.",
+    implemented: true,
+    requiredTasks: ["text_generation"],
+    appFunctionKey: "text.display_markdown",
+    inputSchema: displayMarkdownActionInputSchema,
+    buildDirective: () =>
+      "When you want to reference a specific function, variable, code block, or any formatted content from the " +
+      "student's submission, use the `display_markdown` action: set `action.kind` to \"display_markdown\", " +
+      "`action.content` to the exact markdown to show (e.g. a fenced code block), and optionally `action.title` " +
+      "to a short label (e.g. the function name). In your `speech`, refer to it as 'the code shown on screen' or " +
+      "'the snippet I've highlighted' — never read code syntax or markdown formatting aloud.",
+    clientTrigger: {
+      hiddenMessage: "",
+      autoAvailableForActivityTypes: ["code_review"],
+    },
   },
 };
 

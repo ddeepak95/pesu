@@ -16,6 +16,7 @@ import { DEFAULT_ACTIVITY_TYPE_LABELS } from "./types";
 import { LEARNING_DEFINITION } from "./learning";
 import { ASSESSMENT_DEFINITION } from "./assessment";
 import { SPEAKING_PRACTICE_DEFINITION } from "./speaking_practice";
+import { CODE_REVIEW_DEFINITION } from "./code-review";
 
 export const ACTIVITY_TYPE_REGISTRY: Record<
   ActivityTypeKind,
@@ -24,6 +25,7 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
   learning: LEARNING_DEFINITION,
   assessment: ASSESSMENT_DEFINITION,
   speaking_practice: SPEAKING_PRACTICE_DEFINITION,
+  code_review: CODE_REVIEW_DEFINITION,
 };
 
 /** Shared output-format and safety rules appended to every evaluation system message. */

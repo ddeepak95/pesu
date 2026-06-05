@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   Accordion,
@@ -9,6 +9,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Question } from "@/types/assignment";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 
 interface AssessmentQuestionCardProps {
   question: Question;
@@ -36,9 +37,7 @@ export function AssessmentQuestionCard({
       )}
     >
       <CardHeader className="p-4">
-        <CardTitle className="text-base font-semibold">
-          {question.prompt}
-        </CardTitle>
+        <MarkdownContent content={question.prompt} className="font-semibold space-y-2" />
       </CardHeader>
       <CardContent className="space-y-4 p-4 pt-0">
         {/* View Rubric Accordion */}

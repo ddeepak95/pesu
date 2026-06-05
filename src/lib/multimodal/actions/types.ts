@@ -7,7 +7,7 @@
  * action kinds (image, video, equation, animation) are drop-in additions.
  */
 
-export type ActionKind = "mcq" | "image" | "video" | "equation" | "animation" | "suggested_response";
+export type ActionKind = "mcq" | "image" | "video" | "equation" | "animation" | "suggested_response" | "display_markdown";
 
 export interface McqActionPayload {
   kind: "mcq";
@@ -27,13 +27,21 @@ export interface SuggestedResponseActionPayload {
   translation?: string;
 }
 
+export interface DisplayMarkdownActionPayload {
+  kind: "display_markdown";
+  /** Markdown content to render in the content box (e.g. a fenced code block). */
+  content: string;
+  /** Optional short label shown above the content (e.g. a function name). */
+  title?: string;
+}
+
 // Future payloads — uncomment/extend as each kind is implemented:
 // export interface ImageActionPayload { kind: "image"; url: string; altText?: string; }
 // export interface VideoActionPayload { kind: "video"; url: string; title?: string; }
 // export interface EquationActionPayload { kind: "equation"; latex: string; display: "inline" | "block"; }
 // export interface AnimationActionPayload { kind: "animation"; animationId: string; params?: Record<string, unknown>; }
 
-export type ActionPayload = McqActionPayload | SuggestedResponseActionPayload;
+export type ActionPayload = McqActionPayload | SuggestedResponseActionPayload | DisplayMarkdownActionPayload;
 // | ImageActionPayload | VideoActionPayload | EquationActionPayload | AnimationActionPayload;
 
 /**

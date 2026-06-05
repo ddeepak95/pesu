@@ -685,6 +685,14 @@ export default function AssignmentForm({
 
     // Apply the type's display-setting defaults (e.g. speaking practice → stars).
     setUseStarDisplay(def.defaults?.display?.useStarDisplay ?? false);
+
+    // Apply the type's file-submission default (e.g. code review → required).
+    if (def.defaults?.fileSubmission?.required) {
+      setFileSubmissionEnabled(true);
+      if (fileAllowedTypes.length === 0) {
+        setFileAllowedTypes([...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES]);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent, draft: boolean = false) => {

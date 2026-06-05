@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { PendingAction } from "./actionTypes";
+import { DisplayMarkdownCard } from "./cards/DisplayMarkdownCard";
 import { MCQCard } from "./cards/McqCard";
 import { SuggestedResponseCard } from "./cards/SuggestedResponseCard";
 
@@ -18,7 +19,9 @@ function ActionSkeleton({ kind }: { kind: ActionKind }) {
       ? "Preparing a question…"
       : kind === "suggested_response"
         ? "Preparing a suggested response…"
-        : "Preparing content…";
+        : kind === "display_markdown"
+          ? "Loading content…"
+          : "Preparing content…";
   return (
     <div className="rounded-xl border border-border/60 bg-background/60 p-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -62,6 +65,8 @@ export function ActionCard({ action, onMcqAnswer, ttsConfig }: ActionCardProps) 
       );
     case "suggested_response":
       return <SuggestedResponseCard payload={action.payload} ttsConfig={ttsConfig} />;
+    case "display_markdown":
+      return <DisplayMarkdownCard payload={action.payload} />;
     default:
       return null;
   }

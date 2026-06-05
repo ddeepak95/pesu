@@ -13,6 +13,8 @@ import {
   buildDefaultDynamicGenerationPrompt,
   formatQuestionsForDynamicGenerationPrompt,
 } from "@/lib/promptTemplates";
+import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import type { ResolvedModelConfig } from "@/lib/ai/config";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
@@ -162,13 +164,17 @@ async function generateMergedQuestions(
     submissionId: string;
     keySource: AiConfigSource;
   },
+  activityType?: ActivityTypeKind,
 ): Promise<Question[]> {
   const sorted = sortTemplates(templates);
   const n = sorted.length;
   const truncatedContent = fileContent.slice(0, 50000);
 
+  const activityDef = activityType
+    ? getActivityTypeDefinition(activityType)
+    : undefined;
   const promptTemplateStr =
-    customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt();
+    customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt(activityDef);
 
   const templateVariables: Record<string, string> = {
     title: context.title || "",
@@ -271,7 +277,7 @@ export async function POST(request: NextRequest) {
     const { data: assignment, error: assignmentError } = await supabase
       .from("assignments")
       .select(
-        "title, student_instructions, shared_context, shared_context_enabled, questions, dynamic_generation_prompt",
+        "title, student_instructions, shared_context, shared_context_enabled, questions, dynamic_generation_prompt, activity_type",
       )
       .eq("assignment_id", assignmentId)
       .single();
@@ -421,6 +427,7 @@ export async function POST(request: NextRequest) {
         submissionId,
         keySource: catalogResolved.keySource,
       },
+      (assignment.activity_type as ActivityTypeKind) ?? undefined,
     );
 
     const persistedFileIds = normalizeFileIds(submissionFileIds);

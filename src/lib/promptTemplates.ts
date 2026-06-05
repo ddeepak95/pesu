@@ -5,7 +5,7 @@ import {
   teacherPromptOrFocus,
 } from "@/types/assignment";
 import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
-import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import type { ActivityTypeDefinition, ActivityTypeKind } from "@/lib/activityTypes/types";
 
 /**
  * Supported variable placeholders for prompt templates.
@@ -308,8 +308,10 @@ export function formatQuestionsForDynamicGenerationPrompt(questions: Question[])
 /**
  * Default system prompt template for dynamic question generation.
  * Uses template variables that are interpolated server-side.
+ * Pass an ActivityTypeDefinition to append type-specific generation guidance.
  */
-export function buildDefaultDynamicGenerationPrompt(): string {
+export function buildDefaultDynamicGenerationPrompt(activityDef?: ActivityTypeDefinition): string {
+  const typeGuidance = activityDef?.generation?.dynamicGenerationGuidance ?? "";
   return `You are an expert educational content creator. You will output one structured entry per assignment question (see generation_spec). Use the student's file submission to generate any fields marked dynamic; respect teacher-fixed text where indicated.
 
 {{#if title}}
@@ -341,7 +343,8 @@ Rules:
 - Where dynamic_rubric is true: create 3-5 rubric items that sum to exactly the total points for that question; expected_answer lists key points for evaluation
 - Where dynamic_rubric is false: still output rubric and expected_answer fields, but they will be replaced server-side — you may repeat the teacher's fixed content
 - Questions should be distinct from each other — avoid overlap
-- Set question_index to the 0-based index of each question (0 through N-1)`;
+- Set question_index to the 0-based index of each question (0 through N-1)
+- Format the generated prompt using Markdown when the submission contains code${typeGuidance}`;
 }
 
 const GENERATION_PROMPT_VARIABLE_KEYS: PromptVariableKey[] = [

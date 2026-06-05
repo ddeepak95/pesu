@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig, DynamicGenerationSpec } from "@/types/assignment";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
 
@@ -192,7 +193,7 @@ export async function createAssignment(
     preferred_language: string;
     lock_language?: boolean;
     is_public?: boolean;
-    activity_type?: "assessment" | "learning" | "speaking_practice";
+    activity_type?: ActivityTypeKind;
     assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
@@ -301,7 +302,7 @@ export async function updateAssignment(
     preferred_language: string;
     lock_language?: boolean;
     is_public?: boolean;
-    activity_type?: "assessment" | "learning" | "speaking_practice";
+    activity_type?: ActivityTypeKind;
     assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig

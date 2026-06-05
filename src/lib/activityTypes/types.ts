@@ -12,7 +12,7 @@
 
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 
-export type ActivityTypeKind = "learning" | "assessment" | "speaking_practice";
+export type ActivityTypeKind = "learning" | "assessment" | "speaking_practice" | "code_review";
 
 /** Interaction modes (mirrors InteractionType in promptTemplates / AssessmentMode). */
 export type ActivityInteractionType =
@@ -55,6 +55,8 @@ export interface ActivityTypeGeneration {
   expectedAnswerCoverage?: string;
   /** Extra system-prompt paragraph appended for this activity type. */
   guidance?: string;
+  /** Extra rules appended to the dynamic question generation prompt for this activity type. */
+  dynamicGenerationGuidance?: string;
 }
 
 /** Config preselected in the teacher form when this activity type is chosen. */
@@ -70,6 +72,11 @@ export interface ActivityTypeDefaults {
   display?: {
     /** Default the "show scores as stars" toggle to this value. */
     useStarDisplay?: boolean;
+  };
+  /** File submission presets applied when this activity type is chosen. */
+  fileSubmission?: {
+    /** When true, the file-submission toggle is switched on and default file types are applied if none are set. */
+    required?: boolean;
   };
 }
 
