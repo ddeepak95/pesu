@@ -338,7 +338,6 @@ export async function POST(request: NextRequest) {
         // streaming — at that point the JSON parser has moved past `userTranscript`,
         // meaning the field is complete.
         let userTranscriptEmitted = false;
-        let userTranscriptResolved: string | null = null;
         let lastPartialUserTranscript = "";
         let winningInvocationId: string | null = null;
         let winningStartedAtMs: number | undefined;
@@ -580,7 +579,6 @@ export async function POST(request: NextRequest) {
                   if (dualTranscriptDescriptor && !userTranscriptEmitted) {
                     const chosen = lastPartialUserTranscript.trim();
                     if (chosen) {
-                      userTranscriptResolved = chosen;
                       userTranscriptEmitted = true;
                       enqueue({ type: "user_transcript", text: chosen });
                       try {

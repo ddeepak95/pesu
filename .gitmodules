@@ -1,9 +1,6 @@
 [submodule "pesu-server"]
 	path = pesu-server
 	url = https://github.com/ddeepak95/pesu-server
-[submodule "convoed-functions"]
-	path = convoed-functions
-	url = https://github.com/ddeepak95/convoed-functions
 [submodule "convoed-docs"]
 	path = convoed-docs
 	url = https://github.com/ddeepak95/convoed-docs

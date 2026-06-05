@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { parseSubmissionFile } from "@/lib/parseSubmissionFile";
 
 interface ConfirmUploadBody {
   fileId: string;
@@ -35,29 +36,10 @@ export async function POST(request: NextRequest) {
     }
 
     after(async () => {
-      const apiKey = process.env.CLOUD_FUNCTIONS_API_KEY;
-      if (!apiKey) return;
-
-      const isLocal = process.env.CLOUD_FUNCTIONS_LOCAL === "true";
-      const projectId = process.env.FIREBASE_PROJECT_ID;
-      const region = process.env.FIREBASE_FUNCTIONS_REGION || "us-central1";
-      const fnName = "parse_submission_file";
-
-      const url = isLocal
-        ? `http://127.0.0.1:5001/${projectId}/${region}/${fnName}`
-        : `https://${region}-${projectId}.cloudfunctions.net/${fnName}`;
-
       try {
-        await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-          },
-          body: JSON.stringify({ fileId: data.id }),
-        });
+        await parseSubmissionFile(data.id);
       } catch (err) {
-        console.error("Failed to trigger submission file parsing:", err);
+        console.error("Failed to parse submission file:", err);
       }
     });
 
