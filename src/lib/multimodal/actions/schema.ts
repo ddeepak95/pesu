@@ -25,18 +25,11 @@ export const mcqActionInputSchema = z.object({
 export const suggestedResponseActionInputSchema = z.object({
   kind: z.literal("suggested_response"),
   triggerKind: z
-    .enum(["reply", "express"])
-    .describe(
-      "'reply' — the learner needs a phrase to say in response to the bot's last utterance (bulb button). " +
-      "'express' — the learner asked how to say a specific idea in the target language.",
-    ),
+    .literal("reply")
+    .describe("'reply' — the learner needs a phrase to say in response to the bot's last utterance (bulb button)."),
   botUtterance: z
     .string()
-    .describe(
-      "For triggerKind='reply': copy the bot's most recent spoken utterance here verbatim. " +
-      "For triggerKind='express': the phrase or idea the learner wants to express " +
-      "(e.g. if they ask 'how do I say I want tea?', put 'I want tea' here).",
-    ),
+    .describe("Copy the bot's most recent spoken utterance here verbatim."),
 });
 
 // Add future action input schemas here, then list them in actionInputSchemas.

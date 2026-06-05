@@ -59,42 +59,27 @@ export async function handleSuggestedResponseAction(
     ? ` Also provide a romanized transliteration (omit if the script is already Latin) and a translation into ${supportLanguageLabel}.`
     : " Omit transliteration and translation.";
 
-  let systemPrompt: string;
-  let userPrompt: string;
-
-  if (action.triggerKind === "express") {
-    // Learner asked "how do I say X?" — express that phrase in the target language.
-    systemPrompt =
-      `You are a language learning coach. ` +
-      `Given a phrase or idea in any language, write how to express it naturally as a short spoken phrase in ${languageLabel}. ` +
-      `Write in the native script of ${languageLabel} (never romanize unless it uses the Latin alphabet). ` +
-      `One short spoken phrase only.` +
-      supportClause;
-    userPrompt =
-      `Express this in ${languageLabel}: "${action.botUtterance.trim()}"`;
-  } else {
-    // Bulb trigger — generate a reply the student can say to the tutor's last utterance.
-    // Recent context gives topic awareness without pattern-matching prior student questions.
-    const contextSection =
-      recentMessages && recentMessages.length > 0
-        ? "Recent conversation context:\n" +
-          recentMessages
-            .map((m) => `${m.role === "assistant" ? "Tutor" : "Student"}: ${m.content.trim()}`)
-            .join("\n") +
-          "\n\n"
-        : "";
-    systemPrompt =
-      `You are a language learning coach helping a student practice ${languageLabel}. ` +
-      `When given a tutor's utterance, write a SHORT spoken reply the STUDENT would say — ` +
-      `directly responding to or answering what the tutor said. ` +
-      `Write in the native script of ${languageLabel} (never romanize unless it uses the Latin alphabet). ` +
-      `One short spoken phrase only.` +
-      supportClause;
-    userPrompt =
-      contextSection +
-      `The tutor just said: "${action.botUtterance.trim()}"\n` +
-      `Write the student's direct reply in ${languageLabel}.`;
-  }
+  // Bulb trigger — generate a reply the student can say to the tutor's last utterance.
+  // Recent context gives topic awareness without pattern-matching prior student questions.
+  const contextSection =
+    recentMessages && recentMessages.length > 0
+      ? "Recent conversation context:\n" +
+        recentMessages
+          .map((m) => `${m.role === "assistant" ? "Tutor" : "Student"}: ${m.content.trim()}`)
+          .join("\n") +
+        "\n\n"
+      : "";
+  const systemPrompt =
+    `You are a language learning coach helping a student practice ${languageLabel}. ` +
+    `When given a tutor's utterance, write a SHORT spoken reply the STUDENT would say — ` +
+    `directly responding to or answering what the tutor said. ` +
+    `Write in the native script of ${languageLabel} (never romanize unless it uses the Latin alphabet). ` +
+    `One short spoken phrase only.` +
+    supportClause;
+  const userPrompt =
+    contextSection +
+    `The tutor just said: "${action.botUtterance.trim()}"\n` +
+    `Write the student's direct reply in ${languageLabel}.`;
 
   const { object } = await generateObject({
     model,

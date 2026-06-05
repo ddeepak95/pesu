@@ -83,12 +83,7 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     requiredTasks: ["text_generation"],
     appFunctionKey: "text.suggested_response_generation",
     inputSchema: suggestedResponseActionInputSchema,
-    buildDirective: () =>
-      "SUGGESTED RESPONSE: Use this action ONLY when the learner explicitly asks how to say a specific phrase or idea in the target language " +
-      '— e.g. "how do I say I want tea?", "how do I ask for directions?", "what\'s the word for thank you?". ' +
-      "Do NOT trigger this when the learner is speaking naturally in the target language, practicing a phrase, reading back something they already have, or responding to the tutor. " +
-      'When triggered: set `speech` to an EMPTY STRING, `action.kind` to "suggested_response", `action.triggerKind` to "express", ' +
-      'and `action.botUtterance` to the phrase or idea they want to express (e.g. "I want tea").',
+    buildDirective: () => "",
     clientTrigger: {
       hiddenMessage:
         '[System] Provide a suggested response for your last spoken message. Set action.kind to "suggested_response", ' +
@@ -97,7 +92,6 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
       bulbForActivityTypes: ["speaking_practice"],
       bulbTooltip:
         "Get a suggested response — see a sample phrase you could say, with audio and translation",
-      autoAvailableForActivityTypes: ["speaking_practice"],
     },
   },
   mcq: {
