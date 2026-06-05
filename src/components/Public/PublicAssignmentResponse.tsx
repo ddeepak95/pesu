@@ -9,13 +9,6 @@ import {
   forwardRef,
 } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { createSubmission } from "@/lib/queries/submissions";
 import {
   fetchSubmissionByIdTracked,
@@ -25,7 +18,6 @@ import {
 } from "@/lib/swr/imperativeReads";
 import { Assignment } from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
-import { supportedLanguages } from "@/utils/supportedLanguages";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import ResponderDetailsForm from "./ResponderDetailsForm";
 import {
@@ -383,30 +375,6 @@ const PublicAssignmentResponse = forwardRef<
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Only show language selector if language is not locked */}
-            {!assignmentData.lock_language && (
-              <div className="space-y-2">
-                <label htmlFor="language" className="text-sm font-medium">
-                  Preferred Language
-                </label>
-                <Select
-                  value={preferredLanguage}
-                  onValueChange={setPreferredLanguage}
-                >
-                  <SelectTrigger id="language">
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {supportedLanguages.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {lang.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             <ResponderDetailsForm
               fields={responderFields}
               onSubmit={handleBeginAssignment}
