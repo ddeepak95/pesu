@@ -118,11 +118,13 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     appFunctionKey: "text.display_markdown",
     inputSchema: displayMarkdownActionInputSchema,
     buildDirective: () =>
-      "When you want to reference a specific function, variable, code block, or any formatted content from the " +
-      "student's submission, use the `display_markdown` action: set `action.kind` to \"display_markdown\", " +
-      "`action.content` to the exact markdown to show (e.g. a fenced code block), and optionally `action.title` " +
-      "to a short label (e.g. the function name). In your `speech`, refer to it as 'the code shown on screen' or " +
-      "'the snippet I've highlighted' — never read code syntax or markdown formatting aloud.",
+      "Use the `display_markdown` action when you want to highlight a specific function, variable, code block, " +
+      "or formatted content from the student's submission that you are actively discussing. Set `action.kind` " +
+      "to \"display_markdown\", `action.content` to the exact markdown (e.g. a fenced code block), and " +
+      "optionally `action.title` to a short label (e.g. the function name). In your `speech`, refer to it as " +
+      "'the code shown on screen' or 'the snippet I've highlighted' — never read code syntax or markdown " +
+      "formatting aloud. Do not use this action when wrapping up or closing the conversation — set `action` " +
+      "to null in those turns."+ "Be thoughtful about using this action and only use it when you are actively discussing a specific function, variable, code block, or formatted content from the student's submission.",
     clientTrigger: {
       hiddenMessage: "",
       autoAvailableForActivityTypes: ["code_review"],
