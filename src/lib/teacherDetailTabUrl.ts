@@ -26,3 +26,18 @@ export function resolveTeacherDetailTabParam(
   }
   return options.defaultTab;
 }
+
+export function buildTeacherSubmissionsUrl(
+  classId: string,
+  assignmentId: string
+): string {
+  return `/teacher/classes/${classId}/assignments/${assignmentId}/submissions`;
+}
+
+export function buildTeacherSubmissionDetailUrl(
+  classId: string,
+  assignmentId: string,
+  submissionId: string
+): string {
+  return `/teacher/classes/${classId}/assignments/${assignmentId}/submissions?id=${submissionId}`;
+}

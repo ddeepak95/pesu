@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
@@ -30,7 +30,9 @@ import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRem
 import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
-import SubmissionsTab from "@/components/Teacher/Assignments/SubmissionsTab";
+import { SubmissionsListSection } from "@/components/Teacher/Assignments/SubmissionsListSection";
+import { SubmissionContentPanel } from "@/components/Teacher/Assignments/SubmissionContentPanel";
+import { SubmissionGradingPanel } from "@/components/Teacher/Assignments/SubmissionGradingPanel";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
 import { Pill } from "@/components/ui/pill";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
@@ -50,7 +52,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
-import { useMaterialLinkedAcrossGroups } from "@/hooks/swr";
+import { invalidateSubmissionsCache, useMaterialLinkedAcrossGroups } from "@/hooks/swr";
 
 function CollapsibleSection({
   icon: Icon,
@@ -135,11 +137,68 @@ export default function AssignmentDetailClient({
   const setTab = (value: string) => {
     const current = new URLSearchParams(searchParams.toString());
     current.set("tab", value);
+    current.delete("id");
     router.replace(
       `/teacher/classes/${classId}/assignments/${assignmentId}?${current.toString()}`,
       { scroll: false }
     );
   };
+
+  // Submission detail view state.
+  // activeSubmissionId is local state — set immediately on interaction so the overlay
+  // appears without waiting for the Next.js router (RSC fetch) to complete.
+  const submissionIdFromUrl = searchParams.get("id") ?? null;
+  const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(
+    () => searchParams.get("tab") === "submissions" ? searchParams.get("id") : null
+  );
+  const [overlayOpen, setOverlayOpen] = useState(
+    () => searchParams.get("tab") === "submissions" && !!searchParams.get("id")
+  );
+
+  // Sync from URL changes caused by browser back/forward navigation.
+  // Intentionally excludes activeSubmissionId from deps to avoid a feedback loop.
+  useEffect(() => {
+    if (submissionIdFromUrl !== activeSubmissionId) {
+      setActiveSubmissionId(submissionIdFromUrl);
+      setOverlayOpen(activeTab === "submissions" && !!submissionIdFromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submissionIdFromUrl]);
+
+  const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
+  const [selectedAttemptNumber, setSelectedAttemptNumber] = useState<number | null>(null);
+
+  useEffect(() => {
+    setSelectedQuestionIndex(0);
+    setSelectedAttemptNumber(null);
+  }, [activeSubmissionId]);
+
+  // Opens overlay immediately then updates URL history entry in background.
+  const handleViewSubmission = (id: string) => {
+    setActiveSubmissionId(id);
+    setOverlayOpen(true);
+    const q = new URLSearchParams(searchParams.toString());
+    q.set("tab", "submissions");
+    q.set("id", id);
+    router.push(
+      `/teacher/classes/${classId}/assignments/${assignmentId}?${q.toString()}`
+    );
+  };
+
+  const handleCloseSubmission = () => {
+    setActiveSubmissionId(null);
+    setOverlayOpen(false);
+    const q = new URLSearchParams(searchParams.toString());
+    q.set("tab", "submissions");
+    q.delete("id");
+    window.history.replaceState(
+      null,
+      "",
+      `/teacher/classes/${classId}/assignments/${assignmentId}?${q.toString()}`
+    );
+  };
+
+  const isDetailView = overlayOpen && !!activeSubmissionId;
 
   const handleEdit = () => {
     const qs = searchParams.toString();
@@ -593,11 +652,12 @@ export default function AssignmentDetailClient({
             </TabsContent>
 
             <TabsContent value="submissions" className="py-6">
-              <SubmissionsTab
+              <SubmissionsListSection
                 assignmentId={assignmentData.assignment_id}
                 classId={classId}
                 isPublic={assignmentData.is_public}
                 classGroupId={placementGroupId}
+                onViewSubmission={handleViewSubmission}
               />
             </TabsContent>
           </Tabs>
@@ -611,6 +671,36 @@ export default function AssignmentDetailClient({
         classId={classId}
         isPublic={assignmentData.is_public}
       />
+
+      {/* Submission detail overlay — keeps SubmissionsListSection mounted underneath */}
+      {isDetailView && activeSubmissionId && (
+        <div className="fixed inset-0 z-50 flex overflow-hidden bg-background">
+          <div className="flex-[3] overflow-y-auto border-r p-6">
+            <SubmissionContentPanel
+              submissionId={activeSubmissionId}
+              assignmentId={assignmentId}
+              selectedQuestionIndex={selectedQuestionIndex}
+              selectedAttemptNumber={selectedAttemptNumber}
+              onIntegrityRestored={async () => {
+                await invalidateSubmissionsCache();
+              }}
+            />
+          </div>
+          <div className="flex-[2] overflow-y-auto p-6">
+            <SubmissionGradingPanel
+              submissionId={activeSubmissionId}
+              assignmentId={assignmentId}
+              classId={classId}
+              selectedQuestionIndex={selectedQuestionIndex}
+              onQuestionChange={setSelectedQuestionIndex}
+              selectedAttemptNumber={selectedAttemptNumber}
+              onAttemptChange={setSelectedAttemptNumber}
+              onNavigate={handleViewSubmission}
+              onClose={handleCloseSubmission}
+            />
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }
