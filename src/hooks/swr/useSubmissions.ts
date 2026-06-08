@@ -13,6 +13,16 @@ import {
   StudentSubmissionStatus,
 } from "@/lib/queries/submissions";
 import {
+  getChatMessages,
+  type ChatMessageRow,
+} from "@/lib/queries/chatMessages";
+import { getChatMessageActionsForMessages } from "@/lib/queries/chatMessageActions";
+import type { PendingAction } from "@/components/Shared/KonvoVoice/actionTypes";
+import {
+  getVoiceMessagesForAttempt,
+  type VoiceMessageRow,
+} from "@/lib/queries/voiceMessages";
+import {
   Submission,
   SubmissionAttempt,
   SubmissionTranscript,
@@ -52,6 +62,55 @@ export function usePublicSubmissionsForAssignment(assignmentId: string | null) {
   return useSWR<PublicSubmissionStatus[]>(
     assignmentId ? ["publicSubmissionsForAssignment", assignmentId] : null,
     () => getPublicSubmissionsByAssignment(assignmentId!)
+  );
+}
+
+/**
+ * Fetch all chat messages (student + assistant) for a single attempt.
+ * Pass `null` for any param to skip the fetch.
+ */
+export function useChatMessages(params: {
+  submissionId: string | null;
+  questionOrder: number | null;
+  attemptNumber: number | null;
+}) {
+  const { submissionId, questionOrder, attemptNumber } = params;
+  return useSWR<ChatMessageRow[]>(
+    submissionId && questionOrder !== null && attemptNumber !== null
+      ? ["chatMessages", submissionId, questionOrder, attemptNumber]
+      : null,
+    () => getChatMessages(submissionId!, questionOrder!, attemptNumber!),
+  );
+}
+
+/**
+ * Fetch all actions for a set of chat message IDs, keyed by chat_message_id.
+ * Pass an empty array (or wait until messages are loaded) to skip.
+ */
+export function useChatMessageActions(chatMessageIds: string[]) {
+  return useSWR<Record<string, PendingAction>>(
+    chatMessageIds.length > 0
+      ? ["chatMessageActions", ...chatMessageIds]
+      : null,
+    () => getChatMessageActionsForMessages(chatMessageIds),
+  );
+}
+
+/**
+ * Fetch all voice_messages rows (audio URLs) for a single attempt.
+ * Pass `null` for any param to skip the fetch.
+ */
+export function useVoiceMessagesForAttempt(params: {
+  submissionId: string | null;
+  questionOrder: number | null;
+  attemptNumber: number | null;
+}) {
+  const { submissionId, questionOrder, attemptNumber } = params;
+  return useSWR<VoiceMessageRow[]>(
+    submissionId && questionOrder !== null && attemptNumber !== null
+      ? ["voiceMessagesForAttempt", submissionId, questionOrder, attemptNumber]
+      : null,
+    () => getVoiceMessagesForAttempt(submissionId!, questionOrder!, attemptNumber!),
   );
 }
 

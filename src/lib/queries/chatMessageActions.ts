@@ -5,6 +5,8 @@ import type {
   ActionPayload,
   McqActionPayload,
 } from "@/lib/multimodal/actions/types";
+import { createClient } from "@/lib/supabase";
+import type { PendingAction } from "@/components/Shared/KonvoVoice/actionTypes";
 
 export interface InsertChatMessageActionInput {
   id: string;
@@ -52,6 +54,34 @@ export async function fetchLatestMcqPayload(
   if (error) throw error;
   const payload = data?.payload as McqActionPayload | undefined;
   return payload ?? null;
+}
+
+/**
+ * Fetch all actions for a set of chat message IDs, reconstructed as
+ * PendingAction objects (state: "ready") for read-only display.
+ */
+export async function getChatMessageActionsForMessages(
+  chatMessageIds: string[],
+): Promise<Record<string, PendingAction>> {
+  if (chatMessageIds.length === 0) return {};
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("chat_message_actions")
+    .select("id, chat_message_id, kind, payload, response")
+    .in("chat_message_id", chatMessageIds);
+  if (error) throw error;
+  const result: Record<string, PendingAction> = {};
+  for (const row of data ?? []) {
+    result[row.chat_message_id as string] = {
+      id: row.id as string,
+      kind: row.kind as ActionKind,
+      state: "ready",
+      payload: (row.payload as ActionPayload) ?? undefined,
+      answeredIndex: (row.response as { answeredIndex?: number } | null)
+        ?.answeredIndex,
+    };
+  }
+  return result;
 }
 
 /**

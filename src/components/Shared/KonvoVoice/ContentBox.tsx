@@ -36,6 +36,7 @@ interface ContentBoxProps {
   onReplayAudio?: (messageId: string) => void;
   playingMessageId?: string | null;
   ttsConfig?: TtsConfig;
+  readOnly?: boolean;
 }
 
 export function ContentBox({
@@ -52,6 +53,7 @@ export function ContentBox({
   onReplayAudio,
   playingMessageId,
   ttsConfig,
+  readOnly,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
@@ -187,6 +189,7 @@ export function ContentBox({
                     transliteration={transliterations?.[m.id]}
                     transliterationPending={Boolean(transliterationPending?.[m.id])}
                     onRequestTransliteration={() => onRequestTransliteration?.(m.id)}
+                    readOnly={readOnly}
                   />
                 );
               })}
@@ -252,6 +255,7 @@ interface MessageBubbleProps {
   transliteration?: TransliterationResult;
   transliterationPending?: boolean;
   onRequestTransliteration?: () => void;
+  readOnly?: boolean;
 }
 
 function MessageBubble({
@@ -266,6 +270,7 @@ function MessageBubble({
   transliteration,
   transliterationPending,
   onRequestTransliteration,
+  readOnly,
 }: MessageBubbleProps) {
   const isStudent = m.role === "student";
   const isStreaming = m.role === "assistant" && Boolean(m.streaming);
@@ -287,7 +292,7 @@ function MessageBubble({
             {isStudent ? "You" : "Konvo"}
           </div>
           <div className="flex items-center gap-1">
-            {!isStudent && !isStreaming && audioAvailable ? (
+            {!isStreaming && audioAvailable ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -303,30 +308,32 @@ function MessageBubble({
                 )}
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-auto px-0 text-sm font-normal text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
-              aria-label={expanded ? "Hide message" : "View message"}
-              aria-pressed={expanded}
-              onClick={onToggleExpanded}
-            >
-              {isStreaming ? (
-                <span className="inline-flex items-center gap-0.5 italic">
-                  Speaking
-                  {expanded ? (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  )}
-                </span>
-              ) : expanded ? (
-                "Hide message"
-              ) : (
-                "View message"
-              )}
-            </Button>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-0 text-sm font-normal text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+                aria-label={expanded ? "Hide message" : "View message"}
+                aria-pressed={expanded}
+                onClick={onToggleExpanded}
+              >
+                {isStreaming ? (
+                  <span className="inline-flex items-center gap-0.5 italic">
+                    Speaking
+                    {expanded ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                ) : expanded ? (
+                  "Hide message"
+                ) : (
+                  "View message"
+                )}
+              </Button>
+            )}
           </div>
         </div>
 

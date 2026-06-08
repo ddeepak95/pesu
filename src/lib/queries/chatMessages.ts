@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { createClient } from "@/lib/supabase";
 import type { AiConfigSource } from "@/types/aiSettings";
 
 export type ChatMessageRole = "student" | "assistant";
@@ -52,4 +53,27 @@ export async function insertChatMessage(
 
   if (error) throw error;
   return (data?.id as string) ?? null;
+}
+
+export interface ChatMessageRow {
+  id: string;
+  role: ChatMessageRole;
+  content: string;
+}
+
+export async function getChatMessages(
+  submissionId: string,
+  questionOrder: number,
+  attemptNumber: number,
+): Promise<ChatMessageRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("id, role, content")
+    .eq("submission_id", submissionId)
+    .eq("question_order", questionOrder)
+    .eq("attempt_number", attemptNumber)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ChatMessageRow[];
 }
