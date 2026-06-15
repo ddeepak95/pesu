@@ -31,7 +31,7 @@ const activities = [
     lightAccent: "#eaedfa",
     description:
       "Submit your code and answer oral exam questions dynamically generated from it by an AI examiner. Get instant feedback on your depth of understanding.",
-    sampleLink: "https://drive.google.com/file/d/1rGQcTShINZW023qhpyBWs8Kex4zAShhB/view?usp=sharing",
+    sampleLink: "/downloads/sample-palindrome",
     url: "/assignment/aBe-z78U",
   },
   {
@@ -88,8 +88,19 @@ export default function TryPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {activities.map(
-              ({ name, icon: Icon, accent, lightAccent, description, sampleLink, url }) => (
-                <Card key={name} className="h-full flex flex-col transition-shadow duration-200 hover:shadow-lg">
+              ({
+                name,
+                icon: Icon,
+                accent,
+                lightAccent,
+                description,
+                sampleLink,
+                url,
+              }) => (
+                <Card
+                  key={name}
+                  className="h-full flex flex-col transition-shadow duration-200 hover:shadow-lg"
+                >
                   <CardHeader className="flex-1">
                     <div
                       className="w-10 h-10 rounded-full flex items-center justify-center mb-3"
@@ -127,7 +138,9 @@ export default function TryPage() {
           </div>
 
           <p className="text-center text-sm text-muted-foreground mt-12">
-            ConvoEd is built to support any kind of conversational learning activity, from oral exams and Socratic dialogue to language practice, role-play, and beyond.
+            ConvoEd is built to support any kind of conversational learning
+            activity, from oral exams and Socratic dialogue to language
+            practice, role-play, and beyond.
           </p>
         </div>
       </main>
