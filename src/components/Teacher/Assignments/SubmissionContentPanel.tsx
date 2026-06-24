@@ -122,7 +122,9 @@ export function SubmissionContentPanel({
     for (const m of messages) {
       const action = actionsQuery.data?.[m.id];
       if (action && m.content) {
-        result.push({ ...m, action: undefined });
+        if (m.role === "assistant") {
+          result.push({ ...m, action: undefined });
+        }
         result.push({ ...m, id: `${m.id}-action`, content: "", action });
       } else {
         result.push({ ...m, action });

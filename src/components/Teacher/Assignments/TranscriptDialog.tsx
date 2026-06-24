@@ -78,8 +78,11 @@ export function TranscriptDialog({
       const action = actionsQuery.data?.[m.id];
       if (action && m.content) {
         // DB stores the action on the same message as the text. Split into two
-        // items to match the live-view structure ContentBox expects.
-        result.push({ ...m, action: undefined });
+        // items to match the live-view structure ContentBox expects. If the
+        // action is attached to a student row, avoid replaying that text.
+        if (m.role === "assistant") {
+          result.push({ ...m, action: undefined });
+        }
         result.push({ ...m, id: `${m.id}-action`, content: "", action });
       } else {
         result.push({ ...m, action });

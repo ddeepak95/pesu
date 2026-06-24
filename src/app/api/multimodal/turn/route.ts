@@ -263,10 +263,13 @@ export async function POST(request: NextRequest) {
     // In dual-transcript mode, we defer until the model resolves `userTranscript`.
     if (!dualTranscriptDescriptor) {
       try {
-        const studentMessages = messages.filter(
-          (m) => m.role === "student" && m.content?.trim() && !m.hidden,
-        );
-        const latestStudent = studentMessages[studentMessages.length - 1];
+        const latestMessage = messages[messages.length - 1];
+        const latestStudent =
+          latestMessage?.role === "student" &&
+          latestMessage.content?.trim() &&
+          !latestMessage.hidden
+            ? latestMessage
+            : null;
         if (latestStudent) {
           await insertChatMessage(supabase, {
             submission_id: submissionId ?? null,
