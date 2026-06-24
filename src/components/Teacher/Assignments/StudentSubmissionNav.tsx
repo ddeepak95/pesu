@@ -14,7 +14,8 @@ interface StudentSubmissionNavProps {
   submissionId: string;
   navigationItems: SubmissionNavItem[];
   onNavigate: (submissionId: string) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  showClose?: boolean;
 }
 
 export function StudentSubmissionNav({
@@ -22,6 +23,7 @@ export function StudentSubmissionNav({
   navigationItems,
   onNavigate,
   onClose,
+  showClose = true,
 }: StudentSubmissionNavProps) {
   const currentIndex = useMemo(
     () => navigationItems.findIndex((item) => item.submissionId === submissionId),
@@ -67,14 +69,16 @@ export function StudentSubmissionNav({
         <ChevronRight className="h-4 w-4" />
       </Button>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onClose}
-        aria-label="Close submission view"
-      >
-        <X className="h-4 w-4" />
-      </Button>
+      {showClose && onClose && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          aria-label="Close submission view"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }

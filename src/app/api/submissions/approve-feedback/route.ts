@@ -55,6 +55,14 @@ export async function POST(request: NextRequest) {
       [key: number]: QuestionEvaluations;
     };
 
+    const existingAttempt = evaluations[questionOrder]?.attempts.find(
+      (attempt) => attempt.attempt_number === attemptNumber
+    );
+    const shouldNotifyFeedbackAvailable =
+      existingAttempt?.feedback_approved === false &&
+      !existingAttempt.is_evaluating &&
+      !existingAttempt.stale;
+
     const updatedAttempt = approveAttemptInEvaluations(
       evaluations,
       questionOrder,
@@ -87,7 +95,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (submission.student_id && submission.assignment_id) {
+    if (
+      shouldNotifyFeedbackAvailable &&
+      submission.student_id &&
+      submission.assignment_id
+    ) {
       try {
         const { data: assignment } = await supabase
           .from("assignments")

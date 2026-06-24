@@ -4,6 +4,7 @@ import React from "react";
 import { ChevronDown, ChevronRight, Loader2, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCard, type TtsConfig } from "./ActionCard";
+import { cn } from "@/lib/utils";
 import type { PendingAction } from "./actionTypes";
 import type { TransliterationResult } from "@/lib/ai/schemas/transliteration";
 
@@ -37,6 +38,9 @@ interface ContentBoxProps {
   playingMessageId?: string | null;
   ttsConfig?: TtsConfig;
   readOnly?: boolean;
+  className?: string;
+  animateActions?: boolean;
+  autoScroll?: boolean;
 }
 
 export function ContentBox({
@@ -54,6 +58,9 @@ export function ContentBox({
   playingMessageId,
   ttsConfig,
   readOnly,
+  className,
+  animateActions = true,
+  autoScroll = true,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
@@ -85,6 +92,7 @@ export function ContentBox({
   }, [newMessageIds]);
 
   React.useLayoutEffect(() => {
+    if (!autoScroll) return;
     const count = messages?.length ?? 0;
     if (count === 0) {
       prevMessageCountRef.current = 0;
@@ -109,7 +117,7 @@ export function ContentBox({
     scrollToEnd();
     const raf = requestAnimationFrame(scrollToEnd);
     return () => cancelAnimationFrame(raf);
-  }, [messages]);
+  }, [autoScroll, messages]);
 
   return (
     <>
@@ -131,16 +139,15 @@ export function ContentBox({
         `}
       </style>
       <div
-        className="relative flex h-96 flex-col rounded-xl border border-border bg-muted/30 p-3 overflow-hidden
-                 bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.14)_1px,transparent_0)]
-                 bg-[length:18px_18px]
-                 dark:bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.20)_1px,transparent_0)]
-                 dark:bg-[length:18px_18px]"
+        className={cn(
+          "relative flex h-96 flex-col rounded-xl border border-border bg-muted/30 overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.14)_1px,transparent_0)] bg-[length:18px_18px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.20)_1px,transparent_0)] dark:bg-[length:18px_18px]",
+          className
+        )}
         style={{ backgroundColor: "rgba(161,98,7,0.06)" }}
       >
         <div
           ref={scrollRef}
-          className="relative min-h-0 flex-1 overflow-y-auto"
+          className="relative min-h-0 flex-1 overflow-y-auto p-4"
         >
           <div className="flex min-h-full flex-col">
             <div className="min-h-0 flex-1 shrink-0" aria-hidden />
@@ -153,13 +160,21 @@ export function ContentBox({
                     <div
                       key={m.id}
                       className="flex flex-row"
-                      style={{ animation: "konvoCardPop 480ms ease-out both" }}
+                      style={
+                        animateActions
+                          ? { animation: "konvoCardPop 480ms ease-out both" }
+                          : undefined
+                      }
                     >
                       <div
                         className="w-full max-w-[95%] rounded-xl sm:max-w-[85%]"
-                        style={{
-                          animation: "konvoCardRing 1100ms ease-out 220ms 1",
-                        }}
+                        style={
+                          animateActions
+                            ? {
+                                animation: "konvoCardRing 1100ms ease-out 220ms 1",
+                              }
+                            : undefined
+                        }
                       >
                         <ActionCard
                           action={m.action}

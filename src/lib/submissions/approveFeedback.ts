@@ -39,8 +39,16 @@ export function approveAttemptInEvaluations(
   if (attemptIndex === -1) return null;
 
   const existingAttempt = questionEvals.attempts[attemptIndex];
+  const editedScore =
+    edits?.rubric_scores !== undefined
+      ? edits.rubric_scores.reduce(
+          (total, rubricScore) => total + rubricScore.points_earned,
+          0
+        )
+      : existingAttempt.score;
   const updatedAttempt: SubmissionAttempt = {
     ...existingAttempt,
+    score: editedScore,
     ...(edits?.evaluation_feedback !== undefined && {
       evaluation_feedback: edits.evaluation_feedback,
     }),

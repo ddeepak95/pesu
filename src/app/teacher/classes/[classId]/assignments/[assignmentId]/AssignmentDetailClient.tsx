@@ -33,6 +33,11 @@ import { supportedLanguages } from "@/utils/supportedLanguages";
 import { SubmissionsListSection } from "@/components/Teacher/Assignments/SubmissionsListSection";
 import { SubmissionContentPanel } from "@/components/Teacher/Assignments/SubmissionContentPanel";
 import { SubmissionGradingPanel } from "@/components/Teacher/Assignments/SubmissionGradingPanel";
+import { SubmissionOverlayHeader } from "@/components/Teacher/Assignments/SubmissionOverlayHeader";
+import {
+  submissionOverlayClasses,
+  submissionOverlayGrainStyle,
+} from "@/components/Teacher/Assignments/submissionOverlayTheme";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
 import { Pill } from "@/components/ui/pill";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
@@ -199,6 +204,26 @@ export default function AssignmentDetailClient({
   };
 
   const isDetailView = overlayOpen && !!activeSubmissionId;
+
+  useEffect(() => {
+    if (!isDetailView) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousScrollbarGutter = html.style.scrollbarGutter;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.style.scrollbarGutter = "auto";
+
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      html.style.scrollbarGutter = previousScrollbarGutter;
+    };
+  }, [isDetailView]);
 
   const handleEdit = () => {
     const qs = searchParams.toString();
@@ -674,30 +699,41 @@ export default function AssignmentDetailClient({
 
       {/* Submission detail overlay — keeps SubmissionsListSection mounted underneath */}
       {isDetailView && activeSubmissionId && (
-        <div className="fixed inset-0 z-50 flex overflow-hidden bg-background">
-          <div className="flex-[3] overflow-y-auto border-r p-6">
-            <SubmissionContentPanel
-              submissionId={activeSubmissionId}
-              assignmentId={assignmentId}
-              selectedQuestionIndex={selectedQuestionIndex}
-              selectedAttemptNumber={selectedAttemptNumber}
-              onIntegrityRestored={async () => {
-                await invalidateSubmissionsCache();
-              }}
-            />
-          </div>
-          <div className="flex-[2] overflow-y-auto p-6">
-            <SubmissionGradingPanel
-              submissionId={activeSubmissionId}
-              assignmentId={assignmentId}
-              classId={classId}
-              selectedQuestionIndex={selectedQuestionIndex}
-              onQuestionChange={setSelectedQuestionIndex}
-              selectedAttemptNumber={selectedAttemptNumber}
-              onAttemptChange={setSelectedAttemptNumber}
-              onNavigate={handleViewSubmission}
-              onClose={handleCloseSubmission}
-            />
+        <div className={submissionOverlayClasses.shell}>
+          <div
+            aria-hidden="true"
+            className={submissionOverlayClasses.grain}
+            style={submissionOverlayGrainStyle}
+          />
+          <SubmissionOverlayHeader
+            submissionId={activeSubmissionId}
+            assignmentId={assignmentId}
+            classId={classId}
+            onNavigate={handleViewSubmission}
+            onClose={handleCloseSubmission}
+          />
+          <div className={submissionOverlayClasses.contentRow}>
+            <div className={submissionOverlayClasses.contentPane}>
+              <SubmissionContentPanel
+                submissionId={activeSubmissionId}
+                assignmentId={assignmentId}
+                selectedQuestionIndex={selectedQuestionIndex}
+                selectedAttemptNumber={selectedAttemptNumber}
+                onIntegrityRestored={async () => {
+                  await invalidateSubmissionsCache();
+                }}
+              />
+            </div>
+            <div className={submissionOverlayClasses.gradingPane}>
+              <SubmissionGradingPanel
+                submissionId={activeSubmissionId}
+                assignmentId={assignmentId}
+                selectedQuestionIndex={selectedQuestionIndex}
+                onQuestionChange={setSelectedQuestionIndex}
+                selectedAttemptNumber={selectedAttemptNumber}
+                onAttemptChange={setSelectedAttemptNumber}
+              />
+            </div>
           </div>
         </div>
       )}

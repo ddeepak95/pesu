@@ -10,20 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AttemptFeedbackView } from "@/components/Shared/AttemptFeedbackView";
-import { FeedbackApprovalEditor } from "@/components/Teacher/Assignments/FeedbackApprovalEditor";
-import {
-  StudentSubmissionNav,
-  type SubmissionNavItem,
-} from "@/components/Teacher/Assignments/StudentSubmissionNav";
+import { EditableAttemptGradingForm } from "@/components/Teacher/Assignments/EditableAttemptGradingForm";
 import { SubmissionAttempt } from "@/types/submission";
-import { getStudentDisplayName } from "@/lib/utils/displayName";
 import {
   useAssignmentByIdForTeacher,
-  useClassData,
-  usePublicSubmissionsForAssignment,
   useSubmissionById,
-  useSubmissionsForAssignment,
 } from "@/hooks/swr";
 
 function SkeletonLine({ className }: { className?: string }) {
@@ -32,78 +23,28 @@ function SkeletonLine({ className }: { className?: string }) {
   );
 }
 
-function getPublicLabel(
-  submission: {
-    submission_id: string;
-    responder_details?: { name?: string | null; email?: string | null } | null;
-  },
-  index: number
-): string {
-  const d = submission.responder_details;
-  return d?.name || d?.email || `Submission ${index + 1}`;
-}
-
 interface SubmissionGradingPanelProps {
   submissionId: string;
   assignmentId: string;
-  classId: string;
   selectedQuestionIndex: number;
   onQuestionChange: (index: number) => void;
   selectedAttemptNumber: number | null;
   onAttemptChange: (attemptNumber: number | null) => void;
-  onNavigate: (submissionId: string) => void;
-  onClose: () => void;
 }
 
 export function SubmissionGradingPanel({
   submissionId,
   assignmentId,
-  classId,
   selectedQuestionIndex,
   onQuestionChange,
   selectedAttemptNumber,
   onAttemptChange,
-  onNavigate,
-  onClose,
 }: SubmissionGradingPanelProps) {
   const assignmentQuery = useAssignmentByIdForTeacher(assignmentId);
   const fullSubmissionQuery = useSubmissionById(submissionId);
-  const classQuery = useClassData(classId);
-  const classDbId = classQuery.data?.id ?? null;
-
-  const submissionsQuery = useSubmissionsForAssignment({ assignmentId, classId: classDbId });
-  const publicSubmissionsQuery = usePublicSubmissionsForAssignment(assignmentId);
 
   const assignment = assignmentQuery.data ?? null;
   const fullSubmission = fullSubmissionQuery.data ?? null;
-  const classSubmissions = submissionsQuery.data ?? [];
-  const publicSubmissions = publicSubmissionsQuery.data ?? [];
-
-  // Navigation items — derived from cached submissions (instant)
-  const currentIsPublic = useMemo(
-    () => !classSubmissions.some((s) => s.submission?.submission_id === submissionId),
-    [classSubmissions, submissionId]
-  );
-
-  const navigationItems = useMemo<SubmissionNavItem[]>(() => {
-    if (currentIsPublic) {
-      return publicSubmissions
-        .filter((s) => s.submission !== null)
-        .map((s, i) => ({
-          submissionId: s.submission.submission_id,
-          label: getPublicLabel(s.submission, i),
-        }));
-    }
-    return [...classSubmissions]
-      .filter((s) => s.submission !== null)
-      .sort((a, b) =>
-        getStudentDisplayName(a.student).localeCompare(getStudentDisplayName(b.student))
-      )
-      .map((s) => ({
-        submissionId: s.submission!.submission_id,
-        label: getStudentDisplayName(s.student),
-      }));
-  }, [currentIsPublic, classSubmissions, publicSubmissions]);
 
   // Questions — from assignment (likely cached)
   const questions = useMemo(() => {
@@ -142,13 +83,29 @@ export function SubmissionGradingPanel({
   }, [currentAttempts]);
 
   useEffect(() => {
-    if (selectedAttemptNumber !== null) return;
-    if (localAttempts.length === 0) return;
-    const nonStale = localAttempts.filter((a) => !a.stale);
+    if (fullSubmissionQuery.isLoading) return;
+    if (localAttempts.length === 0) {
+      if (selectedAttemptNumber !== null) onAttemptChange(null);
+      return;
+    }
+    if (
+      selectedAttemptNumber !== null &&
+      localAttempts.some((attempt) => attempt.attempt_number === selectedAttemptNumber)
+    ) {
+      return;
+    }
+    const nonStale = localAttempts.filter((attempt) => !attempt.stale);
     const defaultAttempt =
-      nonStale.length > 0 ? nonStale[nonStale.length - 1] : localAttempts[localAttempts.length - 1];
+      nonStale.length > 0
+        ? nonStale[nonStale.length - 1]
+        : localAttempts[localAttempts.length - 1];
     onAttemptChange(defaultAttempt.attempt_number);
-  }, [selectedAttemptNumber, localAttempts, onAttemptChange]);
+  }, [
+    fullSubmissionQuery.isLoading,
+    selectedAttemptNumber,
+    localAttempts,
+    onAttemptChange,
+  ]);
 
   const currentAttempt =
     selectedAttemptNumber !== null
@@ -168,93 +125,86 @@ export function SubmissionGradingPanel({
 
   return (
     <div className="space-y-5">
+      <section className="space-y-4">
+        {/* Question nav header — appears when assignment loads */}
+        {assignmentLoading ? (
+          <div className="flex items-center justify-between">
+            <SkeletonLine className="h-5 w-24" />
+            <SkeletonLine className="h-5 w-16" />
+          </div>
+        ) : questions.length > 0 ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">
+                Question {selectedQuestionIndex + 1}
+              </span>
+              {isDynamic && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  Dynamic
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={selectedQuestionIndex <= 0}
+                onClick={() => onQuestionChange(selectedQuestionIndex - 1)}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span>{selectedQuestionIndex + 1}/{questions.length}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={selectedQuestionIndex >= questions.length - 1}
+                onClick={() => onQuestionChange(selectedQuestionIndex + 1)}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
-      {/* Student nav — instant (cached submissions) */}
-      <StudentSubmissionNav
-        submissionId={submissionId}
-        navigationItems={navigationItems}
-        onNavigate={onNavigate}
-        onClose={onClose}
-      />
+        {/* Question prompt — appears when assignment loads */}
+        {assignmentLoading ? (
+          <div className="space-y-2">
+            <SkeletonLine className="h-4 w-full" />
+            <SkeletonLine className="h-4 w-3/4" />
+          </div>
+        ) : currentQuestion ? (
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+            {currentQuestion.prompt}
+          </p>
+        ) : null}
 
-      {/* Attempt selector — appears when evaluation data arrives */}
-      {submissionLoading ? (
-        <SkeletonLine className="h-9 w-40" />
-      ) : localAttempts.length > 0 ? (
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium shrink-0">Attempt</span>
+        {/* Attempt selector — appears when evaluation data arrives */}
+        {submissionLoading ? (
+          <SkeletonLine className="h-9 w-40" />
+        ) : localAttempts.length > 0 ? (
           <Select
             value={selectedAttemptNumber?.toString() ?? ""}
-            onValueChange={(v) => onAttemptChange(v ? parseInt(v) : null)}
+            onValueChange={(value) => onAttemptChange(value ? parseInt(value) : null)}
           >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Select attempt" />
             </SelectTrigger>
             <SelectContent>
-              {localAttempts.map((a) => (
-                <SelectItem key={a.attempt_number} value={a.attempt_number.toString()}>
-                  Attempt {a.attempt_number}
-                  {a.stale ? " (stale)" : ""}
+              {localAttempts.map((attempt) => (
+                <SelectItem
+                  key={attempt.attempt_number}
+                  value={attempt.attempt_number.toString()}
+                >
+                  Attempt {attempt.attempt_number}
+                  {attempt.stale ? " (stale)" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-      ) : null}
-
-      {/* Question nav header — appears when assignment loads */}
-      {assignmentLoading ? (
-        <div className="flex items-center justify-between">
-          <SkeletonLine className="h-5 w-24" />
-          <SkeletonLine className="h-5 w-16" />
-        </div>
-      ) : questions.length > 0 ? (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">
-              Question {selectedQuestionIndex + 1}
-            </span>
-            {isDynamic && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                Dynamic
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={selectedQuestionIndex <= 0}
-              onClick={() => onQuestionChange(selectedQuestionIndex - 1)}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Button>
-            <span>{selectedQuestionIndex + 1}/{questions.length}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={selectedQuestionIndex >= questions.length - 1}
-              onClick={() => onQuestionChange(selectedQuestionIndex + 1)}
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Question prompt — appears when assignment loads */}
-      {assignmentLoading ? (
-        <div className="space-y-2">
-          <SkeletonLine className="h-4 w-full" />
-          <SkeletonLine className="h-4 w-3/4" />
-        </div>
-      ) : currentQuestion ? (
-        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-          {currentQuestion.prompt}
-        </p>
-      ) : null}
+        ) : null}
+      </section>
 
       {/* Rubric + feedback — appears when full submission loads */}
       {submissionLoading ? (
@@ -263,18 +213,12 @@ export function SubmissionGradingPanel({
           <SkeletonLine className="h-20 w-full" />
         </div>
       ) : currentAttempt ? (
-        <div className="space-y-3">
-          {currentAttempt.feedback_approved === false && !currentAttempt.is_evaluating ? (
-            <FeedbackApprovalEditor
-              attempt={currentAttempt}
-              submissionId={submissionId}
-              questionOrder={questionOrder!}
-              onApproved={handleAttemptUpdated}
-            />
-          ) : (
-            <AttemptFeedbackView attempt={currentAttempt} showScoreSummary />
-          )}
-        </div>
+        <EditableAttemptGradingForm
+          attempt={currentAttempt}
+          submissionId={submissionId}
+          questionOrder={questionOrder!}
+          onSaved={handleAttemptUpdated}
+        />
       ) : !submissionLoading && localAttempts.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">
           No attempts for this question yet.

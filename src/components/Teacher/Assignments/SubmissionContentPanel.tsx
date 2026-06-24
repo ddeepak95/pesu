@@ -175,10 +175,10 @@ export function SubmissionContentPanel({
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
       {/* Integrity banner — only when data available */}
       {fullSubmission?.integrity_access_revoked_at && (
-        <div className="mb-4">
+        <div className="m-6 mb-0">
           <SubmissionIntegrityLockBanner
             submissionId={fullSubmission.submission_id}
             revokedAt={fullSubmission.integrity_access_revoked_at}
@@ -192,19 +192,28 @@ export function SubmissionContentPanel({
       )}
 
       {/* Tabs render immediately; content loads progressively inside each tab */}
-      <Tabs defaultValue="conversation" className="flex-1 flex flex-col">
-        <TabsList className="mb-4 self-start">
-          <TabsTrigger value="conversation">Conversation</TabsTrigger>
+      <Tabs defaultValue="conversation" className="min-h-0 flex-1 flex flex-col">
+        <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
+          <TabsTrigger
+            value="conversation"
+            className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+          >
+            Conversation
+          </TabsTrigger>
           {/* Show File Submission tab: immediately if we know it exists, or show
               a placeholder tab while assignment loads (avoids layout shift) */}
           {(hasFileSubmission || assignmentQuery.isLoading) && (
-            <TabsTrigger value="files" disabled={assignmentQuery.isLoading}>
+            <TabsTrigger
+              value="files"
+              disabled={assignmentQuery.isLoading}
+              className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+            >
               File Submission
             </TabsTrigger>
           )}
         </TabsList>
 
-        <TabsContent value="conversation" className="flex-1">
+        <TabsContent value="conversation" className="mt-0 min-h-0 flex-1">
           {!showConversation ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               Select a question on the right to view its conversation.
@@ -228,12 +237,15 @@ export function SubmissionContentPanel({
               onReplayAudio={handleReplayAudio}
               playingMessageId={playingMessageId}
               readOnly={true}
+              animateActions={false}
+              autoScroll={false}
+              className="h-full rounded-none border-0"
             />
           )}
         </TabsContent>
 
         {(hasFileSubmission || assignmentQuery.isLoading) && (
-          <TabsContent value="files">
+          <TabsContent value="files" className="mt-0 p-6">
             {submissionFilesQuery.isLoading ? (
               <div className="space-y-2 pt-2">
                 <SkeletonLine className="h-12 w-full" />
