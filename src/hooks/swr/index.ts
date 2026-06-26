@@ -80,15 +80,18 @@ export {
 } from "./useContentCompletions";
 export { useStudentIdsPendingApprovalsByClass } from "./useStudentIdsPendingApprovalsByClass";
 export {
-  invalidateQuestionAttemptsCache,
+  invalidateQuestionAttemptsNormalizedCache,
   invalidateQuestionsWithAttemptsCache,
   invalidateSubmissionByIdCache,
+  invalidateSubmissionGradingCache,
   invalidateSubmissionsCache,
+  selectAttempt,
+  useSubmissionGrading,
   useChatMessageActions,
   useChatMessages,
   usePublicSubmissionsForAssignment,
   useVoiceMessagesForAttempt,
-  useQuestionAttempts,
+  useQuestionAttemptsNormalized,
   useQuestionsWithAttempts,
   useSubmissionById,
   useSubmissionByStudentAndAssignment,

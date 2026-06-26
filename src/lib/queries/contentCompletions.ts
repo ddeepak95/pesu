@@ -469,7 +469,8 @@ export async function getClassStudentContentCompletions(params: {
           .from("submissions")
           .select("assignment_id")
           .eq("student_id", studentId)
-          .eq("has_pending_approvals", true)
+          .eq("has_attempts", true)
+          .is("feedback_released_at", null)
           .in("assignment_id", submissionAssignmentPublicIds)
           .then(({ data, error }) => {
             if (error) throw error;

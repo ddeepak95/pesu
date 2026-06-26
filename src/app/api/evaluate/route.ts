@@ -1,10 +1,9 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import {
+  createServerSupabaseClient,
+  createServiceRoleClient,
+} from "@/lib/supabase-server";
 import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmissionNotIntegrityLocked";
-import { SubmissionAttempt, QuestionEvaluations } from "@/types/submission";
-import { computeDenormalizedFields } from "@/lib/queries/submissions";
-import { runBackgroundEvaluation } from "@/lib/backgroundEvaluation";
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
@@ -28,9 +27,9 @@ interface EvaluateRequestBody {
   shared_context?: string;
   custom_evaluation_prompt?: string;
   /**
-   * When true the route returns a stub attempt immediately and runs the LLM
-   * via `after()` so the student's connection is never held open for the LLM.
-   * When false/absent the LLM runs synchronously and a full attempt is returned.
+   * When true the AI grade is written as a tentative per-attempt result (held —
+   * not counted toward the submission total) until the teacher releases. When
+   * false/absent the attempt is released immediately and counts toward the grade.
    */
   feedback_requires_approval?: boolean;
 }
@@ -70,6 +69,9 @@ export async function POST(request: NextRequest) {
     const maxScore = rubric.reduce((sum, item) => sum + item.points, 0);
 
     const supabase = await createServerSupabaseClient();
+    // Service-role client for the normalized tables: attempt_ai_evaluations is
+    // teacher-only (RLS) and submitting students/public responders are not teachers.
+    const serviceClient = createServiceRoleClient();
 
     const integrityBlock = await assertSubmissionNotIntegrityLocked(
       supabase,
@@ -79,10 +81,10 @@ export async function POST(request: NextRequest) {
       return integrityBlock;
     }
 
-    // --- Fetch submission (needed by both paths) ---
+    // --- Fetch submission ---
     const { data: currentSubmission, error: fetchError } = await supabase
       .from("submissions")
-      .select("evaluations, submission_mode, assignment_id")
+      .select("submission_mode, assignment_id, feedback_released_at")
       .eq("submission_id", submissionId)
       .single();
 
@@ -134,26 +136,35 @@ export async function POST(request: NextRequest) {
     const evalModelConfig = evalResolved.config;
     const evalKeySource = evalResolved.keySource;
 
-    // Normalise evaluations (handle legacy array format)
-    let evaluations = currentSubmission.evaluations as
-      | { [key: number]: QuestionEvaluations }
-      | Array<{ question_order: number; answer_text: string }>;
+    // --- Resolve (or create) the normalized question row + next attempt number ---
+    const { data: questionRow, error: questionError } = await serviceClient
+      .from("submission_questions")
+      .upsert(
+        { submission_id: submissionId, question_order: questionOrder },
+        { onConflict: "submission_id,question_order" },
+      )
+      .select("id")
+      .single();
 
-    if (Array.isArray(evaluations)) {
-      const newEvals: { [key: number]: QuestionEvaluations } = {};
-      evaluations.forEach((a) => {
-        newEvals[a.question_order] = {
-          attempts: [],
-          selected_attempt: undefined,
-        };
-      });
-      evaluations = newEvals;
+    if (questionError || !questionRow) {
+      console.error("Error upserting submission_questions:", questionError);
+      return NextResponse.json(
+        { error: "Failed to prepare question" },
+        { status: 500 },
+      );
     }
+    const questionId = questionRow.id as string;
 
-    const questionEvals = evaluations[questionOrder] || { attempts: [] };
-    const attemptNumber = (questionEvals.attempts?.length || 0) + 1;
+    const { data: lastAttempt } = await serviceClient
+      .from("submission_attempts")
+      .select("attempt_number")
+      .eq("submission_question_id", questionId)
+      .order("attempt_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const attemptNumber = ((lastAttempt?.attempt_number as number) ?? 0) + 1;
 
-    // --- Save transcript (both paths need this before returning) ---
+    // --- Save transcript (and static_activity) keyed by attempt number ---
     const { error: transcriptError } = await supabase
       .from("submission_transcripts")
       .upsert(
@@ -169,7 +180,6 @@ export async function POST(request: NextRequest) {
       console.error("Error saving transcript:", transcriptError);
     }
 
-    // For static_text mode also write to static_activity
     if (currentSubmission.submission_mode === "static_text") {
       const { error: staticError } = await supabase
         .from("static_activity")
@@ -188,75 +198,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Approval path ─────────────────────────────────────────────────────────
-    if (feedbackRequiresApproval) {
-      const stubAttempt: SubmissionAttempt = {
-        attempt_number: attemptNumber,
-        score: 0,
-        max_score: maxScore,
-        rubric_scores: [],
-        evaluation_feedback: "",
-        timestamp: new Date().toISOString(),
-        feedback_approved: false,
-        is_evaluating: true,
-      };
-
-      questionEvals.attempts = [...(questionEvals.attempts || []), stubAttempt];
-      evaluations[questionOrder] = questionEvals;
-
-      const denormalized = computeDenormalizedFields(
-        evaluations as { [key: number]: QuestionEvaluations },
-      );
-
-      const { error: updateError } = await supabase
-        .from("submissions")
-        .update({
-          evaluations,
-          ...denormalized,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("submission_id", submissionId);
-
-      if (updateError) {
-        console.error("Error saving stub attempt:", {
-          message: updateError.message,
-          code: updateError.code,
-          details: updateError.details,
-          hint: updateError.hint,
-        });
-        return NextResponse.json(
-          { error: "Failed to save attempt" },
-          { status: 500 },
-        );
-      }
-
-      after(async () => {
-        try {
-          await runBackgroundEvaluation({
-            submissionId,
-            assignmentId,
-            classDbId,
-            questionOrder,
-            attemptNumber: stubAttempt.attempt_number,
-            answerText,
-            questionPrompt,
-            rubric,
-            language,
-            sharedContext,
-            customEvaluationPrompt,
-            activityType,
-            modelConfig: evalModelConfig,
-            keySource: evalKeySource,
-          });
-        } catch (err) {
-          console.error("Background evaluation failed:", err);
-        }
-      });
-
-      return NextResponse.json({ success: true, attempt: stubAttempt });
-    }
-
-    // ── Synchronous path (instant feedback) ───────────────────────────────────
+    // --- Synchronous evaluation (instant tentative-or-final feedback) ---
     console.log(
       "[evaluate] Using custom evaluation prompt:",
       !!customEvaluationPrompt,
@@ -286,59 +228,90 @@ export async function POST(request: NextRequest) {
         },
       });
 
-    const newAttempt: SubmissionAttempt = {
-      attempt_number: attemptNumber,
-      score: totalScore,
-      max_score: maxScore,
-      rubric_scores: validatedRubricScores,
-      evaluation_feedback: overallFeedback,
-      timestamp: new Date().toISOString(),
-    };
-
-    questionEvals.attempts = [...(questionEvals.attempts || []), newAttempt];
-
-    if (!questionEvals.selected_attempt) {
-      const bestAttempt = questionEvals.attempts.reduce((best, current) =>
-        current.score > best.score ? current : best,
-      );
-      questionEvals.selected_attempt = bestAttempt.attempt_number;
-    }
-
-    evaluations[questionOrder] = questionEvals;
-
-    const denormalized = computeDenormalizedFields(
-      evaluations as { [key: number]: QuestionEvaluations },
-    );
-
-    const { error: updateError } = await supabase
-      .from("submissions")
-      .update({
-        evaluations,
-        ...denormalized,
-        updated_at: new Date().toISOString(),
+    // --- Persist the attempt (displayable grade) + AI audit row ---
+    const { data: attemptRow, error: attemptError } = await serviceClient
+      .from("submission_attempts")
+      .insert({
+        submission_question_id: questionId,
+        attempt_number: attemptNumber,
+        max_score: maxScore,
+        stale: false,
+        score: totalScore,
+        feedback: overallFeedback,
+        rubric_scores: validatedRubricScores,
       })
-      .eq("submission_id", submissionId);
+      .select("id, created_at")
+      .single();
 
-    if (updateError) {
-      console.error("Error updating submission (evaluations save):", {
-        message: updateError.message,
-        code: updateError.code,
-        details: updateError.details,
-        hint: updateError.hint,
-      });
+    if (attemptError || !attemptRow) {
+      console.error("Error saving attempt:", attemptError);
       return NextResponse.json(
         { error: "Failed to save evaluation" },
         { status: 500 },
       );
     }
+    const attemptId = attemptRow.id as string;
+
+    const { error: aiError } = await serviceClient
+      .from("attempt_ai_evaluations")
+      .insert({
+        attempt_id: attemptId,
+        ai_score: totalScore,
+        ai_feedback: overallFeedback,
+        ai_rubric_scores: validatedRubricScores,
+        model_meta: modelMetaFromResolved(evalModelConfig, evalKeySource),
+      });
+    if (aiError) {
+      console.error("Error saving AI evaluation audit row:", aiError);
+    }
+
+    // --- Selection (default-last) + release branch ---
+    const isReleased = !feedbackRequiresApproval;
+    const questionUpdate: Record<string, unknown> = {
+      selected_attempt_id: attemptId,
+    };
+    // Approval off → released immediately: count this attempt toward the total.
+    if (isReleased) questionUpdate.released_score = totalScore;
+
+    const { error: selError } = await serviceClient
+      .from("submission_questions")
+      .update(questionUpdate)
+      .eq("id", questionId);
+    if (selError) {
+      console.error("Error updating selection/released_score:", selError);
+    }
+
+    if (isReleased && currentSubmission.feedback_released_at == null) {
+      const now = new Date().toISOString();
+      await serviceClient
+        .from("submissions")
+        .update({ feedback_released_at: now, updated_at: now })
+        .eq("submission_id", submissionId)
+        .is("feedback_released_at", null);
+    }
 
     console.log("Returning success response with attempt:", {
-      attemptNumber: newAttempt.attempt_number,
-      score: newAttempt.score,
-      maxScore: newAttempt.max_score,
+      attemptNumber,
+      score: totalScore,
+      maxScore,
+      released: isReleased,
     });
 
-    return NextResponse.json({ success: true, attempt: newAttempt });
+    return NextResponse.json({
+      success: true,
+      attempt: {
+        id: attemptId,
+        submission_question_id: questionId,
+        attempt_number: attemptNumber,
+        max_score: maxScore,
+        stale: false,
+        score: totalScore,
+        feedback: overallFeedback,
+        rubric_scores: validatedRubricScores,
+        created_at: attemptRow.created_at,
+        released: isReleased,
+      },
+    });
   } catch (error) {
     console.error("=== Evaluation error ===");
     console.error("Error:", error);

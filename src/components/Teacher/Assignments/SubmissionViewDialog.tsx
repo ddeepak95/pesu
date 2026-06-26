@@ -11,19 +11,12 @@ import {
   StudentSubmissionStatus,
   PublicSubmissionStatus,
 } from "@/lib/queries/submissions";
-import {
-  Submission,
-  QuestionEvaluations,
-  SubmissionAttempt,
-  SubmissionFile,
-} from "@/types/submission";
-import { Assignment, Question } from "@/types/assignment";
+import { SubmissionFile } from "@/types/submission";
 import { requestFileDownloadUrl } from "@/lib/queries/submissionFiles";
 import { showErrorToast } from "@/lib/toast";
 import { useState, useMemo } from "react";
 import { FileText, Info, Loader2 } from "lucide-react";
-import { SubmissionQuestionCard } from "./SubmissionQuestionCard";
-import { TranscriptDialog } from "./TranscriptDialog";
+import { SubmissionGradingPanel } from "./SubmissionGradingPanel";
 import { SubmissionDisplayName } from "./SubmissionDisplayName";
 import { SubmissionIntegrityLockBanner } from "@/components/Shared/Integrity/SubmissionIntegrityLockBanner";
 import {
@@ -49,58 +42,6 @@ function truncateFilename(name: string, max = 48): string {
   return `${base.slice(0, Math.max(4, keep))}…${ext}`;
 }
 
-function SubmissionQuestions({
-  assignment,
-  fullSubmission,
-  evaluations,
-  submissionId,
-  onViewTranscript,
-}: {
-  assignment: Assignment | null;
-  fullSubmission: Submission | null;
-  evaluations: { [key: number | string]: QuestionEvaluations };
-  submissionId: string;
-  onViewTranscript: (attempt: SubmissionAttempt, questionOrder: number) => void;
-}) {
-  const questions: Question[] = useMemo(() => {
-    if (!assignment) return [];
-    if (
-      assignment.dynamic_questions_enabled &&
-      fullSubmission?.generated_questions
-    ) {
-      return fullSubmission.generated_questions;
-    }
-    return assignment.questions;
-  }, [assignment, fullSubmission]);
-
-  if (questions.length === 0) return null;
-
-  return (
-    <div className="space-y-6">
-      {[...questions]
-        .sort((a, b) => a.order - b.order)
-        .map((question) => {
-          const questionEvals =
-            (evaluations[question.order] as QuestionEvaluations | undefined) ||
-            (evaluations[String(question.order)] as
-              | QuestionEvaluations
-              | undefined);
-
-          return (
-            <SubmissionQuestionCard
-              key={question.order}
-              questionOrder={question.order}
-              questionPrompt={question.prompt}
-              questionAnswers={questionEvals}
-              submissionId={submissionId}
-              onViewTranscript={onViewTranscript}
-            />
-          );
-        })}
-    </div>
-  );
-}
-
 interface SubmissionViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -115,19 +56,11 @@ export default function SubmissionViewDialog({
   studentSubmission,
   onIntegrityRestored,
 }: SubmissionViewDialogProps) {
-  const [transcriptDialogOpen, setTranscriptDialogOpen] = useState(false);
-  const [selectedAttempt, setSelectedAttempt] =
-    useState<SubmissionAttempt | null>(null);
-  const [selectedQuestionOrder, setSelectedQuestionOrder] = useState<
-    number | null
-  >(null);
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [attemptNumber, setAttemptNumber] = useState<number | null>(null);
 
-  // Get submission from either type (list view -- may not include evaluations JSONB)
-  const submission =
-    "student" in studentSubmission
-      ? studentSubmission.submission
-      : studentSubmission.submission;
+  const submission = studentSubmission.submission;
 
   const fetchKey = open && submission ? submission.submission_id : null;
   const assignmentKey = open && submission ? submission.assignment_id : null;
@@ -169,33 +102,9 @@ export default function SubmissionViewDialog({
     }
   };
 
-  const handleViewTranscript = (
-    attempt: SubmissionAttempt,
-    questionOrder: number,
-  ) => {
-    setSelectedAttempt(attempt);
-    setSelectedQuestionOrder(questionOrder);
-    setTranscriptDialogOpen(true);
-  };
-
-  const getSubmissionEvaluations = (submission: Submission) => {
-    if (!submission.evaluations) return {};
-
-    if (Array.isArray(submission.evaluations)) {
-      return {};
-    }
-
-    return submission.evaluations as {
-      [key: number | string]: QuestionEvaluations;
-    };
-  };
-
   if (!submission) {
     return null;
   }
-  const evaluations = fullSubmission
-    ? getSubmissionEvaluations(fullSubmission)
-    : {};
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -288,24 +197,17 @@ export default function SubmissionViewDialog({
                 </div>
               )}
 
-            <SubmissionQuestions
-              assignment={assignment}
-              fullSubmission={fullSubmission}
-              evaluations={evaluations}
+            <SubmissionGradingPanel
               submissionId={submission.submission_id}
-              onViewTranscript={handleViewTranscript}
+              assignmentId={submission.assignment_id}
+              selectedQuestionIndex={questionIndex}
+              onQuestionChange={setQuestionIndex}
+              selectedAttemptNumber={attemptNumber}
+              onAttemptChange={setAttemptNumber}
             />
           </div>
         )}
       </DialogContent>
-
-      <TranscriptDialog
-        open={transcriptDialogOpen}
-        onOpenChange={setTranscriptDialogOpen}
-        attempt={selectedAttempt}
-        questionOrder={selectedQuestionOrder}
-        submissionId={submission?.submission_id}
-      />
     </Dialog>
   );
 }

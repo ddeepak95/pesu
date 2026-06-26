@@ -1,7 +1,5 @@
 /**
- * Shared LLM evaluation helper used by both:
- *  - src/app/api/evaluate/route.ts  (synchronous path)
- *  - src/lib/backgroundEvaluation.ts  (background / after() path)
+ * Shared LLM evaluation helper used by src/app/api/evaluate/route.ts.
  *
  * Accepts an already-resolved LanguageModel so callers control which
  * provider and key are used (env defaults today; user config via BYOK later).

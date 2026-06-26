@@ -5,13 +5,7 @@ export interface StarRating {
   percentage: number;
 }
 
-// Legacy format - kept for backward compatibility
-export interface SubmissionAnswer {
-  question_order: number;
-  answer_text: string;
-}
-
-// New format with evaluation support
+// Rubric score (per rubric item) — shared by normalized attempts and AI audit.
 export interface RubricScore {
   item: string;
   points_earned: number;
@@ -19,32 +13,40 @@ export interface RubricScore {
   feedback: string;
 }
 
-export interface SubmissionAttempt {
-  attempt_number: number;
-  // answer_text removed -- now stored in submission_transcripts table
-  score: number;
-  max_score: number;
-  rubric_scores: RubricScore[];
-  evaluation_feedback: string;
-  timestamp: string;
-  stale?: boolean; // Marks attempt as stale when teacher resets attempts
-  /**
-   * Whether the teacher has approved this attempt's feedback for student viewing.
-   * Only present when the assignment has feedback_requires_approval = true.
-   * undefined/absent = approved (backward-compatible); false = pending approval.
-   */
-  feedback_approved?: boolean;
-  /**
-   * True while the background LLM evaluation is still running (two-step approval flow).
-   * The attempt exists in the DB as a stub; score and feedback are placeholders until
-   * the process step completes and sets this to false.
-   */
-  is_evaluating?: boolean;
+/**
+ * Normalized per-question row (one per question per submission).
+ * Mirrors the `submission_questions` table. `selected_attempt_id` drives the counted
+ * grade; `released_score` is null until the submission is released.
+ */
+export interface SubmissionQuestion {
+  id: string;
+  submission_id: string;
+  question_order: number;
+  selected_attempt_id: string | null;
+  released_score: number | null;
+  created_at: string;
 }
 
-export interface QuestionEvaluations {
-  attempts: SubmissionAttempt[];
-  selected_attempt?: number; // which attempt counts for final grade (default: best score)
+/**
+ * Normalized per-attempt row. Mirrors the `submission_attempts` table; the
+ * score/feedback/rubric_scores columns hold the *displayable* grade (AI tentative
+ * before release, teacher-final after).
+ *
+ * `released` is derived at read time from the parent submission's
+ * `feedback_released_at` (there is no stored per-attempt release column).
+ */
+export interface SubmissionAttempt {
+  id: string;
+  submission_question_id: string;
+  attempt_number: number;
+  max_score: number;
+  stale: boolean;
+  score: number | null;
+  feedback: string | null;
+  rubric_scores: RubricScore[] | null;
+  created_at: string;
+  /** Derived: parent submission.feedback_released_at != null. */
+  released: boolean;
 }
 
 /**
@@ -89,12 +91,6 @@ export interface Submission {
    */
   responder_details?: Record<string, string>;
   preferred_language: string;
-  /**
-   * Per-question evaluation data (scores, rubric, feedback).
-   * Transcripts are stored separately in submission_transcripts table.
-   * Renamed from 'answers' since it no longer contains answer text.
-   */
-  evaluations: { [question_order: number]: QuestionEvaluations } | SubmissionAnswer[];
   submitted_at: string;
   status: "in_progress" | "completed";
   /**
@@ -119,13 +115,15 @@ export interface Submission {
   highest_score: number;
   max_score: number;
   total_attempts: number;
+  /**
+   * Whole-submission release flag (normalized schema). null = held/tentative,
+   * set = released. Single source of truth for tentative-vs-final.
+   */
+  feedback_released_at?: string | null;
+  /** Σ released_score of released questions (trigger-maintained counted total). */
+  graded_score?: number;
   /** Number of questions with at least one non-stale attempt */
   questions_attempted_count?: number;
-  /**
-   * True when at least one attempt has feedback_approved = false and is_evaluating = false.
-   * Updated on every evaluate / approve write alongside other denormalized fields.
-   */
-  has_pending_approvals?: boolean;
   /**
    * Client-side activity metrics (optional JSON columns on submissions table)
    * - tab_leave_events: array of ISO timestamps when the student left the tab.

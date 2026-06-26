@@ -7,8 +7,6 @@ import {
   assignmentHasDynamicQuestionParts,
   teacherPromptOrFocus,
 } from "@/types/assignment";
-import { computeDenormalizedFields } from "@/lib/queries/submissions";
-import { QuestionEvaluations } from "@/types/submission";
 import {
   buildDefaultDynamicGenerationPrompt,
   formatQuestionsForDynamicGenerationPrompt,
@@ -341,17 +339,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (hasGeneratedQuestions && (force || !filesMatch)) {
-      const emptyEvals: Record<number, QuestionEvaluations> = {};
-      const denormalized = computeDenormalizedFields(emptyEvals);
+      // Files changed → regenerate questions and wipe prior answers. Deleting the
+      // normalized question rows cascades to attempts/ai-evals/reviews; the rollup
+      // trigger then zeroes the denormalized counters.
+      await supabase
+        .from("submission_questions")
+        .delete()
+        .eq("submission_id", submissionId);
 
       await supabase
         .from("submissions")
         .update({
-          evaluations: emptyEvals,
           generated_questions: null,
           generated_from_file_ids: null,
           questions_generated_at: null,
-          ...denormalized,
+          feedback_released_at: null,
           updated_at: new Date().toISOString(),
         })
         .eq("submission_id", submissionId);

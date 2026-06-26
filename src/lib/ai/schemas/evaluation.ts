@@ -1,6 +1,5 @@
 /**
- * JSON Schema for LLM evaluation output.
- * Used by both evaluate/route.ts (sync) and backgroundEvaluation.ts (async).
+ * JSON Schema for LLM evaluation output. Used by evaluate/route.ts.
  */
 
 import { jsonSchema } from "ai";

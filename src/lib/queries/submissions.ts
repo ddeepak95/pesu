@@ -1,9 +1,8 @@
 import { createClient } from "@/lib/supabase";
 import {
   Submission,
-  SubmissionAnswer,
-  SubmissionAttempt,
-  QuestionEvaluations,
+  SubmissionAttempt as NormalizedAttempt,
+  RubricScore,
   SubmissionTranscript,
 } from "@/types/submission";
 import { nanoid } from "nanoid";
@@ -13,7 +12,7 @@ import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
 /** All columns for the submissions table (includes evaluations JSONB and activity metrics — use SUBMISSION_LIST_COLUMNS for list views) */
 const SUBMISSION_ALL_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, evaluations, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids, questions_generated_at";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, feedback_released_at, graded_score, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids, questions_generated_at";
 
 /** Slim columns for session restore — excludes evaluations JSONB */
 const SUBMISSION_SESSION_RESTORE_COLUMNS =
@@ -30,58 +29,10 @@ function generateSubmissionId(): string {
   return nanoid(8); // 8 characters: e.g., "x7k9m2pq"
 }
 
-// ---------------------------------------------------------------------------
-// Denormalized-field helpers
-// ---------------------------------------------------------------------------
-
 /**
- * Compute denormalized summary fields from the evaluations JSONB.
- * Called on every write path that modifies attempts.
- */
-export function computeDenormalizedFields(evaluations: {
-  [key: number]: QuestionEvaluations;
-}): {
-  has_attempts: boolean;
-  highest_score: number;
-  max_score: number;
-  total_attempts: number;
-  questions_attempted_count: number;
-  has_pending_approvals: boolean;
-} {
-  let hasAttempts = false;
-  let highestScore = 0;
-  let maxScore = 0;
-  let totalAttempts = 0;
-  let questionsAttemptedCount = 0;
-  let hasPendingApprovals = false;
-
-  for (const qa of Object.values(evaluations)) {
-    const nonStale = (qa.attempts || []).filter((a) => !a.stale);
-    if (nonStale.length > 0) {
-      hasAttempts = true;
-      questionsAttemptedCount += 1;
-      totalAttempts += nonStale.length;
-      highestScore += Math.max(...nonStale.map((a) => a.score));
-      maxScore += nonStale[0].max_score;
-    }
-    if (nonStale.some((a) => a.feedback_approved === false && !a.is_evaluating)) {
-      hasPendingApprovals = true;
-    }
-  }
-
-  return {
-    has_attempts: hasAttempts,
-    highest_score: highestScore,
-    max_score: maxScore,
-    total_attempts: totalAttempts,
-    questions_attempted_count: questionsAttemptedCount,
-    has_pending_approvals: hasPendingApprovals,
-  };
-}
-
-/**
- * Students in `classDbId` with at least one formative assignment submission
- * where `has_pending_approvals` is true (narrow read — `student_id` only).
+ * Students in `classDbId` with at least one formative assignment submission that
+ * is held (has attempts but not yet released — awaiting teacher review/release).
+ * Narrow read — `student_id` only.
  */
 export async function getStudentIdsWithPendingApprovalsInClass(
   classDbId: string
@@ -100,7 +51,8 @@ export async function getStudentIdsWithPendingApprovalsInClass(
   const { data, error } = await supabase
     .from("submissions")
     .select("student_id")
-    .eq("has_pending_approvals", true)
+    .eq("has_attempts", true)
+    .is("feedback_released_at", null)
     .in("assignment_id", submissionAssignmentPublicIds);
 
   if (error) {
@@ -156,33 +108,15 @@ export async function getLatestTranscript(
 ): Promise<string | null> {
   const supabase = createClient();
 
-  // Resolve latest non-stale attempt first so reset/stale history is ignored.
-  const { data: submissionData, error: submissionError } = await supabase
-    .from("submissions")
-    .select("evaluations")
-    .eq("submission_id", submissionId)
-    .maybeSingle();
+  // Resolve latest non-stale attempt from the normalized tables.
+  const { attempts } = await getQuestionAttemptsNormalized(
+    submissionId,
+    questionOrder,
+    true,
+  );
+  if (attempts.length === 0) return null;
 
-  if (submissionError) {
-    console.error("Error fetching submission for latest transcript:", submissionError);
-    return null;
-  }
-
-  const rawEvaluations = submissionData?.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[]
-    | undefined;
-  if (!rawEvaluations) return null;
-
-  const evaluations = isNewFormat(rawEvaluations)
-    ? rawEvaluations
-    : convertToNewFormat(rawEvaluations);
-
-  const questionAttempts = evaluations[questionOrder]?.attempts ?? [];
-  const nonStaleAttempts = questionAttempts.filter((attempt) => !attempt.stale);
-  if (nonStaleAttempts.length === 0) return null;
-
-  const latestAttemptNumber = nonStaleAttempts.reduce(
+  const latestAttemptNumber = attempts.reduce(
     (latest, current) =>
       current.attempt_number > latest ? current.attempt_number : latest,
     0,
@@ -278,10 +212,9 @@ export async function createSubmission(
     assignment_id: assignmentId,
     preferred_language: preferredLanguage,
     submission_mode: submissionMode,
-    evaluations: {},
     status: "in_progress",
     responder_details: responderDetails,
-    // Denormalized defaults
+    // Denormalized defaults (rollups are otherwise trigger-maintained)
     has_attempts: false,
     highest_score: 0,
     max_score: 0,
@@ -427,47 +360,6 @@ export async function getSubmissionForSessionRestore(
 }
 
 // ---------------------------------------------------------------------------
-// Format helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Helper: Check if evaluations use new attempt-based format
- */
-function isNewFormat(
-  evaluations:
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[]
-): evaluations is { [key: number]: QuestionEvaluations } {
-  return !Array.isArray(evaluations);
-}
-
-/**
- * Helper: Convert old format to new format
- */
-function convertToNewFormat(
-  oldAnswers: SubmissionAnswer[]
-): { [key: number]: QuestionEvaluations } {
-  const newEvals: { [key: number]: QuestionEvaluations } = {};
-  oldAnswers.forEach((answer) => {
-    newEvals[answer.question_order] = {
-      attempts: [
-        {
-          attempt_number: 1,
-          score: 0,
-          max_score: 0,
-          rubric_scores: [],
-          evaluation_feedback: "",
-          timestamp: new Date().toISOString(),
-          stale: false,
-        },
-      ],
-      selected_attempt: 1,
-    };
-  });
-  return newEvals;
-}
-
-// ---------------------------------------------------------------------------
 // Attempt queries
 // ---------------------------------------------------------------------------
 
@@ -481,108 +373,244 @@ export async function getQuestionsWithAttempts(
   const supabase = createClient();
 
   const { data, error } = await supabase
-    .from("submissions")
-    .select("evaluations")
-    .eq("submission_id", submissionId)
-    .single();
+    .from("submission_questions")
+    .select(
+      "question_order, submission_attempts!submission_attempts_submission_question_id_fkey(stale)"
+    )
+    .eq("submission_id", submissionId);
 
-  if (error || !data?.evaluations) return new Set();
-
-  let evaluations = data.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
-
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
+  if (error || !data) return new Set();
 
   const result = new Set<number>();
-  for (const [key, qa] of Object.entries(evaluations)) {
-    if ((qa as QuestionEvaluations).attempts?.some((a) => !a.stale)) {
-      result.add(Number(key));
+  for (const q of data as {
+    question_order: number;
+    submission_attempts: { stale: boolean }[] | null;
+  }[]) {
+    if ((q.submission_attempts ?? []).some((a) => !a.stale)) {
+      result.add(q.question_order);
     }
   }
   return result;
 }
 
-/**
- * Get all attempts for a specific question
- * @param excludeStale - If true, filters out stale attempts (default: false)
- */
-function isNetworkError(err: unknown): boolean {
-  if (err instanceof TypeError && err.message === "Failed to fetch") return true;
-  if (err && typeof err === "object" && "message" in err)
-    return (err as { message?: string }).message === "Failed to fetch";
-  return false;
+// ---------------------------------------------------------------------------
+// Normalized attempt reads (submission_questions -> submission_attempts)
+// ---------------------------------------------------------------------------
+
+/** Raw shape of a submission_attempts row (DB column names). */
+interface RawAttemptRow {
+  id: string;
+  submission_question_id: string;
+  attempt_number: number;
+  max_score: number | string;
+  stale: boolean;
+  score: number | string | null;
+  feedback: string | null;
+  rubric_scores: RubricScore[] | null;
+  created_at: string;
 }
 
-export async function getQuestionAttempts(
+function mapAttemptRow(row: RawAttemptRow, released: boolean): NormalizedAttempt {
+  return {
+    id: row.id,
+    submission_question_id: row.submission_question_id,
+    attempt_number: row.attempt_number,
+    max_score: Number(row.max_score ?? 0),
+    stale: row.stale,
+    score: row.score == null ? null : Number(row.score),
+    feedback: row.feedback,
+    rubric_scores: row.rubric_scores ?? null,
+    created_at: row.created_at,
+    released,
+  };
+}
+
+export interface NormalizedQuestionAttempts {
+  attempts: NormalizedAttempt[];
+  /** FK of the attempt whose score counts (default = last non-stale). */
+  selectedAttemptId: string | null;
+  /** Derived from submission.feedback_released_at (whole-submission release flag). */
+  released: boolean;
+}
+
+/**
+ * Read a single question's attempts from the normalized tables (browser client).
+ * Each attempt carries a derived `released` flag (= submission.feedback_released_at
+ * is set). Tentative attempts (released === false on an approval-required assignment)
+ * still carry the AI grade — the UI shows them under a tentative banner.
+ */
+export async function getQuestionAttemptsNormalized(
   submissionId: string,
   questionOrder: number,
   excludeStale: boolean = false
-): Promise<SubmissionAttempt[]> {
+): Promise<NormalizedQuestionAttempts> {
   const supabase = createClient();
 
-  let data: { evaluations?: unknown } | null = null;
-  let error: { code?: string; message?: string; details?: unknown } | null = null;
+  const { data: sub } = await supabase
+    .from("submissions")
+    .select("feedback_released_at")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+  const released = sub?.feedback_released_at != null;
 
-  try {
-    const result = await supabase
-      .from("submissions")
-      .select("evaluations")
-      .eq("submission_id", submissionId)
-      .single();
-    data = result.data;
-    error = result.error;
-  } catch (thrown) {
-    if (isNetworkError(thrown)) {
-      console.warn(
-        "Could not fetch submission (network/connectivity). Returning no attempts.",
-        thrown instanceof Error ? thrown.message : String(thrown)
-      );
-      return [];
-    }
-    throw thrown;
-  }
+  const { data: question, error } = await supabase
+    .from("submission_questions")
+    .select(
+      "id, selected_attempt_id, submission_attempts!submission_attempts_submission_question_id_fkey(id, submission_question_id, attempt_number, max_score, stale, score, feedback, rubric_scores, created_at)"
+    )
+    .eq("submission_id", submissionId)
+    .eq("question_order", questionOrder)
+    .maybeSingle();
 
   if (error) {
     if (error.code === "PGRST116") {
-      return [];
+      return { attempts: [], selectedAttemptId: null, released };
     }
-    if (isNetworkError(error)) {
-      console.warn(
-        "Could not fetch submission (network/connectivity). Returning no attempts.",
-        error.message
-      );
-      return [];
-    }
-    console.error(
-      "Error fetching submission:",
-      error.message,
-      error.code,
-      error.details
-    );
+    console.error("Error fetching normalized question attempts:", error);
+    throw error;
+  }
+  if (!question) return { attempts: [], selectedAttemptId: null, released };
+
+  let rows = ((question.submission_attempts ?? []) as RawAttemptRow[]).slice();
+  if (excludeStale) rows = rows.filter((r) => !r.stale);
+  rows.sort((a, b) => a.attempt_number - b.attempt_number);
+
+  return {
+    attempts: rows.map((r) => mapAttemptRow(r, released)),
+    selectedAttemptId: (question.selected_attempt_id as string | null) ?? null,
+    released,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Teacher grading read (normalized; includes AI audit + review state)
+// ---------------------------------------------------------------------------
+
+export interface TeacherGradingAttempt {
+  id: string;
+  attempt_number: number;
+  max_score: number;
+  stale: boolean;
+  score: number | null;
+  feedback: string | null;
+  rubric_scores: RubricScore[] | null;
+  /** Original AI output (audit), for an optional "compare to AI" affordance. */
+  ai_score: number | null;
+  ai_feedback: string | null;
+  ai_rubric_scores: RubricScore[] | null;
+}
+
+export interface TeacherGradingQuestion {
+  id: string;
+  question_order: number;
+  selected_attempt_id: string | null;
+  released_score: number | null;
+  reviewed: boolean;
+  attempts: TeacherGradingAttempt[];
+}
+
+export interface SubmissionGrading {
+  released: boolean;
+  questions: TeacherGradingQuestion[];
+}
+
+interface RawTeacherAttemptRow {
+  id: string;
+  attempt_number: number;
+  max_score: number | string;
+  stale: boolean;
+  score: number | string | null;
+  feedback: string | null;
+  rubric_scores: RubricScore[] | null;
+  attempt_ai_evaluations:
+    | { ai_score: number | string | null; ai_feedback: string | null; ai_rubric_scores: RubricScore[] | null }
+    | { ai_score: number | string | null; ai_feedback: string | null; ai_rubric_scores: RubricScore[] | null }[]
+    | null;
+}
+
+interface RawTeacherQuestionRow {
+  id: string;
+  question_order: number;
+  selected_attempt_id: string | null;
+  released_score: number | string | null;
+  submission_attempts: RawTeacherAttemptRow[] | null;
+  submission_question_reviews: { id: string } | { id: string }[] | null;
+}
+
+function firstOrSelf<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+/**
+ * Read the full normalized grading state for a submission (teacher view): every
+ * question with its attempts, each attempt's displayable grade + original AI
+ * output, plus the selected attempt, per-question released score and review flag,
+ * and the whole-submission release state. Uses the teacher's session (RLS grants
+ * read access to the teacher-only AI/review tables).
+ */
+export async function getSubmissionGrading(
+  submissionId: string
+): Promise<SubmissionGrading> {
+  const supabase = createClient();
+
+  const { data: sub } = await supabase
+    .from("submissions")
+    .select("feedback_released_at")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+  const released = sub?.feedback_released_at != null;
+
+  const { data, error } = await supabase
+    .from("submission_questions")
+    .select(
+      "id, question_order, selected_attempt_id, released_score, " +
+        "submission_attempts!submission_attempts_submission_question_id_fkey(" +
+        "id, attempt_number, max_score, stale, score, feedback, rubric_scores, " +
+        "attempt_ai_evaluations(ai_score, ai_feedback, ai_rubric_scores)), " +
+        "submission_question_reviews(id)"
+    )
+    .eq("submission_id", submissionId)
+    .order("question_order", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching submission grading:", error);
     throw error;
   }
 
-  let evaluations = data?.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[]
-    | undefined;
+  const questions: TeacherGradingQuestion[] = (
+    (data ?? []) as unknown as RawTeacherQuestionRow[]
+  ).map((q) => {
+    const attempts = (q.submission_attempts ?? [])
+      .slice()
+      .sort((a, b) => a.attempt_number - b.attempt_number)
+      .map((a) => {
+        const ai = firstOrSelf(a.attempt_ai_evaluations);
+        return {
+          id: a.id,
+          attempt_number: a.attempt_number,
+          max_score: Number(a.max_score ?? 0),
+          stale: a.stale,
+          score: a.score == null ? null : Number(a.score),
+          feedback: a.feedback,
+          rubric_scores: a.rubric_scores ?? null,
+          ai_score: ai?.ai_score == null ? null : Number(ai.ai_score),
+          ai_feedback: ai?.ai_feedback ?? null,
+          ai_rubric_scores: ai?.ai_rubric_scores ?? null,
+        };
+      });
+    const review = firstOrSelf(q.submission_question_reviews);
+    return {
+      id: q.id,
+      question_order: q.question_order,
+      selected_attempt_id: q.selected_attempt_id,
+      released_score: q.released_score == null ? null : Number(q.released_score),
+      reviewed: review != null,
+      attempts,
+    };
+  });
 
-  if (evaluations == null) return [];
-
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
-
-  const attempts = evaluations[questionOrder]?.attempts || [];
-
-  if (excludeStale) {
-    return attempts.filter((attempt) => !attempt.stale);
-  }
-
-  return attempts;
+  return { released, questions };
 }
 
 
@@ -591,63 +619,73 @@ export async function getQuestionAttempts(
 // ---------------------------------------------------------------------------
 
 /**
- * Mark all attempts in a submission as stale
- * This allows students to start fresh while preserving history
+ * Reset a submission so the student can start fresh: mark every attempt stale,
+ * clear selection / released_score / review rows / the release flag, and return
+ * the submission to in_progress. History is preserved (attempts are kept, stale).
+ *
+ * Rollups (graded_score, max_score, total_attempts, …) are recomputed by the DB
+ * trigger as attempts/questions change; we only set the submission-level flags.
+ * Teacher-initiated (RLS allows the teacher to clear the teacher-only review rows).
  */
 export async function markAttemptsAsStale(
   submissionId: string
 ): Promise<void> {
   const supabase = createClient();
 
-  const { data: currentSubmission, error: fetchError } = await supabase
-    .from("submissions")
-    .select("evaluations")
-    .eq("submission_id", submissionId)
-    .single();
-
-  if (fetchError) {
-    console.error("Error fetching submission:", fetchError);
-    throw fetchError;
+  const { data: questions, error: qErr } = await supabase
+    .from("submission_questions")
+    .select("id")
+    .eq("submission_id", submissionId);
+  if (qErr) {
+    console.error("Error fetching questions for reset:", qErr);
+    throw qErr;
   }
 
-  let evaluations = currentSubmission.evaluations as
-    | { [key: number]: QuestionEvaluations }
-    | SubmissionAnswer[];
+  const questionIds = (questions ?? []).map((q) => q.id as string);
 
-  if (!isNewFormat(evaluations)) {
-    evaluations = convertToNewFormat(evaluations);
-  }
-
-  Object.values(evaluations).forEach((questionEvals) => {
-    const qa = questionEvals as QuestionEvaluations;
-    if (qa.attempts) {
-      qa.attempts.forEach((attempt) => {
-        // Reset should silently resolve pending approvals without notifying students.
-        // We do this inline instead of using the approval API (which creates notifications).
-        attempt.feedback_approved = true;
-        attempt.stale = true;
-      });
+  if (questionIds.length > 0) {
+    const { error: staleErr } = await supabase
+      .from("submission_attempts")
+      .update({ stale: true })
+      .in("submission_question_id", questionIds);
+    if (staleErr) {
+      console.error("Error marking attempts stale:", staleErr);
+      throw staleErr;
     }
-  });
+
+    const { error: reviewErr } = await supabase
+      .from("submission_question_reviews")
+      .delete()
+      .in("submission_question_id", questionIds);
+    if (reviewErr) {
+      console.error("Error clearing reviews on reset:", reviewErr);
+      throw reviewErr;
+    }
+
+    const { error: clearErr } = await supabase
+      .from("submission_questions")
+      .update({ selected_attempt_id: null, released_score: null })
+      .eq("submission_id", submissionId);
+    if (clearErr) {
+      console.error("Error clearing question selection/released_score:", clearErr);
+      throw clearErr;
+    }
+  }
 
   const { error } = await supabase
     .from("submissions")
     .update({
-      evaluations: evaluations,
-      has_attempts: false,
-      has_pending_approvals: false,
+      feedback_released_at: null,
       status: "in_progress",
       submitted_at: null,
+      // Legacy denormalized column still read by some list views until fully migrated.
       highest_score: 0,
-      max_score: 0,
-      total_attempts: 0,
-      questions_attempted_count: 0,
       updated_at: new Date().toISOString(),
     })
     .eq("submission_id", submissionId);
 
   if (error) {
-    console.error("Error marking attempts as stale:", error);
+    console.error("Error resetting submission:", error);
     throw error;
   }
 }
@@ -658,7 +696,7 @@ export async function markAttemptsAsStale(
 
 /** Columns to select for list views (excludes evaluations JSONB) */
 const SUBMISSION_LIST_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, has_pending_approvals, integrity_access_revoked_at, integrity_access_revoked_reason";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, feedback_released_at, graded_score, integrity_access_revoked_at, integrity_access_revoked_reason";
 
 /**
  * Student submission status for teacher view
@@ -673,8 +711,10 @@ export interface StudentSubmissionStatus {
   totalAttempts: number;
   /** Number of questions with at least one attempt (from denormalized column) */
   questionsAttemptedCount: number;
-  /** True when at least one attempt is awaiting teacher feedback approval */
-  hasPendingApprovals: boolean;
+  /** Whole-submission release state (feedback_released_at is set). */
+  released: boolean;
+  /** Counted total (Σ released_score). 0/“pending review” while unreleased. */
+  gradedScore?: number;
 }
 
 /**
@@ -689,8 +729,10 @@ export interface PublicSubmissionStatus {
   totalAttempts: number;
   /** Number of questions with at least one attempt (from denormalized column) */
   questionsAttemptedCount: number;
-  /** True when at least one attempt is awaiting teacher feedback approval */
-  hasPendingApprovals: boolean;
+  /** Whole-submission release state (feedback_released_at is set). */
+  released: boolean;
+  /** Counted total (Σ released_score). 0/“pending review” while unreleased. */
+  gradedScore?: number;
 }
 
 /**
@@ -744,7 +786,8 @@ export async function getSubmissionsByAssignmentWithStudents(
     let hasAttempts = false;
     let questionsAttemptedCount = 0;
 
-    let hasPendingApprovals = false;
+    let released = false;
+    let gradedScore: number | undefined;
 
     if (!submission) {
       status = "not_started";
@@ -755,7 +798,8 @@ export async function getSubmissionsByAssignmentWithStudents(
       highestScore = submission.highest_score;
       maxScore = submission.max_score;
       questionsAttemptedCount = submission.questions_attempted_count ?? 0;
-      hasPendingApprovals = submission.has_pending_approvals ?? false;
+      released = submission.feedback_released_at != null;
+      gradedScore = submission.graded_score ?? 0;
 
       // Completed only when submission is explicitly marked complete; otherwise in progress
       status =
@@ -771,7 +815,8 @@ export async function getSubmissionsByAssignmentWithStudents(
       maxScore,
       totalAttempts,
       questionsAttemptedCount,
-      hasPendingApprovals,
+      released,
+      gradedScore,
     };
   });
 
@@ -809,7 +854,8 @@ export async function getPublicSubmissionsByAssignment(
     const maxScore = submission.max_score;
     const questionsAttemptedCount =
       submission.questions_attempted_count ?? 0;
-    const hasPendingApprovals = submission.has_pending_approvals ?? false;
+    const released = submission.feedback_released_at != null;
+    const gradedScore = submission.graded_score ?? 0;
     // Completed only when submission is explicitly marked complete
     const status: "completed" | "started" =
       submission.status === "completed" ? "completed" : "started";
@@ -822,7 +868,8 @@ export async function getPublicSubmissionsByAssignment(
       maxScore,
       totalAttempts,
       questionsAttemptedCount,
-      hasPendingApprovals,
+      released,
+      gradedScore,
     };
   });
 

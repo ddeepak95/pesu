@@ -1,16 +1,19 @@
 import useSWR, { mutate } from "swr";
 import {
   getPublicSubmissionsByAssignment,
-  getQuestionAttempts,
+  getQuestionAttemptsNormalized,
   getQuestionsWithAttempts,
   getSubmissionById,
   getSubmissionByStudentAndAssignment,
   getSubmissionForSessionRestore,
+  getSubmissionGrading,
   getSubmissionsByAssignmentWithStudents,
   getTranscript,
   getTranscriptsForSubmission,
+  NormalizedQuestionAttempts,
   PublicSubmissionStatus,
   StudentSubmissionStatus,
+  SubmissionGrading,
 } from "@/lib/queries/submissions";
 import {
   getChatMessages,
@@ -24,7 +27,6 @@ import {
 } from "@/lib/queries/voiceMessages";
 import {
   Submission,
-  SubmissionAttempt,
   SubmissionTranscript,
 } from "@/types/submission";
 
@@ -180,32 +182,77 @@ export function useTranscriptsForSubmission(submissionId: string | null) {
 }
 
 /**
- * Fetch all attempts for a single question. `excludeStale` defaults to false
- * to match the underlying query default.
+ * Fetch a question's attempts from the normalized tables. Each attempt carries a
+ * derived `released` flag; the result also exposes the question's selected attempt
+ * id. This is the read path the student UI uses for tentative-vs-final feedback.
  */
-export function useQuestionAttempts(params: {
+export function useQuestionAttemptsNormalized(params: {
   submissionId: string | null;
   questionOrder: number | null;
   excludeStale?: boolean;
 }) {
   const { submissionId, questionOrder, excludeStale = false } = params;
-  return useSWR<SubmissionAttempt[]>(
+  return useSWR<NormalizedQuestionAttempts>(
     submissionId && questionOrder !== null
-      ? ["questionAttempts", submissionId, questionOrder, excludeStale]
+      ? ["questionAttemptsNormalized", submissionId, questionOrder, excludeStale]
       : null,
-    () => getQuestionAttempts(submissionId!, questionOrder!, excludeStale)
+    () => getQuestionAttemptsNormalized(submissionId!, questionOrder!, excludeStale)
   );
 }
 
 /**
- * Invalidate every cached `useQuestionAttempts` query for a submission.
+ * Invalidate every cached `useQuestionAttemptsNormalized` query for a submission.
+ * Call after submitting an attempt, changing the selected attempt, or release.
  */
-export function invalidateQuestionAttemptsCache(submissionId?: string) {
+export function invalidateQuestionAttemptsNormalizedCache(submissionId?: string) {
   return mutate(
     (key) =>
       Array.isArray(key) &&
       typeof key[0] === "string" &&
-      key[0] === "questionAttempts" &&
+      key[0] === "questionAttemptsNormalized" &&
+      (submissionId === undefined || key[1] === submissionId)
+  );
+}
+
+/**
+ * Change the selected (counted) attempt for a question and revalidate the
+ * normalized attempts cache. Used by the student attempt selector and teacher
+ * override. Returns the API response so callers can surface errors (e.g. frozen).
+ */
+export async function selectAttempt(params: {
+  submissionId: string;
+  questionOrder: number;
+  attemptNumber: number;
+}): Promise<Response> {
+  const res = await fetch("/api/submissions/select-attempt", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (res.ok) {
+    await invalidateQuestionAttemptsNormalizedCache(params.submissionId);
+  }
+  return res;
+}
+
+/**
+ * Teacher grading read for a submission: all questions/attempts with AI audit,
+ * selection, per-question released score + review flag, and release state.
+ */
+export function useSubmissionGrading(submissionId: string | null) {
+  return useSWR<SubmissionGrading>(
+    submissionId ? ["submissionGrading", submissionId] : null,
+    () => getSubmissionGrading(submissionId!)
+  );
+}
+
+/** Invalidate cached `useSubmissionGrading` for a submission (or all). */
+export function invalidateSubmissionGradingCache(submissionId?: string) {
+  return mutate(
+    (key) =>
+      Array.isArray(key) &&
+      typeof key[0] === "string" &&
+      key[0] === "submissionGrading" &&
       (submissionId === undefined || key[1] === submissionId)
   );
 }

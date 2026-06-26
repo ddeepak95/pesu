@@ -1,6 +1,6 @@
 "use client";
 
-import { SubmissionAttempt } from "@/types/submission";
+import type { RubricScore } from "@/types/submission";
 import { StarRatingDisplay } from "@/components/StarRatingDisplay";
 import {
   getScoreColor,
@@ -9,7 +9,10 @@ import {
 } from "@/lib/utils/scoreDisplay";
 
 export interface AttemptFeedbackViewProps {
-  attempt: SubmissionAttempt;
+  score: number;
+  maxScore: number;
+  feedback?: string | null;
+  rubricScores?: RubricScore[] | null;
   useStarDisplay?: boolean;
   starScale?: number;
   /** When true, shows score summary block (e.g. for student panel). Teacher row omits it. */
@@ -17,17 +20,17 @@ export interface AttemptFeedbackViewProps {
 }
 
 export function AttemptFeedbackView({
-  attempt,
+  score,
+  maxScore,
+  feedback,
+  rubricScores,
   useStarDisplay = false,
   starScale = 5,
   showScoreSummary = false,
 }: AttemptFeedbackViewProps) {
-  const scorePercentage =
-    attempt.max_score > 0 ? (attempt.score / attempt.max_score) * 100 : 0;
+  const scorePercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
 
-  const hasFeedback =
-    attempt.evaluation_feedback ||
-    (attempt.rubric_scores && attempt.rubric_scores.length > 0);
+  const hasFeedback = feedback || (rubricScores && rubricScores.length > 0);
 
   if (!hasFeedback && !showScoreSummary) {
     return null;
@@ -42,7 +45,7 @@ export function AttemptFeedbackView({
           <span
             className={`text-2xl font-bold ${getScoreColor(scorePercentage)}`}
           >
-            {attempt.score}/{attempt.max_score}
+            {score}/{maxScore}
           </span>
           <span className="text-sm ml-2 text-muted-foreground">
             ({Math.round(scorePercentage)}%)
@@ -50,20 +53,18 @@ export function AttemptFeedbackView({
         </div>
       )}
 
-      {attempt.evaluation_feedback && (
+      {feedback && (
         <div className="p-3 bg-muted/50 rounded-md">
-          <p className="text-sm whitespace-pre-wrap">
-            {attempt.evaluation_feedback}
-          </p>
+          <p className="text-sm whitespace-pre-wrap">{feedback}</p>
         </div>
       )}
 
-      {attempt.rubric_scores && attempt.rubric_scores.length > 0 && (
+      {rubricScores && rubricScores.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">
             Rubric Breakdown
           </p>
-          {attempt.rubric_scores.map((rubricItem, idx) => {
+          {rubricScores.map((rubricItem, idx) => {
             const itemPercentage =
               rubricItem.points_possible > 0
                 ? (rubricItem.points_earned / rubricItem.points_possible) * 100

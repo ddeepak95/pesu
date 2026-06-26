@@ -295,9 +295,9 @@ export default function SubmissionsTab({
               revokedAt={row.data?.integrityRevokedAt as string | undefined}
               reasonCode={row.data?.integrityRevokedReason as string | undefined}
             />
-            {!!(row.data?.hasPendingApprovals) && (
+            {!!(row.data?.pendingReview) && (
               <Pill purpose="pendingApproval" size="md">
-                Pending Approval
+                Pending review
               </Pill>
             )}
           </div>
@@ -381,10 +381,12 @@ export default function SubmissionsTab({
   // Build class students table rows
   const classRows: SubmissionsTableRow[] = useMemo(() => {
     return classSubmissions.map((item) => {
-      const scoreDisplay =
-        item.highestScore !== undefined && item.maxScore !== undefined
-          ? `${item.highestScore}/${item.maxScore}`
-          : "-";
+      const pendingReview = item.hasAttempts && !item.released;
+      const scoreDisplay = !item.hasAttempts
+        ? "-"
+        : !item.released
+          ? "Pending review"
+          : `${item.gradedScore ?? 0}/${item.maxScore ?? 0}`;
 
       return {
         id: item.student.student_id,
@@ -396,10 +398,10 @@ export default function SubmissionsTab({
         data: {
           status: item.status,
           scoreDisplay,
-          highestScore: item.highestScore,
+          highestScore: item.gradedScore,
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
-          hasPendingApprovals: item.hasPendingApprovals,
+          pendingReview,
           integrityRevokedAt: item.submission?.integrity_access_revoked_at,
           integrityRevokedReason: item.submission?.integrity_access_revoked_reason,
           _original: item,
@@ -421,9 +423,9 @@ export default function SubmissionsTab({
               revokedAt={row.data?.integrityRevokedAt as string | undefined}
               reasonCode={row.data?.integrityRevokedReason as string | undefined}
             />
-            {!!(row.data?.hasPendingApprovals) && (
+            {!!(row.data?.pendingReview) && (
               <Pill purpose="pendingApproval" size="md">
-                Pending Approval
+                Pending review
               </Pill>
             )}
           </div>
@@ -500,10 +502,12 @@ export default function SubmissionsTab({
   // Build public submissions table rows
   const publicRows: SubmissionsTableRow[] = useMemo(() => {
     return publicSubmissions.map((item) => {
-      const scoreDisplay =
-        item.highestScore !== undefined && item.maxScore !== undefined
-          ? `${item.highestScore}/${item.maxScore}`
-          : "-";
+      const pendingReview = item.hasAttempts && !item.released;
+      const scoreDisplay = !item.hasAttempts
+        ? "-"
+        : !item.released
+          ? "Pending review"
+          : `${item.gradedScore ?? 0}/${item.maxScore ?? 0}`;
 
       return {
         id: item.submission.submission_id,
@@ -512,10 +516,10 @@ export default function SubmissionsTab({
         data: {
           status: item.status,
           scoreDisplay,
-          highestScore: item.highestScore,
+          highestScore: item.gradedScore,
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
-          hasPendingApprovals: item.hasPendingApprovals,
+          pendingReview,
           integrityRevokedAt: item.submission.integrity_access_revoked_at,
           integrityRevokedReason: item.submission.integrity_access_revoked_reason,
           _original: item,
@@ -535,16 +539,17 @@ export default function SubmissionsTab({
     { value: "started", label: "In Progress" },
   ];
 
-  const pendingClassSubmissionCount = useMemo(
-    () => classSubmissions.filter((s) => s.hasPendingApprovals).length,
-    [classSubmissions]
-  );
-  const pendingPublicSubmissionCount = useMemo(
-    () => publicSubmissions.filter((s) => s.hasPendingApprovals).length,
-    [publicSubmissions]
-  );
-  const totalPendingSubmissionCount =
-    pendingClassSubmissionCount + pendingPublicSubmissionCount;
+  // Held = has attempts but not yet released (awaiting teacher review/release).
+  const heldSubmissionIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const s of classSubmissions)
+      if (s.hasAttempts && !s.released && s.submission)
+        ids.push(s.submission.submission_id);
+    for (const s of publicSubmissions)
+      if (s.hasAttempts && !s.released) ids.push(s.submission.submission_id);
+    return ids;
+  }, [classSubmissions, publicSubmissions]);
+  const totalPendingSubmissionCount = heldSubmissionIds.length;
 
   const showBulkApproveButton =
     !!assignment?.feedback_requires_approval &&
@@ -559,38 +564,37 @@ export default function SubmissionsTab({
   const handleBulkApprove = async () => {
     setBulkApproving(true);
     try {
-      const res = await fetch("/api/submissions/bulk-approve-feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignmentId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to approve pending feedback");
+      // Release each held submission. The review gate (409) skips any that are
+      // not fully reviewed — only fully-reviewed submissions are released.
+      let released = 0;
+      let skipped = 0;
+      for (const sid of heldSubmissionIds) {
+        const res = await fetch("/api/submissions/release", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ submissionId: sid }),
+        });
+        if (res.ok) released += 1;
+        else if (res.status === 409) skipped += 1;
+        else skipped += 1;
       }
       await invalidateSubmissionsCache();
 
-      const submissionCount =
-        (data.affectedSubmissionCount as number | undefined) ??
-        totalPendingSubmissionCount;
-      const attemptCount = data.approvedAttemptCount as number | undefined;
-      const submissionLabel =
-        submissionCount === 1 ? "submission" : "submissions";
-      const attemptSuffix =
-        attemptCount != null && attemptCount > 0
-          ? ` (${attemptCount} feedback ${attemptCount === 1 ? "item" : "items"})`
+      const releasedLabel = released === 1 ? "submission" : "submissions";
+      const skippedSuffix =
+        skipped > 0
+          ? ` ${skipped} skipped (not fully reviewed).`
           : "";
-
       showSuccessToast(
-        `Approved pending feedback for ${submissionCount} ${submissionLabel}${attemptSuffix}.`
+        `Released ${released} ${releasedLabel}.${skippedSuffix}`
       );
       handleBulkApproveDialogOpenChange(false);
     } catch (err) {
-      console.error("Bulk approve error:", err);
+      console.error("Release all error:", err);
       showErrorToast(
         err instanceof Error
           ? err.message
-          : "Failed to approve pending feedback. Please try again."
+          : "Failed to release submissions. Please try again."
       );
     } finally {
       setBulkApproving(false);
@@ -613,7 +617,7 @@ export default function SubmissionsTab({
             onClick={() => setBulkApproveDialogOpen(true)}
             className="shrink-0"
           >
-            {`Approve all pending (${totalPendingSubmissionCount})`}
+            {`Release all reviewed (${totalPendingSubmissionCount})`}
           </Button>
         )}
       </div>
@@ -696,15 +700,15 @@ export default function SubmissionsTab({
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Approve all pending feedback</DialogTitle>
+            <DialogTitle>Release all reviewed submissions</DialogTitle>
             <DialogDescription>
-              Approve pending feedback for{" "}
+              Release feedback for the{" "}
               <span className="font-medium text-foreground">
-                {totalPendingSubmissionCount} submission
+                {totalPendingSubmissionCount} held submission
                 {totalPendingSubmissionCount === 1 ? "" : "s"}
               </span>{" "}
-              on this assignment. Feedback will be published as the AI generated
-              it, without individual review.
+              on this assignment. Only submissions whose questions are all
+              reviewed will be released; the rest are skipped.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -724,10 +728,10 @@ export default function SubmissionsTab({
               {bulkApproving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Approving...
+                  Releasing...
                 </>
               ) : (
-                "Approve all"
+                "Release all"
               )}
             </Button>
           </DialogFooter>
@@ -740,7 +744,7 @@ export default function SubmissionsTab({
           onOpenChange={async (open) => {
             setViewDialogOpen(open);
             // Re-fetch the lightweight list when the dialog closes so the table
-            // badges (has_pending_approvals) reflect any approvals just made.
+            // badges (pending review / released) reflect any release just made.
             if (!open) {
               await invalidateSubmissionsCache();
             }

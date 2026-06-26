@@ -281,9 +281,9 @@ export function SubmissionsListSection({
                 row.data?.integrityRevokedReason as string | undefined
               }
             />
-            {!!(row.data?.hasPendingApprovals) && (
+            {!!(row.data?.pendingReview) && (
               <Pill purpose="pendingApproval" size="md">
-                Pending Approval
+                Pending review
               </Pill>
             )}
           </div>
@@ -366,10 +366,12 @@ export function SubmissionsListSection({
 
   const classRows: SubmissionsTableRow[] = useMemo(() => {
     return classSubmissions.map((item) => {
-      const scoreDisplay =
-        item.highestScore !== undefined && item.maxScore !== undefined
-          ? `${item.highestScore}/${item.maxScore}`
-          : "-";
+      const pendingReview = item.hasAttempts && !item.released;
+      const scoreDisplay = !item.hasAttempts
+        ? "-"
+        : !item.released
+          ? "Pending review"
+          : `${item.gradedScore ?? 0}/${item.maxScore ?? 0}`;
       return {
         id: item.student.student_id,
         name: getStudentDisplayName(item.student),
@@ -380,10 +382,10 @@ export function SubmissionsListSection({
         data: {
           status: item.status,
           scoreDisplay,
-          highestScore: item.highestScore,
+          highestScore: item.gradedScore,
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
-          hasPendingApprovals: item.hasPendingApprovals,
+          pendingReview,
           integrityRevokedAt: item.submission?.integrity_access_revoked_at,
           integrityRevokedReason:
             item.submission?.integrity_access_revoked_reason,
@@ -409,9 +411,9 @@ export function SubmissionsListSection({
                 row.data?.integrityRevokedReason as string | undefined
               }
             />
-            {!!(row.data?.hasPendingApprovals) && (
+            {!!(row.data?.pendingReview) && (
               <Pill purpose="pendingApproval" size="md">
-                Pending Approval
+                Pending review
               </Pill>
             )}
           </div>
@@ -487,10 +489,12 @@ export function SubmissionsListSection({
 
   const publicRows: SubmissionsTableRow[] = useMemo(() => {
     return publicSubmissions.map((item) => {
-      const scoreDisplay =
-        item.highestScore !== undefined && item.maxScore !== undefined
-          ? `${item.highestScore}/${item.maxScore}`
-          : "-";
+      const pendingReview = item.hasAttempts && !item.released;
+      const scoreDisplay = !item.hasAttempts
+        ? "-"
+        : !item.released
+          ? "Pending review"
+          : `${item.gradedScore ?? 0}/${item.maxScore ?? 0}`;
       return {
         id: item.submission.submission_id,
         name: getPublicResponderDisplayName(item.submission),
@@ -498,10 +502,10 @@ export function SubmissionsListSection({
         data: {
           status: item.status,
           scoreDisplay,
-          highestScore: item.highestScore,
+          highestScore: item.gradedScore,
           totalAttempts: item.totalAttempts,
           questionsAttemptedCount: item.questionsAttemptedCount,
-          hasPendingApprovals: item.hasPendingApprovals,
+          pendingReview,
           integrityRevokedAt: item.submission.integrity_access_revoked_at,
           integrityRevokedReason:
             item.submission.integrity_access_revoked_reason,
@@ -521,15 +525,16 @@ export function SubmissionsListSection({
     { value: "started", label: "In Progress" },
   ];
 
-  const pendingClassCount = useMemo(
-    () => classSubmissions.filter((s) => s.hasPendingApprovals).length,
-    [classSubmissions]
-  );
-  const pendingPublicCount = useMemo(
-    () => publicSubmissions.filter((s) => s.hasPendingApprovals).length,
-    [publicSubmissions]
-  );
-  const totalPendingCount = pendingClassCount + pendingPublicCount;
+  const heldSubmissionIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const s of classSubmissions)
+      if (s.hasAttempts && !s.released && s.submission)
+        ids.push(s.submission.submission_id);
+    for (const s of publicSubmissions)
+      if (s.hasAttempts && !s.released) ids.push(s.submission.submission_id);
+    return ids;
+  }, [classSubmissions, publicSubmissions]);
+  const totalPendingCount = heldSubmissionIds.length;
 
   const showBulkApproveButton =
     !!assignment?.feedback_requires_approval &&
@@ -544,35 +549,32 @@ export function SubmissionsListSection({
   const handleBulkApprove = async () => {
     setBulkApproving(true);
     try {
-      const res = await fetch("/api/submissions/bulk-approve-feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignmentId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to approve pending feedback");
+      // Release each held submission; the review gate (409) skips any that are
+      // not fully reviewed.
+      let released = 0;
+      let skipped = 0;
+      for (const sid of heldSubmissionIds) {
+        const res = await fetch("/api/submissions/release", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ submissionId: sid }),
+        });
+        if (res.ok) released += 1;
+        else skipped += 1;
       }
       await invalidateSubmissionsCache();
 
-      const submissionCount =
-        (data.affectedSubmissionCount as number | undefined) ?? totalPendingCount;
-      const attemptCount = data.approvedAttemptCount as number | undefined;
-      const submissionLabel = submissionCount === 1 ? "submission" : "submissions";
-      const attemptSuffix =
-        attemptCount != null && attemptCount > 0
-          ? ` (${attemptCount} feedback ${attemptCount === 1 ? "item" : "items"})`
-          : "";
-      showSuccessToast(
-        `Approved pending feedback for ${submissionCount} ${submissionLabel}${attemptSuffix}.`
-      );
+      const releasedLabel = released === 1 ? "submission" : "submissions";
+      const skippedSuffix =
+        skipped > 0 ? ` ${skipped} skipped (not fully reviewed).` : "";
+      showSuccessToast(`Released ${released} ${releasedLabel}.${skippedSuffix}`);
       handleBulkApproveDialogOpenChange(false);
     } catch (err) {
-      console.error("Bulk approve error:", err);
+      console.error("Release all error:", err);
       showErrorToast(
         err instanceof Error
           ? err.message
-          : "Failed to approve pending feedback. Please try again."
+          : "Failed to release submissions. Please try again."
       );
     } finally {
       setBulkApproving(false);
@@ -595,7 +597,7 @@ export function SubmissionsListSection({
             onClick={() => setBulkApproveDialogOpen(true)}
             className="shrink-0"
           >
-            {`Approve all pending (${totalPendingCount})`}
+            {`Release all reviewed (${totalPendingCount})`}
           </Button>
         )}
       </div>
@@ -678,15 +680,15 @@ export function SubmissionsListSection({
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Approve all pending feedback</DialogTitle>
+            <DialogTitle>Release all reviewed submissions</DialogTitle>
             <DialogDescription>
-              Approve pending feedback for{" "}
+              Release feedback for the{" "}
               <span className="font-medium text-foreground">
-                {totalPendingCount} submission
+                {totalPendingCount} held submission
                 {totalPendingCount === 1 ? "" : "s"}
               </span>{" "}
-              on this assignment. Feedback will be published as the AI generated
-              it, without individual review.
+              on this assignment. Only submissions whose questions are all
+              reviewed will be released; the rest are skipped.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -706,10 +708,10 @@ export function SubmissionsListSection({
               {bulkApproving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Approving...
+                  Releasing...
                 </>
               ) : (
-                "Approve all"
+                "Release all"
               )}
             </Button>
           </DialogFooter>

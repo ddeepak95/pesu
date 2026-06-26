@@ -3,7 +3,7 @@
 import React, { useCallback, useRef } from "react";
 import { Question, BotPromptConfig } from "@/types/assignment";
 import { SubmissionAttempt } from "@/types/submission";
-import { useQuestionAttempts } from "@/hooks/swr";
+import { useQuestionAttemptsNormalized, selectAttempt } from "@/hooks/swr";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { AssessmentQuestionHeader } from "@/components/Shared/AssessmentQuestionHeader";
@@ -14,14 +14,13 @@ import {
 } from "@/components/Shared/AssessmentNavigation";
 import { QuestionCompletionPanel } from "@/components/Shared/QuestionCompletionPanel";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { VoiceInputArea } from "@/components/Shared/AssessmentInputs/VoiceInputArea";
 import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputArea";
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
 import { MultimodalInputArea } from "@/components/Shared/AssessmentInputs/MultimodalInputArea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { FeedbackPendingBanner } from "@/components/Shared/FeedbackPendingBanner";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext";
 import { getLocaleLabel } from "@/lib/locales";
@@ -148,22 +147,22 @@ export function AssessmentShell({
   const [showCompletion, setShowCompletion] = React.useState(false);
   const [languageDisabled, setLanguageDisabled] = React.useState(false);
   const [navigationDisabled, setNavigationDisabled] = React.useState(false);
-  // When feedback requires approval, flip this true immediately on submit so the
-  // student sees the pending view right away instead of watching the evaluating spinner.
-  const [submittingForApproval, setSubmittingForApproval] = React.useState(false);
   const navigationRef = useRef<AssessmentNavigationHandle>(null);
 
-  // Existing attempts for this question. Driven by SWR so the global
-  // overlay covers the load and the cache is shared across remounts.
-  const attemptsQuery = useQuestionAttempts({
+  // Existing attempts for this question (normalized read). Driven by SWR so the
+  // global overlay covers the load and the cache is shared across remounts.
+  const attemptsQuery = useQuestionAttemptsNormalized({
     submissionId,
     questionOrder: question.order,
     excludeStale: true,
   });
   const attempts = React.useMemo(
-    () => attemptsQuery.data ?? [],
+    () => attemptsQuery.data?.attempts ?? [],
     [attemptsQuery.data]
   );
+  const selectedAttemptId = attemptsQuery.data?.selectedAttemptId ?? null;
+  // The whole-submission release flag (drives tentative-vs-final per attempt).
+  const released = attemptsQuery.data?.released ?? false;
   const isLoadingAttempts = attemptsQuery.isLoading;
 
   // When SWR returns attempts, ensure the completion panel reflects them.
@@ -325,18 +324,13 @@ export function AssessmentShell({
 
       logEvent("submit_clicked");
 
-      if (feedbackRequiresApproval) {
-        // Show pending screen immediately — student won't watch LLM spinner
-        setSubmittingForApproval(true);
-      }
       setIsEvaluating(true);
 
       try {
         const interpolatedEvalPrompt = buildEvaluationPrompt(answerText);
 
-        // Single call for both modes. When feedback_requires_approval is true
-        // the route saves a stub, schedules the LLM via after(), and returns
-        // immediately — so isEvaluating clears fast and navigation is unblocked.
+        // Synchronous evaluation: the route persists the attempt (tentative when
+        // approval is required, released otherwise) and returns the full attempt.
         const response = await fetch("/api/evaluate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -364,21 +358,22 @@ export function AssessmentShell({
         const newAttempt = result.attempt as SubmissionAttempt;
         if (!newAttempt) throw new Error("No attempt data received from evaluation API");
 
+        // Optimistically append the new attempt; default selection = last (this one).
         attemptsQuery.mutate(
-          (prev) => [...(prev ?? []), newAttempt],
+          (prev) => ({
+            attempts: [...(prev?.attempts ?? []), newAttempt],
+            selectedAttemptId: newAttempt.id,
+            released: newAttempt.released,
+          }),
           false
         );
-        setSubmittingForApproval(false);
+        // Revalidate from the DB so the persisted state is authoritative.
+        attemptsQuery.mutate();
         setShowCompletion(true);
-        if (feedbackRequiresApproval) {
-          // Unblock navigation immediately — LLM is running server-side
-          setIsEvaluating(false);
-        }
         onAnswerSave(answerText);
         logEvent("attempt_ended");
         onAttemptCreated?.();
       } catch (error) {
-        setSubmittingForApproval(false);
         console.error("Error evaluating answer:", error);
         showErrorToast(
           `Failed to evaluate your answer: ${
@@ -419,7 +414,6 @@ export function AssessmentShell({
   const tabTrackingInputsActive =
     !isComplete &&
     !isLoadingAttempts &&
-    !submittingForApproval &&
     !(showCompletion && latestAttempt) &&
     !isEvaluating;
 
@@ -429,9 +423,30 @@ export function AssessmentShell({
       onTabTrackingActiveChange?.(false);
     };
   }, [tabTrackingInputsActive, onTabTrackingActiveChange]);
-  // Feedback is pending when the latest attempt explicitly has feedback_approved = false.
-  // undefined/absent means approved (instant feedback or legacy attempt).
-  const feedbackApprovalPending = latestAttempt?.feedback_approved === false;
+
+  // An attempt's grade is tentative when the assignment requires approval and the
+  // submission has not been released. The score/feedback are shown openly with a
+  // tentative banner; this is persisted, so it survives leaving and returning.
+  const tentative = feedbackRequiresApproval && !released;
+
+  // Selection: the student may change the counted attempt only before they finish.
+  const selectionEditable = !isComplete;
+  const selectedAttemptNumber =
+    attempts.find((a) => a.id === selectedAttemptId)?.attempt_number ?? null;
+  const handleSelectAttempt = React.useCallback(
+    (attemptNumber: number) => {
+      void selectAttempt({
+        submissionId,
+        questionOrder: question.order,
+        attemptNumber,
+      }).then((res) => {
+        if (!res.ok) {
+          showErrorToast("Could not change the selected attempt.");
+        }
+      });
+    },
+    [submissionId, question.order],
+  );
 
   const inputProps = {
     question,
@@ -508,19 +523,13 @@ export function AssessmentShell({
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Loading...</p>
             </div>
-          ) : submittingForApproval ? (
-            <div className="flex flex-col items-center gap-5 py-8">
-              <div className="flex items-center gap-1">
-                <p className="text-base">Answer submitted</p>
-                <CheckCircle2 className="text-green-500 size-4" />
-              </div>
-              <div className="w-full max-w-xl">
-                <FeedbackPendingBanner />
-              </div>
-            </div>
           ) : showCompletion && latestAttempt ? (
             <QuestionCompletionPanel
               attempt={latestAttempt}
+              attempts={attempts}
+              selectedAttemptNumber={selectedAttemptNumber}
+              onSelectAttempt={handleSelectAttempt}
+              selectionEditable={selectionEditable}
               useStarDisplay={useStarDisplay}
               starScale={starScale}
               onNext={() => handleSaveAndNavigate("next")}
@@ -530,8 +539,7 @@ export function AssessmentShell({
               isLastQuestion={isLastQuestion}
               isComplete={isComplete}
               contentItemId={contentItemId}
-              feedbackApprovalPending={feedbackApprovalPending}
-              feedbackRequiresApproval={feedbackRequiresApproval}
+              tentative={tentative}
             />
           ) : (
             <>
