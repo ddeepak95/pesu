@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -88,6 +88,30 @@ export function SubmissionGradingPanel({
 
   const currentQuestion = questions[selectedQuestionIndex] ?? null;
   const questionOrder = currentQuestion?.order ?? null;
+  const isDynamic =
+    assignment?.dynamic_questions_enabled && !!fullSubmission?.generated_questions;
+
+  // Question prompt clamp: show "View more" only when it exceeds 4 lines.
+  const [questionExpanded, setQuestionExpanded] = useState(false);
+  const [questionOverflows, setQuestionOverflows] = useState(false);
+  const questionRef = useRef<HTMLParagraphElement | null>(null);
+
+  // Collapse the prompt back to the clamp whenever the question changes.
+  useEffect(() => {
+    setQuestionExpanded(false);
+  }, [selectedQuestionIndex]);
+
+  // Measure against the clamped height (only while collapsed) to decide whether
+  // the "View more" toggle is needed.
+  useEffect(() => {
+    if (questionExpanded) return;
+    const el = questionRef.current;
+    if (!el) {
+      setQuestionOverflows(false);
+      return;
+    }
+    setQuestionOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [currentQuestion?.prompt, questionExpanded]);
 
   const gradingQuestion = useMemo(
     () => grading?.questions.find((q) => q.question_order === questionOrder) ?? null,
@@ -311,6 +335,82 @@ export function SubmissionGradingPanel({
 
   return (
     <div className="space-y-5">
+      {/* Question being graded */}
+      {assignmentLoading ? (
+        <div className="border-b pb-4">
+          <div className="flex items-center justify-between">
+            <SkeletonLine className="h-5 w-24" />
+            <SkeletonLine className="h-5 w-16" />
+          </div>
+          <div className="space-y-2 mt-3">
+            <SkeletonLine className="h-4 w-full" />
+            <SkeletonLine className="h-4 w-3/4" />
+          </div>
+        </div>
+      ) : questions.length > 0 ? (
+        <div className="border-b pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">
+                Question {selectedQuestionIndex + 1}
+              </span>
+              {isDynamic && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  Dynamic
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={selectedQuestionIndex <= 0}
+                  onClick={() => onQuestionChange(selectedQuestionIndex - 1)}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span>
+                  {selectedQuestionIndex + 1}/{questions.length}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={selectedQuestionIndex >= questions.length - 1}
+                  onClick={() => onQuestionChange(selectedQuestionIndex + 1)}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          {currentQuestion && (
+            <>
+              <p
+                ref={questionRef}
+                className={cn(
+                  "text-sm text-foreground whitespace-pre-wrap mt-3",
+                  !questionExpanded && "line-clamp-4",
+                )}
+              >
+                {currentQuestion.prompt}
+              </p>
+              {questionOverflows && (
+                <button
+                  type="button"
+                  onClick={() => setQuestionExpanded((v) => !v)}
+                  className="mt-1 text-xs font-medium text-primary hover:underline"
+                >
+                  {questionExpanded ? "View less" : "View more"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
+
       <section className="space-y-4">
         {/* Attempt selector + counted indicator */}
         {gradingLoading ? (
