@@ -139,6 +139,11 @@ async function backfillSubmission(
     | null
     | undefined;
 
+  // Skip submissions with no legacy data BEFORE touching anything. New post-cutover
+  // submissions live only in the normalized tables (no `evaluations`); deleting their
+  // rows here on an accidental re-run would destroy data. Guard before the wipe.
+  if (evaluations == null) return;
+
   // Idempotency: wipe prior normalized rows + reset release flag for this submission.
   await supabase.from("submission_questions").delete().eq("submission_id", sid);
   await supabase
@@ -146,7 +151,6 @@ async function backfillSubmission(
     .update({ feedback_released_at: null })
     .eq("submission_id", sid);
 
-  if (evaluations == null) return;
   if (!isNewFormat(evaluations)) evaluations = convertToNewFormat(evaluations);
 
   const questionEntries = Object.entries(evaluations)
