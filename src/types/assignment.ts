@@ -320,6 +320,18 @@ export interface Assignment {
    */
   feedback_requires_approval?: boolean;
   /**
+   * Release strategy when feedback_requires_approval is true.
+   * false (default) = release each student's grade as it is finalized.
+   * true = "hold all, release together": finalized grades stay hidden from students
+   * until the teacher opens the assignment-level gate (grades_released_at).
+   */
+  batch_grade_release?: boolean;
+  /**
+   * Assignment-level release gate (batch mode). When set, finalized submissions become
+   * visible to students; null = held. Only meaningful when batch_grade_release is true.
+   */
+  grades_released_at?: string | null;
+  /**
    * When true, students may use copy/paste in text chat and static text answer fields.
    * Defaults to false (matches legacy restrictive behavior).
    */

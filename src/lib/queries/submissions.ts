@@ -448,10 +448,24 @@ export async function getQuestionAttemptsNormalized(
 
   const { data: sub } = await supabase
     .from("submissions")
-    .select("feedback_released_at")
+    .select("feedback_released_at, assignment_id")
     .eq("submission_id", submissionId)
     .maybeSingle();
-  const released = sub?.feedback_released_at != null;
+
+  // Assignment-level gate (batch mode): a finalized submission is only visible to
+  // the student once the teacher opens the assignment gate (grades_released_at).
+  let gateOpen = true;
+  if (sub?.assignment_id) {
+    const { data: asg } = await supabase
+      .from("assignments")
+      .select("batch_grade_release, grades_released_at")
+      .eq("assignment_id", sub.assignment_id)
+      .maybeSingle();
+    if (asg?.batch_grade_release) {
+      gateOpen = asg.grades_released_at != null;
+    }
+  }
+  const released = sub?.feedback_released_at != null && gateOpen;
 
   const { data: question, error } = await supabase
     .from("submission_questions")
@@ -498,6 +512,11 @@ export interface TeacherGradingAttempt {
   ai_score: number | null;
   ai_feedback: string | null;
   ai_rubric_scores: RubricScore[] | null;
+  /** Unpublished teacher draft for this attempt (null when no pending draft). */
+  hasDraft: boolean;
+  draft_score: number | null;
+  draft_feedback: string | null;
+  draft_rubric_scores: RubricScore[] | null;
 }
 
 export interface TeacherGradingQuestion {
@@ -506,11 +525,19 @@ export interface TeacherGradingQuestion {
   selected_attempt_id: string | null;
   released_score: number | null;
   reviewed: boolean;
+  /** Who/when the review row was stamped (null when AI-generated, never reviewed). */
+  reviewed_at: string | null;
+  reviewed_by: string | null;
   attempts: TeacherGradingAttempt[];
 }
 
 export interface SubmissionGrading {
+  /** Whole-submission finalized state (submissions.feedback_released_at is set). */
   released: boolean;
+  /** Timestamp the submission was finalized (feedback_released_at), or null. */
+  releasedAt: string | null;
+  /** Any attempt has an unpublished teacher draft. */
+  hasUnpublishedDraft: boolean;
   questions: TeacherGradingQuestion[];
 }
 
@@ -526,6 +553,10 @@ interface RawTeacherAttemptRow {
     | { ai_score: number | string | null; ai_feedback: string | null; ai_rubric_scores: RubricScore[] | null }
     | { ai_score: number | string | null; ai_feedback: string | null; ai_rubric_scores: RubricScore[] | null }[]
     | null;
+  attempt_grade_drafts:
+    | { draft_score: number | string | null; draft_feedback: string | null; draft_rubric_scores: RubricScore[] | null }
+    | { draft_score: number | string | null; draft_feedback: string | null; draft_rubric_scores: RubricScore[] | null }[]
+    | null;
 }
 
 interface RawTeacherQuestionRow {
@@ -534,7 +565,10 @@ interface RawTeacherQuestionRow {
   selected_attempt_id: string | null;
   released_score: number | string | null;
   submission_attempts: RawTeacherAttemptRow[] | null;
-  submission_question_reviews: { id: string } | { id: string }[] | null;
+  submission_question_reviews:
+    | { id: string; reviewed_at: string | null; reviewed_by: string | null }
+    | { id: string; reviewed_at: string | null; reviewed_by: string | null }[]
+    | null;
 }
 
 function firstOrSelf<T>(value: T | T[] | null | undefined): T | null {
@@ -559,7 +593,8 @@ export async function getSubmissionGrading(
     .select("feedback_released_at")
     .eq("submission_id", submissionId)
     .maybeSingle();
-  const released = sub?.feedback_released_at != null;
+  const releasedAt = (sub?.feedback_released_at as string | null) ?? null;
+  const released = releasedAt != null;
 
   const { data, error } = await supabase
     .from("submission_questions")
@@ -567,8 +602,9 @@ export async function getSubmissionGrading(
       "id, question_order, selected_attempt_id, released_score, " +
         "submission_attempts!submission_attempts_submission_question_id_fkey(" +
         "id, attempt_number, max_score, stale, score, feedback, rubric_scores, " +
-        "attempt_ai_evaluations(ai_score, ai_feedback, ai_rubric_scores)), " +
-        "submission_question_reviews(id)"
+        "attempt_ai_evaluations(ai_score, ai_feedback, ai_rubric_scores), " +
+        "attempt_grade_drafts(draft_score, draft_feedback, draft_rubric_scores)), " +
+        "submission_question_reviews(id, reviewed_at, reviewed_by)"
     )
     .eq("submission_id", submissionId)
     .order("question_order", { ascending: true });
@@ -586,6 +622,7 @@ export async function getSubmissionGrading(
       .sort((a, b) => a.attempt_number - b.attempt_number)
       .map((a) => {
         const ai = firstOrSelf(a.attempt_ai_evaluations);
+        const draft = firstOrSelf(a.attempt_grade_drafts);
         return {
           id: a.id,
           attempt_number: a.attempt_number,
@@ -597,6 +634,10 @@ export async function getSubmissionGrading(
           ai_score: ai?.ai_score == null ? null : Number(ai.ai_score),
           ai_feedback: ai?.ai_feedback ?? null,
           ai_rubric_scores: ai?.ai_rubric_scores ?? null,
+          hasDraft: draft != null,
+          draft_score: draft?.draft_score == null ? null : Number(draft.draft_score),
+          draft_feedback: draft?.draft_feedback ?? null,
+          draft_rubric_scores: draft?.draft_rubric_scores ?? null,
         };
       });
     const review = firstOrSelf(q.submission_question_reviews);
@@ -606,11 +647,17 @@ export async function getSubmissionGrading(
       selected_attempt_id: q.selected_attempt_id,
       released_score: q.released_score == null ? null : Number(q.released_score),
       reviewed: review != null,
+      reviewed_at: review?.reviewed_at ?? null,
+      reviewed_by: review?.reviewed_by ?? null,
       attempts,
     };
   });
 
-  return { released, questions };
+  const hasUnpublishedDraft = questions.some((q) =>
+    q.attempts.some((a) => a.hasDraft),
+  );
+
+  return { released, releasedAt, hasUnpublishedDraft, questions };
 }
 
 

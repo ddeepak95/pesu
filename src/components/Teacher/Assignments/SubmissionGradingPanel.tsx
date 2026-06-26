@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  BadgeCheck,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -10,6 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   EditableAttemptGradingForm,
   attemptToEdit,
@@ -26,6 +39,7 @@ import {
   useSubmissionGrading,
 } from "@/hooks/swr";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 function SkeletonLine({ className }: { className?: string }) {
   return (
@@ -57,7 +71,11 @@ export function SubmissionGradingPanel({
   const assignment = assignmentQuery.data ?? null;
   const fullSubmission = fullSubmissionQuery.data ?? null;
   const grading = gradingQuery.data ?? null;
+  // `released` here = finalized (submissions.feedback_released_at set). In batch mode
+  // the student still won't see it until the assignment-level gate is opened.
   const released = grading?.released ?? false;
+  const hasUnpublishedDraft = grading?.hasUnpublishedDraft ?? false;
+  const batchMode = assignment?.batch_grade_release ?? false;
 
   // Question prompts come from the assignment (or per-submission generated set).
   const questions = useMemo(() => {
@@ -80,10 +98,18 @@ export function SubmissionGradingPanel({
     [gradingQuestion],
   );
 
-  // Composed edits, keyed by attempt id, persisted only at Release.
+  // Composed edits, keyed by attempt id; persisted to the draft on Save or at Publish.
   const [editMap, setEditMap] = useState<Record<string, AttemptGradeEdit>>({});
   const [releasing, setReleasing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const [busyReview, setBusyReview] = useState(false);
+  // Explicit in-place editing of an already-released submission.
+  const [editing, setEditing] = useState(false);
+  const hasEdits = Object.keys(editMap).length > 0;
+  // A released submission with a pending draft is implicitly in editing mode.
+  const effectiveEditing = editing || (released && hasUnpublishedDraft);
+  const formEditable = !released || effectiveEditing;
 
   // Default the selected attempt to the last non-stale one.
   useEffect(() => {
@@ -104,8 +130,21 @@ export function SubmissionGradingPanel({
       ? attempts.find((a) => a.attempt_number === selectedAttemptNumber) ?? null
       : null;
 
+  // Seed the form from (in priority): in-memory edits, the saved draft, the
+  // published values. The draft is what the teacher last saved but hasn't published.
   const currentEdit: AttemptGradeEdit | null = currentAttempt
-    ? editMap[currentAttempt.id] ?? attemptToEdit(currentAttempt)
+    ? editMap[currentAttempt.id] ??
+      (currentAttempt.hasDraft
+        ? {
+            score: currentAttempt.draft_score ?? 0,
+            feedback: currentAttempt.draft_feedback ?? "",
+            rubric_scores: (
+              currentAttempt.draft_rubric_scores ??
+              currentAttempt.rubric_scores ??
+              []
+            ).map((r) => ({ ...r })),
+          }
+        : attemptToEdit(currentAttempt))
     : null;
 
   const markReviewed = useCallback(
@@ -143,8 +182,12 @@ export function SubmissionGradingPanel({
       showErrorToast("Could not change the counted attempt.");
       return;
     }
-    // Teacher selection clears the review server-side; refresh grading state.
-    await invalidateSubmissionGradingCache(submissionId);
+    // Selection preserves any existing review. It has no student-facing effect and
+    // does not publish anything (released_score is recomputed only at publish).
+    await Promise.all([
+      invalidateSubmissionGradingCache(submissionId),
+      invalidateSubmissionsCache(),
+    ]);
   };
 
   // Review-gate progress (questions with >= 1 non-stale attempt).
@@ -156,21 +199,23 @@ export function SubmissionGradingPanel({
   const allReviewed =
     attemptedQuestions.length > 0 && reviewedCount === attemptedQuestions.length;
 
-  const handleRelease = async () => {
+  const editsFromMap = (): AttemptEdit[] =>
+    Object.entries(editMap).map(([attemptId, e]) => ({
+      attemptId,
+      score: e.score,
+      feedback: e.feedback,
+      rubric_scores: e.rubric_scores,
+    }));
+
+  // Publish: copy drafts/edits into the student-visible columns. Used for the first
+  // release and for re-publishing edits to an already-released submission.
+  const handlePublish = async () => {
     setReleasing(true);
     try {
-      const edits: AttemptEdit[] = Object.entries(editMap).map(
-        ([attemptId, e]) => ({
-          attemptId,
-          score: e.score,
-          feedback: e.feedback,
-          rubric_scores: e.rubric_scores,
-        }),
-      );
       const res = await fetch("/api/submissions/release", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submissionId, edits }),
+        body: JSON.stringify({ submissionId, edits: editsFromMap() }),
       });
       if (res.status === 409) {
         const data = await res.json().catch(() => ({}));
@@ -187,11 +232,18 @@ export function SubmissionGradingPanel({
         throw new Error(data.error || "Failed to release");
       }
       setEditMap({});
+      setEditing(false);
       await Promise.all([
         invalidateSubmissionGradingCache(submissionId),
         invalidateSubmissionsCache(),
       ]);
-      showSuccessToast("Submission released to the student.");
+      showSuccessToast(
+        released
+          ? "Changes published."
+          : batchMode
+            ? "Grade finalized. It stays hidden until you release the assignment grades."
+            : "Submission released to the student.",
+      );
     } catch (err) {
       showErrorToast(err instanceof Error ? err.message : "Failed to release");
     } finally {
@@ -199,118 +251,67 @@ export function SubmissionGradingPanel({
     }
   };
 
-  const handleReopen = async () => {
-    setReleasing(true);
+  // Save draft: persist edits privately, without changing what the student sees.
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      const res = await fetch("/api/submissions/release", {
+      const res = await fetch("/api/submissions/save-grades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submissionId, reopen: true }),
+        body: JSON.stringify({ submissionId, edits: editsFromMap() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to reopen");
+        throw new Error(data.error || "Failed to save");
       }
       setEditMap({});
       await Promise.all([
         invalidateSubmissionGradingCache(submissionId),
         invalidateSubmissionsCache(),
       ]);
-      showSuccessToast("Submission reopened — it is tentative again.");
+      showSuccessToast("Draft saved.");
     } catch (err) {
-      showErrorToast(err instanceof Error ? err.message : "Failed to reopen");
+      showErrorToast(err instanceof Error ? err.message : "Failed to save");
     } finally {
-      setReleasing(false);
+      setSaving(false);
+    }
+  };
+
+  // Discard: drop unpublished drafts and revert the working state to published.
+  const handleDiscard = async () => {
+    setDiscarding(true);
+    try {
+      const res = await fetch("/api/submissions/discard-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to discard");
+      }
+      setEditMap({});
+      setEditing(false);
+      await Promise.all([
+        invalidateSubmissionGradingCache(submissionId),
+        invalidateSubmissionsCache(),
+      ]);
+      showSuccessToast("Changes discarded.");
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to discard");
+    } finally {
+      setDiscarding(false);
     }
   };
 
   const assignmentLoading = assignmentQuery.isLoading;
   const gradingLoading = gradingQuery.isLoading;
-  const isDynamic =
-    assignment?.dynamic_questions_enabled && !!fullSubmission?.generated_questions;
   const isSelectedCounted =
     !!currentAttempt && gradingQuestion?.selected_attempt_id === currentAttempt.id;
 
   return (
     <div className="space-y-5">
-      {/* Release status + progress */}
-      {!gradingLoading && grading && (
-        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-          <span
-            className={
-              released
-                ? "font-medium text-green-700 dark:text-green-400"
-                : "font-medium text-amber-700 dark:text-amber-400"
-            }
-          >
-            {released ? "Released" : "Held (tentative)"}
-          </span>
-          <span className="text-muted-foreground">
-            Reviewed {reviewedCount} / {attemptedQuestions.length}
-          </span>
-        </div>
-      )}
-
       <section className="space-y-4">
-        {/* Question nav header */}
-        {assignmentLoading ? (
-          <div className="flex items-center justify-between">
-            <SkeletonLine className="h-5 w-24" />
-            <SkeletonLine className="h-5 w-16" />
-          </div>
-        ) : questions.length > 0 ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold">
-                Question {selectedQuestionIndex + 1}
-              </span>
-              {isDynamic && (
-                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                  Dynamic
-                </span>
-              )}
-              {gradingQuestion?.reviewed && (
-                <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Reviewed
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                disabled={selectedQuestionIndex <= 0}
-                onClick={() => onQuestionChange(selectedQuestionIndex - 1)}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-              <span>{selectedQuestionIndex + 1}/{questions.length}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                disabled={selectedQuestionIndex >= questions.length - 1}
-                onClick={() => onQuestionChange(selectedQuestionIndex + 1)}
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Question prompt */}
-        {assignmentLoading ? (
-          <div className="space-y-2">
-            <SkeletonLine className="h-4 w-full" />
-            <SkeletonLine className="h-4 w-3/4" />
-          </div>
-        ) : currentQuestion ? (
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {currentQuestion.prompt}
-          </p>
-        ) : null}
-
         {/* Attempt selector + counted indicator */}
         {gradingLoading ? (
           <SkeletonLine className="h-9 w-40" />
@@ -335,17 +336,42 @@ export function SubmissionGradingPanel({
                 ))}
               </SelectContent>
             </Select>
-            {isSelectedCounted ? (
-              <span className="text-xs text-muted-foreground">Counts toward grade</span>
-            ) : (
-              !released &&
-              currentAttempt &&
-              !currentAttempt.stale && (
-                <Button variant="outline" size="sm" onClick={handleSelectThisAttempt}>
-                  Make this count
-                </Button>
-              )
-            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleSelectThisAttempt}
+                    disabled={
+                      isSelectedCounted || !currentAttempt || currentAttempt.stale
+                    }
+                    aria-pressed={isSelectedCounted}
+                    aria-label="Counts toward grade"
+                    className={cn(
+                      "inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors",
+                      isSelectedCounted
+                        ? "border-green-600/30 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                        : "text-muted-foreground hover:bg-muted disabled:opacity-50",
+                    )}
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isSelectedCounted
+                    ? "This attempt counts toward the grade. Select another attempt to change it."
+                    : "Make this attempt count toward the grade."}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {isSelectedCounted &&
+              (gradingQuestion?.reviewed ? (
+                <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400">
+                  <BadgeCheck className="h-3.5 w-3.5" /> Reviewed
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">Unreviewed</span>
+              ))}
           </div>
         ) : null}
       </section>
@@ -362,14 +388,14 @@ export function SubmissionGradingPanel({
             attempt={currentAttempt}
             value={currentEdit}
             onChange={(next) => handleEditChange(currentAttempt, next)}
-            disabled={released}
+            disabled={!formEditable}
           />
           {questionOrder !== null && (
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={gradingQuestion?.reviewed ?? false}
-                disabled={busyReview || released}
+                disabled={busyReview || !formEditable}
                 onChange={async (e) => {
                   setBusyReview(true);
                   await markReviewed(questionOrder, e.target.checked);
@@ -386,51 +412,9 @@ export function SubmissionGradingPanel({
         </p>
       ) : null}
 
-      {/* Release / Reopen */}
-      {!gradingLoading && attemptedQuestions.length > 0 && (
-        <div className="space-y-2 border-t pt-4">
-          {released ? (
-            <Button
-              variant="outline"
-              className="w-full"
-              size="sm"
-              disabled={releasing}
-              onClick={handleReopen}
-            >
-              {releasing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Re-open to amend
-            </Button>
-          ) : (
-            <>
-              <Button
-                className="w-full"
-                size="sm"
-                disabled={releasing || !allReviewed}
-                onClick={handleRelease}
-              >
-                {releasing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                )}
-                Release submission
-              </Button>
-              {!allReviewed && (
-                <p className="text-xs text-muted-foreground text-center">
-                  Review every question to enable release ({reviewedCount}/
-                  {attemptedQuestions.length}).
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
       {/* Prev / Next question */}
       {!assignmentLoading && questions.length > 1 && (
-        <div className="flex items-center justify-between pt-2 border-t">
+        <div className="flex items-center justify-between pt-2">
           <Button
             variant="outline"
             size="sm"
@@ -449,6 +433,101 @@ export function SubmissionGradingPanel({
             Next Question
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
+        </div>
+      )}
+
+      {/* Save draft / Release / Publish / Edit */}
+      {!gradingLoading && attemptedQuestions.length > 0 && (
+        <div className="space-y-2 border-t pt-4">
+          {released && !effectiveEditing ? (
+            <Button
+              variant="outline"
+              className="w-full"
+              size="sm"
+              onClick={() => setEditing(true)}
+            >
+              Edit Grade
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                className="w-full"
+                size="sm"
+                disabled={saving || discarding || !hasEdits}
+                onClick={handleSave}
+              >
+                {saving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Save draft
+              </Button>
+              {released ? (
+                <>
+                  {/* Re-publish: no review gate on an already-released grade. */}
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    disabled={releasing || (!hasEdits && !hasUnpublishedDraft)}
+                    onClick={handlePublish}
+                  >
+                    {releasing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                    )}
+                    Publish changes
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full"
+                    size="sm"
+                    disabled={saving || releasing || discarding}
+                    onClick={() => {
+                      if (hasUnpublishedDraft) {
+                        void handleDiscard();
+                      } else {
+                        setEditMap({});
+                        setEditing(false);
+                      }
+                    }}
+                  >
+                    {discarding ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    {hasUnpublishedDraft ? "Discard changes" : "Cancel"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    disabled={releasing || !allReviewed}
+                    onClick={handlePublish}
+                  >
+                    {releasing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                    )}
+                    {batchMode ? "Finalize grade" : "Grade Submission"}
+                  </Button>
+                  {batchMode && allReviewed && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Hidden from the student until you release the assignment grades.
+                    </p>
+                  )}
+                  {!allReviewed && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Review every question to enable grading ({reviewedCount}/
+                      {attemptedQuestions.length}).
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

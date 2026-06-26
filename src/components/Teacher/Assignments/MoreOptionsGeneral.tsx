@@ -40,6 +40,8 @@ interface MoreOptionsGeneralProps {
   setExperienceRatingRequired: (required: boolean) => void;
   feedbackRequiresApproval: boolean;
   setFeedbackRequiresApproval: (requires: boolean) => void;
+  batchGradeRelease: boolean;
+  setBatchGradeRelease: (batch: boolean) => void;
   integritySettings: AssignmentIntegritySettingsValues;
   setIntegritySettings: (settings: AssignmentIntegritySettingsValues) => void;
   isPublic: boolean;
@@ -76,6 +78,8 @@ export function MoreOptionsGeneral({
   setExperienceRatingRequired,
   feedbackRequiresApproval,
   setFeedbackRequiresApproval,
+  batchGradeRelease,
+  setBatchGradeRelease,
   integritySettings,
   setIntegritySettings,
   isPublic,
@@ -322,6 +326,34 @@ export function MoreOptionsGeneral({
               <InfoTooltip text="When enabled, AI-generated feedback is held for your review. You can edit and approve it before students can see it." />
             </div>
           </div>
+
+          {feedbackRequiresApproval && (
+            <div className="ml-6 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-sm">Release timing</Label>
+                <InfoTooltip text="Choose whether each student sees their grade as soon as you finish grading it, or whether all grades stay hidden until you release the whole assignment at once." />
+              </div>
+              <Select
+                value={batchGradeRelease ? "batch" : "per_submission"}
+                onValueChange={(value) =>
+                  setBatchGradeRelease(value === "batch")
+                }
+                disabled={loading}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="per_submission">
+                    Release each student as I finish grading
+                  </SelectItem>
+                  <SelectItem value="batch">
+                    Hold all grades, release together
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         </div>
       </SettingsCard>

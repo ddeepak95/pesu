@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import {
-  releaseSubmission,
-  type AttemptEdit,
-  type SelectionOverride,
-} from "@/lib/submissions/grading";
+import { saveAttemptEdits, type AttemptEdit } from "@/lib/submissions/grading";
 
-interface ReleaseRequestBody {
+interface SaveGradesRequestBody {
   submissionId: string;
   edits?: AttemptEdit[];
-  selections?: SelectionOverride[];
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body: ReleaseRequestBody = await request.json();
-    const { submissionId, edits, selections } = body;
+    const body: SaveGradesRequestBody = await request.json();
+    const { submissionId, edits } = body;
 
     if (!submissionId) {
       return NextResponse.json(
@@ -39,23 +34,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    const result = await releaseSubmission(supabase, submissionId, { edits, selections });
-    if (!result.ok) {
-      return NextResponse.json(
-        {
-          error: "unreviewed_questions",
-          questionOrders: result.unreviewedQuestionOrders,
-        },
-        { status: 409 },
-      );
-    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    return NextResponse.json({ success: true, released: true });
+    await saveAttemptEdits(supabase, edits ?? [], user?.id ?? null);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Release submission error:", error);
+    console.error("Save grades error:", error);
     return NextResponse.json(
       {
-        error: "Failed to release submission",
+        error: "Failed to save grades",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },

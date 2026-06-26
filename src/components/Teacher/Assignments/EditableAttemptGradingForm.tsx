@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { RubricScore } from "@/types/submission";
 import type { TeacherGradingAttempt } from "@/lib/queries/submissions";
 
-/** Composed (client-side) edit for one attempt; persisted only at Release. */
+/** Composed (client-side) edit for one attempt; persisted to a draft on Save, published at Release. */
 export interface AttemptGradeEdit {
   score: number;
   feedback: string;
@@ -19,7 +19,7 @@ interface EditableAttemptGradingFormProps {
   attempt: TeacherGradingAttempt;
   value: AttemptGradeEdit;
   onChange: (next: AttemptGradeEdit) => void;
-  /** Read-only (e.g. while released — reopen to amend). */
+  /** Read-only (e.g. while released and not in edit mode — click Edit Grade to amend). */
   disabled?: boolean;
 }
 
@@ -111,17 +111,9 @@ export function EditableAttemptGradingForm({
           </div>
           {value.rubric_scores.map((rubricScore, index) => (
             <div key={`${rubricScore.item}-${index}`} className="space-y-2">
-              <Label className="text-sm font-medium">{rubricScore.item}</Label>
-              <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
-                <Textarea
-                  value={rubricScore.feedback}
-                  onChange={(e) => updateRubric(index, { feedback: e.target.value })}
-                  placeholder="Feedback"
-                  rows={3}
-                  disabled={disabled}
-                  className="min-h-[68px] resize-none bg-background text-sm"
-                />
-                <div className="space-y-1">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                <Label className="pt-2 text-sm font-medium">{rubricScore.item}</Label>
+                <div className="flex items-center gap-1.5 pt-0.5">
                   <Input
                     type="number"
                     min={0}
@@ -138,13 +130,21 @@ export function EditableAttemptGradingForm({
                     }
                     disabled={disabled}
                     aria-label={`Points for ${rubricScore.item}`}
-                    className="bg-background text-sm"
+                    className="w-16 bg-background text-sm"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    out of {rubricScore.points_possible}
-                  </p>
+                  <span className="whitespace-nowrap text-sm text-muted-foreground">
+                    / {rubricScore.points_possible}
+                  </span>
                 </div>
               </div>
+              <Textarea
+                value={rubricScore.feedback}
+                onChange={(e) => updateRubric(index, { feedback: e.target.value })}
+                placeholder="Feedback"
+                rows={3}
+                disabled={disabled}
+                className="min-h-[68px] resize-none bg-background text-sm"
+              />
             </div>
           ))}
         </section>

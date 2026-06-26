@@ -118,6 +118,7 @@ export default function CreateAssignmentPage() {
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
+    batchGradeRelease?: boolean;
     allowCopyPaste?: boolean;
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
@@ -161,6 +162,7 @@ export default function CreateAssignmentPage() {
         experience_rating_enabled: data.experienceRatingEnabled ?? false,
         experience_rating_required: data.experienceRatingRequired ?? false,
         feedback_requires_approval: data.feedbackRequiresApproval ?? false,
+        batch_grade_release: data.batchGradeRelease ?? false,
         allow_copy_paste: data.allowCopyPaste ?? false,
         tab_switch_policy: data.tabSwitchPolicy ?? "warn",
         tab_switch_max_leaves:

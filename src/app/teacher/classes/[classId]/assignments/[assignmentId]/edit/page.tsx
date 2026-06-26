@@ -54,6 +54,7 @@ export default function EditAssignmentPage() {
   const [experienceRatingEnabled, setExperienceRatingEnabled] = useState<boolean>(false);
   const [experienceRatingRequired, setExperienceRatingRequired] = useState<boolean>(false);
   const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState<boolean>(false);
+  const [batchGradeRelease, setBatchGradeRelease] = useState<boolean>(false);
   const [allowCopyPaste, setAllowCopyPaste] = useState(false);
   const [tabSwitchPolicy, setTabSwitchPolicy] =
     useState<TabSwitchPolicy>("warn");
@@ -109,6 +110,7 @@ export default function EditAssignmentPage() {
     setFeedbackRequiresApproval(
       assignmentData.feedback_requires_approval ?? false
     );
+    setBatchGradeRelease(assignmentData.batch_grade_release ?? false);
     setAllowCopyPaste(assignmentData.allow_copy_paste ?? false);
     setTabSwitchPolicy(assignmentData.tab_switch_policy ?? "warn");
     setTabSwitchMaxLeaves(assignmentData.tab_switch_max_leaves ?? 3);
@@ -153,6 +155,7 @@ export default function EditAssignmentPage() {
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
+    batchGradeRelease?: boolean;
     allowCopyPaste?: boolean;
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
@@ -195,6 +198,7 @@ export default function EditAssignmentPage() {
       experience_rating_enabled: data.experienceRatingEnabled ?? false,
       experience_rating_required: data.experienceRatingRequired ?? false,
       feedback_requires_approval: data.feedbackRequiresApproval ?? false,
+      batch_grade_release: data.batchGradeRelease ?? false,
       allow_copy_paste: data.allowCopyPaste ?? false,
       tab_switch_policy: data.tabSwitchPolicy ?? "warn",
       tab_switch_max_leaves:
@@ -270,6 +274,7 @@ export default function EditAssignmentPage() {
           initialExperienceRatingEnabled={experienceRatingEnabled}
           initialExperienceRatingRequired={experienceRatingRequired}
           initialFeedbackRequiresApproval={feedbackRequiresApproval}
+          initialBatchGradeRelease={batchGradeRelease}
           initialAllowCopyPaste={allowCopyPaste}
           initialTabSwitchPolicy={tabSwitchPolicy}
           initialTabSwitchMaxLeaves={tabSwitchMaxLeaves}

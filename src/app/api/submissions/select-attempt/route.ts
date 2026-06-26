@@ -27,9 +27,12 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (isTeacher) {
-      // Teacher may re-select anytime; content changed → re-review required.
+      // Teacher may re-select anytime. Switching the counted attempt is itself a
+      // grading decision, so an existing review is preserved (not cleared); when
+      // the submission is already released, setSelectedAttempt re-syncs the
+      // released score to the newly counted attempt.
       await setSelectedAttempt(supabase, submissionId, questionOrder, attemptNumber, {
-        clearReview: true,
+        clearReview: false,
       });
       return NextResponse.json({ success: true });
     }

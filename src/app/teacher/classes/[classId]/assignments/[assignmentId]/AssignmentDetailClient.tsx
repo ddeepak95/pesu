@@ -31,9 +31,11 @@ import { Assignment } from "@/types/assignment";
 import QuestionView from "@/components/Shared/QuestionView";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import { SubmissionsListSection } from "@/components/Teacher/Assignments/SubmissionsListSection";
+import { AssignmentGradeReleaseBanner } from "@/components/Teacher/Assignments/AssignmentGradeReleaseBanner";
 import { SubmissionContentPanel } from "@/components/Teacher/Assignments/SubmissionContentPanel";
 import { SubmissionGradingPanel } from "@/components/Teacher/Assignments/SubmissionGradingPanel";
 import { SubmissionOverlayHeader } from "@/components/Teacher/Assignments/SubmissionOverlayHeader";
+import { SubmissionQuestionSection } from "@/components/Teacher/Assignments/SubmissionQuestionSection";
 import {
   submissionOverlayClasses,
   submissionOverlayGrainStyle,
@@ -677,6 +679,21 @@ export default function AssignmentDetailClient({
             </TabsContent>
 
             <TabsContent value="submissions" className="py-6">
+              {assignmentData.batch_grade_release && (
+                <AssignmentGradeReleaseBanner
+                  assignmentId={assignmentData.assignment_id}
+                  classId={classId}
+                  classGroupId={placementGroupId}
+                  isPublic={assignmentData.is_public}
+                  gradesReleasedAt={assignmentData.grades_released_at ?? null}
+                  onChange={(next) =>
+                    setAssignmentData((prev) => ({
+                      ...prev,
+                      grades_released_at: next,
+                    }))
+                  }
+                />
+              )}
               <SubmissionsListSection
                 assignmentId={assignmentData.assignment_id}
                 classId={classId}
@@ -711,6 +728,13 @@ export default function AssignmentDetailClient({
             classId={classId}
             onNavigate={handleViewSubmission}
             onClose={handleCloseSubmission}
+          />
+          <SubmissionQuestionSection
+            submissionId={activeSubmissionId}
+            assignmentId={assignmentId}
+            selectedQuestionIndex={selectedQuestionIndex}
+            onQuestionChange={setSelectedQuestionIndex}
+            className="relative z-10 shrink-0 border-b border-border bg-muted/70 px-8 py-4"
           />
           <div className={submissionOverlayClasses.contentRow}>
             <div className={submissionOverlayClasses.contentPane}>

@@ -9,6 +9,11 @@ import {
 import {
   submissionOverlayClasses,
 } from "@/components/Teacher/Assignments/submissionOverlayTheme";
+import { SubmissionReleaseStatusBadge } from "@/components/Teacher/Assignments/SubmissionReleaseStatusBadge";
+import {
+  SubmissionStatusBadge,
+  type SubmissionLifecycleStatus,
+} from "@/components/Teacher/Assignments/SubmissionStatusBadge";
 import {
   useClassData,
   usePublicSubmissionsForAssignment,
@@ -61,6 +66,28 @@ export function SubmissionOverlayHeader({
     [classSubmissions, submissionId]
   );
 
+  const currentSubmissionInfo = useMemo<{
+    status: SubmissionLifecycleStatus;
+    submittedAt: string | null;
+  }>(() => {
+    const classMatch = classSubmissions.find(
+      (item) => item.submission?.submission_id === submissionId
+    );
+    if (classMatch) {
+      return {
+        status: classMatch.status,
+        submittedAt: classMatch.submission?.submitted_at ?? null,
+      };
+    }
+    const publicMatch = publicSubmissions.find(
+      (item) => item.submission?.submission_id === submissionId
+    );
+    return {
+      status: publicMatch?.status ?? "started",
+      submittedAt: publicMatch?.submission?.submitted_at ?? null,
+    };
+  }, [classSubmissions, publicSubmissions, submissionId]);
+
   const navigationItems = useMemo<SubmissionNavItem[]>(() => {
     if (currentIsPublic) {
       return publicSubmissions
@@ -84,12 +111,24 @@ export function SubmissionOverlayHeader({
 
   return (
     <div className={submissionOverlayClasses.header}>
-      <div className="w-72">
-        <StudentSubmissionNav
+      <div className="flex items-center gap-4">
+        <div className="w-72">
+          <StudentSubmissionNav
+            submissionId={submissionId}
+            navigationItems={navigationItems}
+            onNavigate={onNavigate}
+            showClose={false}
+          />
+        </div>
+        <SubmissionStatusBadge
+          status={currentSubmissionInfo.status}
+          submittedAt={currentSubmissionInfo.submittedAt}
+          label="Submission Status:"
+        />
+        <SubmissionReleaseStatusBadge
           submissionId={submissionId}
-          navigationItems={navigationItems}
-          onNavigate={onNavigate}
-          showClose={false}
+          assignmentId={assignmentId}
+          label="Grading Status:"
         />
       </div>
       <Button variant="secondary" onClick={onClose} className="px-8">

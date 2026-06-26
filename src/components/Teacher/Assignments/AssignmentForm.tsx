@@ -141,6 +141,7 @@ interface AssignmentFormProps {
   initialExperienceRatingEnabled?: boolean;
   initialExperienceRatingRequired?: boolean;
   initialFeedbackRequiresApproval?: boolean;
+  initialBatchGradeRelease?: boolean;
   initialAllowCopyPaste?: boolean;
   initialTabSwitchPolicy?: TabSwitchPolicy;
   initialTabSwitchMaxLeaves?: number;
@@ -172,6 +173,7 @@ interface AssignmentFormProps {
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
+    batchGradeRelease?: boolean;
     allowCopyPaste?: boolean;
     tabSwitchPolicy?: TabSwitchPolicy;
     tabSwitchMaxLeaves?: number;
@@ -226,6 +228,7 @@ export default function AssignmentForm({
   initialExperienceRatingEnabled = false,
   initialExperienceRatingRequired = false,
   initialFeedbackRequiresApproval = false,
+  initialBatchGradeRelease = false,
   initialAllowCopyPaste = false,
   initialTabSwitchPolicy = DEFAULT_TAB_SWITCH_POLICY,
   initialTabSwitchMaxLeaves = 3,
@@ -417,6 +420,9 @@ export default function AssignmentForm({
   );
   const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState(
     initialFeedbackRequiresApproval,
+  );
+  const [batchGradeRelease, setBatchGradeRelease] = useState(
+    initialBatchGradeRelease,
   );
   const [integritySettings, setIntegritySettings] =
     useState<AssignmentIntegritySettingsValues>({
@@ -812,6 +818,7 @@ export default function AssignmentForm({
           ? experienceRatingRequired
           : false,
         feedbackRequiresApproval,
+        batchGradeRelease: feedbackRequiresApproval ? batchGradeRelease : false,
         allowCopyPaste: integritySettings.allowCopyPaste,
         tabSwitchPolicy: integritySettings.tabSwitchPolicy,
         tabSwitchMaxLeaves: integritySettings.tabSwitchMaxLeaves,
@@ -1099,6 +1106,8 @@ export default function AssignmentForm({
                 setExperienceRatingRequired={setExperienceRatingRequired}
                 feedbackRequiresApproval={feedbackRequiresApproval}
                 setFeedbackRequiresApproval={setFeedbackRequiresApproval}
+                batchGradeRelease={batchGradeRelease}
+                setBatchGradeRelease={setBatchGradeRelease}
                 integritySettings={integritySettings}
                 setIntegritySettings={setIntegritySettings}
                 isPublic={isPublic}

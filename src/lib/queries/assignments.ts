@@ -211,6 +211,7 @@ export async function createAssignment(
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
     feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it
+    batch_grade_release?: boolean; // Hold all grades, release together (vs. per-submission)
     allow_copy_paste?: boolean;
     tab_switch_policy?: TabSwitchPolicy;
     tab_switch_max_leaves?: number | null;
@@ -255,6 +256,7 @@ export async function createAssignment(
       experience_rating_enabled: assignment.experience_rating_enabled ?? false,
       experience_rating_required: assignment.experience_rating_required ?? false,
       feedback_requires_approval: assignment.feedback_requires_approval ?? false,
+      batch_grade_release: assignment.batch_grade_release ?? false,
       allow_copy_paste: assignment.allow_copy_paste ?? false,
       tab_switch_policy: assignment.tab_switch_policy ?? "warn",
       tab_switch_max_leaves:
@@ -320,6 +322,7 @@ export async function updateAssignment(
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
     feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it
+    batch_grade_release?: boolean; // Hold all grades, release together (vs. per-submission)
     allow_copy_paste?: boolean;
     tab_switch_policy?: TabSwitchPolicy;
     tab_switch_max_leaves?: number | null;
@@ -355,6 +358,7 @@ export async function updateAssignment(
     experience_rating_enabled: assignment.experience_rating_enabled ?? false,
     experience_rating_required: assignment.experience_rating_required ?? false,
     feedback_requires_approval: assignment.feedback_requires_approval ?? false,
+    batch_grade_release: assignment.batch_grade_release ?? false,
     allow_copy_paste: assignment.allow_copy_paste ?? false,
     tab_switch_policy: assignment.tab_switch_policy ?? "warn",
     tab_switch_max_leaves:

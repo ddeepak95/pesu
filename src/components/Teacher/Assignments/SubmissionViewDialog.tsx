@@ -17,7 +17,9 @@ import { showErrorToast } from "@/lib/toast";
 import { useState, useMemo } from "react";
 import { FileText, Info, Loader2 } from "lucide-react";
 import { SubmissionGradingPanel } from "./SubmissionGradingPanel";
+import { SubmissionQuestionSection } from "./SubmissionQuestionSection";
 import { SubmissionDisplayName } from "./SubmissionDisplayName";
+import { SubmissionReleaseStatusBadge } from "./SubmissionReleaseStatusBadge";
 import { SubmissionIntegrityLockBanner } from "@/components/Shared/Integrity/SubmissionIntegrityLockBanner";
 import {
   invalidateSubmissionByIdCache,
@@ -110,8 +112,12 @@ export default function SubmissionViewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="flex items-center gap-3">
             <SubmissionDisplayName submission={studentSubmission} />
+            <SubmissionReleaseStatusBadge
+              submissionId={submission.submission_id}
+              assignmentId={submission.assignment_id}
+            />
           </DialogTitle>
           <DialogDescription>Submission Details</DialogDescription>
         </DialogHeader>
@@ -196,6 +202,14 @@ export default function SubmissionViewDialog({
                   </p>
                 </div>
               )}
+
+            <SubmissionQuestionSection
+              submissionId={submission.submission_id}
+              assignmentId={submission.assignment_id}
+              selectedQuestionIndex={questionIndex}
+              onQuestionChange={setQuestionIndex}
+              className="rounded-md border bg-muted/70 p-4"
+            />
 
             <SubmissionGradingPanel
               submissionId={submission.submission_id}

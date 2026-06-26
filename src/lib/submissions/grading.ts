@@ -1,6 +1,11 @@
 /**
- * Server-side grading helpers for the normalized schema: submission-level release,
- * reopen, per-question review marking, and selected-attempt updates.
+ * Server-side grading helpers for the normalized schema: submission-level release
+ * (publish), teacher grade drafts (save/discard), per-question review marking, and
+ * selected-attempt updates.
+ *
+ * Visibility model: the student reads submission_attempts.{score,feedback,rubric_scores}
+ * directly. Teacher edits are held in attempt_grade_drafts (teacher-only) and never
+ * touch those columns until release/publish — so a draft never leaks to the student.
  *
  * These operate on a Supabase client passed by the caller (API routes pass the
  * server client). See dev-docs/teacher-approval-grading-flow.md (§5/§6 Phase 3+5).
@@ -69,6 +74,20 @@ async function getQuestionId(
   return (data?.id as string | undefined) ?? null;
 }
 
+/** Every submission_attempts.id belonging to a submission (across its questions). */
+async function getAttemptIdsForSubmission(
+  supabase: SupabaseClient,
+  questionIds: string[]
+): Promise<string[]> {
+  if (questionIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("submission_attempts")
+    .select("id")
+    .in("submission_question_id", questionIds);
+  if (error) throw error;
+  return (data ?? []).map((a) => a.id as string);
+}
+
 /** Fetch the review-gate state for every question in a submission. */
 export async function getUnreviewedQuestionOrders(
   supabase: SupabaseClient,
@@ -106,53 +125,15 @@ export type ReleaseResult =
   | { ok: false; unreviewedQuestionOrders: number[] };
 
 /**
- * Release a submission: apply selection overrides, enforce the review gate, apply
- * per-attempt edits, set each question's released_score from its selected attempt,
- * and stamp submissions.feedback_released_at. One atomic-ish action (no save-draft).
+ * Recompute each question's released_score from its selected attempt's (published)
+ * score. Called after publishing so the teacher totals / graded_score reflect the
+ * student-visible values.
  */
-export async function releaseSubmission(
+async function syncReleasedScores(
   supabase: SupabaseClient,
-  submissionId: string,
-  opts: ReleaseOptions = {}
-): Promise<ReleaseResult> {
-  // 1. Selection overrides first (so the gate + released_score see final selection).
-  for (const sel of opts.selections ?? []) {
-    const { error } = await supabase
-      .from("submission_questions")
-      .update({ selected_attempt_id: sel.selectedAttemptId })
-      .eq("submission_id", submissionId)
-      .eq("question_order", sel.questionOrder);
-    if (error) throw error;
-  }
-
-  // 2. Review gate.
-  const unreviewed = await getUnreviewedQuestionOrders(supabase, submissionId);
-  if (unreviewed.length > 0) {
-    return { ok: false, unreviewedQuestionOrders: unreviewed };
-  }
-
-  // 3. Apply per-attempt edits to the displayable grade columns.
-  for (const edit of opts.edits ?? []) {
-    const patch: Record<string, unknown> = {};
-    if (edit.score !== undefined) patch.score = edit.score;
-    if (edit.feedback !== undefined) patch.feedback = edit.feedback;
-    if (edit.rubric_scores !== undefined) patch.rubric_scores = edit.rubric_scores;
-    if (Object.keys(patch).length === 0) continue;
-    const { error } = await supabase
-      .from("submission_attempts")
-      .update(patch)
-      .eq("id", edit.attemptId);
-    if (error) throw error;
-  }
-
-  // 4. released_score = selected attempt's (possibly edited) score, per question.
-  const { data: questions, error: qErr } = await supabase
-    .from("submission_questions")
-    .select("id, selected_attempt_id")
-    .eq("submission_id", submissionId);
-  if (qErr) throw qErr;
-
-  for (const q of questions ?? []) {
+  questions: { id: string; selected_attempt_id: string | null }[]
+): Promise<void> {
+  for (const q of questions) {
     let releasedScore: number | null = null;
     if (q.selected_attempt_id) {
       const { data: att } = await supabase
@@ -168,35 +149,168 @@ export async function releaseSubmission(
       .eq("id", q.id);
     if (error) throw error;
   }
+}
 
-  // 5. Flip the whole submission to released.
-  const { error: relErr } = await supabase
+/**
+ * Release (first release) or publish (re-release) a submission:
+ *  1. apply selection overrides (so the gate + released_score see the final selection);
+ *  2. enforce the review gate — only on the FIRST release (when feedback_released_at is
+ *     null). Re-publishing an already-released grade is not gated;
+ *  3. publish: copy incoming `edits` and any saved drafts into the student-visible
+ *     submission_attempts columns, then delete the draft rows;
+ *  4. sync each question's released_score from its selected attempt;
+ *  5. stamp submissions.feedback_released_at (first release only).
+ */
+export async function releaseSubmission(
+  supabase: SupabaseClient,
+  submissionId: string,
+  opts: ReleaseOptions = {}
+): Promise<ReleaseResult> {
+  // 1. Selection overrides first.
+  for (const sel of opts.selections ?? []) {
+    const { error } = await supabase
+      .from("submission_questions")
+      .update({ selected_attempt_id: sel.selectedAttemptId })
+      .eq("submission_id", submissionId)
+      .eq("question_order", sel.questionOrder);
+    if (error) throw error;
+  }
+
+  // 2. Review gate — first release only.
+  const { data: subRow } = await supabase
     .from("submissions")
-    .update({ feedback_released_at: new Date().toISOString() })
+    .select("feedback_released_at")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+  const alreadyReleased = subRow?.feedback_released_at != null;
+  if (!alreadyReleased) {
+    const unreviewed = await getUnreviewedQuestionOrders(supabase, submissionId);
+    if (unreviewed.length > 0) {
+      return { ok: false, unreviewedQuestionOrders: unreviewed };
+    }
+  }
+
+  // 3. Publish. Gather this submission's questions + attempts.
+  const { data: questionRows, error: qErr } = await supabase
+    .from("submission_questions")
+    .select("id, selected_attempt_id")
     .eq("submission_id", submissionId);
-  if (relErr) throw relErr;
+  if (qErr) throw qErr;
+  const questions = (questionRows ?? []) as {
+    id: string;
+    selected_attempt_id: string | null;
+  }[];
+  const attemptIds = await getAttemptIdsForSubmission(
+    supabase,
+    questions.map((q) => q.id)
+  );
+
+  // Build the publish map: incoming edits win, then fall back to saved drafts.
+  const publishMap = new Map<string, AttemptEdit>();
+  for (const edit of opts.edits ?? []) {
+    publishMap.set(edit.attemptId, edit);
+  }
+  if (attemptIds.length > 0) {
+    const { data: drafts, error: dErr } = await supabase
+      .from("attempt_grade_drafts")
+      .select("attempt_id, draft_score, draft_feedback, draft_rubric_scores")
+      .in("attempt_id", attemptIds);
+    if (dErr) throw dErr;
+    for (const d of drafts ?? []) {
+      if (publishMap.has(d.attempt_id)) continue;
+      publishMap.set(d.attempt_id, {
+        attemptId: d.attempt_id,
+        score: d.draft_score,
+        feedback: d.draft_feedback,
+        rubric_scores: d.draft_rubric_scores,
+      });
+    }
+  }
+
+  for (const edit of publishMap.values()) {
+    const patch: Record<string, unknown> = {};
+    if (edit.score !== undefined) patch.score = edit.score;
+    if (edit.feedback !== undefined) patch.feedback = edit.feedback;
+    if (edit.rubric_scores !== undefined) patch.rubric_scores = edit.rubric_scores;
+    if (Object.keys(patch).length === 0) continue;
+    const { error } = await supabase
+      .from("submission_attempts")
+      .update(patch)
+      .eq("id", edit.attemptId);
+    if (error) throw error;
+  }
+
+  // Drafts are now published; clear them.
+  if (attemptIds.length > 0) {
+    const { error: delErr } = await supabase
+      .from("attempt_grade_drafts")
+      .delete()
+      .in("attempt_id", attemptIds);
+    if (delErr) throw delErr;
+  }
+
+  // 4. released_score = selected attempt's (published) score, per question.
+  await syncReleasedScores(supabase, questions);
+
+  // 5. Flip the whole submission to released (first release only).
+  if (!alreadyReleased) {
+    const { error: relErr } = await supabase
+      .from("submissions")
+      .update({ feedback_released_at: new Date().toISOString() })
+      .eq("submission_id", submissionId);
+    if (relErr) throw relErr;
+  }
 
   return { ok: true };
 }
 
 /**
- * Reopen a released submission: clear the release flag and every question's
- * released_score so it reverts to tentative for amendment + re-release.
+ * Persist per-attempt grade edits as a teacher-only DRAFT, without changing what
+ * the student sees. Upserts into attempt_grade_drafts (one row per attempt). The
+ * student-visible submission_attempts columns are untouched until release/publish.
  */
-export async function reopenSubmission(
+export async function saveAttemptEdits(
+  supabase: SupabaseClient,
+  edits: AttemptEdit[],
+  updatedBy: string | null = null
+): Promise<void> {
+  if (edits.length === 0) return;
+  const rows = edits.map((e) => ({
+    attempt_id: e.attemptId,
+    draft_score: e.score ?? null,
+    draft_feedback: e.feedback ?? null,
+    draft_rubric_scores: e.rubric_scores ?? null,
+    updated_at: new Date().toISOString(),
+    updated_by: updatedBy,
+  }));
+  const { error } = await supabase
+    .from("attempt_grade_drafts")
+    .upsert(rows, { onConflict: "attempt_id" });
+  if (error) throw error;
+}
+
+/**
+ * Discard all unpublished drafts for a submission, reverting the teacher's working
+ * state back to the published values. Does not change release state.
+ */
+export async function discardDrafts(
   supabase: SupabaseClient,
   submissionId: string
 ): Promise<void> {
-  const { error: qErr } = await supabase
+  const { data: questions, error: qErr } = await supabase
     .from("submission_questions")
-    .update({ released_score: null })
+    .select("id")
     .eq("submission_id", submissionId);
   if (qErr) throw qErr;
-
+  const attemptIds = await getAttemptIdsForSubmission(
+    supabase,
+    (questions ?? []).map((q) => q.id as string)
+  );
+  if (attemptIds.length === 0) return;
   const { error } = await supabase
-    .from("submissions")
-    .update({ feedback_released_at: null })
-    .eq("submission_id", submissionId);
+    .from("attempt_grade_drafts")
+    .delete()
+    .in("attempt_id", attemptIds);
   if (error) throw error;
 }
 
@@ -238,6 +352,10 @@ export async function setQuestionReviewed(
  * Set a question's selected attempt by attempt_number. When `clearReview` is true
  * (teacher changed the counted attempt) the question's review row is removed so it
  * must be re-reviewed before release.
+ *
+ * Selection has no student-facing effect (the student always sees the latest
+ * attempt) and does not publish anything: released_score is recomputed only at
+ * release/publish, so switching the counted attempt does not leak to the student.
  */
 export async function setSelectedAttempt(
   supabase: SupabaseClient,
