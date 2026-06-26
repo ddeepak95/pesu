@@ -227,6 +227,14 @@ export default function AssignmentDetailClient({
     };
   }, [isDetailView]);
 
+  const handleBackToClass = () => {
+    const groupId = searchParams.get("groupId");
+    const qs = new URLSearchParams();
+    qs.set("tab", "content");
+    if (groupId) qs.set("groupId", groupId);
+    router.push(`/teacher/classes/${classId}?${qs.toString()}`);
+  };
+
   const handleEdit = () => {
     const qs = searchParams.toString();
     router.push(
@@ -343,7 +351,7 @@ export default function AssignmentDetailClient({
       <div>
         <div>
           <div className="mb-4">
-            <BackButton />
+            <BackButton label="Back to class" onClick={handleBackToClass} />
           </div>
           <div className="flex items-center justify-between mb-4">
             <div>

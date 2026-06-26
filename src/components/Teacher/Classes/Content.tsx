@@ -287,6 +287,12 @@ export default function Content({ classData }: ContentProps) {
   const handleOpen = (item: ContentItem) => {
     const href = getContentHref(item);
     if (href) {
+      try {
+        sessionStorage.setItem(
+          `scroll_${classData.class_id}`,
+          String(window.scrollY)
+        );
+      } catch {}
       router.push(href);
     }
   };

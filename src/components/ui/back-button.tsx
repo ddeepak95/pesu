@@ -8,9 +8,11 @@ import { ArrowLeft } from "lucide-react";
 export default function BackButton({
   label = "Back",
   className,
+  onClick,
 }: {
   label?: string;
   className?: string;
+  onClick?: () => void;
 }) {
   const router = useTrackedRouter();
 
@@ -20,7 +22,7 @@ export default function BackButton({
         type="button"
         variant="outline"
         className="gap-2"
-        onClick={() => router.back()}
+        onClick={onClick ?? (() => router.back())}
       >
         <ArrowLeft className="h-4 w-4" />
         {label}
