@@ -41,6 +41,8 @@ interface ContentBoxProps {
   className?: string;
   animateActions?: boolean;
   autoScroll?: boolean;
+  /** Label shown on student bubbles (e.g. "You" in the live view, "Student" for teachers). */
+  studentLabel?: string;
 }
 
 export function ContentBox({
@@ -61,6 +63,7 @@ export function ContentBox({
   className,
   animateActions = true,
   autoScroll = true,
+  studentLabel = "You",
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
@@ -140,14 +143,20 @@ export function ContentBox({
       </style>
       <div
         className={cn(
-          "relative flex h-96 flex-col rounded-xl border border-border bg-muted/30 overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.14)_1px,transparent_0)] bg-[length:18px_18px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.20)_1px,transparent_0)] dark:bg-[length:18px_18px]",
+          "relative flex h-96 flex-col rounded-xl border border-border bg-muted/30 overflow-hidden",
           className
         )}
-        style={{ backgroundColor: "rgba(161,98,7,0.06)" }}
       >
         <div
           ref={scrollRef}
-          className="relative min-h-0 flex-1 overflow-y-auto p-4"
+          className="relative min-h-0 flex-1 overflow-y-auto p-4 bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.14)_1px,transparent_0)] bg-[length:18px_18px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.20)_1px,transparent_0)] dark:bg-[length:18px_18px]"
+          // translateZ(0) promotes the scroll layer so Chromium invalidates it
+          // correctly — without it, the bubbles' box-shadow leaves repaint
+          // trails ("ghost shadow") while scrolling.
+          style={{
+            backgroundColor: "rgba(161,98,7,0.06)",
+            transform: "translateZ(0)",
+          }}
         >
           <div className="flex min-h-full flex-col">
             <div className="min-h-0 flex-1 shrink-0" aria-hidden />
@@ -205,6 +214,7 @@ export function ContentBox({
                     transliterationPending={Boolean(transliterationPending?.[m.id])}
                     onRequestTransliteration={() => onRequestTransliteration?.(m.id)}
                     readOnly={readOnly}
+                    studentLabel={studentLabel}
                   />
                 );
               })}
@@ -271,6 +281,7 @@ interface MessageBubbleProps {
   transliterationPending?: boolean;
   onRequestTransliteration?: () => void;
   readOnly?: boolean;
+  studentLabel?: string;
 }
 
 function MessageBubble({
@@ -286,6 +297,7 @@ function MessageBubble({
   transliterationPending,
   onRequestTransliteration,
   readOnly,
+  studentLabel = "You",
 }: MessageBubbleProps) {
   const isStudent = m.role === "student";
   const isStreaming = m.role === "assistant" && Boolean(m.streaming);
@@ -296,7 +308,7 @@ function MessageBubble({
       style={isNew ? { animation: "konvoBubbleIn 900ms ease-out both" } : undefined}
     >
       <div
-        className={`relative max-w-[95%] sm:max-w-[80%] px-3 py-2 text-sm whitespace-pre-wrap shadow-sm transition-all duration-500 ease-out ${
+        className={`relative max-w-[95%] sm:max-w-[80%] px-3 py-2 text-sm whitespace-pre-wrap shadow-sm transition-colors duration-500 ease-out ${
           isStudent
             ? "bg-muted text-foreground border border-border/60 rounded-2xl rounded-br-sm"
             : "bg-muted/70 border border-border/60 text-foreground rounded-2xl rounded-bl-sm"
@@ -304,7 +316,7 @@ function MessageBubble({
       >
         <div className="mb-2 flex items-center justify-between">
           <div className="text-sm font-semibold text-foreground">
-            {isStudent ? "You" : "Konvo"}
+            {isStudent ? studentLabel : "Konvo"}
           </div>
           <div className="flex items-center gap-1">
             {!isStreaming && audioAvailable ? (

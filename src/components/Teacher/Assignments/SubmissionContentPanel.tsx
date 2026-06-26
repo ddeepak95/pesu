@@ -14,6 +14,8 @@ import {
   useSubmissionFiles,
   useVoiceMessagesForAttempt,
 } from "@/hooks/swr";
+import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
+import { DEFAULT_KONVO_SESSION_CONFIG } from "@/components/Shared/KonvoVoice/defaultSessionConfig";
 import { requestFileDownloadUrl } from "@/lib/queries/submissionFiles";
 import { showErrorToast } from "@/lib/toast";
 import { SubmissionFile } from "@/types/submission";
@@ -62,9 +64,24 @@ export function SubmissionContentPanel({
   const assignmentQuery = useAssignmentByIdForTeacher(assignmentId);
   const fullSubmissionQuery = useSubmissionById(submissionId);
   const submissionFilesQuery = useSubmissionFiles(submissionId);
+  const { data: speechModels } = useMultimodalSpeechModels(assignmentId);
 
   const assignment = assignmentQuery.data ?? null;
   const fullSubmission = fullSubmissionQuery.data ?? null;
+
+  // TTS config so suggested-response cards can replay audio on demand (same
+  // on-demand TTS flow the live student view uses). Resolved once the
+  // submission's language is available.
+  const ttsConfig = useMemo(() => {
+    const language = fullSubmission?.preferred_language;
+    if (!language) return undefined;
+    return {
+      ttsModelId:
+        speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId,
+      assignmentId,
+      language,
+    };
+  }, [fullSubmission?.preferred_language, speechModels?.ttsModelId, assignmentId]);
   const submissionFiles: SubmissionFile[] = useMemo(
     () => submissionFilesQuery.data ?? [],
     [submissionFilesQuery.data]
@@ -238,6 +255,8 @@ export function SubmissionContentPanel({
               audioAvailableIds={new Set(audioUrlMap.keys())}
               onReplayAudio={handleReplayAudio}
               playingMessageId={playingMessageId}
+              ttsConfig={ttsConfig}
+              studentLabel="Student"
               readOnly={true}
               animateActions={false}
               autoScroll={false}
