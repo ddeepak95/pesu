@@ -170,9 +170,34 @@ export function SubmissionContentPanel({
     return result;
   }, [messages, actionsQuery.data]);
 
+  // Voice-mode fallback: classic `voice` assessments don't write chat_messages —
+  // the pipecat backend logs each turn (text + audio) into voice_messages. When
+  // there are no chat_messages, render the conversation straight from those rows.
+  const voiceModeMessages = useMemo(
+    () =>
+      (voiceQuery.data ?? []).map((v) => ({
+        id: v.id,
+        role: v.role,
+        content: v.content,
+      })),
+    [voiceQuery.data]
+  );
+
+  const voiceModeAudioMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const v of voiceQuery.data ?? []) {
+      if (v.audio_file_url) map.set(v.id, v.audio_file_url);
+    }
+    return map;
+  }, [voiceQuery.data]);
+
+  const usingVoiceMode = messages.length === 0 && voiceModeMessages.length > 0;
+  const conversationMessages = usingVoiceMode ? voiceModeMessages : mergedMessages;
+  const conversationAudioMap = usingVoiceMode ? voiceModeAudioMap : audioUrlMap;
+
   const expandedMessageIds = useMemo(
-    () => Object.fromEntries(messages.map((m) => [m.id, true])),
-    [messages]
+    () => Object.fromEntries(conversationMessages.map((m) => [m.id, true])),
+    [conversationMessages]
   );
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -180,7 +205,7 @@ export function SubmissionContentPanel({
 
   const handleReplayAudio = useCallback(
     (messageId: string) => {
-      const url = audioUrlMap.get(messageId);
+      const url = conversationAudioMap.get(messageId);
       if (!url) return;
       if (audioRef.current) {
         audioRef.current.pause();
@@ -196,7 +221,7 @@ export function SubmissionContentPanel({
       audio.play();
       setPlayingMessageId(messageId);
     },
-    [audioUrlMap, playingMessageId]
+    [conversationAudioMap, playingMessageId]
   );
 
   const handleOpenSubmissionFile = async (file: SubmissionFile) => {
@@ -294,22 +319,22 @@ export function SubmissionContentPanel({
             <p className="text-sm text-muted-foreground text-center py-8">
               Select a question on the right to view its conversation.
             </p>
-          ) : chatMessagesQuery.isLoading ? (
+          ) : chatMessagesQuery.isLoading || voiceQuery.isLoading ? (
             <div className="space-y-3 pt-2">
               <SkeletonLine className="h-16 w-3/4" />
               <SkeletonLine className="h-16 w-3/4 ml-auto" />
               <SkeletonLine className="h-16 w-3/4" />
             </div>
-          ) : messages.length === 0 ? (
+          ) : conversationMessages.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               No conversation recorded for this attempt.
             </p>
           ) : (
             <ContentBox
               content={null}
-              messages={mergedMessages}
+              messages={conversationMessages}
               expandedMessageIds={expandedMessageIds}
-              audioAvailableIds={new Set(audioUrlMap.keys())}
+              audioAvailableIds={new Set(conversationAudioMap.keys())}
               onReplayAudio={handleReplayAudio}
               playingMessageId={playingMessageId}
               ttsConfig={ttsConfig}
