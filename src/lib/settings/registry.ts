@@ -140,6 +140,12 @@ export const ASSESSMENT_MODE_OPTIONS = [
 
 export type AssessmentMode = (typeof ASSESSMENT_MODE_OPTIONS)[number]["value"];
 
+/** Interaction types kept for existing assignments but no longer creatable. */
+export const RETIRED_ASSESSMENT_MODES = new Set<AssessmentMode>([
+  "voice",
+  "text_chat",
+]);
+
 const allowedAssessmentModes: SettingDefinition<AssessmentMode[]> = {
   key: "allowed_assessment_modes",
   label: "Allowed assessment modes",

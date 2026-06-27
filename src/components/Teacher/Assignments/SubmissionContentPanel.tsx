@@ -12,6 +12,7 @@ import {
   useChatMessages,
   useSubmissionById,
   useSubmissionFiles,
+  useTranscript,
   useVoiceMessagesForAttempt,
 } from "@/hooks/swr";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
@@ -99,6 +100,7 @@ export function SubmissionContentPanel({
   const questionOrder = currentQuestion?.order ?? null;
 
   const hasFileSubmission = !!assignment?.file_submission_config;
+  const isStaticText = assignment?.assessment_mode === "static_text";
   const showConversation = selectedAttemptNumber !== null && currentQuestion !== null;
 
   // Transcript data
@@ -115,6 +117,13 @@ export function SubmissionContentPanel({
   const voiceQuery = useVoiceMessagesForAttempt({
     submissionId: showConversation ? submissionId : null,
     questionOrder: showConversation ? questionOrder : null,
+    attemptNumber: selectedAttemptNumber,
+  });
+
+  // Static-text answer for the selected attempt (read from submission_transcripts).
+  const transcriptQuery = useTranscript({
+    submissionId: isStaticText && showConversation ? submissionId : null,
+    questionOrder: isStaticText && showConversation ? questionOrder : null,
     attemptNumber: selectedAttemptNumber,
   });
 
@@ -222,14 +231,26 @@ export function SubmissionContentPanel({
       )}
 
       {/* Tabs render immediately; content loads progressively inside each tab */}
-      <Tabs defaultValue="conversation" className="min-h-0 flex-1 flex flex-col">
+      <Tabs
+        defaultValue={isStaticText ? "response" : "conversation"}
+        className="min-h-0 flex-1 flex flex-col"
+      >
         <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
-          <TabsTrigger
-            value="conversation"
-            className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
-          >
-            Conversation
-          </TabsTrigger>
+          {isStaticText ? (
+            <TabsTrigger
+              value="response"
+              className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+            >
+              Response
+            </TabsTrigger>
+          ) : (
+            <TabsTrigger
+              value="conversation"
+              className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+            >
+              Conversation
+            </TabsTrigger>
+          )}
           {/* Show File Submission tab: immediately if we know it exists, or show
               a placeholder tab while assignment loads (avoids layout shift) */}
           {(hasFileSubmission || assignmentQuery.isLoading) && (
@@ -243,6 +264,31 @@ export function SubmissionContentPanel({
           )}
         </TabsList>
 
+        {isStaticText && (
+          <TabsContent value="response" className="mt-0 min-h-0 flex-1">
+            {!showConversation ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Select a question on the right to view its response.
+              </p>
+            ) : transcriptQuery.isLoading ? (
+              <div className="space-y-3 p-6">
+                <SkeletonLine className="h-4 w-full" />
+                <SkeletonLine className="h-4 w-5/6" />
+                <SkeletonLine className="h-4 w-2/3" />
+              </div>
+            ) : !transcriptQuery.data?.trim() ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No response recorded for this attempt.
+              </p>
+            ) : (
+              <div className="p-6 text-sm whitespace-pre-wrap leading-relaxed">
+                {transcriptQuery.data}
+              </div>
+            )}
+          </TabsContent>
+        )}
+
+        {!isStaticText && (
         <TabsContent value="conversation" className="mt-0 min-h-0 flex-1">
           {!showConversation ? (
             <p className="text-sm text-muted-foreground text-center py-8">
@@ -275,6 +321,7 @@ export function SubmissionContentPanel({
             />
           )}
         </TabsContent>
+        )}
 
         {(hasFileSubmission || assignmentQuery.isLoading) && (
           <TabsContent value="files" className="mt-0 p-6">

@@ -67,6 +67,7 @@ import { showSuccessToast } from "@/lib/toast";
 import { useEffectiveClassSettings } from "@/hooks/swr/useSettings";
 import {
   ASSESSMENT_MODE_OPTIONS,
+  RETIRED_ASSESSMENT_MODES,
   type AssessmentMode,
 } from "@/lib/settings/registry";
 
@@ -288,10 +289,10 @@ export default function AssignmentForm({
   // existing value visible so historic assignments stay editable.
   const currentAssessmentMode = useMemo<AssessmentMode>(() => {
     if (mode === "edit") return assessmentMode;
-    if (allowedAssessmentModes.has(assessmentMode)) return assessmentMode;
-    const first = ASSESSMENT_MODE_OPTIONS.find((o) =>
-      allowedAssessmentModes.has(o.value),
-    );
+    const creatable = (m: AssessmentMode) =>
+      allowedAssessmentModes.has(m) && !RETIRED_ASSESSMENT_MODES.has(m);
+    if (creatable(assessmentMode)) return assessmentMode;
+    const first = ASSESSMENT_MODE_OPTIONS.find((o) => creatable(o.value));
     return (first?.value ?? assessmentMode) as AssessmentMode;
   }, [mode, assessmentMode, allowedAssessmentModes]);
 
@@ -967,6 +968,12 @@ export default function AssignmentForm({
                   {ASSESSMENT_MODE_OPTIONS.map((opt) => {
                     const isAllowed = allowedAssessmentModes.has(opt.value);
                     const isCurrent = opt.value === currentAssessmentMode;
+                    // Retired modes (voice, text chat) are no longer creatable.
+                    // Hide them unless this is the current value, so existing
+                    // assignments of that type stay editable.
+                    if (RETIRED_ASSESSMENT_MODES.has(opt.value) && !isCurrent) {
+                      return null;
+                    }
                     // Disabled if the institution restricts it, unless this is the
                     // current value (so existing assignments remain editable).
                     if (!isAllowed && !isCurrent) {
