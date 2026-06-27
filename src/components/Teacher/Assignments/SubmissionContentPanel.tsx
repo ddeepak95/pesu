@@ -281,7 +281,7 @@ export function SubmissionContentPanel({
                 No response recorded for this attempt.
               </p>
             ) : (
-              <div className="p-6 text-sm whitespace-pre-wrap leading-relaxed">
+              <div className="h-full overflow-y-auto p-6 text-sm whitespace-pre-wrap leading-relaxed">
                 {transcriptQuery.data}
               </div>
             )}
