@@ -51,7 +51,10 @@ import {
   useQuizzesByIds,
   useSurveysByIds,
 } from "@/hooks/swr";
-import { contentMaterialKey, linkedMaterialKeySet } from "@/lib/contentPlacements";
+import {
+  contentMaterialKey,
+  linkedMaterialKeySet,
+} from "@/lib/contentPlacements";
 
 interface ContentProps {
   classData: Class;
@@ -61,8 +64,8 @@ export default function Content({ classData }: ContentProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
   // Initialize from URL so we don't flash empty content when navigating back
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
-    () => searchParams.get("groupId")
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(() =>
+    searchParams.get("groupId"),
   );
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicateItem, setDuplicateItem] = useState<ContentItem | null>(null);
@@ -76,11 +79,17 @@ export default function Content({ classData }: ContentProps) {
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkAction, setBulkAction] = useState<"duplicate" | "delete" | null>(null);
+  const [bulkAction, setBulkAction] = useState<"duplicate" | "delete" | null>(
+    null,
+  );
   const [bulkDuplicateOpen, setBulkDuplicateOpen] = useState(false);
 
   // --- SWR hooks ---
-  const { data: groups = [], error: groupsError, isLoading: groupsLoading } = useClassGroups(classData.id);
+  const {
+    data: groups = [],
+    error: groupsError,
+    isLoading: groupsLoading,
+  } = useClassGroups(classData.id);
 
   // Validate selectedGroupId once groups load — correct if invalid
   useEffect(() => {
@@ -108,13 +117,13 @@ export default function Content({ classData }: ContentProps) {
   const { data: allClassContentItems } = useContentItemsByClass(classData.id);
   const linkedMaterialKeys = useMemo(
     () => linkedMaterialKeySet(allClassContentItems ?? []),
-    [allClassContentItems]
+    [allClassContentItems],
   );
 
   // Use localItems for optimistic UI, fall back to SWR data
   const items = useMemo(
     () => localItems ?? swrItems ?? [],
-    [localItems, swrItems]
+    [localItems, swrItems],
   );
 
   // Sync localItems when SWR data changes (unless we're in the middle of an optimistic update)
@@ -126,25 +135,32 @@ export default function Content({ classData }: ContentProps) {
 
   // Derive IDs for hydration queries
   const formativeAssignmentIds = useMemo(
-    () => items.filter((i) => i.type === "formative_assignment").map((i) => i.ref_id),
-    [items]
+    () =>
+      items
+        .filter((i) => i.type === "formative_assignment")
+        .map((i) => i.ref_id),
+    [items],
   );
   const learningContentIds = useMemo(
-    () => items.filter((i) => i.type === "learning_content").map((i) => i.ref_id),
-    [items]
+    () =>
+      items.filter((i) => i.type === "learning_content").map((i) => i.ref_id),
+    [items],
   );
   const quizIds = useMemo(
     () => items.filter((i) => i.type === "quiz").map((i) => i.ref_id),
-    [items]
+    [items],
   );
   const surveyIds = useMemo(
     () => items.filter((i) => i.type === "survey").map((i) => i.ref_id),
-    [items]
+    [items],
   );
 
   // Hydrate related entities via SWR
-  const { data: assignmentsData } = useAssignmentsByIdsForTeacher(formativeAssignmentIds);
-  const { data: learningContentsData } = useLearningContentsByIds(learningContentIds);
+  const { data: assignmentsData } = useAssignmentsByIdsForTeacher(
+    formativeAssignmentIds,
+  );
+  const { data: learningContentsData } =
+    useLearningContentsByIds(learningContentIds);
   const { data: quizzesData } = useQuizzesByIds(quizIds);
   const { data: surveysData } = useSurveysByIds(surveyIds);
 
@@ -178,7 +194,7 @@ export default function Content({ classData }: ContentProps) {
 
   const selectedItems = useMemo(
     () => items.filter((i) => selectedIds.has(i.id)),
-    [items, selectedIds]
+    [items, selectedIds],
   );
 
   const toggleSelectItem = useCallback((id: string) => {
@@ -290,7 +306,7 @@ export default function Content({ classData }: ContentProps) {
       try {
         sessionStorage.setItem(
           `scroll_${classData.class_id}`,
-          String(window.scrollY)
+          String(window.scrollY),
         );
       } catch {}
       router.push(href);
@@ -311,7 +327,7 @@ export default function Content({ classData }: ContentProps) {
       const a = assignmentById[item.ref_id];
       if (a) {
         router.push(
-          `/teacher/classes/${classData.class_id}/assignments/${a.assignment_id}/edit${backQs}`
+          `/teacher/classes/${classData.class_id}/assignments/${a.assignment_id}/edit${backQs}`,
         );
         return;
       }
@@ -321,7 +337,7 @@ export default function Content({ classData }: ContentProps) {
       const lc = learningContentById[item.ref_id];
       if (lc) {
         router.push(
-          `/teacher/classes/${classData.class_id}/learning-content/${lc.learning_content_id}/edit${backQs}`
+          `/teacher/classes/${classData.class_id}/learning-content/${lc.learning_content_id}/edit${backQs}`,
         );
       }
     }
@@ -330,7 +346,7 @@ export default function Content({ classData }: ContentProps) {
       const q = quizById[item.ref_id];
       if (q) {
         router.push(
-          `/teacher/classes/${classData.class_id}/quizzes/${q.quiz_id}/edit${backQs}`
+          `/teacher/classes/${classData.class_id}/quizzes/${q.quiz_id}/edit${backQs}`,
         );
       }
     }
@@ -339,7 +355,7 @@ export default function Content({ classData }: ContentProps) {
       const s = surveyById[item.ref_id];
       if (s) {
         router.push(
-          `/teacher/classes/${classData.class_id}/surveys/${s.survey_id}/edit${backQs}`
+          `/teacher/classes/${classData.class_id}/surveys/${s.survey_id}/edit${backQs}`,
         );
       }
     }
@@ -391,12 +407,12 @@ export default function Content({ classData }: ContentProps) {
           await softDeleteContentItem(item.id);
       }
     },
-    [classData.id]
+    [classData.id],
   );
 
   const handleDelete = async (item: ContentItem) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this item? This action cannot be undone."
+      "Are you sure you want to delete this item? This action cannot be undone.",
     );
     if (!confirmed) return;
 
@@ -415,13 +431,17 @@ export default function Content({ classData }: ContentProps) {
     const count = selectedIds.size;
     if (count === 0) return;
     const confirmed = window.confirm(
-      `Are you sure you want to delete ${count} item(s)? This action cannot be undone.`
+      `Are you sure you want to delete ${count} item(s)? This action cannot be undone.`,
     );
     if (!confirmed) return;
     const toDelete = items.filter((i) => selectedIds.has(i.id));
     try {
-      await Promise.all(toDelete.map((item) => deleteContentItemAndEntity(item)));
-      setLocalItems((prev) => (prev ?? items).filter((i) => !selectedIds.has(i.id)));
+      await Promise.all(
+        toDelete.map((item) => deleteContentItemAndEntity(item)),
+      );
+      setLocalItems((prev) =>
+        (prev ?? items).filter((i) => !selectedIds.has(i.id)),
+      );
       exitSelectionMode();
       mutateItems();
       void invalidateContentItemsByClass(classData.id);
@@ -443,7 +463,7 @@ export default function Content({ classData }: ContentProps) {
 
   const handleToggleLockAfterComplete = async (
     itemId: string,
-    lockAfterComplete: boolean
+    lockAfterComplete: boolean,
   ) => {
     try {
       await updateContentItem(itemId, {
@@ -454,8 +474,8 @@ export default function Content({ classData }: ContentProps) {
         (prev ?? items).map((item) =>
           item.id === itemId
             ? { ...item, lock_after_complete: lockAfterComplete }
-            : item
-        )
+            : item,
+        ),
       );
       mutateItems();
     } catch (err) {
@@ -466,7 +486,7 @@ export default function Content({ classData }: ContentProps) {
 
   const handleToggleRequireTeacherUnlock = async (
     itemId: string,
-    requireTeacherUnlock: boolean
+    requireTeacherUnlock: boolean,
   ) => {
     try {
       await updateContentItem(itemId, {
@@ -477,19 +497,21 @@ export default function Content({ classData }: ContentProps) {
         (prev ?? items).map((item) =>
           item.id === itemId
             ? { ...item, require_teacher_unlock: requireTeacherUnlock }
-            : item
-        )
+            : item,
+        ),
       );
       mutateItems();
     } catch (err) {
       console.error("Error updating require_teacher_unlock:", err);
-      showErrorToast("Failed to update teacher unlock setting. Please try again.");
+      showErrorToast(
+        "Failed to update teacher unlock setting. Please try again.",
+      );
     }
   };
 
   const handleUpdateUnlockDaysAfterPrevious = async (
     itemId: string,
-    days: number | null
+    days: number | null,
   ) => {
     try {
       await updateContentItem(itemId, {
@@ -499,8 +521,8 @@ export default function Content({ classData }: ContentProps) {
         (prev ?? items).map((item) =>
           item.id === itemId
             ? { ...item, unlock_days_after_previous: days }
-            : item
-        )
+            : item,
+        ),
       );
       mutateItems();
     } catch (err) {
@@ -515,6 +537,35 @@ export default function Content({ classData }: ContentProps) {
         <h2 className="text-2xl font-bold">Content</h2>
 
         <div className="flex items-center gap-2">
+          {!selectionMode && items.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setBulkAction("duplicate");
+                    setSelectionMode(true);
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate items
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setBulkAction("delete");
+                    setSelectionMode(true);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete items
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <CreateContentMenu
             classPublicId={classData.class_id}
             selectedGroupId={selectedGroupId}
@@ -577,38 +628,20 @@ export default function Content({ classData }: ContentProps) {
         }}
         className="w-full"
       >
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <MutedPrimaryTabsList className="h-auto w-auto gap-1 rounded-md p-1">
-            {groups.map((g) => (
-              <MutedPrimaryTabsTrigger
-                key={g.id}
-                value={g.id}
-                className="rounded-sm px-4 py-2"
-              >
-                {g.name || `Group ${g.group_index + 1}`}
-              </MutedPrimaryTabsTrigger>
-            ))}
-          </MutedPrimaryTabsList>
-          {!selectionMode && items.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => { setBulkAction("duplicate"); setSelectionMode(true); }}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Duplicate items
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setBulkAction("delete"); setSelectionMode(true); }}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete items
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+        <MutedPrimaryTabsList
+          hideWhenSingle
+          className="mb-4 h-auto w-auto gap-1 rounded-md p-1"
+        >
+          {groups.map((g) => (
+            <MutedPrimaryTabsTrigger
+              key={g.id}
+              value={g.id}
+              className="rounded-sm px-4 py-2"
+            >
+              {g.name || `Group ${g.group_index + 1}`}
+            </MutedPrimaryTabsTrigger>
+          ))}
+        </MutedPrimaryTabsList>
 
         {groups.map((g) => (
           <TabsContent key={g.id} value={g.id} className="pt-4">
@@ -630,10 +663,10 @@ export default function Content({ classData }: ContentProps) {
                     item.type === "formative_assignment"
                       ? assignmentById[item.ref_id]?.title
                       : item.type === "quiz"
-                      ? quizById[item.ref_id]?.title
-                      : item.type === "survey"
-                      ? surveyById[item.ref_id]?.title
-                      : learningContentById[item.ref_id]?.title;
+                        ? quizById[item.ref_id]?.title
+                        : item.type === "survey"
+                          ? surveyById[item.ref_id]?.title
+                          : learningContentById[item.ref_id]?.title;
 
                   const titleLoading = !resolvedTitle;
 
@@ -659,7 +692,7 @@ export default function Content({ classData }: ContentProps) {
                       assessmentMode={assessmentMode}
                       language={language}
                       isLinked={linkedMaterialKeys.has(
-                        contentMaterialKey(item.type, item.ref_id)
+                        contentMaterialKey(item.type, item.ref_id),
                       )}
                       selectionMode={selectionMode}
                       selected={selectedIds.has(item.id)}
@@ -671,7 +704,9 @@ export default function Content({ classData }: ContentProps) {
                       onMove={(direction) => handleMove(index, direction)}
                       onShareLinks={() => handleShareLinks(item)}
                       onToggleLockAfterComplete={handleToggleLockAfterComplete}
-                      onToggleRequireTeacherUnlock={handleToggleRequireTeacherUnlock}
+                      onToggleRequireTeacherUnlock={
+                        handleToggleRequireTeacherUnlock
+                      }
                       onUpdateUnlockDaysAfterPrevious={
                         handleUpdateUnlockDaysAfterPrevious
                       }

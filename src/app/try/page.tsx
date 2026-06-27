@@ -48,26 +48,20 @@ const activities = [
 
 export default function TryPage() {
   useEffect(() => {
+    // Force the full light palette regardless of OS/app theme. Dark mode is
+    // applied via `@media (prefers-color-scheme: dark)` on :root (not a class),
+    // so we opt this route out wholesale with a single attribute that the
+    // dark-scheme rules in globals.css exclude via :not([data-force-theme=...]).
     const html = document.documentElement;
-    const previousColorScheme = html.style.colorScheme;
-    const previousCanvas = html.style.getPropertyValue("--canvas");
-    const previousGrainOpacity = html.style.getPropertyValue("--grain-opacity");
+    const previousForceTheme = html.getAttribute("data-force-theme");
 
-    html.style.colorScheme = "light";
-    html.style.setProperty("--canvas", "#faf7f1");
-    html.style.setProperty("--grain-opacity", "0.225");
+    html.setAttribute("data-force-theme", "light");
 
     return () => {
-      html.style.colorScheme = previousColorScheme;
-      if (previousCanvas) {
-        html.style.setProperty("--canvas", previousCanvas);
+      if (previousForceTheme === null) {
+        html.removeAttribute("data-force-theme");
       } else {
-        html.style.removeProperty("--canvas");
-      }
-      if (previousGrainOpacity) {
-        html.style.setProperty("--grain-opacity", previousGrainOpacity);
-      } else {
-        html.style.removeProperty("--grain-opacity");
+        html.setAttribute("data-force-theme", previousForceTheme);
       }
     };
   }, []);

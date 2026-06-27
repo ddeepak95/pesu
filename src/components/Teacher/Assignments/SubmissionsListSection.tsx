@@ -582,15 +582,9 @@ export function SubmissionsListSection({
   };
 
   return (
-    <div className="py-6">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Submissions</h2>
-          <p className="text-sm text-muted-foreground">
-            View and manage student submissions for this assignment.
-          </p>
-        </div>
-        {showBulkApproveButton && (
+    <div>
+      {showBulkApproveButton && (
+        <div className="mb-6 flex justify-end">
           <Button
             variant="default"
             size="sm"
@@ -599,11 +593,14 @@ export function SubmissionsListSection({
           >
             {`Release all reviewed (${totalPendingCount})`}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <Tabs defaultValue="class-students" className="w-full">
-        <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
+        <MutedPrimaryTabsList
+          hideWhenSingle
+          className="mb-4 h-auto w-auto gap-1 rounded-md p-1"
+        >
           <MutedPrimaryTabsTrigger
             value="class-students"
             className="rounded-sm px-4 py-2"
@@ -620,7 +617,7 @@ export function SubmissionsListSection({
           )}
         </MutedPrimaryTabsList>
 
-        <TabsContent value="class-students" className="mt-6">
+        <TabsContent value="class-students">
           {classLoading ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Loading submissions...</p>
@@ -651,7 +648,7 @@ export function SubmissionsListSection({
         </TabsContent>
 
         {isPublic && (
-          <TabsContent value="public-submissions" className="mt-6">
+          <TabsContent value="public-submissions">
             {publicLoading ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">

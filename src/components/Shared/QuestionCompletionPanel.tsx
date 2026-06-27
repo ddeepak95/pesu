@@ -201,7 +201,9 @@ export function QuestionCompletionPanel({
 
       {isComplete && (
         <p className="text-sm text-muted-foreground text-center pt-2">
-          All the questions are completed. Please proceed to the next item.
+          {contentItemId
+            ? "All the questions are completed. Please proceed to the next item."
+            : "All the questions are completed. Your responses have been submitted."}
         </p>
       )}
     </div>

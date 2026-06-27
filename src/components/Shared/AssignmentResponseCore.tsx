@@ -29,6 +29,12 @@ interface AssignmentResponseCoreProps {
   displayName: string; // For display in header - derived from responder_details or user
   preferredLanguage: string;
   contentItemId?: string | null; // For marking as complete
+  /**
+   * Force the completed UI on, independent of content-item completion. Used by
+   * the public flow (no content item), where completion is tracked on the
+   * submission itself rather than via `useIsContentComplete`.
+   */
+  forceComplete?: boolean;
   onComplete?: () => void;
   onBack?: () => void;
   onLanguageChange?: (lang: string) => void;
@@ -67,6 +73,7 @@ export default function AssignmentResponseCore({
   submissionId,
   preferredLanguage: initialPreferredLanguage,
   contentItemId,
+  forceComplete = false,
   onComplete,
   onBack: _onBack,
   onLanguageChange,
@@ -103,7 +110,7 @@ export default function AssignmentResponseCore({
 
   // Has the current student already completed this content item?
   const isContentCompleteQuery = useIsContentComplete(contentItemId ?? null);
-  const isComplete = isContentCompleteQuery.data ?? false;
+  const isComplete = forceComplete || (isContentCompleteQuery.data ?? false);
 
   // Dynamic question generation state
   const [generatedQuestions, setGeneratedQuestions] = useState<

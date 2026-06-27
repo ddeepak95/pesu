@@ -6,8 +6,22 @@ import { cn } from "@/lib/utils";
 
 export function MutedPrimaryTabsList({
   className,
+  hideWhenSingle = false,
+  children,
   ...props
-}: React.ComponentProps<typeof TabsList>) {
+}: React.ComponentProps<typeof TabsList> & {
+  /**
+   * When true, the tab strip renders nothing (and occupies no space) if it
+   * contains one or fewer visible triggers. Radix `Tabs` still resolves the
+   * active tab by its `value`/`defaultValue`, so the single tab's content shows
+   * normally — only the visual strip is removed.
+   */
+  hideWhenSingle?: boolean;
+}) {
+  if (hideWhenSingle && React.Children.toArray(children).length <= 1) {
+    return null;
+  }
+
   return (
     <TabsList
       className={cn(
@@ -15,7 +29,9 @@ export function MutedPrimaryTabsList({
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </TabsList>
   );
 }
 

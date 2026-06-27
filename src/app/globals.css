@@ -307,12 +307,15 @@ body {
   --pill-assignment-public-access-border: color-mix(in srgb, var(--color-electric-aqua-600) 35%, transparent);
 }
 
+/* Routes can opt out of the dark scheme entirely by setting
+   data-force-theme="light" on <html> (see /try). The :not() guards below keep
+   the base :root light tokens in effect even when the OS prefers dark. */
 @media (prefers-color-scheme: dark) {
-  html {
+  html:not([data-force-theme="light"]) {
     color-scheme: dark;
   }
 
-  :root {
+  :root:not([data-force-theme="light"]) {
     --background: oklch(0.145 0 0);
     --canvas: #040100;
     --foreground: oklch(0.95 0 0);

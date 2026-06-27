@@ -8,6 +8,7 @@ import {
   useImperativeHandle,
   forwardRef,
 } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSubmission } from "@/lib/queries/submissions";
 import {
@@ -448,18 +449,31 @@ const PublicAssignmentResponse = forwardRef<
         submissionId={submissionId}
         classId={assignmentData.class_id}
       >
-        <AssignmentResponseCore
-          assignmentData={assignmentData}
-          submissionId={submissionId}
-          displayName={displayName}
-          preferredLanguage={preferredLanguage}
-          onComplete={onComplete}
-          onBack={onBack}
-          assignmentId={assignmentId}
-          initialQuestionIndex={0}
-          existingAnswers={{}}
-          integrityAccessRevoked={!!integrityRevoked}
-        />
+        <div className="w-full space-y-6">
+          <div className="flex items-start gap-3 rounded-md border border-green-500/30 bg-green-500/10 p-4">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-green-600" />
+            <div className="space-y-0.5">
+              <p className="font-medium">Finished — thanks for your response!</p>
+              <p className="text-sm text-muted-foreground">
+                Your responses have been submitted. You can review your answers
+                and feedback below.
+              </p>
+            </div>
+          </div>
+          <AssignmentResponseCore
+            assignmentData={assignmentData}
+            submissionId={submissionId}
+            displayName={displayName}
+            preferredLanguage={preferredLanguage}
+            forceComplete
+            onComplete={onComplete}
+            onBack={onBack}
+            assignmentId={assignmentId}
+            initialQuestionIndex={0}
+            existingAnswers={{}}
+            integrityAccessRevoked={!!integrityRevoked}
+          />
+        </div>
       </ActivityTrackingProvider>
     );
   }

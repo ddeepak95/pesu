@@ -98,6 +98,11 @@ export const AssessmentNavigation = forwardRef<
     setRatingFeedback("");
   };
 
+  // Anything we can persist a "complete" against: class content items mark the
+  // content complete; public submissions (no content item) still mark the
+  // submission complete. Either way we route through the confirmation dialog.
+  const canComplete = !!contentItemId || !!submissionId;
+
   const handleFinishClick = useCallback(() => {
     if (isComplete) {
       showSuccessToast("This assessment is already completed.");
@@ -107,7 +112,7 @@ export const AssessmentNavigation = forwardRef<
 
     // All questions attempted: go to completion (confirmation dialog or finish)
     if (allQuestionsHaveAttempts) {
-      if (contentItemId) {
+      if (canComplete) {
         setIsDialogOpen(true);
       } else {
         if (onNext) onNext();
@@ -134,7 +139,7 @@ export const AssessmentNavigation = forwardRef<
       return;
     }
 
-    if (contentItemId) {
+    if (canComplete) {
       setIsDialogOpen(true);
     } else {
       if (onNext) onNext();
@@ -143,7 +148,7 @@ export const AssessmentNavigation = forwardRef<
     isComplete,
     onNext,
     allQuestionsHaveAttempts,
-    contentItemId,
+    canComplete,
     totalQuestions,
     onGoToQuestion,
     completedQuestionIndices,
@@ -160,11 +165,6 @@ export const AssessmentNavigation = forwardRef<
 
   const handleConfirmFinish = async () => {
     trackFinishMarkCompleteClicked();
-
-    if (!contentItemId) {
-      if (onNext) onNext();
-      return;
-    }
 
     if (isComplete) {
       if (onNext) onNext();
@@ -187,7 +187,7 @@ export const AssessmentNavigation = forwardRef<
     experienceRating?: number,
     feedback?: string,
   ) => {
-    if (!contentItemId) return;
+    if (!canComplete) return;
 
     setIsLoading(true);
     try {
@@ -196,11 +196,16 @@ export const AssessmentNavigation = forwardRef<
         await saveExperienceRating(submissionId, experienceRating, feedback);
       }
 
+      // Always mark the submission itself complete (covers public submissions,
+      // which have no content item).
       if (submissionId) {
         await completeSubmission(submissionId);
       }
-      await markContentAsComplete(contentItemId);
-      await invalidateCompletionsCache();
+      // Content-item completion only applies to class content, which has one.
+      if (contentItemId) {
+        await markContentAsComplete(contentItemId);
+        await invalidateCompletionsCache();
+      }
       showSuccessToast("Assessment marked as complete!");
       setIsDialogOpen(false);
       setIsRatingDialogOpen(false);

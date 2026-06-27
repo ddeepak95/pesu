@@ -19,10 +19,7 @@ import {
   MutedPrimaryTabsTrigger,
 } from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  updateAssignment,
-  deleteAssignment,
-} from "@/lib/queries/assignments";
+import { updateAssignment, deleteAssignment } from "@/lib/queries/assignments";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
 import { countContentItemPlacementsByRefTracked } from "@/lib/swr/imperativeReads";
 import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
@@ -58,7 +55,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
-import { invalidateSubmissionsCache, useMaterialLinkedAcrossGroups } from "@/hooks/swr";
+import {
+  invalidateSubmissionsCache,
+  useMaterialLinkedAcrossGroups,
+} from "@/hooks/swr";
 
 function CollapsibleSection({
   icon: Icon,
@@ -117,15 +117,15 @@ export default function AssignmentDetailClient({
     () =>
       resolveTeacherPlacementGroupId(
         searchParams.get("groupId"),
-        assignmentData.class_group_id
+        assignmentData.class_group_id,
       ),
-    [searchParams, assignmentData.class_group_id]
+    [searchParams, assignmentData.class_group_id],
   );
 
   const isLinkedAcrossGroups = useMaterialLinkedAcrossGroups(
     assignmentData.class_id,
     "formative_assignment",
-    assignmentData.id
+    assignmentData.id,
   );
 
   const tabParam = searchParams.get("tab");
@@ -146,7 +146,7 @@ export default function AssignmentDetailClient({
     current.delete("id");
     router.replace(
       `/teacher/classes/${classId}/assignments/${assignmentId}?${current.toString()}`,
-      { scroll: false }
+      { scroll: false },
     );
   };
 
@@ -155,10 +155,11 @@ export default function AssignmentDetailClient({
   // appears without waiting for the Next.js router (RSC fetch) to complete.
   const submissionIdFromUrl = searchParams.get("id") ?? null;
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(
-    () => searchParams.get("tab") === "submissions" ? searchParams.get("id") : null
+    () =>
+      searchParams.get("tab") === "submissions" ? searchParams.get("id") : null,
   );
   const [overlayOpen, setOverlayOpen] = useState(
-    () => searchParams.get("tab") === "submissions" && !!searchParams.get("id")
+    () => searchParams.get("tab") === "submissions" && !!searchParams.get("id"),
   );
 
   // Sync from URL changes caused by browser back/forward navigation.
@@ -172,7 +173,9 @@ export default function AssignmentDetailClient({
   }, [submissionIdFromUrl]);
 
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
-  const [selectedAttemptNumber, setSelectedAttemptNumber] = useState<number | null>(null);
+  const [selectedAttemptNumber, setSelectedAttemptNumber] = useState<
+    number | null
+  >(null);
 
   useEffect(() => {
     setSelectedQuestionIndex(0);
@@ -187,7 +190,7 @@ export default function AssignmentDetailClient({
     q.set("tab", "submissions");
     q.set("id", id);
     router.push(
-      `/teacher/classes/${classId}/assignments/${assignmentId}?${q.toString()}`
+      `/teacher/classes/${classId}/assignments/${assignmentId}?${q.toString()}`,
     );
   };
 
@@ -200,7 +203,7 @@ export default function AssignmentDetailClient({
     window.history.replaceState(
       null,
       "",
-      `/teacher/classes/${classId}/assignments/${assignmentId}?${q.toString()}`
+      `/teacher/classes/${classId}/assignments/${assignmentId}?${q.toString()}`,
     );
   };
 
@@ -239,7 +242,7 @@ export default function AssignmentDetailClient({
     router.push(
       `/teacher/classes/${classId}/assignments/${assignmentId}/edit${
         qs ? `?${qs}` : ""
-      }`
+      }`,
     );
   };
 
@@ -262,7 +265,7 @@ export default function AssignmentDetailClient({
     const confirmed = window.confirm(
       placementCount > 1
         ? "This assignment is linked in more than one group. Remove it only from this group's feed?"
-        : "Are you sure you want to delete this assignment? This action cannot be undone."
+        : "Are you sure you want to delete this assignment? This action cannot be undone.",
     );
 
     if (!confirmed) return;
@@ -305,8 +308,7 @@ export default function AssignmentDetailClient({
           assignmentData.responder_fields_config ?? undefined,
         max_attempts: assignmentData.max_attempts,
         bot_prompt_config: assignmentData.bot_prompt_config ?? undefined,
-        student_instructions:
-          assignmentData.student_instructions ?? undefined,
+        student_instructions: assignmentData.student_instructions ?? undefined,
         show_rubric: assignmentData.show_rubric,
         show_rubric_points: assignmentData.show_rubric_points,
         use_star_display: assignmentData.use_star_display,
@@ -396,14 +398,18 @@ export default function AssignmentDetailClient({
             <Pill purpose="assignmentActivityType" size="lg">
               <BookOpen className="h-4 w-4" />
               <span>
-                {assignmentData.activity_type === "assessment" ? "Assessment" : assignmentData.activity_type === "speaking_practice" ? "Speaking Practice" : "Learning"}
+                {assignmentData.activity_type === "assessment"
+                  ? "Assessment"
+                  : assignmentData.activity_type === "speaking_practice"
+                    ? "Speaking Practice"
+                    : "Learning"}
               </span>
             </Pill>
 
             {/* Interaction Type */}
             {(() => {
               const modeInfo = getAssessmentModeInfo(
-                assignmentData.assessment_mode
+                assignmentData.assessment_mode,
               );
               const ModeIcon = modeInfo.icon;
               return (
@@ -418,7 +424,7 @@ export default function AssignmentDetailClient({
             <Pill purpose="assignmentMeta" size="lg">
               <span>
                 {supportedLanguages.find(
-                  (lang) => lang.code === assignmentData.preferred_language
+                  (lang) => lang.code === assignmentData.preferred_language,
                 )?.name || assignmentData.preferred_language}
               </span>
               {assignmentData.lock_language && (
@@ -446,11 +452,7 @@ export default function AssignmentDetailClient({
             )}
           </div>
 
-          <Tabs
-            value={activeTab}
-            onValueChange={setTab}
-            className="w-full"
-          >
+          <Tabs value={activeTab} onValueChange={setTab} className="w-full">
             <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
               <MutedPrimaryTabsTrigger
                 value="questions"
@@ -472,7 +474,7 @@ export default function AssignmentDetailClient({
               </MutedPrimaryTabsTrigger>
             </MutedPrimaryTabsList>
 
-            <TabsContent value="questions" className="space-y-4 py-6">
+            <TabsContent value="questions" className="space-y-4">
               {assignmentData.shared_context && (
                 <div className="rounded-md border bg-card text-card-foreground">
                   <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium">
@@ -504,7 +506,7 @@ export default function AssignmentDetailClient({
                 ))}
             </TabsContent>
 
-            <TabsContent value="config" className="py-6 space-y-6">
+            <TabsContent value="config" className="space-y-6">
               {/* Display Settings */}
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold">Display Settings</h3>
@@ -514,8 +516,8 @@ export default function AssignmentDetailClient({
                       Rubric visibility:
                     </span>
                     <span className="text-muted-foreground">
-                      {assignmentData.show_rubric ?? true
-                        ? assignmentData.show_rubric_points ?? true
+                      {(assignmentData.show_rubric ?? true)
+                        ? (assignmentData.show_rubric_points ?? true)
                           ? "Shown with points"
                           : "Shown without points"
                         : "Hidden from students"}
@@ -624,7 +626,7 @@ export default function AssignmentDetailClient({
                     </div>
                     {assignmentData.bot_prompt_config.question_overrides &&
                       Object.keys(
-                        assignmentData.bot_prompt_config.question_overrides
+                        assignmentData.bot_prompt_config.question_overrides,
                       ).length > 0 && (
                         <div>
                           <h4 className="font-medium text-sm mb-2">
@@ -633,7 +635,7 @@ export default function AssignmentDetailClient({
                           <div className="space-y-3">
                             {Object.entries(
                               assignmentData.bot_prompt_config
-                                .question_overrides
+                                .question_overrides,
                             ).map(([order, override]) => (
                               <div
                                 key={order}
@@ -685,7 +687,7 @@ export default function AssignmentDetailClient({
               )}
             </TabsContent>
 
-            <TabsContent value="submissions" className="py-6">
+            <TabsContent value="submissions">
               {assignmentData.batch_grade_release && (
                 <AssignmentGradeReleaseBanner
                   assignmentId={assignmentData.assignment_id}
