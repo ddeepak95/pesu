@@ -13,6 +13,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 
+import { SPEECH_SCRIPT_DIRECTIVE } from "@/lib/ai/multimodal-directives";
 import { insertChatMessageAction } from "@/lib/queries/chatMessageActions";
 import type { SuggestedResponseActionPayload } from "./types";
 import type { DispatchActionArgs } from "./dispatcher";
@@ -70,11 +71,11 @@ export async function handleSuggestedResponseAction(
         "\n\n"
       : "";
   const systemPrompt =
-    `You are a language learning coach helping a student practice ${languageLabel}. ` +
+    `You are a teacher helping a student practice ${languageLabel}. ` +
     `When given a tutor's utterance, write a SHORT spoken reply the STUDENT would say — ` +
     `directly responding to or answering what the tutor said. ` +
-    `Write in the native script of ${languageLabel} (never romanize unless it uses the Latin alphabet). ` +
-    `One short spoken phrase only.` +
+    `One short spoken phrase only. ` +
+    SPEECH_SCRIPT_DIRECTIVE +
     supportClause;
   const userPrompt =
     contextSection +

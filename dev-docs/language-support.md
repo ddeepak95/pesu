@@ -151,7 +151,8 @@ See `speaking_practice` in the registry for a complete example of both hooks.
 
 | File | Role |
 |---|---|
-| `src/lib/ai/chat-stream-object.ts` | `buildLanguageSupportDirective`, `shouldOfferLanguageHelp`, `buildTurnSchema` |
+| `src/lib/ai/multimodal-directives.ts` | `buildLanguageSupportDirective`, `shouldOfferLanguageHelp` |
+| `src/lib/ai/chat-stream-object.ts` | `buildTurnSchema` (turn schema + stream orchestration) |
 | `src/lib/activityTypes/types.ts` | `ActivityTypeDefinition` hook signatures |
 | `src/lib/activityTypes/registry.ts` | Hook implementations per activity type |
 | `src/app/api/multimodal/turn/route.ts` | Resolves `languageSupport` / `languageHelpAvailable` from request body |

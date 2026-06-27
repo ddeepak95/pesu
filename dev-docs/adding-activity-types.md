@@ -114,7 +114,7 @@ actions), which the existing teacher editors render immediately.
 ### 3. Optional server directives
 
 Both are optional hooks read by `buildMultimodalDirectives` in
-`chat-stream-object.ts`:
+`multimodal-directives.ts`:
 
 - **`buildMultimodalDirective()`** — an extra system-prompt line appended after
   the actions + end-conversation directives (e.g. "stay in character, let the
