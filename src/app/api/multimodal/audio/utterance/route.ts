@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     const spokenAt = asText(formData.get("spokenAt"));
     const content = asText(formData.get("content")) ?? "";
     const generatedContent = asText(formData.get("generatedContent"));
+    const chatMessageId = asText(formData.get("chatMessageId"));
     const audio = formData.get("audio");
 
     if (
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
       spoken_at: spokenAt,
       generated_content: generatedContent,
       utterance_id: utteranceId,
+      chat_message_id: chatMessageId,
     };
 
     if (existing?.id) {

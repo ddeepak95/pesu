@@ -120,14 +120,25 @@ export function SubmissionContentPanel({
 
   const audioUrlMap = useMemo(() => {
     const map = new Map<string, string>();
-    const byRole: Record<string, VoiceMessageRow[]> = {};
-    for (const v of voiceQuery.data ?? []) {
-      (byRole[v.role] ??= []).push(v);
+    const rows = voiceQuery.data ?? [];
+
+    // Primary path: link audio to its chat message by FK (chat_message_id).
+    const unlinkedByRole: Record<string, VoiceMessageRow[]> = {};
+    for (const v of rows) {
+      if (v.chat_message_id && v.audio_file_url) {
+        map.set(v.chat_message_id, v.audio_file_url);
+      } else if (v.audio_file_url) {
+        (unlinkedByRole[v.role] ??= []).push(v);
+      }
     }
+
+    // Fallback for legacy rows written before chat_message_id existed: positional
+    // match by role, filling only messages the FK pass didn't already cover.
     const roleCounters: Record<string, number> = {};
     for (const m of messages) {
+      if (map.has(m.id)) continue;
       const idx = roleCounters[m.role] ?? 0;
-      const url = byRole[m.role]?.[idx]?.audio_file_url;
+      const url = unlinkedByRole[m.role]?.[idx]?.audio_file_url;
       if (url) map.set(m.id, url);
       roleCounters[m.role] = idx + 1;
     }

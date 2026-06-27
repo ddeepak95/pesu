@@ -376,6 +376,12 @@ export function MultimodalInputArea({
       content: string;
       generatedContent?: string;
       interrupted?: boolean;
+      /**
+       * The chat_messages id this utterance belongs to (the client-minted bubble
+       * id, which the turn route uses as the chat_messages primary key). Links the
+       * audio to its transcript turn by FK.
+       */
+      chatMessageId?: string;
     }) => {
       try {
         const formData = new FormData();
@@ -391,6 +397,9 @@ export function MultimodalInputArea({
         formData.append("content", input.content);
         if (input.generatedContent) {
           formData.append("generatedContent", input.generatedContent);
+        }
+        if (input.chatMessageId) {
+          formData.append("chatMessageId", input.chatMessageId);
         }
         formData.append(
           "audio",
@@ -610,7 +619,12 @@ export function MultimodalInputArea({
         ttsStarted: false,
         committed: false,
       };
-      liveAssistantMessageIdRef.current = null;
+      // Mint the assistant bubble id up front so it can be sent to the turn route
+      // as the chat_messages primary key — that lets the bot audio
+      // (voice_messages.chat_message_id) link back to the transcript turn by FK.
+      // It doubles as the live streaming bubble id.
+      const assistantMessageId = crypto.randomUUID();
+      liveAssistantMessageIdRef.current = assistantMessageId;
 
       // If the latest history message has dual candidates, pass them to the turn
       // route so the LLM can pick the coherent reading.
@@ -633,10 +647,12 @@ export function MultimodalInputArea({
             messages: history
               .filter((m) => m.content.trim().length > 0)
               .map((m) => ({
+                id: m.id,
                 role: m.role,
                 content: m.content,
                 ...(m.hidden ? { hidden: true } : {}),
               })),
+            assistantMessageId,
             system_prompt: systemPrompt,
             greeting,
             language,
@@ -776,6 +792,7 @@ export function MultimodalInputArea({
                 ordinal: userOrdinalRef.current,
                 audioBlob,
                 content: chosenText,
+                chatMessageId: msgId,
               });
               deferredStudentAudioRef.current.delete(msgId);
             }
@@ -848,6 +865,7 @@ export function MultimodalInputArea({
             content: assistantText.trim(),
             generatedContent: assistantText.trim(),
             interrupted,
+            chatMessageId: assistantMessageId,
           }).then((result) => {
             if (result?.audioFileUrl && committedMsgId && !botInterruptionRequestedRef.current) {
               messageAudioUrlsRef.current.set(committedMsgId, result.audioFileUrl);
@@ -899,6 +917,7 @@ export function MultimodalInputArea({
               ordinal: userOrdinalRef.current,
               audioBlob,
               content: primaryText,
+              chatMessageId: msgId,
             });
           }
           deferredStudentAudioRef.current.delete(msgId);
@@ -1377,6 +1396,7 @@ export function MultimodalInputArea({
             ordinal: userOrdinalRef.current,
             audioBlob: wavBlob,
             content: text,
+            chatMessageId: pendingMessageId,
           });
         }
 

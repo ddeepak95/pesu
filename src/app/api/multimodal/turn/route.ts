@@ -63,6 +63,12 @@ import { sseEvent, sseHeaders } from "@/lib/konvo-voice/sse";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 interface MultimodalTurnMessage {
+  /**
+   * Client-minted stable id for this bubble. When the latest student message
+   * carries one, it becomes the chat_messages primary key so the student's
+   * audio (voice_messages.chat_message_id) links back by FK.
+   */
+  id?: string;
   role: "student" | "assistant";
   content: string;
   /**
@@ -113,6 +119,11 @@ interface MultimodalTurnRequestBody {
    * turn like suggested_response). Skips opening the TTS session entirely.
    */
   noSpeech?: boolean;
+  /**
+   * Client-minted id for the assistant turn's bubble. Used as the chat_messages
+   * primary key for the assistant message so the bot audio links back by FK.
+   */
+  assistantMessageId?: string;
   /** Activity type — varies the multimodal + language-support directives. */
   activityType?: ActivityTypeKind;
   /**
@@ -145,9 +156,14 @@ export async function POST(request: NextRequest) {
       ttsModelId,
       availableActions,
       endConversationConfig,
+      assistantMessageId,
     } = body;
 
     const enabledActions: ActionKind[] = availableActions ?? [];
+
+    // The latest message's client-minted id, used as the chat_messages primary
+    // key when that message is a persisted student turn so its audio links by FK.
+    const latestMessageId = messages[messages.length - 1]?.id;
 
     // The language this turn is spoken in (support language when the learner
     // asked for help, otherwise the conversation language).
@@ -272,6 +288,7 @@ export async function POST(request: NextRequest) {
             : null;
         if (latestStudent) {
           await insertChatMessage(supabase, {
+            id: latestMessageId,
             submission_id: submissionId ?? null,
             assignment_id: assignmentId,
             question_order: questionOrder,
@@ -586,6 +603,7 @@ export async function POST(request: NextRequest) {
                       enqueue({ type: "user_transcript", text: chosen });
                       try {
                         await insertChatMessage(supabase, {
+                          id: latestMessageId,
                           submission_id: submissionId ?? null,
                           assignment_id: assignmentId,
                           question_order: questionOrder,
@@ -648,6 +666,7 @@ export async function POST(request: NextRequest) {
                     enqueue({ type: "user_transcript", text: chosen });
                     try {
                       await insertChatMessage(supabase, {
+                        id: latestMessageId,
                         submission_id: submissionId ?? null,
                         assignment_id: assignmentId,
                         question_order: questionOrder,
@@ -730,6 +749,7 @@ export async function POST(request: NextRequest) {
               enqueue({ type: "user_transcript", text: fallbackText });
               try {
                 await insertChatMessage(supabase, {
+                  id: latestMessageId,
                   submission_id: submissionId ?? null,
                   assignment_id: assignmentId,
                   question_order: questionOrder,
@@ -755,6 +775,7 @@ export async function POST(request: NextRequest) {
           if (fullReply.trim() || resolvedAction) {
             try {
               assistantChatMessageId = await insertChatMessage(supabase, {
+                id: assistantMessageId,
                 submission_id: submissionId ?? null,
                 assignment_id: assignmentId,
                 question_order: questionOrder,

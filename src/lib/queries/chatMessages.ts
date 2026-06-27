@@ -12,6 +12,13 @@ export interface ChatMessageAiMetadata {
 }
 
 export interface InsertChatMessageInput {
+  /**
+   * Optional explicit primary key. The client mints stable UUIDs for each
+   * message bubble; passing it here lets the same id flow into
+   * voice_messages.chat_message_id so audio links back by FK. Omit to let the
+   * DB generate one.
+   */
+  id?: string;
   submission_id: string | null;
   assignment_id: string;
   question_order: number;
@@ -34,6 +41,10 @@ export async function insertChatMessage(
     content: row.content,
     attempt_number: row.attempt_number,
   };
+
+  if (row.id) {
+    payload.id = row.id;
+  }
 
   if (row.aiMetadata) {
     payload.ai_key_source = row.aiMetadata.aiKeySource;
