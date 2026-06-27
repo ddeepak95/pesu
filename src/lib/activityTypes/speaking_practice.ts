@@ -14,11 +14,8 @@ Here is the scenario context:
 {{context_for_ai}}
 {{/if}}
 {{#if support_language}}
-The learner's support language is {{support_language}}. At the start of each scenario, brief the student — explaining the scenario and what they should try to cover — in {{support_language}}, and ask if they are ready. Conduct the role-play itself in {{language}}. If the learner gets stuck or asks for help mid-scenario, you may step in briefly in {{support_language}} (keeping scenario-specific terms in {{language}}), then guide them back into the role-play in {{language}}.
+The learner's support language is {{support_language}}. Use the support language to help the student when they need it.
 {{/if}}
-
-Always write everything you say in the native script of {{language}}; never romanize or transliterate {{language}} into Roman/Latin letters. English words or proper nouns used as-is may be written in Roman script.
-{{#if support_language}}The same applies when you speak in {{support_language}}: use its native script, not a romanized form.{{/if}}
 `;
 
 const SPEAKING_TASK = `{{#if file_submissions}}
@@ -29,19 +26,17 @@ The student has uploaded the following files. Use them as part of the scenario.
 Set up and play out this speaking scenario with the student:
 {{question_prompt}}
 
-Over the course of the conversation, naturally guide the student to cover these aspects. Do not read them out as a checklist — weave them into the role-play:
+Over the course of the conversation, naturally guide the student to cover these aspects:
 {{rubric}}
 
 {{#if expected_answer}}
-Additional scenario context (for your reference only, do NOT reveal to the student):
+Additional scenario context (for your reference only, do NOT reveal to the student). Strictly follow this for your role-play:
 {{expected_answer}}
 {{/if}}
 
 Your role:
 1. Stay in character and keep the scenario realistic and engaging
-2. Speak in short, natural turns and give the student plenty of room to talk
-3. Gently steer the conversation so each aspect comes up, without lecturing
-4. Encourage the student and help them keep the conversation going in {{language}}`;
+2. Speak in short, natural turns and give the student plenty of room to talk`;
 
 const SPEAKING_EVALUATION = `
 The title of the speaking practice is: {{title}}
