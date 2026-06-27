@@ -7,7 +7,7 @@
  * learning activity, an assessment, a speaking-practice scenario, …). It drives
  * the default AI prompts, the evaluation prompt, the Question Card UI labels, and
  * the config preselected when a teacher picks it. New types are added in one
- * place — see docs/adding-activity-types.md.
+ * place — see dev-docs/adding-activity-types.md.
  */
 
 import type { ActionKind } from "@/lib/multimodal/actions/types";
@@ -113,25 +113,16 @@ export interface ActivityTypeDefinition {
    */
   buildMultimodalDirective?: () => string | null;
   /**
-   * Optional override of the ACTIVE language-support directive (the turn that
-   * speaks in the support language). Return null to fall back to the default
-   * literal-translation directive.
-   */
-  buildLanguageSupportActiveDirective?: (input: {
-    languageLabel: string;
-    primaryLanguageLabel?: string;
-  }) => string | null;
-  /**
-   * Optional override of the AVAILABLE language-support directive (turns where
-   * support is configured but the learner has not yet invoked it).
+   * Optional override of the language-support directive — the single, always-on
+   * instruction (added whenever a support language is configured) that tells the
+   * model to reply inline in the support language when the learner asks for help.
    *
    * Return a string to replace the default directive text.
-   * Return null to suppress language-help entirely for this activity type —
-   *   the `requestLanguageHelp` schema field is also forced to null so the
-   *   model cannot signal a help request.
+   * Return null to suppress language help entirely for this activity type (no
+   *   directive is added).
    * Return undefined (or omit the hook) to use the default directive.
    */
-  buildLanguageSupportAvailableDirective?: (input: {
+  buildLanguageSupportDirective?: (input: {
     languageLabel: string;
   }) => string | null | undefined;
 }

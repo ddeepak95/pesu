@@ -1,6 +1,8 @@
 # Language Support
 
-Language support lets a learner request responses in a secondary language (their "support language") during a multimodal conversation. It is designed as a scaffold: the primary-language conversation continues normally, and the learner can invoke support when they need it.
+Language support lets a learner get help in a secondary language (their "support language") during a multimodal conversation. It is a scaffold: the primary-language conversation continues normally, and when the learner asks for help, the model answers in the support language **inline, on the same turn**, then resumes the primary language.
+
+TTS always renders in the **single primary voice** — there is no voice switch. The support language is purely a prompt concept: the model writes its support-language reply in that language's native script (via `SPEECH_SCRIPT_DIRECTIVE`), and the one multilingual primary voice speaks it.
 
 ---
 
@@ -12,7 +14,7 @@ When support is enabled, a learner can:
 - Request a translation of the previous response
 - Speak in their support language to signal they need help
 
-The model detects these signals and the system delivers a full response in the support language using a matching TTS voice. On the next turn, the conversation resumes in the primary language.
+The model detects these signals (or the learner presses the help button, which injects an explicit request) and replies in the support language for that one turn. The next turn continues in the primary language.
 
 ---
 
@@ -42,89 +44,61 @@ Each `/api/multimodal/turn` request carries:
 
 | Field | Meaning |
 |---|---|
-| `language` | Primary conversation language (locale code) |
-| `speechLanguage` | Language this turn will be spoken in (= support language on help turns) |
-| `supportLanguageAvailable` | Support language locale when configured but not yet invoked |
+| `language` | Primary conversation language (locale code) — also the TTS voice/locale, always |
+| `supportLanguageAvailable` | Support language locale, when configured for this learner |
 
-The API route resolves these into one of three scenarios:
+The route resolves these into one of two states:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Per-turn decision                        │
 └─────────────────────────────────────────────────────────────────┘
 
-  supportLanguageAvailable set?
-  ├── No  ──────────────────────────────► [DISABLED] no directive, requestLanguageHelp forced null
-  └── Yes
-        │
-        └─ isSupportTurn? (speechLanguage ≠ language)
-             ├── Yes ─────────────────► [ACTIVE] respond in support language
-             └── No  ─────────────────► [AVAILABLE] model may offer help on request
+  supportLanguageAvailable set (and ≠ primary)?
+  ├── No  ──► [DISABLED]  no language directive
+  └── Yes ──► [AVAILABLE] one always-on directive: reply inline in the
+                          support language IF the learner asks; else primary
 ```
+
+There is **no separate "active" turn and no voice switch**. TTS voice and synthesis locale are always the primary `language` (`resolveTtsVoice(ttsModelId, language)`), so a support-language reply is spoken by the same primary voice, in the support language's native script.
 
 ### DISABLED
 
-No language support is configured. The `requestLanguageHelp` schema field is forced to `z.null()` so the model cannot signal a help request even if it hallucinated one.
+No support language is configured for the learner. No language directive is added.
 
-### AVAILABLE (inactive turn)
+### AVAILABLE
 
-Support is configured but this turn is in the primary language. The model receives:
-
-- A directive explaining when to set `requestLanguageHelp: true`
-- The `requestLanguageHelp` schema field enabled
-
-When the model sets `requestLanguageHelp: true`, it also sets `speech` to an empty string. The client detects this, switches `speechLanguage` to the support locale, and fires a new turn — which becomes an ACTIVE turn.
+Support is configured. The route adds a single directive (see `buildLanguageSupportDirective`) telling the model: when — and only when — the learner explicitly asks for help in the support language (asks to hear/translate/explain something in it, or speaks in it seeking help), reply for that one turn directly in the support language, in native script; otherwise continue in the primary language.
 
 ```
-Learner speaks / types
+Learner speaks / types  (or presses the help button → injects an explicit request)
         │
         ▼
-  Model: requestLanguageHelp null?
-  ├── null ────► normal primary-language response (TTS in primary language)
-  └── true ────► speech = ""  ──► client fires support-language turn
-                                          │
-                                          ▼
-                                   ACTIVE turn (see below)
+  Did the learner ask for help in the support language?
+  ├── No  ────► normal primary-language reply
+  └── Yes ────► reply in the support language THIS turn (primary voice),
+               then resume the primary language next turn
 ```
 
-### ACTIVE (support-language turn)
-
-`languageSupport.active = true` is set by the route. The model is instructed to respond entirely in the support language. The TTS voice is already set to match `speechLanguage`.
-
-Default behavior: faithful translation / direct answer in the support language, with technical terms preserved in the primary language.
-
-After this turn, the client resets `speechLanguage` to the primary language and conversation resumes normally.
+The model decides per turn; no schema signal, no follow-up turn, no client re-fire.
 
 ---
 
-## Activity-type extension points
+## Activity-type extension point
 
-Activity types can override both ACTIVE and AVAILABLE behavior by implementing optional hooks on `ActivityTypeDefinition` (in `src/lib/activityTypes/types.ts`).
+Activity types can override the support directive via one optional hook on `ActivityTypeDefinition` (in `src/lib/activityTypes/types.ts`):
 
-### `buildLanguageSupportActiveDirective(input)`
-
-Overrides the instruction for ACTIVE turns (when the model must respond in the support language).
-
-| Return value | Effect |
-|---|---|
-| `string` | Use this directive instead of the default translation instruction |
-| `null` | Fall back to the default literal-translation directive |
-
-**Example — `speaking_practice`:** Instead of translating the previous message, the model stays in character and continues the role-play scenario in the support language.
-
-### `buildLanguageSupportAvailableDirective(input)`
-
-Overrides the instruction for AVAILABLE turns (when the model may offer help).
+### `buildLanguageSupportDirective(input)`
 
 | Return value | Effect |
 |---|---|
 | `string` | Use this directive instead of the default |
-| `null` | Suppress language help entirely — `requestLanguageHelp` is also forced to null in the schema |
+| `null` | Suppress language help entirely for this activity type (no directive added) |
 | `undefined` (hook absent) | Use the default directive |
 
-**Example — `speaking_practice`:** Uses a role-play-aware version that tells the model not to interrupt the scenario to offer help unprompted — it should only respond when the learner explicitly asks.
+**Example — `speaking_practice`:** stays in character and continues the role-play in the support language when the learner asks, keeping scenario-specific terms in the primary language, and never offers help unprompted.
 
-**Example — assessment (future):** Could return `null` to prevent the model from ever offering the support language during an assessment, keeping test conditions consistent.
+**Example — assessment (future):** could return `null` to keep test conditions consistent.
 
 ---
 
@@ -138,12 +112,9 @@ This is enabled by passing `dualTranscript: { primaryLabel, supportLabel }` to t
 
 ## Adding language support to a new activity type
 
-1. Decide whether the default AVAILABLE or ACTIVE behavior is appropriate.
-2. If not, add one or both hooks to the activity type's registry entry in `src/lib/activityTypes/registry.ts`.
-3. To disable language help entirely: return `null` from `buildLanguageSupportAvailableDirective`.
-4. To customize how active turns respond: return a directive string from `buildLanguageSupportActiveDirective`.
-
-See `speaking_practice` in the registry for a complete example of both hooks.
+1. The default AVAILABLE behavior (reply inline in the support language when asked) applies automatically when support is configured — usually nothing to do.
+2. To customize the wording or role-play behavior, implement `buildLanguageSupportDirective` in the activity type's definition file (e.g. `src/lib/activityTypes/speaking_practice.ts`).
+3. To disable language help entirely for the activity type, return `null` from that hook.
 
 ---
 
@@ -151,8 +122,9 @@ See `speaking_practice` in the registry for a complete example of both hooks.
 
 | File | Role |
 |---|---|
-| `src/lib/ai/multimodal-directives.ts` | `buildLanguageSupportDirective`, `shouldOfferLanguageHelp` |
+| `src/lib/ai/multimodal-directives.ts` | `buildLanguageSupportDirective` (the single support directive) |
 | `src/lib/ai/chat-stream-object.ts` | `buildTurnSchema` (turn schema + stream orchestration) |
-| `src/lib/activityTypes/types.ts` | `ActivityTypeDefinition` hook signatures |
-| `src/lib/activityTypes/registry.ts` | Hook implementations per activity type |
-| `src/app/api/multimodal/turn/route.ts` | Resolves `languageSupport` / `languageHelpAvailable` from request body |
+| `src/lib/activityTypes/types.ts` | `ActivityTypeDefinition` hook signature |
+| `src/lib/activityTypes/<type>.ts` (e.g. `speaking_practice.ts`) | Hook implementation per activity type |
+| `src/lib/activityTypes/registry.ts` | Aggregates the per-type definitions |
+| `src/app/api/multimodal/turn/route.ts` | Resolves `languageHelpAvailable` from request body; TTS always primary voice |

@@ -16,16 +16,6 @@ import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
 import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
-/** Per-turn language-support instruction (the learner asked for help in another language). */
-export interface TurnLanguageSupport {
-  /** This turn's speech restates the previous point in the support language. */
-  active: boolean;
-  /** Human-readable support language name, e.g. "Tamil". */
-  languageLabel: string;
-  /** Human-readable primary/conversation language name, e.g. "English". */
-  primaryLanguageLabel?: string;
-}
-
 /**
  * Shared by every TTS-bound text generator: write the conversation language in
  * its own native script, never romanized — even when the line is code-mixed
@@ -74,98 +64,39 @@ export function buildEndConversationDirective(config?: EndConversationConfig): s
 }
 
 /**
- * Language-support guidance. Returns null when support is neither active nor
- * available this turn. These instructions add the support-language behavior on
- * top of the primary-language base prompt (no need to contradict it).
+ * Language-support guidance. Returns null when no support language is configured
+ * (or the activity type suppresses it). The single always-on directive lets the
+ * model reply inline in the support language when the learner asks — TTS always
+ * renders in the primary voice, so no separate turn or voice switch is needed.
  */
 export function buildLanguageSupportDirective(input: {
-  languageSupport?: TurnLanguageSupport;
   languageHelpAvailable?: { languageLabel: string };
   activityType?: ActivityTypeKind;
 }): string | null {
-  // Active: this turn TRANSLATES your previous message into the support language
-  // (its TTS voice is already set to match) — a precursor + faithful translation,
-  // nothing new.
-  if (input.languageSupport?.active) {
-    const { languageLabel: label, primaryLanguageLabel: primaryLabel } =
-      input.languageSupport;
+  if (!input.languageHelpAvailable) return null;
 
-    // Activity-type override (e.g. speaking practice continues the role-play in
-    // the support language rather than giving a literal translation).
-    if (input.activityType) {
-      const override = getActivityTypeDefinition(
-        input.activityType,
-      ).buildLanguageSupportActiveDirective?.({
-        languageLabel: label,
-        primaryLanguageLabel: primaryLabel,
-      });
-      if (override) return override;
-    }
+  const label = input.languageHelpAvailable.languageLabel;
 
-    const termClause = primaryLabel
-      ? ` Keep technical and academic terms in ${primaryLabel} exactly as they appeared — ` +
-        `translate only the surrounding wording into ${label}.`
-      : ` Keep technical and academic terms in their original language exactly as they appeared — ` +
-        `translate only the surrounding wording into ${label}.`;
-    const line =
-      `LANGUAGE SUPPORT — RESPOND IN ${label.toUpperCase()}: The learner needs a response in ` +
-      `${label}. For this one response, speak entirely and directly in ${label} — no preamble, ` +
-      `no primary-language intro. If they asked for a translation: give a faithful, complete ` +
-      `translation of your previous message into ${label}. If they asked a clarifying question ` +
-      `or expressed confusion: answer or explain directly in ${label}.` +
-      termClause +
-      ` Resume the conversation in the usual language on the next turn.`;
-    return line;
+  // Activity-type override (e.g. speaking practice stays in character and
+  // continues the role-play in the support language when the learner asks).
+  if (input.activityType) {
+    const override = getActivityTypeDefinition(
+      input.activityType,
+    ).buildLanguageSupportDirective?.({ languageLabel: label });
+    if (override === null) return null; // activity type suppresses help entirely
+    if (override !== undefined) return override;
   }
 
-  // Available: this turn is in the primary language, but the model may switch to
-  // the support language when the learner explicitly requests it.
-  if (input.languageHelpAvailable) {
-    const label = input.languageHelpAvailable.languageLabel;
-
-    if (input.activityType) {
-      const override = getActivityTypeDefinition(
-        input.activityType,
-      ).buildLanguageSupportAvailableDirective?.({ languageLabel: label });
-      if (override === null) return null; // activity type suppresses help entirely
-      if (override !== undefined) return override;
-    }
-
-    return (
-      `LANGUAGE SUPPORT AVAILABLE: A ${label} support channel is available for this learner. ` +
-      `Set \`requestLanguageHelp\` to true — and set \`speech\` to EMPTY STRING — only when: ` +
-      `(a) the learner explicitly asks to hear something in ${label}, requests a translation, ` +
-      `or asks you to explain something in ${label}, or ` +
-      `(b) the learner speaks in ${label} (rather than the primary language) seeking help or ` +
-      `clarification. ` +
-      `A full ${label} response will follow automatically — do NOT say anything in the primary ` +
-      `language first; leave \`speech\` completely empty. ` +
-      `If the learner asks a doubt or question in the primary language, answer it normally in ` +
-      `the primary language — do NOT set \`requestLanguageHelp\`. ` +
-      `Otherwise leave \`requestLanguageHelp\` null and continue normally.`
-    );
-  }
-
-  return null;
-}
-
-/**
- * Returns true when language help should be offered this turn — i.e. support is
- * configured AND the activity type has not suppressed the offer. Used to gate
- * both the `requestLanguageHelp` schema field and the available directive.
- */
-export function shouldOfferLanguageHelp(
-  languageHelpAvailable: { languageLabel: string } | undefined,
-  activityType: ActivityTypeKind | undefined,
-): boolean {
-  if (!languageHelpAvailable) return false;
-  if (!activityType) return true;
-  const def = getActivityTypeDefinition(activityType);
-  if (!def.buildLanguageSupportAvailableDirective) return true;
   return (
-    def.buildLanguageSupportAvailableDirective({
-      languageLabel: languageHelpAvailable.languageLabel,
-    }) !== null
+    `LANGUAGE SUPPORT AVAILABLE: A ${label} support channel is available for this learner. ` +
+    `When — and only when — (a) the learner explicitly asks to hear something in ${label}, ` +
+    `requests a translation, or asks you to explain something in ${label}, or (b) the learner ` +
+    `speaks in ${label} (rather than the primary language) seeking help or clarification: ` +
+    `reply for that one turn directly in ${label}, in its native script — no primary-language ` +
+    `preamble. Keep technical and academic terms in their original language exactly as they ` +
+    `appeared. If the learner asks a doubt or question in the primary language, answer it ` +
+    `normally in the primary language. Resume the conversation in the primary language on the ` +
+    `next turn.`
   );
 }
 
@@ -176,10 +107,9 @@ export function shouldOfferLanguageHelp(
 export function buildMultimodalDirectives(input: {
   availableActions: ActionKind[];
   endConversation?: EndConversationConfig;
-  languageSupport?: TurnLanguageSupport;
   /**
-   * Support is available (but this turn is spoken in the normal language). Lets
-   * the model offer help in `languageLabel` by setting `requestLanguageHelp`.
+   * A support language is configured for this learner. Lets the model reply
+   * inline in `languageLabel` when the learner asks for help.
    */
   languageHelpAvailable?: { languageLabel: string };
   /** Activity type — may contribute an extra directive (e.g. speaking practice). */
@@ -207,7 +137,6 @@ export function buildMultimodalDirectives(input: {
   }
 
   const languageDirective = buildLanguageSupportDirective({
-    languageSupport: input.languageSupport,
     languageHelpAvailable: input.languageHelpAvailable,
     activityType: input.activityType,
   });

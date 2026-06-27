@@ -25,7 +25,7 @@ The **activity-type registry**
 | `QuestionCard.tsx` (editor) | `labels` (Question → Scenario, Rubric → …) |
 | `Shared/QuestionView.tsx` (read-only preview) | `labels` — same relabeling in the assignment-detail / content-tab preview |
 | `api/generate-rubric-and-answer/route.ts` | `generation` copy for the rubric/expected-answer generator |
-| `chat-stream-object.ts` (server) | `buildMultimodalDirective`, `buildLanguageSupportActiveDirective` |
+| `chat-stream-object.ts` (server) | `buildMultimodalDirective`, `buildLanguageSupportDirective` |
 
 Once you add a registry entry, the dropdown, labels, prompts, and directives all
 pick it up — there is nothing else hardcoded per type.
@@ -94,7 +94,7 @@ speaking_practice: {
     guidance: "This is a SPEAKING-PRACTICE role-play scenario, not a written question. …",
   },
   buildMultimodalDirective: () => "SPEAKING PRACTICE: …",   // optional server directive
-  buildLanguageSupportActiveDirective: ({ languageLabel }) => "…", // optional override
+  buildLanguageSupportDirective: ({ languageLabel }) => "…", // optional override
 },
 ```
 
@@ -119,10 +119,12 @@ Both are optional hooks read by `buildMultimodalDirectives` in
 - **`buildMultimodalDirective()`** — an extra system-prompt line appended after
   the actions + end-conversation directives (e.g. "stay in character, let the
   student talk"). Return `null`/omit for none.
-- **`buildLanguageSupportActiveDirective({ languageLabel, primaryLanguageLabel })`**
-  — replaces the default literal-translation directive on a language-support
-  turn (e.g. speaking practice *continues the role-play* in the support language
-  instead of translating). Return `null`/omit to keep the default.
+- **`buildLanguageSupportDirective({ languageLabel })`** — replaces the default
+  support directive (which tells the model to reply inline in the support
+  language when the learner asks). Speaking practice uses it to *continue the
+  role-play* in the support language instead of translating. Return a string to
+  override, `null` to suppress language help entirely, or omit/`undefined` for
+  the default.
 
 `activityType` reaches the server because the client
 (`MultimodalInputArea.tsx`) sends it in the `/api/multimodal/turn` body and the
@@ -199,8 +201,8 @@ read the registry — no per-type wiring needed.
 2. **Preview**: the assignment-detail / content-tab question preview
    (`QuestionView`) shows the same relabeling.
 3. **Runtime** (multimodal): the assembled system prompt contains the type's
-   persona + `buildMultimodalDirective`; a language-help turn uses its
-   `buildLanguageSupportActiveDirective` when provided.
+   persona + `buildMultimodalDirective`; when a support language is configured,
+   the support directive uses its `buildLanguageSupportDirective` when provided.
 4. **Evaluation**: scoring uses the type's `evaluationPrompt`; if it has a
    `{{#if support_language}}` override and a support language is selected, the
    feedback is written in that support language (otherwise the primary language).

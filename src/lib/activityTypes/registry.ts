@@ -4,7 +4,7 @@
  * Pure / client-safe: no server-only imports. The prompt builders
  * (`promptTemplates.ts`), the teacher form, the Question Card, and the server
  * multimodal directive builder (`chat-stream-object.ts`) all read this registry,
- * so a new activity type is added here once. See docs/adding-activity-types.md.
+ * so a new activity type is added here once. See dev-docs/adding-activity-types.md.
  */
 
 import type {

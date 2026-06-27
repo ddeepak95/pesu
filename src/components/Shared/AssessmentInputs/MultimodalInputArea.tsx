@@ -74,7 +74,6 @@ type MultimodalTurnEvent =
   | { type: "action_start"; id: string; kind: ActionKind }
   | { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
   | { type: "action_error"; id: string; kind: ActionKind; error?: string }
-  | { type: "language_help_requested" }
   | { type: "user_transcript"; text: string }
   | { type: "done" }
   | { type: "error"; error?: string; message?: string };
@@ -567,7 +566,6 @@ export function MultimodalInputArea({
   const runAssistantTurn = React.useCallback(
     async (
       history: ChatMessage[],
-      speechLanguage?: string,
       opts?: { availableActionsOverride?: ActionKind[]; noSpeech?: boolean },
     ) => {
       const turnId = ++assistantTurnSeqRef.current;
@@ -581,16 +579,6 @@ export function MultimodalInputArea({
         speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
       const attemptNumber = attempts.length + 1;
 
-      // Speaking practice opens each scenario with a briefing spoken in the
-      // support language (scenario + requirements + "ready?"), then switches to
-      // the target language for the role-play. The intro is the first turn of
-      // the scenario (empty history) when a support language is configured.
-      const isIntroBrief =
-        history.length === 0 &&
-        activityType === "speaking_practice" &&
-        supportEnabled &&
-        Boolean(supportLanguage);
-      const turnSpeechLanguage = isIntroBrief ? supportLanguage : speechLanguage;
       let sampleRate = 24000;
       let ttsStarted = false;
       let interrupted = false;
@@ -599,7 +587,6 @@ export function MultimodalInputArea({
       let speechSegmentEnded = false;
       let assistantText = "";
       let didEndConversation = false;
-      let languageHelpRequested = false;
 
       replayAudioRef.current?.pause();
       replayAudioRef.current = null;
@@ -657,14 +644,9 @@ export function MultimodalInputArea({
             greeting,
             language,
             ttsModelId,
-            ...(turnSpeechLanguage && turnSpeechLanguage !== language
-              ? {
-                  speechLanguage: turnSpeechLanguage,
-                  ...(isIntroBrief ? { introBrief: true } : {}),
-                }
-              : supportEnabled && supportLanguage
-                ? { supportLanguageAvailable: supportLanguage }
-                : {}),
+            ...(supportEnabled && supportLanguage
+              ? { supportLanguageAvailable: supportLanguage }
+              : {}),
             ...(latestTranscriptCandidates
               ? { latestTranscriptCandidates }
               : {}),
@@ -756,8 +738,6 @@ export function MultimodalInputArea({
               messagesRef.current = next;
               return next;
             });
-          } else if (event.type === "language_help_requested") {
-            languageHelpRequested = true;
           } else if (event.type === "user_transcript") {
             // The LLM chose the coherent transcript. Update the pending student
             // bubble and persist the deferred audio.
@@ -876,21 +856,6 @@ export function MultimodalInputArea({
         if (didEndConversation) {
           scheduleAutoFinish();
         }
-
-        // The orchestrator acknowledged a verbal request for language help; run
-        // a follow-up support turn so the explanation comes back in the support
-        // language with a matching voice (same path as the bulb button).
-        if (
-          languageHelpRequested &&
-          !botInterruptionRequestedRef.current &&
-          supportEnabled &&
-          supportLanguage
-        ) {
-          void runAssistantTurnRef.current(
-            messagesRef.current,
-            supportLanguage,
-          );
-        }
       } catch (turnError) {
         // Fallback: if the turn errored before user_transcript arrived, resolve
         // any pending dual-transcript bubble to the primary candidate text.
@@ -972,11 +937,6 @@ export function MultimodalInputArea({
       systemPrompt,
     ],
   );
-
-  // Self-reference so a turn can trigger a follow-up support turn (verbal
-  // language-help request) without a stale closure.
-  const runAssistantTurnRef = React.useRef(runAssistantTurn);
-  runAssistantTurnRef.current = runAssistantTurn;
 
   const handleStart = React.useCallback(async () => {
     if (maxAttemptsReached) {
@@ -1133,19 +1093,21 @@ export function MultimodalInputArea({
 
     const label =
       getLocaleRegistryMap().get(supportLanguage)?.label ?? supportLanguage;
-    // Hidden nudge: sent to the LLM (so it knows what to translate) but never
-    // rendered or logged — the spoken reply is the visible result.
+    // Hidden nudge: an explicit support-language help request injected into the
+    // history so the model replies in the support language this turn (the same
+    // path a verbal request takes). Never rendered or logged — the spoken reply
+    // is the visible result. TTS still renders in the primary voice.
     const hiddenMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "student",
-      content: `Please translate your previous message into ${label}.`,
+      content: `Please explain that in ${label}.`,
       hidden: true,
     };
     const nextHistory = [...messagesRef.current, hiddenMessage];
     setMessages(nextHistory);
     messagesRef.current = nextHistory;
 
-    await runAssistantTurn(nextHistory, supportLanguage);
+    await runAssistantTurn(nextHistory);
   }, [
     isTranscribing,
     isThinking,
@@ -1190,7 +1152,7 @@ export function MultimodalInputArea({
       setMessages(nextHistory);
       messagesRef.current = nextHistory;
 
-      await runAssistantTurn(nextHistory, undefined, {
+      await runAssistantTurn(nextHistory, {
         availableActionsOverride: [def.kind],
         noSpeech: trigger.noSpeech,
       });

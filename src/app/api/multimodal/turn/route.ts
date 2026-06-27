@@ -93,24 +93,11 @@ interface MultimodalTurnRequestBody {
   greeting?: string;
   language: string;
   /**
-   * Language this turn's speech should be spoken in. Defaults to `language`.
-   * Set to the support language for a language-support turn so the TTS voice
-   * matches and the model is instructed to respond in that language.
-   */
-  speechLanguage?: string;
-  /**
-   * The support language available this turn (when language support is enabled
-   * but the turn is spoken normally). Lets the orchestrator offer to switch if
-   * the learner verbally asks for help.
+   * The support language configured for this learner. When set, the model is
+   * told it may reply inline in that language if the learner asks for help. TTS
+   * always renders in the primary `language`/voice — there is no voice switch.
    */
   supportLanguageAvailable?: string;
-  /**
-   * True when this is a speaking-practice scenario intro spoken in the support
-   * language (briefing + "ready?"). The TTS still uses `speechLanguage`, but the
-   * "learner asked for help" support directive is suppressed — the greeting
-   * instruction drives the briefing.
-   */
-  introBrief?: boolean;
   ttsModelId: string;
   availableActions?: ActionKind[];
   endConversationConfig?: EndConversationConfig;
@@ -165,19 +152,10 @@ export async function POST(request: NextRequest) {
     // key when that message is a persisted student turn so its audio links by FK.
     const latestMessageId = messages[messages.length - 1]?.id;
 
-    // The language this turn is spoken in (support language when the learner
-    // asked for help, otherwise the conversation language).
-    const speechLanguage = body.speechLanguage?.trim() || language;
-    const isSupportTurn = speechLanguage !== language;
-    // A speaking-practice intro brief is spoken in the support language but is
-    // not a "learner asked for help" turn — suppress the active support directive.
-    const introBrief = body.introBrief === true;
-
-    // Support is offered (but not active this turn): the orchestrator may raise
-    // `requestLanguageHelp` if the learner verbally asks for help.
+    // A support language is configured: the model may reply inline in it when
+    // the learner asks for help. TTS always renders in the primary `language`.
     const supportAvail = body.supportLanguageAvailable?.trim();
-    const languageHelpAvailable =
-      !!supportAvail && supportAvail !== language && !isSupportTurn;
+    const languageHelpAvailable = !!supportAvail && supportAvail !== language;
     const localeLabel = (code: string) =>
       getLocaleRegistryMap().get(code)?.label ?? code;
 
@@ -217,9 +195,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // TTS always renders in the primary conversation language and its single
+    // voice — even when the model replies in the support language (which it
+    // writes in native script). No per-turn voice switching.
     let voice: string;
     try {
-      voice = resolveTtsVoice(ttsModelId, speechLanguage);
+      voice = resolveTtsVoice(ttsModelId, language);
     } catch (error) {
       if (error instanceof KonvoLocaleVoiceError) {
         return NextResponse.json({ error: error.message }, { status: 400 });
@@ -414,7 +395,7 @@ export async function POST(request: NextRequest) {
 
           const synthInput = {
             text: trimmed,
-            language: speechLanguage,
+            language,
             voice,
             apiModelId: getSpeechApiModelId(ttsModelId),
             providerApiKey: ttsProviderApiKey ?? undefined,
@@ -503,7 +484,7 @@ export async function POST(request: NextRequest) {
             cartesiaSession = await CartesiaTtsContinuationSession.open({
               modelId: getSpeechApiModelId(ttsModelId) ?? "sonic-3.5",
               voiceId: voice,
-              language: speechLanguage,
+              language,
               apiKey: ttsProviderApiKey ?? undefined,
             });
             audioPump = startAudioPump(cartesiaSession.consumeAudio());
@@ -511,7 +492,7 @@ export async function POST(request: NextRequest) {
             sarvamSession = await SarvamTtsWebSocketSession.open({
               modelId: getSpeechApiModelId(ttsModelId) ?? "bulbul:v3",
               speaker: voice,
-              language: speechLanguage,
+              language,
               apiKey: ttsProviderApiKey ?? undefined,
             });
             audioPump = startAudioPump(sarvamSession.consumeAudio());
@@ -524,13 +505,6 @@ export async function POST(request: NextRequest) {
             providerOptions,
             availableActions: enabledActions,
             endConversation: endConversationConfig,
-            languageSupport: isSupportTurn && !introBrief
-              ? {
-                  active: true,
-                  languageLabel: localeLabel(speechLanguage),
-                  primaryLanguageLabel: localeLabel(language),
-                }
-              : undefined,
             languageHelpAvailable:
               languageHelpAvailable && supportAvail
                 ? { languageLabel: localeLabel(supportAvail) }
@@ -705,9 +679,6 @@ export async function POST(request: NextRequest) {
                 if (finalObject.action) {
                   resolvedAction = finalObject.action as ActionInput;
                 }
-                if (finalObject.requestLanguageHelp === true && !aborted) {
-                  enqueue({ type: "language_help_requested" });
-                }
               }
 
               if (invocationId) {
@@ -862,8 +833,8 @@ export async function POST(request: NextRequest) {
 
           if (!aborted) {
             // Only finalize TTS if speech was actually generated. When speech=""
-            // (e.g. requestLanguageHelp with empty speech), sending a finalization
-            // signal to the TTS session with no prior transcript causes an error.
+            // (e.g. a no-speech turn), sending a finalization signal to the TTS
+            // session with no prior transcript causes an error.
             if (fullReply.trim()) {
               if (useCartesiaWs && cartesiaSession) {
                 cartesiaSession.pushTranscript("", false);

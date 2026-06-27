@@ -22,13 +22,7 @@ import { buildActionSchemaField } from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
-import {
-  buildMultimodalDirectives,
-  shouldOfferLanguageHelp,
-  type TurnLanguageSupport,
-} from "./multimodal-directives";
-
-export type { TurnLanguageSupport };
+import { buildMultimodalDirectives } from "./multimodal-directives";
 
 export const TURN_SCHEMA_NAME = "multimodal_turn";
 
@@ -47,18 +41,6 @@ const speechField = z
       "this is read by a text-to-speech engine.",
   );
 
-const requestLanguageHelpField = z
-  .boolean()
-  .nullable()
-  .describe(
-    "Set to true ONLY when the learner explicitly wants a response in the support language: " +
-      "they asked you to translate, explain, or speak in the support language, OR they spoke " +
-      "in the support language seeking help or clarification. When true, set `speech` to an " +
-      "EMPTY STRING — the full response in the support language follows automatically. " +
-      "Do NOT set this for questions or doubts asked in the primary language — answer those " +
-      "normally in the primary language. Otherwise null.",
-  );
-
 /**
  * Build the turn schema. The `action` field is an actionable union of the
  * enabled + implemented action kinds (from the action registry); otherwise it
@@ -70,18 +52,12 @@ const requestLanguageHelpField = z
  */
 export function buildTurnSchema(
   availableActions: ActionKind[],
-  languageHelpAvailable?: boolean,
   dualTranscript?: boolean,
 ) {
   const base = {
     speech: speechField,
     action: buildActionSchemaField(availableActions),
     endConversation: endConversationField,
-    // Forced null unless support is available, mirroring the action field —
-    // so the model never raises a language-help request when it can't be served.
-    requestLanguageHelp: languageHelpAvailable
-      ? requestLanguageHelpField
-      : z.null(),
   };
 
   if (dualTranscript) {
@@ -109,7 +85,6 @@ export interface MultimodalTurnStreamOptions {
   providerOptions?: SharedV3ProviderOptions;
   availableActions: ActionKind[];
   endConversation?: EndConversationConfig;
-  languageSupport?: TurnLanguageSupport;
   languageHelpAvailable?: { languageLabel: string };
   activityType?: ActivityTypeKind;
   /** Present when the latest user message contains two transcript candidates. */
@@ -135,7 +110,6 @@ export function resolveMultimodalTurnCall(
     buildMultimodalDirectives({
       availableActions,
       endConversation: options.endConversation,
-      languageSupport: options.languageSupport,
       languageHelpAvailable: options.languageHelpAvailable,
       activityType: options.activityType,
       dualTranscript: options.dualTranscript,
@@ -153,11 +127,7 @@ export function resolveMultimodalTurnCall(
   return {
     system,
     messages: sdkMessages,
-    schema: buildTurnSchema(
-      availableActions,
-      shouldOfferLanguageHelp(options.languageHelpAvailable, options.activityType),
-      Boolean(options.dualTranscript),
-    ),
+    schema: buildTurnSchema(availableActions, Boolean(options.dualTranscript)),
     providerOptions,
   };
 }

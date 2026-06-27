@@ -133,23 +133,15 @@ export const SPEAKING_PRACTICE_DEFINITION: ActivityTypeDefinition = {
     '"Hinglish"). Do not transliterate or romanize that language into Roman/Latin ' +
     "letters. The only exception: English words or proper nouns that are genuinely " +
     "borrowed into the conversation may stay in Roman script.",
-  buildLanguageSupportActiveDirective: ({ languageLabel, primaryLanguageLabel }) =>
-    `LANGUAGE SUPPORT — CONTINUE IN ${languageLabel.toUpperCase()}: The student asked ` +
-    `for help in ${languageLabel}. For this response, stay in character and continue the ` +
-    `speaking scenario naturally in ${languageLabel}, helping them understand and keep ` +
-    `going. ` +
-    (primaryLanguageLabel
-      ? `Keep proper nouns and any scenario-specific terms from ${primaryLanguageLabel} as they were. `
-      : "") +
-    `Resume in the usual language on the next turn.`,
-  buildLanguageSupportAvailableDirective: ({ languageLabel }) =>
+  buildLanguageSupportDirective: ({ languageLabel }) =>
     `LANGUAGE SUPPORT AVAILABLE: A ${languageLabel} support channel is available. ` +
-    `Set \`requestLanguageHelp\` to true — and set \`speech\` to EMPTY STRING — only when ` +
-    `the learner explicitly asks for help in ${languageLabel} mid-scenario (e.g. asks you ` +
-    `to explain something in ${languageLabel}, says they are confused and want ${languageLabel} ` +
-    `help, or speaks in ${languageLabel} seeking clarification). ` +
-    `A full ${languageLabel} response will follow automatically — leave \`speech\` completely ` +
-    `empty. Do NOT interrupt the role-play to offer ${languageLabel} help unprompted — wait ` +
-    `until the learner asks. If they ask a doubt in the primary language, answer it in character. ` +
-    `Otherwise leave \`requestLanguageHelp\` null and continue the scenario normally.`,
+    `Only when the learner explicitly asks for help in ${languageLabel} mid-scenario (e.g. asks ` +
+    `you to explain something in ${languageLabel}, says they are confused and want ${languageLabel} ` +
+    `help, or speaks in ${languageLabel} seeking clarification): for that one reply, stay in ` +
+    `character and continue the speaking scenario naturally in ${languageLabel}, helping them ` +
+    `understand and keep going — keep proper nouns and any scenario-specific terms from the ` +
+    `primary language as they were. Do NOT interrupt the role-play to offer ${languageLabel} help ` +
+    `unprompted — wait until the learner asks. If they ask a doubt in the primary language, answer ` +
+    `it in character in the primary language. Resume the role-play in the primary language on the ` +
+    `next turn.`,
 };

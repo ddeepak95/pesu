@@ -45,10 +45,10 @@ Teachers configure a speaking practice activity with:
   │  (primary lang)  │  through natural conversation. Keeps turns short.
   │                  │
   │  ┌────────────┐  │  If learner asks for help in support language:
-  │  │  Support   │  │    → requestLanguageHelp = true
-  │  │  language  │  │    → ACTIVE turn fires in support language
-  │  │  turn      │  │    → AI continues role-play in support language
-  │  └────────────┘  │    → next turn resumes in primary language
+  │  │  Support   │  │    → AI replies in the support language INLINE, same turn
+  │  │  language  │  │    → stays in character, continues the role-play in it
+  │  │  reply     │  │    → next turn resumes in primary language
+  │  └────────────┘  │    (no separate turn; same single voice throughout)
   └────────┬─────────┘
            │ all aspects covered / end condition met
            ▼
@@ -58,35 +58,33 @@ Teachers configure a speaking practice activity with:
   └──────────────────┘
 ```
 
+Every turn — intro brief, role-play, and support-language help — is spoken in the **same single primary voice**. The support language only changes the *words* the model generates (in native script), never the TTS voice.
+
 ---
 
 ## Language support integration
 
-Speaking practice has the deepest integration with language support of any activity type. It overrides both language support hooks.
+Speaking practice has the deepest integration with language support of any activity type. It overrides the single language-support hook and handles help inline — in the same primary voice as the role-play.
 
 ### Intro brief in support language
 
-The `conversationStart.first_question` template checks `{{#if support_language}}` and instructs the AI to deliver the entire opening — scenario explanation, what to cover, "are you ready?" — in the support language. The role-play itself starts in the primary language once the learner confirms.
+The `conversationStart.first_question` template checks `{{#if support_language}}` and instructs the AI to deliver the entire opening — scenario explanation, what to cover, "are you ready?" — in the support language. The role-play itself starts in the primary language once the learner confirms. There is no special turn type; it is just the first turn, spoken in the primary voice.
 
-### Available turns (mid role-play)
+### Inline support-language help (mid role-play)
 
-The `buildLanguageSupportAvailableDirective` hook returns a role-play-aware version of the offer directive. Key difference from the default: the AI is told **not to offer support language help unprompted** — it should stay in the scene and only respond when the learner explicitly asks.
+The `buildLanguageSupportDirective` hook returns a role-play-aware directive. Two key points: the AI is told **not to offer support-language help unprompted** (stay in the scene, respond only when the learner explicitly asks); and when the learner does ask, the AI replies **in the support language inline, on that same turn** — staying in character and continuing the role-play in it, keeping scenario-specific terms from the primary language as they are. The next turn resumes the primary language.
 
 ```
 Learner speaks (primary language, or support language seeking help)
          │
          ▼
-  Learner explicitly asked for support language help?
-  ├── No  ──► stay in character, continue role-play normally
-  └── Yes ──► requestLanguageHelp = true, speech = ""
-                      │
-                      ▼
-               ACTIVE support-language turn (see below)
+  Learner explicitly asked for support-language help?
+  ├── No  ──► stay in character, continue role-play in primary language
+  └── Yes ──► reply in the support language THIS turn (same primary voice),
+              then resume the primary language next turn
 ```
 
-### Active turns (support language response)
-
-The `buildLanguageSupportActiveDirective` hook returns a directive that says: **continue the role-play scenario in the support language**. Unlike the default (which translates the previous message), the AI stays in character and helps the learner understand and continue — keeping scenario-specific terms from the primary language as they are.
+There is no `requestLanguageHelp` signal, no empty-speech precursor, and no second turn. The manual help button injects an explicit request into the conversation and runs a normal turn — the same path.
 
 ### Evaluation in support language
 
@@ -128,7 +126,9 @@ The evaluator persona sets the frame: "supportive speaking coach, not strict exa
 
 | File | Role |
 |---|---|
-| `src/lib/activityTypes/registry.ts` | Full definition: persona, task, evaluation, hooks |
-| `src/lib/ai/chat-stream-object.ts` | Multimodal directive and language support dispatch |
-| `docs/language-support.md` | Language support system and extension points |
-| `docs/adding-activity-types.md` | How to add a new activity type |
+| `src/lib/activityTypes/speaking_practice.ts` | Full definition: persona, task, evaluation, hooks |
+| `src/lib/activityTypes/registry.ts` | Aggregates all activity-type definitions; `getActivityTypeDefinition()` |
+| `src/lib/ai/multimodal-directives.ts` | Multimodal directive + language-support dispatch |
+| `src/lib/ai/chat-stream-object.ts` | Turn schema + streamObject orchestration |
+| `dev-docs/language-support.md` | Language support system and extension points |
+| `dev-docs/adding-activity-types.md` | How to add a new activity type |
