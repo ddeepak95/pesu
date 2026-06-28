@@ -13,11 +13,11 @@ import { getClassStudentsWithInfo, StudentWithInfo } from "./students";
 
 /** All columns for the submissions table (includes evaluations JSONB and activity metrics — use SUBMISSION_LIST_COLUMNS for list views) */
 const SUBMISSION_ALL_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, feedback_released_at, graded_score, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids, questions_generated_at";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submitted_at, status, submission_mode, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, feedback_released_at, graded_score, tab_leave_events, input_violation_events, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids, questions_generated_at, is_preview";
 
 /** Slim columns for session restore — excludes evaluations JSONB */
 const SUBMISSION_SESSION_RESTORE_COLUMNS =
-  "submission_id, assignment_id, student_id, responder_details, preferred_language, status, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids";
+  "submission_id, assignment_id, student_id, responder_details, preferred_language, status, integrity_access_revoked_at, integrity_access_revoked_reason, generated_questions, generated_from_file_ids, is_preview";
 
 /** All columns for the submission_transcripts table */
 const TRANSCRIPT_ALL_COLUMNS =
@@ -54,6 +54,7 @@ export async function getStudentIdsWithPendingApprovalsInClass(
     .select("student_id")
     .eq("has_attempts", true)
     .is("feedback_released_at", null)
+    .or("is_preview.is.null,is_preview.eq.false")
     .in("assignment_id", submissionAssignmentPublicIds);
 
   if (error) {
@@ -184,6 +185,8 @@ export async function createSubmission(
   options?: {
     studentId?: string;
     responderDetails?: Record<string, string>;
+    /** Teacher "Save and Preview" run — marks the row preview (hidden everywhere). */
+    isPreview?: boolean;
   }
 ): Promise<Submission> {
   const supabase = createClient();
@@ -226,6 +229,11 @@ export async function createSubmission(
   // Add student_id if provided
   if (options?.studentId) {
     insertData.student_id = options.studentId;
+  }
+
+  // Teacher preview run — filtered out of every submission read surface.
+  if (options?.isPreview) {
+    insertData.is_preview = true;
   }
 
   const { data, error } = await supabase
@@ -273,6 +281,47 @@ export async function getSubmissionByStudentAndAssignment(
   }
 
   return data;
+}
+
+/**
+ * Resume a teacher's existing preview submission for an assignment, if any.
+ * Preview submissions carry the teacher's id in `student_id` and `is_preview=true`.
+ * Returns the slim session-restore shape (same as createSubmission) so the preview
+ * wrapper can reuse the row across repeat previews instead of piling up duplicates.
+ */
+export async function getPreviewSubmission(
+  teacherId: string,
+  assignmentId: string
+): Promise<Submission | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("submissions")
+    .select(SUBMISSION_SESSION_RESTORE_COLUMNS)
+    .eq("student_id", teacherId)
+    .eq("assignment_id", assignmentId)
+    .eq("is_preview", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching preview submission:", error);
+    return null;
+  }
+
+  return (data as unknown as Submission) ?? null;
+}
+
+/**
+ * Restart a preview run: stale every attempt and return the submission to
+ * in_progress (reuses markAttemptsAsStale). The row stays `is_preview=true`, so it
+ * remains hidden from all surfaces. Used by the preview wrapper's "Restart preview".
+ */
+export async function resetPreviewSubmission(
+  submissionId: string
+): Promise<void> {
+  await markAttemptsAsStale(submissionId);
 }
 
 /**
@@ -766,7 +815,7 @@ export async function markAttemptsAsStale(
 
 /** Columns to select for list views (excludes evaluations JSONB) */
 const SUBMISSION_LIST_COLUMNS =
-  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, feedback_released_at, graded_score, integrity_access_revoked_at, integrity_access_revoked_reason";
+  "id, submission_id, assignment_id, student_id, responder_details, preferred_language, submission_mode, status, submitted_at, created_at, updated_at, experience_rating, experience_rating_feedback, has_attempts, highest_score, max_score, total_attempts, questions_attempted_count, feedback_released_at, graded_score, integrity_access_revoked_at, integrity_access_revoked_reason, is_preview";
 
 /**
  * Student submission status for teacher view
@@ -825,6 +874,7 @@ export async function getSubmissionsByAssignmentWithStudents(
         .select(SUBMISSION_LIST_COLUMNS)
         .eq("assignment_id", assignmentId)
         .not("student_id", "is", null)
+        .or("is_preview.is.null,is_preview.eq.false")
         .order("created_at", { ascending: false }),
     ]);
 
@@ -907,6 +957,7 @@ export async function getPublicSubmissionsByAssignment(
     .select(SUBMISSION_LIST_COLUMNS)
     .eq("assignment_id", assignmentId)
     .is("student_id", null)
+    .or("is_preview.is.null,is_preview.eq.false")
     .order("submitted_at", { ascending: false });
 
   if (error) {

@@ -7,20 +7,16 @@ import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import AssignmentForm from "@/components/Teacher/Assignments/AssignmentForm";
 import { useAuth } from "@/contexts/AuthContext";
-import { createAssignment } from "@/lib/queries/assignments";
+import { createAssignment, updateAssignment } from "@/lib/queries/assignments";
 import { getClassByClassId } from "@/lib/queries/classes";
-import { createContentItem } from "@/lib/queries/contentItems";
-import { getClassGroups } from "@/lib/queries/groups";
 import {
-  ResponderFieldConfig,
-  BotPromptConfig,
-  FileSubmissionConfig,
-} from "@/types/assignment";
-import type { ActivityType } from "@/lib/promptTemplates";
-import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
+  createContentItem,
+  updateContentItemStatusByRef,
+} from "@/lib/queries/contentItems";
+import type { AssignmentFormSubmitData } from "@/components/Teacher/Assignments/AssignmentForm";
+import type { Assignment } from "@/types/assignment";
+import { getClassGroups } from "@/lib/queries/groups";
 import type { ClassLanguageConfig } from "@/types/class";
-import type { TabSwitchPolicy } from "@/lib/integrity/constants";
-import type { AssessmentMode } from "@/lib/settings/registry";
 
 export default function CreateAssignmentPage() {
   const params = useParams();
@@ -32,6 +28,11 @@ export default function CreateAssignmentPage() {
   const [error, setError] = useState<string | null>(null);
   const [classDbId, setClassDbId] = useState<string | null>(null);
   const [classGroupId, setClassGroupId] = useState<string | null>(null);
+  // DB id of the draft created by "Save and Preview"; reused so repeat previews
+  // update the same draft instead of creating duplicates.
+  const [previewAssignmentDbId, setPreviewAssignmentDbId] = useState<
+    string | null
+  >(null);
   const [classLanguage, setClassLanguage] = useState<string>("en");
   const [classLanguageConfig, setClassLanguageConfig] =
     useState<ClassLanguageConfig | null>(null);
@@ -88,46 +89,7 @@ export default function CreateAssignmentPage() {
     initGroup();
   }, [classDbId, searchParams]);
 
-  const handleSubmit = async (data: {
-    title: string;
-    questions: {
-      order: number;
-      prompt: string;
-      total_points: number;
-      rubric: { item: string; points: number }[];
-      supporting_content: string;
-    }[];
-    totalPoints: number;
-    preferredLanguage: string;
-    lockLanguage: boolean;
-    isPublic: boolean;
-    activityType: ActivityType;
-    assessmentMode: AssessmentMode;
-    isDraft: boolean;
-    responderFieldsConfig?: ResponderFieldConfig[];
-    maxAttempts?: number;
-    botPromptConfig?: BotPromptConfig;
-    studentInstructions?: string;
-    showRubric?: boolean;
-    showRubricPoints?: boolean;
-    useStarDisplay?: boolean;
-    starScale?: number;
-    requireAllAttempts?: boolean;
-    sharedContextEnabled?: boolean;
-    sharedContext?: string;
-    evaluationPrompt?: string;
-    feedbackFocus?: FeedbackFocusArea[];
-    experienceRatingEnabled?: boolean;
-    experienceRatingRequired?: boolean;
-    feedbackRequiresApproval?: boolean;
-    batchGradeRelease?: boolean;
-    allowCopyPaste?: boolean;
-    tabSwitchPolicy?: TabSwitchPolicy;
-    tabSwitchMaxLeaves?: number;
-    fileSubmissionConfig?: FileSubmissionConfig | null;
-    dynamicQuestionsEnabled?: boolean;
-    dynamicGenerationPrompt?: string | null;
-  }) => {
+  const handleSubmit = async (data: AssignmentFormSubmitData) => {
     if (!user) {
       throw new Error("You must be logged in to create an assignment");
     }
@@ -136,46 +98,30 @@ export default function CreateAssignmentPage() {
       throw new Error("Class not found");
     }
 
+    const status = data.isDraft ? "draft" : "active";
+
+    // If a draft was already created via "Save and Preview", finalize that same
+    // row instead of creating a duplicate.
+    if (previewAssignmentDbId) {
+      const updated = await updateAssignment(previewAssignmentDbId, {
+        ...buildAssignmentFields(data),
+        status,
+      });
+      await updateContentItemStatusByRef({
+        class_id: classDbId,
+        type: "formative_assignment",
+        ref_id: previewAssignmentDbId,
+        status: updated.status,
+      });
+      return;
+    }
+
     const assignment = await createAssignment(
       {
         class_id: classDbId,
         class_group_id: classGroupId,
-        title: data.title,
-        questions: data.questions,
-        total_points: data.totalPoints,
-        preferred_language: data.preferredLanguage,
-        lock_language: data.lockLanguage,
-        is_public: data.isPublic,
-        activity_type: data.activityType,
-        assessment_mode: data.assessmentMode,
-        status: data.isDraft ? "draft" : "active",
-        responder_fields_config: data.responderFieldsConfig,
-        max_attempts: data.maxAttempts ?? 1,
-        bot_prompt_config: data.botPromptConfig,
-        student_instructions: data.studentInstructions,
-        show_rubric: data.showRubric ?? false,
-        show_rubric_points: data.showRubricPoints ?? true,
-        use_star_display: data.useStarDisplay ?? false,
-        star_scale: data.starScale ?? 5,
-        require_all_attempts: data.requireAllAttempts ?? false,
-        shared_context_enabled: data.sharedContextEnabled ?? false,
-        shared_context: data.sharedContext,
-        evaluation_prompt: data.evaluationPrompt,
-        feedback_focus: data.feedbackFocus?.length ? data.feedbackFocus : null,
-        experience_rating_enabled: data.experienceRatingEnabled ?? false,
-        experience_rating_required: data.experienceRatingRequired ?? false,
-        feedback_requires_approval: data.feedbackRequiresApproval ?? false,
-        batch_grade_release: data.batchGradeRelease ?? false,
-        allow_copy_paste: data.allowCopyPaste ?? false,
-        tab_switch_policy: data.tabSwitchPolicy ?? "warn",
-        tab_switch_max_leaves:
-          data.tabSwitchPolicy === "block_after_threshold"
-            ? data.tabSwitchMaxLeaves ?? null
-            : null,
-        file_submission_config: data.fileSubmissionConfig ?? null,
-        dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
-        dynamic_question_focuses: null,
-        dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
+        ...buildAssignmentFields(data),
+        status,
       },
       user.id
     );
@@ -187,10 +133,93 @@ export default function CreateAssignmentPage() {
         class_group_id: classGroupId,
         type: "formative_assignment",
         ref_id: assignment.id,
-        status: data.isDraft ? "draft" : "active",
+        status,
       },
       user.id
     );
+  };
+
+  // Shared field mapping for create / update / preview saves (status handled by caller).
+  const buildAssignmentFields = (data: AssignmentFormSubmitData) => ({
+    title: data.title,
+    questions: data.questions,
+    total_points: data.totalPoints,
+    preferred_language: data.preferredLanguage,
+    lock_language: data.lockLanguage,
+    is_public: data.isPublic,
+    activity_type: data.activityType,
+    assessment_mode: data.assessmentMode,
+    responder_fields_config: data.responderFieldsConfig,
+    max_attempts: data.maxAttempts ?? 1,
+    bot_prompt_config: data.botPromptConfig,
+    student_instructions: data.studentInstructions,
+    show_rubric: data.showRubric ?? false,
+    show_rubric_points: data.showRubricPoints ?? true,
+    use_star_display: data.useStarDisplay ?? false,
+    star_scale: data.starScale ?? 5,
+    require_all_attempts: data.requireAllAttempts ?? false,
+    shared_context_enabled: data.sharedContextEnabled ?? false,
+    shared_context: data.sharedContext,
+    evaluation_prompt: data.evaluationPrompt,
+    feedback_focus: data.feedbackFocus?.length ? data.feedbackFocus : null,
+    experience_rating_enabled: data.experienceRatingEnabled ?? false,
+    experience_rating_required: data.experienceRatingRequired ?? false,
+    feedback_requires_approval: data.feedbackRequiresApproval ?? false,
+    batch_grade_release: data.batchGradeRelease ?? false,
+    allow_copy_paste: data.allowCopyPaste ?? false,
+    tab_switch_policy: data.tabSwitchPolicy ?? "warn",
+    tab_switch_max_leaves:
+      data.tabSwitchPolicy === "block_after_threshold"
+        ? data.tabSwitchMaxLeaves ?? null
+        : null,
+    file_submission_config: data.fileSubmissionConfig ?? null,
+    dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
+    dynamic_question_focuses: null,
+    dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
+  });
+
+  // Save-and-preview: create the activity as a draft on first use (plus its content
+  // item), then update that same draft on subsequent previews. Never navigates.
+  const handleSaveForPreview = async (
+    data: AssignmentFormSubmitData
+  ): Promise<Assignment> => {
+    if (!user) {
+      throw new Error("You must be logged in to create an assignment");
+    }
+    if (!classDbId || !classGroupId) {
+      throw new Error("Class not found");
+    }
+
+    const fields = buildAssignmentFields(data);
+
+    if (previewAssignmentDbId) {
+      // Update the existing draft, preserving its draft status (omit status).
+      return updateAssignment(previewAssignmentDbId, fields);
+    }
+
+    const assignment = await createAssignment(
+      {
+        class_id: classDbId,
+        class_group_id: classGroupId,
+        ...fields,
+        status: "draft",
+      },
+      user.id
+    );
+
+    await createContentItem(
+      {
+        class_id: classDbId,
+        class_group_id: classGroupId,
+        type: "formative_assignment",
+        ref_id: assignment.id,
+        status: "draft",
+      },
+      user.id
+    );
+
+    setPreviewAssignmentDbId(assignment.id);
+    return assignment;
   };
 
   if (loadingClass) {
@@ -228,6 +257,7 @@ export default function CreateAssignmentPage() {
           initialLanguage={classLanguage}
           initialLockLanguage={classLanguageConfig?.lockPrimaryLanguage ?? false}
           onSubmit={handleSubmit}
+          onSaveForPreview={handleSaveForPreview}
           onCancel={() => router.push(backToContentHref)}
         />
       </div>

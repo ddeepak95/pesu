@@ -161,6 +161,12 @@ export interface Submission {
    * Timestamp when dynamic questions were generated for this submission.
    */
   questions_generated_at?: string | null;
+  /**
+   * Teacher "Save and Preview" run. Preview submissions exercise the real
+   * pipeline but are filtered out of every submission read surface (teacher
+   * view, public view, pending-approval badges, analytics). Default false.
+   */
+  is_preview?: boolean;
 }
 
 export interface SubmissionFile {

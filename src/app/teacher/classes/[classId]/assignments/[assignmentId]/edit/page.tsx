@@ -9,6 +9,8 @@ import AssignmentForm from "@/components/Teacher/Assignments/AssignmentForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateAssignment } from "@/lib/queries/assignments";
 import { updateContentItemStatusByRef } from "@/lib/queries/contentItems";
+import type { AssignmentFormSubmitData } from "@/components/Teacher/Assignments/AssignmentForm";
+import type { Assignment } from "@/types/assignment";
 import {
   Question,
   ResponderFieldConfig,
@@ -136,47 +138,7 @@ export default function EditAssignmentPage() {
     setInitialIsDraft(assignmentData.status === "draft");
   }
 
-  const handleSubmit = async (data: {
-    title: string;
-    questions: {
-      order: number;
-      prompt: string;
-      total_points: number;
-      rubric: { item: string; points: number }[];
-      supporting_content: string;
-      expected_answer?: string;
-    }[];
-    totalPoints: number;
-    preferredLanguage: string;
-    lockLanguage: boolean;
-    isPublic: boolean;
-    activityType: ActivityType;
-    assessmentMode: AssessmentMode;
-    isDraft: boolean;
-    responderFieldsConfig?: ResponderFieldConfig[];
-    maxAttempts?: number;
-    botPromptConfig?: BotPromptConfig;
-    studentInstructions?: string;
-    showRubric?: boolean;
-    showRubricPoints?: boolean;
-    useStarDisplay?: boolean;
-    starScale?: number;
-    requireAllAttempts?: boolean;
-    sharedContextEnabled?: boolean;
-    sharedContext?: string;
-    evaluationPrompt?: string;
-    feedbackFocus?: FeedbackFocusArea[];
-    experienceRatingEnabled?: boolean;
-    experienceRatingRequired?: boolean;
-    feedbackRequiresApproval?: boolean;
-    batchGradeRelease?: boolean;
-    allowCopyPaste?: boolean;
-    tabSwitchPolicy?: TabSwitchPolicy;
-    tabSwitchMaxLeaves?: number;
-    fileSubmissionConfig?: FileSubmissionConfig | null;
-    dynamicQuestionsEnabled?: boolean;
-    dynamicGenerationPrompt?: string | null;
-  }) => {
+  const handleSubmit = async (data: AssignmentFormSubmitData) => {
     if (!user) {
       throw new Error("You must be logged in to update an assignment");
     }
@@ -188,42 +150,8 @@ export default function EditAssignmentPage() {
     const newStatus = data.isDraft ? "draft" : "active";
 
     const updated = await updateAssignment(assignmentDbId, {
-      title: data.title,
-      questions: data.questions,
-      total_points: data.totalPoints,
-      preferred_language: data.preferredLanguage,
-      lock_language: data.lockLanguage,
-      is_public: data.isPublic,
-      activity_type: data.activityType,
-      assessment_mode: data.assessmentMode,
+      ...buildAssignmentFields(data),
       status: newStatus,
-      responder_fields_config: data.responderFieldsConfig,
-      max_attempts: data.maxAttempts ?? 1,
-      bot_prompt_config: data.botPromptConfig,
-      student_instructions: data.studentInstructions,
-      show_rubric: data.showRubric ?? true,
-      show_rubric_points: data.showRubricPoints ?? true,
-      use_star_display: data.useStarDisplay ?? false,
-      star_scale: data.starScale ?? 5,
-      require_all_attempts: data.requireAllAttempts ?? false,
-      shared_context_enabled: data.sharedContextEnabled ?? false,
-      shared_context: data.sharedContext,
-      evaluation_prompt: data.evaluationPrompt,
-      feedback_focus: data.feedbackFocus?.length ? data.feedbackFocus : null,
-      experience_rating_enabled: data.experienceRatingEnabled ?? false,
-      experience_rating_required: data.experienceRatingRequired ?? false,
-      feedback_requires_approval: data.feedbackRequiresApproval ?? false,
-      batch_grade_release: data.batchGradeRelease ?? false,
-      allow_copy_paste: data.allowCopyPaste ?? false,
-      tab_switch_policy: data.tabSwitchPolicy ?? "warn",
-      tab_switch_max_leaves:
-        data.tabSwitchPolicy === "block_after_threshold"
-          ? data.tabSwitchMaxLeaves ?? null
-          : null,
-      file_submission_config: data.fileSubmissionConfig ?? null,
-      dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
-      dynamic_question_focuses: null,
-      dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
     });
 
     // Sync content_item status
@@ -235,6 +163,59 @@ export default function EditAssignmentPage() {
         status: updated.status,
       });
     }
+  };
+
+  // Shared field mapping for update / preview saves (status handled by caller).
+  const buildAssignmentFields = (data: AssignmentFormSubmitData) => ({
+    title: data.title,
+    questions: data.questions,
+    total_points: data.totalPoints,
+    preferred_language: data.preferredLanguage,
+    lock_language: data.lockLanguage,
+    is_public: data.isPublic,
+    activity_type: data.activityType,
+    assessment_mode: data.assessmentMode,
+    responder_fields_config: data.responderFieldsConfig,
+    max_attempts: data.maxAttempts ?? 1,
+    bot_prompt_config: data.botPromptConfig,
+    student_instructions: data.studentInstructions,
+    show_rubric: data.showRubric ?? true,
+    show_rubric_points: data.showRubricPoints ?? true,
+    use_star_display: data.useStarDisplay ?? false,
+    star_scale: data.starScale ?? 5,
+    require_all_attempts: data.requireAllAttempts ?? false,
+    shared_context_enabled: data.sharedContextEnabled ?? false,
+    shared_context: data.sharedContext,
+    evaluation_prompt: data.evaluationPrompt,
+    feedback_focus: data.feedbackFocus?.length ? data.feedbackFocus : null,
+    experience_rating_enabled: data.experienceRatingEnabled ?? false,
+    experience_rating_required: data.experienceRatingRequired ?? false,
+    feedback_requires_approval: data.feedbackRequiresApproval ?? false,
+    batch_grade_release: data.batchGradeRelease ?? false,
+    allow_copy_paste: data.allowCopyPaste ?? false,
+    tab_switch_policy: data.tabSwitchPolicy ?? "warn",
+    tab_switch_max_leaves:
+      data.tabSwitchPolicy === "block_after_threshold"
+        ? data.tabSwitchMaxLeaves ?? null
+        : null,
+    file_submission_config: data.fileSubmissionConfig ?? null,
+    dynamic_questions_enabled: data.dynamicQuestionsEnabled ?? false,
+    dynamic_question_focuses: null,
+    dynamic_generation_prompt: data.dynamicGenerationPrompt ?? null,
+  });
+
+  // Save-and-preview: update the activity in place, preserving its current status
+  // (omit status from the patch). Never navigates.
+  const handleSaveForPreview = async (
+    data: AssignmentFormSubmitData
+  ): Promise<Assignment> => {
+    if (!user) {
+      throw new Error("You must be logged in to update an assignment");
+    }
+    if (!assignmentDbId) {
+      throw new Error("Assignment not found");
+    }
+    return updateAssignment(assignmentDbId, buildAssignmentFields(data));
   };
 
   if (loadingAssignment) {
@@ -298,6 +279,7 @@ export default function EditAssignmentPage() {
           initialDynamicGenerationPrompt={dynamicGenerationPrompt}
           initialIsDraft={initialIsDraft}
           onSubmit={handleSubmit}
+          onSaveForPreview={handleSaveForPreview}
           onCancel={() => router.back()}
         />
       </div>

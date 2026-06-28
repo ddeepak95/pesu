@@ -15,6 +15,12 @@ interface AssignmentFormFooterProps {
   onCancel?: () => void;
   /** Save-as-draft action. Wire to `(e) => handleSubmit(e, true)` in the parent. */
   onSaveDraft: (e: React.MouseEvent) => void;
+  /**
+   * Save-and-preview action. When provided, renders a "Save and Preview" button
+   * between Save-as-Draft and the primary submit. Saves the current config (create
+   * → draft; edit → preserving status) and opens the student preview.
+   */
+  onSaveAndPreview?: (e: React.MouseEvent) => void;
 }
 
 /** Label for the primary submit button, given mode/draft/loading state. */
@@ -43,13 +49,14 @@ export function AssignmentFormFooter({
   error,
   onCancel,
   onSaveDraft,
+  onSaveAndPreview,
 }: AssignmentFormFooterProps) {
   return (
     <StickyFooter>
       {error && (
         <p className="mb-2 text-center text-sm text-destructive">{error}</p>
       )}
-      <div className="flex justify-center gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         {onCancel && (
           <Button
             type="button"
@@ -58,6 +65,16 @@ export function AssignmentFormFooter({
             disabled={loading}
           >
             Cancel
+          </Button>
+        )}
+        {onSaveAndPreview && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onSaveAndPreview}
+            disabled={loading}
+          >
+            Save and Preview
           </Button>
         )}
         <Button

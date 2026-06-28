@@ -471,6 +471,7 @@ export async function getClassStudentContentCompletions(params: {
           .eq("student_id", studentId)
           .eq("has_attempts", true)
           .is("feedback_released_at", null)
+          .or("is_preview.is.null,is_preview.eq.false")
           .in("assignment_id", submissionAssignmentPublicIds)
           .then(({ data, error }) => {
             if (error) throw error;

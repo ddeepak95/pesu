@@ -18,6 +18,7 @@
 
 import { countContentItemPlacementsByRef } from "@/lib/queries/contentItems";
 import {
+  getPreviewSubmission,
   getSubmissionById,
   getSubmissionByStudentAndAssignment,
   getSubmissionForSessionRestore,
@@ -63,6 +64,14 @@ export function fetchTranscriptsForSubmissionTracked(submissionId: string) {
 
 export function fetchSubmissionFilesTracked(submissionId: string) {
   return runTracked(() => getSubmissionFiles(submissionId));
+}
+
+/** Resume a teacher's existing preview submission for an assignment (preview overlay). */
+export function fetchPreviewSubmissionTracked(
+  teacherId: string,
+  assignmentId: string
+) {
+  return runTracked(() => getPreviewSubmission(teacherId, assignmentId));
 }
 
 /** Imperative read for delete/unlink confirm flows (teacher detail & content list). */

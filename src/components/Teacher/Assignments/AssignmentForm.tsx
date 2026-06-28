@@ -27,6 +27,7 @@ import { CollapsibleSection } from "@/components/Teacher/Assignments/Collapsible
 import { AssignmentFormFooter } from "@/components/Teacher/Assignments/AssignmentFormFooter";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import {
+  Assignment,
   Question,
   RubricItem,
   ResponderFieldConfig,
@@ -39,6 +40,8 @@ import {
   stripDynamicFlagsFromQuestions,
   teacherPromptOrFocus,
 } from "@/types/assignment";
+import { useAuth } from "@/contexts/AuthContext";
+import AssignmentPreviewResponse from "@/components/Teacher/Assignments/AssignmentPreviewResponse";
 import type { ClassLanguageConfig } from "@/types/class";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
@@ -155,42 +158,52 @@ interface AssignmentFormProps {
   initialFileSubmissionConfig?: FileSubmissionConfig | null;
   initialDynamicGenerationPrompt?: string;
   initialIsDraft?: boolean;
-  onSubmit: (data: {
-    title: string;
-    questions: Question[];
-    totalPoints: number;
-    preferredLanguage: string;
-    lockLanguage: boolean;
-    isPublic: boolean;
-    activityType: ActivityType;
-    assessmentMode: AssessmentMode;
-    isDraft: boolean;
-    responderFieldsConfig?: ResponderFieldConfig[];
-    maxAttempts?: number;
-    botPromptConfig?: BotPromptConfig;
-    studentInstructions?: string;
-    showRubric?: boolean;
-    showRubricPoints?: boolean;
-    useStarDisplay?: boolean;
-    starScale?: number;
-    requireAllAttempts?: boolean;
-    sharedContextEnabled?: boolean;
-    sharedContext?: string;
-    evaluationPrompt?: string;
-    feedbackFocus?: FeedbackFocusArea[];
-    experienceRatingEnabled?: boolean;
-    experienceRatingRequired?: boolean;
-    feedbackRequiresApproval?: boolean;
-    batchGradeRelease?: boolean;
-    allowCopyPaste?: boolean;
-    tabSwitchPolicy?: TabSwitchPolicy;
-    tabSwitchMaxLeaves?: number;
-    fileSubmissionConfig?: FileSubmissionConfig | null;
-    dynamicQuestionsEnabled?: boolean;
-    dynamicGenerationPrompt?: string | null;
-  }) => Promise<void>;
+  onSubmit: (data: AssignmentFormSubmitData) => Promise<void>;
+  /**
+   * Save-without-navigating for "Save and Preview". Persists the current config
+   * and returns the saved assignment row so the form can open the preview overlay.
+   * Create page: create-once-then-update a draft. Edit page: update preserving
+   * status. When omitted, the "Save and Preview" button is not shown.
+   */
+  onSaveForPreview?: (data: AssignmentFormSubmitData) => Promise<Assignment>;
   /** Cancel/close action rendered in the sticky footer. */
   onCancel?: () => void;
+}
+
+/** Payload shape shared by `onSubmit` and `onSaveForPreview`. */
+export interface AssignmentFormSubmitData {
+  title: string;
+  questions: Question[];
+  totalPoints: number;
+  preferredLanguage: string;
+  lockLanguage: boolean;
+  isPublic: boolean;
+  activityType: ActivityType;
+  assessmentMode: AssessmentMode;
+  isDraft: boolean;
+  responderFieldsConfig?: ResponderFieldConfig[];
+  maxAttempts?: number;
+  botPromptConfig?: BotPromptConfig;
+  studentInstructions?: string;
+  showRubric?: boolean;
+  showRubricPoints?: boolean;
+  useStarDisplay?: boolean;
+  starScale?: number;
+  requireAllAttempts?: boolean;
+  sharedContextEnabled?: boolean;
+  sharedContext?: string;
+  evaluationPrompt?: string;
+  feedbackFocus?: FeedbackFocusArea[];
+  experienceRatingEnabled?: boolean;
+  experienceRatingRequired?: boolean;
+  feedbackRequiresApproval?: boolean;
+  batchGradeRelease?: boolean;
+  allowCopyPaste?: boolean;
+  tabSwitchPolicy?: TabSwitchPolicy;
+  tabSwitchMaxLeaves?: number;
+  fileSubmissionConfig?: FileSubmissionConfig | null;
+  dynamicQuestionsEnabled?: boolean;
+  dynamicGenerationPrompt?: string | null;
 }
 
 export default function AssignmentForm({
@@ -245,9 +258,11 @@ export default function AssignmentForm({
   initialDynamicGenerationPrompt,
   initialIsDraft = false,
   onSubmit,
+  onSaveForPreview,
   onCancel,
 }: AssignmentFormProps) {
   const router = useTrackedRouter();
+  const { user } = useAuth();
   const [title, setTitle] = useState(initialTitle);
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
@@ -480,6 +495,13 @@ export default function AssignmentForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBotPreview, setShowBotPreview] = useState(false);
+
+  // Save and Preview state. `previewAssignment` is the saved row driving the
+  // overlay; it persists across exits so repeat previews re-save the same row.
+  const [previewAssignment, setPreviewAssignment] = useState<Assignment | null>(
+    null,
+  );
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const handleQuestionChange = (
     questionIndex: number,
@@ -714,41 +736,33 @@ export default function AssignmentForm({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent, draft: boolean = false) => {
-    e.preventDefault();
-    setError(null);
-
-    // Validation
+  /**
+   * Run full client-side validation. Returns an error message (also stored in
+   * `error`) when invalid, or null when the form is good to save. Shared by
+   * Save / Save as Draft and Save and Preview so they can't drift.
+   */
+  const validate = (): string | null => {
     if (!title.trim()) {
-      setError("Assignment title is required");
-      return;
+      return "Assignment title is required";
     }
 
     if (sharedContextEnabled && !sharedContext.trim()) {
-      setError(
-        "Additional context text is required when additional context is enabled",
-      );
-      return;
+      return "Additional context text is required when additional context is enabled";
     }
 
     if (fileSubmissionEnabled && fileAllowedTypes.length === 0) {
-      setError("Select at least one acceptable file type.");
-      return;
+      return "Select at least one acceptable file type.";
     }
 
     for (let i = 0; i < questions.length; i++) {
       const question = questions[i];
 
       if (!teacherPromptOrFocus(question).trim()) {
-        setError(
-          `Question ${i + 1}: ${question.dynamic_prompt ? "Guidelines for the question" : getActivityTypeLabels(activityType).question} is required`,
-        );
-        return;
+        return `Question ${i + 1}: ${question.dynamic_prompt ? "Guidelines for the question" : getActivityTypeLabels(activityType).question} is required`;
       }
 
       if (question.total_points <= 0) {
-        setError(`Question ${i + 1}: Total points must be greater than 0`);
-        return;
+        return `Question ${i + 1}: Total points must be greater than 0`;
       }
 
       if (!question.dynamic_rubric) {
@@ -757,10 +771,7 @@ export default function AssignmentForm({
         );
 
         if (validRubricItems.length === 0) {
-          setError(
-            `Question ${i + 1}: At least one valid rubric item is required`,
-          );
-          return;
+          return `Question ${i + 1}: At least one valid rubric item is required`;
         }
 
         const rubricSum = validRubricItems.reduce(
@@ -768,88 +779,98 @@ export default function AssignmentForm({
           0,
         );
         if (rubricSum !== question.total_points) {
-          setError(
-            `Question ${
-              i + 1
-            }: Rubric points (${rubricSum}) must equal total points (${
-              question.total_points
-            })`,
-          );
-          return;
+          return `Question ${i + 1}: Rubric points (${rubricSum}) must equal total points (${question.total_points})`;
         }
       }
+    }
+
+    return null;
+  };
+
+  /** Assemble the full save payload from current form state. */
+  const buildSubmitData = (draft: boolean): AssignmentFormSubmitData => {
+    let cleanedQuestions = questions.map((q) => ({
+      ...q,
+      rubric: q.dynamic_rubric
+        ? q.rubric
+        : q.rubric.filter((item) => item.item.trim() && item.points > 0),
+    }));
+
+    if (!fileSubmissionEnabled) {
+      cleanedQuestions = stripDynamicFlagsFromQuestions(cleanedQuestions);
+    }
+
+    const totalPoints = cleanedQuestions.reduce(
+      (sum, q) => sum + q.total_points,
+      0,
+    );
+
+    const dynamicQuestionsEnabled =
+      fileSubmissionEnabled &&
+      assignmentHasDynamicQuestionParts(cleanedQuestions);
+
+    return {
+      title: title.trim(),
+      questions: cleanedQuestions,
+      totalPoints,
+      preferredLanguage,
+      lockLanguage,
+      isPublic,
+      activityType,
+      assessmentMode: currentAssessmentMode,
+      isDraft: draft,
+      responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
+      maxAttempts,
+      // Always retain botPromptConfig so switching modes doesn't lose it
+      botPromptConfig,
+      studentInstructions: studentInstructions.trim() || undefined,
+      showRubric,
+      showRubricPoints,
+      useStarDisplay,
+      starScale,
+      requireAllAttempts,
+      sharedContextEnabled,
+      sharedContext: sharedContextEnabled ? sharedContext.trim() : undefined,
+      evaluationPrompt: evaluationPrompt.trim() || undefined,
+      feedbackFocus: normalizeFeedbackFocusAreas(feedbackFocus),
+      experienceRatingEnabled,
+      experienceRatingRequired: experienceRatingEnabled
+        ? experienceRatingRequired
+        : false,
+      feedbackRequiresApproval,
+      batchGradeRelease: feedbackRequiresApproval ? batchGradeRelease : false,
+      allowCopyPaste: integritySettings.allowCopyPaste,
+      tabSwitchPolicy: integritySettings.tabSwitchPolicy,
+      tabSwitchMaxLeaves: integritySettings.tabSwitchMaxLeaves,
+      fileSubmissionConfig: fileSubmissionEnabled
+        ? {
+            required: true,
+            allow_multiple: fileAllowMultiple,
+            instructions: fileInstructions.trim() || undefined,
+            allowed_file_types: orderFileSubmissionExtensions(fileAllowedTypes),
+          }
+        : null,
+      dynamicQuestionsEnabled,
+      dynamicGenerationPrompt: dynamicQuestionsEnabled
+        ? dynamicGenerationPrompt.trim() || null
+        : null,
+    };
+  };
+
+  const handleSubmit = async (e: React.FormEvent, draft: boolean = false) => {
+    e.preventDefault();
+    setError(null);
+
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
     setLoading(true);
 
     try {
-      let cleanedQuestions = questions.map((q) => ({
-        ...q,
-        rubric: q.dynamic_rubric
-          ? q.rubric
-          : q.rubric.filter((item) => item.item.trim() && item.points > 0),
-      }));
-
-      if (!fileSubmissionEnabled) {
-        cleanedQuestions = stripDynamicFlagsFromQuestions(cleanedQuestions);
-      }
-
-      const totalPoints = cleanedQuestions.reduce(
-        (sum, q) => sum + q.total_points,
-        0,
-      );
-
-      const dynamicQuestionsEnabled =
-        fileSubmissionEnabled &&
-        assignmentHasDynamicQuestionParts(cleanedQuestions);
-
-      await onSubmit({
-        title: title.trim(),
-        questions: cleanedQuestions,
-        totalPoints,
-        preferredLanguage,
-        lockLanguage,
-        isPublic,
-        activityType,
-        assessmentMode: currentAssessmentMode,
-        isDraft: draft,
-        responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
-        maxAttempts,
-        // Always retain botPromptConfig so switching modes doesn't lose it
-        botPromptConfig,
-        studentInstructions: studentInstructions.trim() || undefined,
-        showRubric,
-        showRubricPoints,
-        useStarDisplay,
-        starScale,
-        requireAllAttempts,
-        sharedContextEnabled,
-        sharedContext: sharedContextEnabled ? sharedContext.trim() : undefined,
-        evaluationPrompt: evaluationPrompt.trim() || undefined,
-        feedbackFocus: normalizeFeedbackFocusAreas(feedbackFocus),
-        experienceRatingEnabled,
-        experienceRatingRequired: experienceRatingEnabled
-          ? experienceRatingRequired
-          : false,
-        feedbackRequiresApproval,
-        batchGradeRelease: feedbackRequiresApproval ? batchGradeRelease : false,
-        allowCopyPaste: integritySettings.allowCopyPaste,
-        tabSwitchPolicy: integritySettings.tabSwitchPolicy,
-        tabSwitchMaxLeaves: integritySettings.tabSwitchMaxLeaves,
-        fileSubmissionConfig: fileSubmissionEnabled
-          ? {
-              required: true,
-              allow_multiple: fileAllowMultiple,
-              instructions: fileInstructions.trim() || undefined,
-              allowed_file_types:
-                orderFileSubmissionExtensions(fileAllowedTypes),
-            }
-          : null,
-        dynamicQuestionsEnabled,
-        dynamicGenerationPrompt: dynamicQuestionsEnabled
-          ? dynamicGenerationPrompt.trim() || null
-          : null,
-      });
+      await onSubmit(buildSubmitData(draft));
 
       // Navigate based on mode
       if (mode === "edit") {
@@ -878,7 +899,53 @@ export default function AssignmentForm({
     }
   };
 
+  /**
+   * Save the current config without navigating, then open the preview overlay.
+   * Create mode saves as a draft; edit mode preserves status (handled page-side).
+   */
+  const doSaveAndPreview = async () => {
+    if (!onSaveForPreview) return;
+    setError(null);
+    setLoading(true);
+    try {
+      // Create → draft; edit → keep current status (the page ignores isDraft for
+      // status on preview saves, but pass the faithful value regardless).
+      const saved = await onSaveForPreview(
+        buildSubmitData(mode === "create" ? true : initialIsDraft),
+      );
+      setPreviewAssignment(saved);
+      setPreviewOpen(true);
+    } catch (err) {
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : null;
+      console.error("Error saving for preview:", err);
+      setError(
+        message
+          ? `Failed to save for preview: ${message}`
+          : "Failed to save for preview. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveAndPreview = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    void doSaveAndPreview();
+  };
+
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-6 pb-28">
       <Tabs defaultValue="content" className="w-full">
         <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
@@ -1199,7 +1266,19 @@ export default function AssignmentForm({
         error={error}
         onCancel={onCancel}
         onSaveDraft={(e) => handleSubmit(e, true)}
+        onSaveAndPreview={onSaveForPreview ? handleSaveAndPreview : undefined}
       />
     </form>
+
+      {/* Preview overlay — renders the student experience over the builder. */}
+      {previewOpen && previewAssignment && user && (
+        <AssignmentPreviewResponse
+          assignment={previewAssignment}
+          teacherId={user.id}
+          classId={classId}
+          onExit={() => setPreviewOpen(false)}
+        />
+      )}
+    </>
   );
 }

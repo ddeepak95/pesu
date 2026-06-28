@@ -61,6 +61,13 @@ interface AssignmentResponseCoreProps {
     questions: Question[];
     generatedFromFileIds: string[];
   }) => void;
+  /**
+   * Teacher "Save and Preview" mode. Runs the real pipeline but: disables tab-leave
+   * integrity tracking, forces copy/paste on, and removes the `max_attempts` cap so
+   * the teacher can rehearse freely. Completion is never marked (wrapper passes
+   * `contentItemId={null}`).
+   */
+  previewMode?: boolean;
 }
 
 /**
@@ -89,6 +96,7 @@ export default function AssignmentResponseCore({
   initialGeneratedQuestions = null,
   generatedFromFileIds = null,
   onDynamicQuestionsSaved,
+  previewMode = false,
 }: AssignmentResponseCoreProps) {
   const [currentStepIndex, setCurrentStepIndex] =
     useState(initialQuestionIndex);
@@ -373,7 +381,10 @@ export default function AssignmentResponseCore({
   const isLastQuestion = !isOnFileUploadStep && questionIndex === sortedQuestions.length - 1;
 
   const assessmentMode = assignmentData.assessment_mode ?? "voice";
-  const allowCopyPaste = getEffectiveAllowCopyPaste(assignmentData);
+  // In preview, integrity is relaxed: copy/paste is always allowed.
+  const allowCopyPaste = previewMode
+    ? true
+    : getEffectiveAllowCopyPaste(assignmentData);
 
   const [fileSubmissionsContent, setFileSubmissionsContent] = useState<
     string | undefined
@@ -412,7 +423,8 @@ export default function AssignmentResponseCore({
       submissionId,
       assignment: assignmentData,
       integrityAccessRevoked,
-      active: tabTrackingActive,
+      // Preview disables tab-leave tracking entirely.
+      active: previewMode ? false : tabTrackingActive,
       onAccessRevoked: onIntegrityAccessRevoked,
       suspendTabLeaveTracking: voiceMicPermissionPending,
     });
@@ -582,7 +594,7 @@ export default function AssignmentResponseCore({
           existingAnswer={answers[currentQuestion.order]}
           onLanguageChange={handleLanguageChange}
           languageLocked={assignmentData.lock_language ?? false}
-          maxAttempts={assignmentData.max_attempts ?? 1}
+          maxAttempts={previewMode ? undefined : assignmentData.max_attempts ?? 1}
           botPromptConfig={assignmentData.bot_prompt_config}
           contentItemId={contentItemId}
           showRubric={assignmentData.show_rubric ?? true}
