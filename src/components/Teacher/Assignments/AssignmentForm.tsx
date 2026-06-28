@@ -55,7 +55,12 @@ import {
   listActivityTypes,
   getActivityTypeDefinition,
   getActivityTypeLabels,
+  getDefaultFeedbackFocusAreas,
 } from "@/lib/activityTypes/registry";
+import {
+  normalizeFeedbackFocusAreas,
+  type FeedbackFocusArea,
+} from "@/lib/feedbackFocus";
 import { Lock } from "lucide-react";
 import {
   Tooltip,
@@ -139,6 +144,7 @@ interface AssignmentFormProps {
   initialSharedContextEnabled?: boolean;
   initialSharedContext?: string;
   initialEvaluationPrompt?: string;
+  initialFeedbackFocus?: FeedbackFocusArea[];
   initialExperienceRatingEnabled?: boolean;
   initialExperienceRatingRequired?: boolean;
   initialFeedbackRequiresApproval?: boolean;
@@ -171,6 +177,7 @@ interface AssignmentFormProps {
     sharedContextEnabled?: boolean;
     sharedContext?: string;
     evaluationPrompt?: string;
+    feedbackFocus?: FeedbackFocusArea[];
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
@@ -226,6 +233,7 @@ export default function AssignmentForm({
   initialSharedContextEnabled = false,
   initialSharedContext = "",
   initialEvaluationPrompt = "",
+  initialFeedbackFocus,
   initialExperienceRatingEnabled = false,
   initialExperienceRatingRequired = false,
   initialFeedbackRequiresApproval = false,
@@ -412,6 +420,9 @@ export default function AssignmentForm({
   const [sharedContext, setSharedContext] = useState(initialSharedContext);
   const [evaluationPrompt, setEvaluationPrompt] = useState(
     initialEvaluationPrompt || getDefaultEvaluationPrompt(),
+  );
+  const [feedbackFocus, setFeedbackFocus] = useState<FeedbackFocusArea[]>(
+    initialFeedbackFocus ?? getDefaultFeedbackFocusAreas(initialActivityType),
   );
   const [experienceRatingEnabled, setExperienceRatingEnabled] = useState(
     initialExperienceRatingEnabled,
@@ -689,6 +700,7 @@ export default function AssignmentForm({
     // (the activity type's support-enabled flag wins where it sets one).
     setBotPromptConfig(applyClassLang(nextConfig, targetMode));
     setEvaluationPrompt(buildDefaultEvaluationPrompt(newType));
+    setFeedbackFocus(getDefaultFeedbackFocusAreas(newType));
 
     // Apply the type's display-setting defaults (e.g. speaking practice → stars).
     setUseStarDisplay(def.defaults?.display?.useStarDisplay ?? false);
@@ -814,6 +826,7 @@ export default function AssignmentForm({
         sharedContextEnabled,
         sharedContext: sharedContextEnabled ? sharedContext.trim() : undefined,
         evaluationPrompt: evaluationPrompt.trim() || undefined,
+        feedbackFocus: normalizeFeedbackFocusAreas(feedbackFocus),
         experienceRatingEnabled,
         experienceRatingRequired: experienceRatingEnabled
           ? experienceRatingRequired
@@ -1154,6 +1167,8 @@ export default function AssignmentForm({
                 setBotPromptConfig={setBotPromptConfig}
                 evaluationPrompt={evaluationPrompt}
                 setEvaluationPrompt={setEvaluationPrompt}
+                feedbackFocus={feedbackFocus}
+                setFeedbackFocus={setFeedbackFocus}
                 activityType={activityType}
                 questions={questions}
                 title={title}

@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RubricScore } from "@/types/submission";
+import type { FeedbackDoc } from "@/types/feedbackDoc";
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -107,6 +108,8 @@ export interface AttemptEdit {
   attemptId: string;
   score?: number | null;
   feedback?: string | null;
+  /** Structured feedback document (flattened into `feedback` for the fallback). */
+  feedback_doc?: FeedbackDoc | null;
   rubric_scores?: RubricScore[] | null;
 }
 
@@ -213,7 +216,9 @@ export async function releaseSubmission(
   if (attemptIds.length > 0) {
     const { data: drafts, error: dErr } = await supabase
       .from("attempt_grade_drafts")
-      .select("attempt_id, draft_score, draft_feedback, draft_rubric_scores")
+      .select(
+        "attempt_id, draft_score, draft_feedback, draft_feedback_doc, draft_rubric_scores",
+      )
       .in("attempt_id", attemptIds);
     if (dErr) throw dErr;
     for (const d of drafts ?? []) {
@@ -222,6 +227,7 @@ export async function releaseSubmission(
         attemptId: d.attempt_id,
         score: d.draft_score,
         feedback: d.draft_feedback,
+        feedback_doc: d.draft_feedback_doc,
         rubric_scores: d.draft_rubric_scores,
       });
     }
@@ -231,6 +237,7 @@ export async function releaseSubmission(
     const patch: Record<string, unknown> = {};
     if (edit.score !== undefined) patch.score = edit.score;
     if (edit.feedback !== undefined) patch.feedback = edit.feedback;
+    if (edit.feedback_doc !== undefined) patch.feedback_doc = edit.feedback_doc;
     if (edit.rubric_scores !== undefined) patch.rubric_scores = edit.rubric_scores;
     if (Object.keys(patch).length === 0) continue;
     const { error } = await supabase
@@ -279,6 +286,7 @@ export async function saveAttemptEdits(
     attempt_id: e.attemptId,
     draft_score: e.score ?? null,
     draft_feedback: e.feedback ?? null,
+    draft_feedback_doc: e.feedback_doc ?? null,
     draft_rubric_scores: e.rubric_scores ?? null,
     updated_at: new Date().toISOString(),
     updated_by: updatedBy,

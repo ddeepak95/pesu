@@ -6,12 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { RubricScore } from "@/types/submission";
+import {
+  flattenFeedbackDoc,
+  type FeedbackDoc,
+} from "@/types/feedbackDoc";
 import type { TeacherGradingAttempt } from "@/lib/queries/submissions";
+import { FeedbackDocEditor } from "@/components/Teacher/Assignments/FeedbackDocEditor";
 
 /** Composed (client-side) edit for one attempt; persisted to a draft on Save, published at Release. */
 export interface AttemptGradeEdit {
   score: number;
+  /** Flattened plain-text feedback — kept in sync with feedback_doc when present. */
   feedback: string;
+  /** Structured document (null for legacy attempts, which edit `feedback` directly). */
+  feedback_doc: FeedbackDoc | null;
   rubric_scores: RubricScore[];
 }
 
@@ -28,6 +36,7 @@ export function attemptToEdit(attempt: TeacherGradingAttempt): AttemptGradeEdit 
   return {
     score: attempt.score ?? 0,
     feedback: attempt.feedback ?? "",
+    feedback_doc: attempt.feedback_doc ?? null,
     rubric_scores: (attempt.rubric_scores ?? []).map((r) => ({ ...r })),
   };
 }
@@ -150,17 +159,33 @@ export function EditableAttemptGradingForm({
         </section>
       )}
 
-      <section className="space-y-2">
-        <Label className="text-base font-semibold">Overall Feedback</Label>
-        <Textarea
-          value={value.feedback}
-          onChange={(e) => onChange({ ...value, feedback: e.target.value })}
-          placeholder="Feedback"
-          rows={4}
+      {value.feedback_doc ? (
+        // Structured feedback: edit via typed controls. Keep the flattened
+        // plain-text `feedback` in sync so the legacy fallback stays accurate.
+        <FeedbackDocEditor
+          doc={value.feedback_doc}
           disabled={disabled}
-          className="resize-none bg-background text-sm"
+          onChange={(doc) =>
+            onChange({
+              ...value,
+              feedback_doc: doc,
+              feedback: flattenFeedbackDoc(doc),
+            })
+          }
         />
-      </section>
+      ) : (
+        <section className="space-y-2">
+          <Label className="text-base font-semibold">Overall Feedback</Label>
+          <Textarea
+            value={value.feedback}
+            onChange={(e) => onChange({ ...value, feedback: e.target.value })}
+            placeholder="Feedback"
+            rows={4}
+            disabled={disabled}
+            className="resize-none bg-background text-sm"
+          />
+        </section>
+      )}
     </div>
   );
 }

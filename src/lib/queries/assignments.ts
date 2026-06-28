@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig, DynamicGenerationSpec } from "@/types/assignment";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
 
@@ -208,6 +209,7 @@ export async function createAssignment(
     shared_context_enabled?: boolean; // Additional context toggle (DB column name)
     shared_context?: string; // Additional context text (DB column name)
     evaluation_prompt?: string; // Custom evaluation prompt template
+    feedback_focus?: FeedbackFocusArea[] | null; // Teacher feedback-focus areas (title + description)
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
     feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it
@@ -253,6 +255,7 @@ export async function createAssignment(
       shared_context_enabled: assignment.shared_context_enabled ?? false,
       shared_context: assignment.shared_context ?? null,
       evaluation_prompt: assignment.evaluation_prompt ?? null,
+      feedback_focus: assignment.feedback_focus ?? null,
       experience_rating_enabled: assignment.experience_rating_enabled ?? false,
       experience_rating_required: assignment.experience_rating_required ?? false,
       feedback_requires_approval: assignment.feedback_requires_approval ?? false,
@@ -319,6 +322,7 @@ export async function updateAssignment(
     shared_context_enabled?: boolean; // Additional context toggle (DB column name)
     shared_context?: string; // Additional context text (DB column name)
     evaluation_prompt?: string; // Custom evaluation prompt template
+    feedback_focus?: FeedbackFocusArea[] | null; // Teacher feedback-focus areas (title + description)
     experience_rating_enabled?: boolean; // Whether to ask students to rate their experience
     experience_rating_required?: boolean; // Whether the experience rating is required
     feedback_requires_approval?: boolean; // Whether feedback must be approved by teacher before student sees it

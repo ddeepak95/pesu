@@ -13,6 +13,10 @@ import type {
   ActivityTypeLabels,
 } from "./types";
 import { DEFAULT_ACTIVITY_TYPE_LABELS } from "./types";
+import {
+  COMMON_DEFAULT_FEEDBACK_FOCUS_AREAS,
+  type FeedbackFocusArea,
+} from "@/lib/feedbackFocus";
 import { LEARNING_DEFINITION } from "./learning";
 import { ASSESSMENT_DEFINITION } from "./assessment";
 import { SPEAKING_PRACTICE_DEFINITION } from "./speaking_practice";
@@ -30,7 +34,16 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
 
 /** Shared output-format and safety rules appended to every evaluation system message. */
 export const EVALUATION_SYSTEM_SHARED_FOOTER = `OUTPUT FORMAT:
-All feedback text (per-rubric feedback and overall_feedback) is displayed as plain text to students. Do NOT use any special characters, markdown formatting, or code blocks in feedback. Keep feedback concise, clear, and constructive.
+Return both \`rubric_scores\` (the grade) and \`feedback_doc\` (a structured feedback document shown to the student).
+
+Compose \`feedback_doc\` as a list of titled "section" blocks. Each "section" has a \`title\` (a short heading) and a \`content\` string (a single plain-text body covering that area; use "\n" line breaks within \`content\` to separate paragraphs or points).
+
+Rules:
+- \`feedback_doc\` must be { "version": 1, "blocks": [...] }, where every block is a "section". Use about 2-4 sections.
+- Do NOT include the rubric scores in \`feedback_doc\` — the rubric breakdown is shown automatically after your sections, rendered from rubric_scores. Do not restate the scores as text.
+- Section titles are dynamic — choose them to reflect the teacher's feedback focus and what matters for this activity (e.g. "What you did well", "Where to improve", "Concept understanding"). Do NOT invent generic boilerplate titles when a more specific one fits.
+- Every text field is PLAIN TEXT. Do NOT use markdown, code blocks, asterisks, or other special formatting characters inside any text field.
+- Keep \`overall_feedback\` as a short plain-text summary of the same feedback (used as a fallback); the detailed structure lives in \`feedback_doc\`.
 
 SAFETY:
 The users are students. All feedback must be age-appropriate, supportive, and respectful. Never include anything offensive, inappropriate, or sexual in your evaluation feedback.`;
@@ -52,6 +65,14 @@ export function getActivityTypeDefinition(
 /** All activity types in dropdown order. */
 export function listActivityTypes(): ActivityTypeDefinition[] {
   return Object.values(ACTIVITY_TYPE_REGISTRY);
+}
+
+/** Default "Feedback focus" areas pre-filled in the teacher editor for a type. */
+export function getDefaultFeedbackFocusAreas(
+  kind: ActivityTypeKind,
+): FeedbackFocusArea[] {
+  const areas = getActivityTypeDefinition(kind).defaultFeedbackFocusAreas;
+  return (areas ?? COMMON_DEFAULT_FEEDBACK_FOCUS_AREAS).map((a) => ({ ...a }));
 }
 
 export const ACTIVITY_TYPE_KINDS = Object.keys(

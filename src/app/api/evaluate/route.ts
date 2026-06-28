@@ -13,6 +13,10 @@ import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 import {
+  buildFeedbackFocusPromptText,
+  parseFeedbackFocusAreas,
+} from "@/lib/feedbackFocus";
+import {
   getActivityTypeForAssignment,
   getClassDbIdForAssignment,
 } from "@/lib/assignments/assignmentClassCache";
@@ -117,6 +121,17 @@ export async function POST(request: NextRequest) {
       assignmentId,
     );
 
+    // Teacher "Feedback focus" areas steer the AI's feedback sections.
+    const { data: assignmentConfig } = await supabase
+      .from("assignments")
+      .select("feedback_focus")
+      .eq("assignment_id", assignmentId)
+      .maybeSingle();
+    const feedbackFocus =
+      buildFeedbackFocusPromptText(
+        parseFeedbackFocusAreas(assignmentConfig?.feedback_focus),
+      ) || undefined;
+
     let evalResolved;
     try {
       evalResolved = await getCachedResolveModelConfig({
@@ -206,7 +221,7 @@ export async function POST(request: NextRequest) {
 
     const model = getLanguageModel(evalModelConfig);
 
-    const { validatedRubricScores, overallFeedback, totalScore } =
+    const { validatedRubricScores, overallFeedback, feedbackDoc, totalScore } =
       await evaluateSubmission({
         model,
         providerOptions: providerOptionsForConfig(evalModelConfig),
@@ -216,6 +231,7 @@ export async function POST(request: NextRequest) {
         language,
         sharedContext,
         customEvaluationPrompt,
+        feedbackFocus,
         activityType,
         invocation: {
           appFunctionKey: "text.evaluation",
@@ -238,6 +254,7 @@ export async function POST(request: NextRequest) {
         stale: false,
         score: totalScore,
         feedback: overallFeedback,
+        feedback_doc: feedbackDoc,
         rubric_scores: validatedRubricScores,
       })
       .select("id, created_at")
@@ -258,6 +275,7 @@ export async function POST(request: NextRequest) {
         attempt_id: attemptId,
         ai_score: totalScore,
         ai_feedback: overallFeedback,
+        ai_feedback_doc: feedbackDoc,
         ai_rubric_scores: validatedRubricScores,
         model_meta: modelMetaFromResolved(evalModelConfig, evalKeySource),
       });
@@ -307,6 +325,7 @@ export async function POST(request: NextRequest) {
         stale: false,
         score: totalScore,
         feedback: overallFeedback,
+        feedback_doc: feedbackDoc,
         rubric_scores: validatedRubricScores,
         created_at: attemptRow.created_at,
         released: isReleased,

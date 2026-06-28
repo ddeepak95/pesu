@@ -11,6 +11,7 @@
  */
 
 import type { ActionKind } from "@/lib/multimodal/actions/types";
+import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 
 export type ActivityTypeKind = "learning" | "assessment" | "speaking_practice" | "code_review";
 
@@ -103,6 +104,13 @@ export interface ActivityTypeDefinition {
   evaluationSystemPersona: string;
   /** UI label overrides; empty = use DEFAULT_ACTIVITY_TYPE_LABELS. */
   labels: Partial<ActivityTypeLabels>;
+  /**
+   * Default "Feedback focus" areas pre-filled in the teacher editor for this
+   * activity type. Each area's title becomes a feedback section title; the
+   * description steers what that section covers. Falls back to
+   * COMMON_DEFAULT_FEEDBACK_FOCUS_AREAS when omitted.
+   */
+  defaultFeedbackFocusAreas?: FeedbackFocusArea[];
   /** Config preselected when the teacher picks this type. */
   defaults?: ActivityTypeDefaults;
   /** Activity-type-specific guidance for the rubric/expected-answer generator. */

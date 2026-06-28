@@ -17,6 +17,7 @@ import {
   FileSubmissionConfig,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
+import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 import type { ClassLanguageConfig } from "@/types/class";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import type { AssessmentMode } from "@/lib/settings/registry";
@@ -115,6 +116,7 @@ export default function CreateAssignmentPage() {
     sharedContextEnabled?: boolean;
     sharedContext?: string;
     evaluationPrompt?: string;
+    feedbackFocus?: FeedbackFocusArea[];
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
@@ -159,6 +161,7 @@ export default function CreateAssignmentPage() {
         shared_context_enabled: data.sharedContextEnabled ?? false,
         shared_context: data.sharedContext,
         evaluation_prompt: data.evaluationPrompt,
+        feedback_focus: data.feedbackFocus?.length ? data.feedbackFocus : null,
         experience_rating_enabled: data.experienceRatingEnabled ?? false,
         experience_rating_required: data.experienceRatingRequired ?? false,
         feedback_requires_approval: data.feedbackRequiresApproval ?? false,

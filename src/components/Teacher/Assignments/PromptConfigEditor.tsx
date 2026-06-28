@@ -17,6 +17,8 @@ import {
   type InteractionType,
 } from "@/lib/promptTemplates";
 import { BotPromptConfig } from "@/types/assignment";
+import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
+import { FeedbackFocusEditor } from "@/components/Teacher/Assignments/FeedbackFocusEditor";
 import {
   Tooltip,
   TooltipContent,
@@ -48,6 +50,10 @@ interface PromptConfigEditorProps {
   evaluationPrompt?: string;
   /** Callback when evaluation prompt changes */
   onEvaluationPromptChange?: (value: string) => void;
+  /** Teacher "Feedback focus" areas — each title becomes a feedback section. */
+  feedbackFocus?: FeedbackFocusArea[];
+  /** Callback when the feedback focus areas change */
+  onFeedbackFocusChange?: (value: FeedbackFocusArea[]) => void;
   /** Used by "Reset to Default" to pick the right prompt combo */
   activityType?: ActivityType;
   /** Used by "Reset to Default" to pick the right prompt combo */
@@ -146,6 +152,8 @@ export function PromptConfigEditor({
   rightSlot,
   evaluationPrompt = "",
   onEvaluationPromptChange,
+  feedbackFocus = [],
+  onFeedbackFocusChange,
   activityType = "learning",
   interactionType = "voice",
   showDynamicGenerationPrompt = false,
@@ -556,6 +564,16 @@ export function PromptConfigEditor({
                   Reset to Default
                 </Button>
               </div>
+
+              {onFeedbackFocusChange && (
+                <div className="border-t pt-3">
+                  <FeedbackFocusEditor
+                    value={feedbackFocus}
+                    onChange={onFeedbackFocusChange}
+                    disabled={disabled}
+                  />
+                </div>
+              )}
             </div>
             {variablePanel}
           </div>

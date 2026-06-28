@@ -62,7 +62,7 @@ Please evaluate how well the student demonstrated understanding of their own cod
 2. Set points_possible to match the rubric item's maximum points
 3. Provide specific, constructive feedback in {{language}} — reference concrete moments from the interview
 
-Then provide overall feedback in {{language}}: what they explained well, where their understanding was shallow, and one actionable suggestion for improvement.
+Then compose the feedback document (feedback_doc) in {{language}}, organized into titled sections: what they explained well, where their understanding was shallow, and one actionable suggestion for improvement. Reference specific moments from the interview.
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
@@ -81,6 +81,27 @@ export const CODE_REVIEW_DEFINITION: ActivityTypeDefinition = {
   },
   evaluationPrompt: CODE_REVIEW_EVALUATION,
   evaluationSystemPersona: CODE_REVIEW_EVALUATION_SYSTEM_PERSONA,
+  defaultFeedbackFocusAreas: [
+    {
+      title: "Understanding of your code",
+      description:
+        "How well the student explained and justified the code they wrote.",
+    },
+    {
+      title: "Design & tradeoffs",
+      description:
+        "Comment on the design decisions, structure, and tradeoffs they discussed.",
+    },
+    {
+      title: "Edge cases",
+      description:
+        "Whether the student considered edge cases and error handling.",
+    },
+    {
+      title: "Suggestions",
+      description: "Concrete, actionable suggestions for improvement.",
+    },
+  ],
   labels: {
     question: "Review Focus",
     questionPlaceholder: "Describe the area of the code to focus on (e.g. 'The sorting algorithm and its time complexity')",

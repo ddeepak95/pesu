@@ -3,6 +3,7 @@
  */
 
 import { jsonSchema } from "ai";
+import { feedbackDocJsonSchema } from "@/types/feedbackDoc";
 
 export interface LLMRubricScore {
   item: string;
@@ -13,7 +14,14 @@ export interface LLMRubricScore {
 
 export interface EvaluationResult {
   rubric_scores: LLMRubricScore[];
+  /** Flattened plain-text fallback (kept for backward compat / search). */
   overall_feedback: string;
+  /**
+   * Structured block document. Validated against the Zod schema downstream; an
+   * invalid/missing doc triggers regeneration, then falls back to wrapping
+   * overall_feedback in a single paragraph.
+   */
+  feedback_doc: unknown;
 }
 
 const evaluationSchemaShape = {
@@ -34,8 +42,9 @@ const evaluationSchemaShape = {
       },
     },
     overall_feedback: { type: "string" },
+    feedback_doc: feedbackDocJsonSchema,
   },
-  required: ["rubric_scores", "overall_feedback"],
+  required: ["rubric_scores", "overall_feedback", "feedback_doc"],
   additionalProperties: false,
 } as const;
 

@@ -16,6 +16,10 @@ import {
   FileSubmissionConfig,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
+import {
+  parseFeedbackFocusAreas,
+  type FeedbackFocusArea,
+} from "@/lib/feedbackFocus";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { useAssignmentByIdForTeacher } from "@/hooks/swr";
 import type { AssessmentMode } from "@/lib/settings/registry";
@@ -51,6 +55,10 @@ export default function EditAssignmentPage() {
   const [sharedContextEnabled, setSharedContextEnabled] = useState<boolean>(false);
   const [sharedContext, setSharedContext] = useState<string>("");
   const [evaluationPrompt, setEvaluationPrompt] = useState<string>("");
+  // undefined = never set on this assignment → AssignmentForm seeds activity-type defaults.
+  const [feedbackFocus, setFeedbackFocus] = useState<
+    FeedbackFocusArea[] | undefined
+  >(undefined);
   const [experienceRatingEnabled, setExperienceRatingEnabled] = useState<boolean>(false);
   const [experienceRatingRequired, setExperienceRatingRequired] = useState<boolean>(false);
   const [feedbackRequiresApproval, setFeedbackRequiresApproval] = useState<boolean>(false);
@@ -101,6 +109,11 @@ export default function EditAssignmentPage() {
     setSharedContextEnabled(assignmentData.shared_context_enabled ?? false);
     setSharedContext(assignmentData.shared_context ?? "");
     setEvaluationPrompt(assignmentData.evaluation_prompt ?? "");
+    setFeedbackFocus(
+      assignmentData.feedback_focus == null
+        ? undefined
+        : parseFeedbackFocusAreas(assignmentData.feedback_focus),
+    );
     setExperienceRatingEnabled(
       assignmentData.experience_rating_enabled ?? false
     );
@@ -152,6 +165,7 @@ export default function EditAssignmentPage() {
     sharedContextEnabled?: boolean;
     sharedContext?: string;
     evaluationPrompt?: string;
+    feedbackFocus?: FeedbackFocusArea[];
     experienceRatingEnabled?: boolean;
     experienceRatingRequired?: boolean;
     feedbackRequiresApproval?: boolean;
@@ -195,6 +209,7 @@ export default function EditAssignmentPage() {
       shared_context_enabled: data.sharedContextEnabled ?? false,
       shared_context: data.sharedContext,
       evaluation_prompt: data.evaluationPrompt,
+      feedback_focus: data.feedbackFocus?.length ? data.feedbackFocus : null,
       experience_rating_enabled: data.experienceRatingEnabled ?? false,
       experience_rating_required: data.experienceRatingRequired ?? false,
       feedback_requires_approval: data.feedbackRequiresApproval ?? false,
@@ -271,6 +286,7 @@ export default function EditAssignmentPage() {
           initialSharedContextEnabled={sharedContextEnabled}
           initialSharedContext={sharedContext}
           initialEvaluationPrompt={evaluationPrompt}
+          initialFeedbackFocus={feedbackFocus}
           initialExperienceRatingEnabled={experienceRatingEnabled}
           initialExperienceRatingRequired={experienceRatingRequired}
           initialFeedbackRequiresApproval={feedbackRequiresApproval}

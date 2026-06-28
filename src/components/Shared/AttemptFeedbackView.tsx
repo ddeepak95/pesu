@@ -1,17 +1,18 @@
 "use client";
 
 import type { RubricScore } from "@/types/submission";
-import { StarRatingDisplay } from "@/components/StarRatingDisplay";
-import {
-  getScoreColor,
-  getScoreBgColor,
-  getRubricItemScoreColor,
-} from "@/lib/utils/scoreDisplay";
+import type { FeedbackDoc } from "@/types/feedbackDoc";
+import { feedbackDocHasContent } from "@/types/feedbackDoc";
+import { getScoreColor, getScoreBgColor } from "@/lib/utils/scoreDisplay";
+import { FeedbackDocView } from "@/components/Shared/FeedbackDoc/FeedbackDocView";
+import { RubricBreakdown } from "@/components/Shared/FeedbackDoc/RubricBreakdown";
 
 export interface AttemptFeedbackViewProps {
   score: number;
   maxScore: number;
   feedback?: string | null;
+  /** Structured block document; when present it renders instead of plain `feedback`. */
+  feedbackDoc?: FeedbackDoc | null;
   rubricScores?: RubricScore[] | null;
   useStarDisplay?: boolean;
   starScale?: number;
@@ -23,6 +24,7 @@ export function AttemptFeedbackView({
   score,
   maxScore,
   feedback,
+  feedbackDoc,
   rubricScores,
   useStarDisplay = false,
   starScale = 5,
@@ -30,7 +32,9 @@ export function AttemptFeedbackView({
 }: AttemptFeedbackViewProps) {
   const scorePercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
 
-  const hasFeedback = feedback || (rubricScores && rubricScores.length > 0);
+  const hasDoc = feedbackDocHasContent(feedbackDoc);
+  const hasRubric = !!rubricScores && rubricScores.length > 0;
+  const hasFeedback = hasDoc || feedback || hasRubric;
 
   if (!hasFeedback && !showScoreSummary) {
     return null;
@@ -53,57 +57,32 @@ export function AttemptFeedbackView({
         </div>
       )}
 
-      {feedback && (
-        <div className="p-3 bg-muted/50 rounded-md">
-          <p className="text-sm whitespace-pre-wrap">{feedback}</p>
-        </div>
-      )}
-
-      {rubricScores && rubricScores.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">
-            Rubric Breakdown
-          </p>
-          {rubricScores.map((rubricItem, idx) => {
-            const itemPercentage =
-              rubricItem.points_possible > 0
-                ? (rubricItem.points_earned / rubricItem.points_possible) * 100
-                : 0;
-            return (
-              <div
-                key={idx}
-                className="p-2 bg-muted/30 rounded-md space-y-1"
-              >
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">
-                    {rubricItem.item}
-                  </span>
-                  {useStarDisplay ? (
-                    <StarRatingDisplay
-                      points={rubricItem.points_earned}
-                      maxPoints={rubricItem.points_possible}
-                      starScale={starScale}
-                      size="small"
-                      showNumeric={false}
-                    />
-                  ) : (
-                    <span
-                      className={`text-sm font-semibold ${getRubricItemScoreColor(itemPercentage)}`}
-                    >
-                      {rubricItem.points_earned}/{rubricItem.points_possible}{" "}
-                      pts
-                    </span>
-                  )}
-                </div>
-                {rubricItem.feedback && (
-                  <p className="text-xs text-muted-foreground">
-                    {rubricItem.feedback}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      {hasDoc ? (
+        // Structured document path. The doc's `rubric` block (or the trailing
+        // fallback) renders the rubric breakdown, so we don't render it again.
+        <FeedbackDocView
+          doc={feedbackDoc!}
+          rubricScores={rubricScores}
+          useStarDisplay={useStarDisplay}
+          starScale={starScale}
+          fallbackText={feedback}
+        />
+      ) : (
+        // Legacy plain-text path.
+        <>
+          {feedback && (
+            <div className="p-3 bg-muted/50 rounded-md">
+              <p className="text-sm whitespace-pre-wrap">{feedback}</p>
+            </div>
+          )}
+          {hasRubric && (
+            <RubricBreakdown
+              rubricScores={rubricScores!}
+              useStarDisplay={useStarDisplay}
+              starScale={starScale}
+            />
+          )}
+        </>
       )}
     </div>
   );

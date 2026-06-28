@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import { BotPromptConfig, Question } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
+import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 import { Eye, Pencil } from "lucide-react";
 import type { AssessmentMode } from "@/lib/settings/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
@@ -26,6 +27,8 @@ interface MoreOptionsAIBotProps {
   setBotPromptConfig: (config: BotPromptConfig) => void;
   evaluationPrompt: string;
   setEvaluationPrompt: (prompt: string) => void;
+  feedbackFocus: FeedbackFocusArea[];
+  setFeedbackFocus: (value: FeedbackFocusArea[]) => void;
   activityType: ActivityType;
   questions: Question[];
   title: string;
@@ -93,6 +96,8 @@ export function MoreOptionsAIBot({
   setBotPromptConfig,
   evaluationPrompt,
   setEvaluationPrompt,
+  feedbackFocus,
+  setFeedbackFocus,
   activityType,
   questions,
   title,
@@ -195,6 +200,8 @@ export function MoreOptionsAIBot({
           showEndConversation={assessmentMode === "multimodal"}
           evaluationPrompt={evaluationPrompt}
           onEvaluationPromptChange={setEvaluationPrompt}
+          feedbackFocus={feedbackFocus}
+          onFeedbackFocusChange={setFeedbackFocus}
           activityType={activityType}
           interactionType={assessmentMode}
           showDynamicGenerationPrompt={dynamicQuestionsEnabled}

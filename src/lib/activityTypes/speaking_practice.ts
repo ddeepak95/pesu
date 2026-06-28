@@ -68,7 +68,7 @@ For each aspect:
 2. Set points_possible to match the aspect's maximum points
 3. In {{language}}, write feedback that (a) briefly acknowledges what worked, if anything, (b) states specifically what the speaker did wrong or missed for this aspect, tied to the transcript, and (c) gives a concrete correction—what to say or do differently next time
 
-Then provide overall feedback in {{language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Keep a supportive tone; prioritize teaching over judging.
+Then compose the feedback document (feedback_doc) in {{language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Reference specific moments from the transcript. Keep a supportive tone; prioritize teaching over judging.
 
 IMPORTANT: All feedback text must be written in {{language}}.
 {{#if support_language}}
@@ -105,6 +105,28 @@ export const SPEAKING_PRACTICE_DEFINITION: ActivityTypeDefinition = {
   evaluationPrompt: SPEAKING_EVALUATION,
   evaluationSystemPersona: SPEAKING_EVALUATION_SYSTEM_PERSONA,
   labels: SPEAKING_LABELS,
+  defaultFeedbackFocusAreas: [
+    {
+      title: "Pronunciation & fluency",
+      description:
+        "Comment on clarity of pronunciation, pacing, and how smoothly the student spoke.",
+    },
+    {
+      title: "Vocabulary & grammar",
+      description:
+        "Note vocabulary range and grammatical accuracy, with specific corrections.",
+    },
+    {
+      title: "Task completion",
+      description:
+        "Assess how well the student covered the scenario's target aspects.",
+    },
+    {
+      title: "Next steps",
+      description:
+        "Give concrete suggestions to improve on the next attempt.",
+    },
+  ],
   defaults: {
     interactionType: "multimodal",
     multimodal: { languageSupportEnabled: true, availableActions: [] },

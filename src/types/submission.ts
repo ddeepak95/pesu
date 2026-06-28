@@ -1,3 +1,5 @@
+import type { FeedbackDoc } from "@/types/feedbackDoc";
+
 // Star rating conversion result
 export interface StarRating {
   stars: number;
@@ -43,6 +45,8 @@ export interface SubmissionAttempt {
   stale: boolean;
   score: number | null;
   feedback: string | null;
+  /** Structured block document; null for legacy attempts (renders plain `feedback`). */
+  feedback_doc: FeedbackDoc | null;
   rubric_scores: RubricScore[] | null;
   created_at: string;
   /** Derived: parent submission.feedback_released_at != null. */

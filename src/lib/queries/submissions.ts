@@ -5,6 +5,7 @@ import {
   RubricScore,
   SubmissionTranscript,
 } from "@/types/submission";
+import { validateFeedbackDoc, type FeedbackDoc } from "@/types/feedbackDoc";
 import { nanoid } from "nanoid";
 import { getAssignmentsByIdsForTeacher } from "./assignments";
 import { getContentItemsByClass } from "./contentItems";
@@ -406,6 +407,7 @@ interface RawAttemptRow {
   stale: boolean;
   score: number | string | null;
   feedback: string | null;
+  feedback_doc: unknown;
   rubric_scores: RubricScore[] | null;
   created_at: string;
 }
@@ -419,6 +421,7 @@ function mapAttemptRow(row: RawAttemptRow, released: boolean): NormalizedAttempt
     stale: row.stale,
     score: row.score == null ? null : Number(row.score),
     feedback: row.feedback,
+    feedback_doc: validateFeedbackDoc(row.feedback_doc),
     rubric_scores: row.rubric_scores ?? null,
     created_at: row.created_at,
     released,
@@ -477,7 +480,7 @@ export async function getQuestionAttemptsNormalized(
   const { data: question, error } = await supabase
     .from("submission_questions")
     .select(
-      "id, selected_attempt_id, submission_attempts!submission_attempts_submission_question_id_fkey(id, submission_question_id, attempt_number, max_score, stale, score, feedback, rubric_scores, created_at)"
+      "id, selected_attempt_id, submission_attempts!submission_attempts_submission_question_id_fkey(id, submission_question_id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, created_at)"
     )
     .eq("submission_id", submissionId)
     .eq("question_order", questionOrder)
@@ -520,15 +523,18 @@ export interface TeacherGradingAttempt {
   stale: boolean;
   score: number | null;
   feedback: string | null;
+  feedback_doc: FeedbackDoc | null;
   rubric_scores: RubricScore[] | null;
   /** Original AI output (audit), for an optional "compare to AI" affordance. */
   ai_score: number | null;
   ai_feedback: string | null;
+  ai_feedback_doc: FeedbackDoc | null;
   ai_rubric_scores: RubricScore[] | null;
   /** Unpublished teacher draft for this attempt (null when no pending draft). */
   hasDraft: boolean;
   draft_score: number | null;
   draft_feedback: string | null;
+  draft_feedback_doc: FeedbackDoc | null;
   draft_rubric_scores: RubricScore[] | null;
 }
 
@@ -561,14 +567,15 @@ interface RawTeacherAttemptRow {
   stale: boolean;
   score: number | string | null;
   feedback: string | null;
+  feedback_doc: unknown;
   rubric_scores: RubricScore[] | null;
   attempt_ai_evaluations:
-    | { ai_score: number | string | null; ai_feedback: string | null; ai_rubric_scores: RubricScore[] | null }
-    | { ai_score: number | string | null; ai_feedback: string | null; ai_rubric_scores: RubricScore[] | null }[]
+    | { ai_score: number | string | null; ai_feedback: string | null; ai_feedback_doc: unknown; ai_rubric_scores: RubricScore[] | null }
+    | { ai_score: number | string | null; ai_feedback: string | null; ai_feedback_doc: unknown; ai_rubric_scores: RubricScore[] | null }[]
     | null;
   attempt_grade_drafts:
-    | { draft_score: number | string | null; draft_feedback: string | null; draft_rubric_scores: RubricScore[] | null }
-    | { draft_score: number | string | null; draft_feedback: string | null; draft_rubric_scores: RubricScore[] | null }[]
+    | { draft_score: number | string | null; draft_feedback: string | null; draft_feedback_doc: unknown; draft_rubric_scores: RubricScore[] | null }
+    | { draft_score: number | string | null; draft_feedback: string | null; draft_feedback_doc: unknown; draft_rubric_scores: RubricScore[] | null }[]
     | null;
 }
 
@@ -614,9 +621,9 @@ export async function getSubmissionGrading(
     .select(
       "id, question_order, selected_attempt_id, released_score, " +
         "submission_attempts!submission_attempts_submission_question_id_fkey(" +
-        "id, attempt_number, max_score, stale, score, feedback, rubric_scores, " +
-        "attempt_ai_evaluations(ai_score, ai_feedback, ai_rubric_scores), " +
-        "attempt_grade_drafts(draft_score, draft_feedback, draft_rubric_scores)), " +
+        "id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, " +
+        "attempt_ai_evaluations(ai_score, ai_feedback, ai_feedback_doc, ai_rubric_scores), " +
+        "attempt_grade_drafts(draft_score, draft_feedback, draft_feedback_doc, draft_rubric_scores)), " +
         "submission_question_reviews(id, reviewed_at, reviewed_by)"
     )
     .eq("submission_id", submissionId)
@@ -643,13 +650,16 @@ export async function getSubmissionGrading(
           stale: a.stale,
           score: a.score == null ? null : Number(a.score),
           feedback: a.feedback,
+          feedback_doc: validateFeedbackDoc(a.feedback_doc),
           rubric_scores: a.rubric_scores ?? null,
           ai_score: ai?.ai_score == null ? null : Number(ai.ai_score),
           ai_feedback: ai?.ai_feedback ?? null,
+          ai_feedback_doc: validateFeedbackDoc(ai?.ai_feedback_doc),
           ai_rubric_scores: ai?.ai_rubric_scores ?? null,
           hasDraft: draft != null,
           draft_score: draft?.draft_score == null ? null : Number(draft.draft_score),
           draft_feedback: draft?.draft_feedback ?? null,
+          draft_feedback_doc: validateFeedbackDoc(draft?.draft_feedback_doc),
           draft_rubric_scores: draft?.draft_rubric_scores ?? null,
         };
       });

@@ -68,7 +68,7 @@ Please evaluate this answer with a focus on the student's learning progress. For
 2. Set points_possible to match the rubric item's maximum points
 3. Provide feedback that highlights what the student understood well and offers guidance for deeper understanding in {{language}}
 
-Then provide overall feedback in {{language}} that encourages continued learning and suggests next steps.
+Then compose the feedback document (feedback_doc) in {{language}}, organized into titled sections that encourage continued learning and suggest next steps. Choose section titles that reflect the learner's progress (e.g. strengths, areas to deepen, next steps).
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
@@ -88,4 +88,23 @@ export const LEARNING_DEFINITION: ActivityTypeDefinition = {
   evaluationPrompt: LEARNING_EVALUATION,
   evaluationSystemPersona: LEARNING_EVALUATION_SYSTEM_PERSONA,
   labels: {},
+  defaultFeedbackFocusAreas: [
+    {
+      title: "Concept understanding",
+      description:
+        "How well the student grasped the key ideas, and where their understanding can go deeper.",
+    },
+    {
+      title: "Strengths",
+      description: "Highlight what the student did well.",
+    },
+    {
+      title: "Areas to improve",
+      description: "Point out gaps or misconceptions to work on.",
+    },
+    {
+      title: "Next steps",
+      description: "Concrete suggestions to keep learning.",
+    },
+  ],
 };

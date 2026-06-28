@@ -162,6 +162,10 @@ export function SubmissionGradingPanel({
         ? {
             score: currentAttempt.draft_score ?? 0,
             feedback: currentAttempt.draft_feedback ?? "",
+            feedback_doc:
+              currentAttempt.draft_feedback_doc ??
+              currentAttempt.feedback_doc ??
+              null,
             rubric_scores: (
               currentAttempt.draft_rubric_scores ??
               currentAttempt.rubric_scores ??
@@ -228,6 +232,7 @@ export function SubmissionGradingPanel({
       attemptId,
       score: e.score,
       feedback: e.feedback,
+      feedback_doc: e.feedback_doc,
       rubric_scores: e.rubric_scores,
     }));
 

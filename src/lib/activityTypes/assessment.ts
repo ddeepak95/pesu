@@ -64,7 +64,7 @@ Please evaluate this answer according to the rubric. For each rubric item:
 2. Set points_possible to match the rubric item's maximum points
 3. Provide specific, constructive feedback in {{language}}
 
-Then provide overall feedback in {{language}} that is encouraging and helps the student understand their strengths and areas for improvement.
+Then compose the feedback document (feedback_doc) in {{language}}, organized into titled sections that help the student understand their strengths and areas for improvement.
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 

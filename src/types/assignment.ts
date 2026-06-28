@@ -1,6 +1,7 @@
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import type { MultimodalActionsConfig } from "@/lib/multimodal/turnConfig";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 
 export interface FileSubmissionConfig {
   required: boolean;
@@ -302,6 +303,12 @@ export interface Assignment {
    * Supports placeholders including {{context_for_ai}} (legacy: {{shared_context}}).
    */
   evaluation_prompt?: string;
+  /**
+   * Teacher "Feedback focus" areas (title + description). Each title becomes a
+   * section title in the structured feedback; the description steers what that
+   * section covers. Does not affect scoring. Null/empty = no specific focus.
+   */
+  feedback_focus?: FeedbackFocusArea[] | null;
   /**
    * When true, students are asked to rate their experience when completing the assessment.
    * Defaults to false.

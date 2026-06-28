@@ -110,6 +110,7 @@ export function QuestionCompletionPanel({
       <div className="w-full max-w-xl space-y-3">
         {tentative && <FeedbackTentativeBanner />}
         {(attempt.feedback ||
+          attempt.feedback_doc ||
           (attempt.rubric_scores && attempt.rubric_scores.length > 0)) && (
           <Accordion
             type="single"
@@ -127,6 +128,7 @@ export function QuestionCompletionPanel({
                   score={score}
                   maxScore={attempt.max_score}
                   feedback={attempt.feedback}
+                  feedbackDoc={attempt.feedback_doc}
                   rubricScores={attempt.rubric_scores}
                   useStarDisplay={useStarDisplay}
                   starScale={starScale}
