@@ -431,6 +431,13 @@ export interface NormalizedQuestionAttempts {
   selectedAttemptId: string | null;
   /** Derived from submission.feedback_released_at (whole-submission release flag). */
   released: boolean;
+  /**
+   * The attempt_number the next attempt will be recorded under = max over ALL
+   * attempts (stale included) + 1. Mirrors the evaluate route's numbering so an
+   * in-progress conversation writes its chat_messages/voice_messages under the
+   * same number evaluate will assign. Always >= 1.
+   */
+  nextAttemptNumber: number;
 }
 
 /**
@@ -478,14 +485,19 @@ export async function getQuestionAttemptsNormalized(
 
   if (error) {
     if (error.code === "PGRST116") {
-      return { attempts: [], selectedAttemptId: null, released };
+      return { attempts: [], selectedAttemptId: null, released, nextAttemptNumber: 1 };
     }
     console.error("Error fetching normalized question attempts:", error);
     throw error;
   }
-  if (!question) return { attempts: [], selectedAttemptId: null, released };
+  if (!question)
+    return { attempts: [], selectedAttemptId: null, released, nextAttemptNumber: 1 };
 
   let rows = ((question.submission_attempts ?? []) as RawAttemptRow[]).slice();
+  // Next attempt number = max over ALL attempts (stale included) + 1, computed
+  // before the excludeStale filter so it matches the evaluate route's numbering.
+  const nextAttemptNumber =
+    rows.reduce((max, r) => Math.max(max, r.attempt_number), 0) + 1;
   if (excludeStale) rows = rows.filter((r) => !r.stale);
   rows.sort((a, b) => a.attempt_number - b.attempt_number);
 
@@ -493,6 +505,7 @@ export async function getQuestionAttemptsNormalized(
     attempts: rows.map((r) => mapAttemptRow(r, released)),
     selectedAttemptId: (question.selected_attempt_id as string | null) ?? null,
     released,
+    nextAttemptNumber,
   };
 }
 

@@ -165,6 +165,7 @@ export function MultimodalInputArea({
   submissionId,
   maxAttemptsReached,
   attempts,
+  nextAttemptNumber,
   isEvaluating,
   onSubmitForEvaluation,
   onLanguageDisabledChange,
@@ -340,7 +341,7 @@ export function MultimodalInputArea({
       formData.append("submissionId", submissionId);
       formData.append("assignmentId", assignmentId);
       formData.append("questionOrder", String(question.order));
-      formData.append("attemptNumber", String(attempts.length + 1));
+      formData.append("attemptNumber", String(nextAttemptNumber));
       formData.append("chunkIndex", String(sessionChunkIndex + 1));
       if (sessionChunkIndex === 0 && sessionStartedAtRef.current) {
         formData.append("recordingStartedAt", sessionStartedAtRef.current);
@@ -359,7 +360,7 @@ export function MultimodalInputArea({
     },
     [
       assignmentId,
-      attempts.length,
+      nextAttemptNumber,
       question.order,
       sessionChunkIndex,
       submissionId,
@@ -387,7 +388,7 @@ export function MultimodalInputArea({
         formData.append("submissionId", submissionId);
         formData.append("assignmentId", assignmentId);
         formData.append("questionOrder", String(question.order));
-        formData.append("attemptNumber", String(attempts.length + 1));
+        formData.append("attemptNumber", String(nextAttemptNumber));
         formData.append("utteranceOrdinal", String(input.ordinal));
         formData.append("dbRole", input.dbRole);
         formData.append("storageRole", input.storageRole);
@@ -424,7 +425,7 @@ export function MultimodalInputArea({
     },
     [
       assignmentId,
-      attempts.length,
+      nextAttemptNumber,
       flushSessionChunk,
       question.order,
       submissionId,
@@ -577,7 +578,7 @@ export function MultimodalInputArea({
 
       const ttsModelId =
         speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
-      const attemptNumber = attempts.length + 1;
+      const attemptNumber = nextAttemptNumber;
 
       let sampleRate = 24000;
       let ttsStarted = false;
@@ -918,7 +919,7 @@ export function MultimodalInputArea({
     [
       activityType,
       assignmentId,
-      attempts.length,
+      nextAttemptNumber,
       botPromptConfig?.multimodal_actions,
       greeting,
       language,
@@ -952,6 +953,22 @@ export function MultimodalInputArea({
     userOrdinalRef.current = 0;
     botOrdinalRef.current = 0;
     setSessionChunkIndex(0);
+    // Discard any leftover in-progress conversation for this attempt (e.g. a
+    // session abandoned by a page refresh) so old and new turns don't mix and
+    // audio utterance ordinals don't collide. Best-effort: continue on failure.
+    try {
+      await fetch("/api/multimodal/conversation/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          submissionId,
+          questionOrder: question.order,
+          attemptNumber: nextAttemptNumber,
+        }),
+      });
+    } catch (resetError) {
+      console.error("Failed to reset prior conversation", resetError);
+    }
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         botUserCardsRef.current?.scrollIntoView({
@@ -965,7 +982,14 @@ export function MultimodalInputArea({
     } finally {
       setIsStarting(false);
     }
-  }, [isStarting, maxAttemptsReached, runAssistantTurn]);
+  }, [
+    isStarting,
+    maxAttemptsReached,
+    nextAttemptNumber,
+    question.order,
+    runAssistantTurn,
+    submissionId,
+  ]);
 
   const handleMcqAnswer = React.useCallback(
     async (messageId: string, choiceIndex: number) => {

@@ -364,6 +364,10 @@ export function AssessmentShell({
             attempts: [...(prev?.attempts ?? []), newAttempt],
             selectedAttemptId: newAttempt.id,
             released: newAttempt.released,
+            nextAttemptNumber: Math.max(
+              prev?.nextAttemptNumber ?? 1,
+              newAttempt.attempt_number + 1,
+            ),
           }),
           false
         );
@@ -456,6 +460,7 @@ export function AssessmentShell({
     existingAnswer,
     maxAttemptsReached,
     attempts,
+    nextAttemptNumber: attemptsQuery.data?.nextAttemptNumber ?? attempts.length + 1,
     isEvaluating,
     onSubmitForEvaluation: handleEvaluate,
     onLanguageDisabledChange: setLanguageDisabled,

@@ -13,6 +13,13 @@ export interface AssessmentInputProps {
   existingAnswer?: string;
   maxAttemptsReached?: boolean;
   attempts: SubmissionAttempt[];
+  /**
+   * The attempt_number the next attempt will be recorded under (= max over all
+   * attempts incl. stale + 1). Input areas that persist per-attempt data before
+   * evaluation (e.g. multimodal conversation/audio) must key it by this so the
+   * rows match the number the evaluate route assigns.
+   */
+  nextAttemptNumber: number;
   isEvaluating: boolean;
 
   onSubmitForEvaluation: (answerText: string) => Promise<void>;
