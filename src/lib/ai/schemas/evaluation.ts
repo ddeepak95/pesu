@@ -21,7 +21,7 @@ export interface EvaluationResult {
    * invalid/missing doc triggers regeneration, then falls back to wrapping
    * overall_feedback in a single paragraph.
    */
-  feedback_doc: unknown;
+  feedback_output: unknown;
 }
 
 const evaluationSchemaShape = {
@@ -42,9 +42,9 @@ const evaluationSchemaShape = {
       },
     },
     overall_feedback: { type: "string" },
-    feedback_doc: feedbackDocJsonSchema,
+    feedback_output: feedbackDocJsonSchema,
   },
-  required: ["rubric_scores", "overall_feedback", "feedback_doc"],
+  required: ["rubric_scores", "overall_feedback", "feedback_output"],
   additionalProperties: false,
 } as const;
 

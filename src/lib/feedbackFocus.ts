@@ -11,7 +11,7 @@
  */
 
 export interface FeedbackFocusArea {
-  /** Becomes the feedback_doc section title. */
+  /** Becomes the feedback_output section title. */
   title: string;
   /** Guidance for what that section should cover. */
   description: string;

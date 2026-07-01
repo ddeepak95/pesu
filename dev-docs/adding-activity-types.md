@@ -20,7 +20,7 @@ The **activity-type registry**
 
 | Consumer | What it reads |
 |---|---|
-| `src/lib/promptTemplates.ts` | `persona`, `taskInstructions`, `conversationStart`, `evaluationPrompt` → default bot prompt + evaluation prompt |
+| `src/lib/promptTemplates.ts` | `systemPrompt`, `conversationStart`, `evaluationPrompt` → default bot prompt + evaluation prompt |
 | `AssignmentForm.tsx` | `label` (dropdown), `defaults` (preselection on change) |
 | `QuestionCard.tsx` (editor) | `labels` (Question → Scenario, Rubric → …) |
 | `Shared/QuestionView.tsx` (read-only preview) | `labels` — same relabeling in the assignment-detail / content-tab preview |
@@ -52,7 +52,7 @@ unaffected. The persisted column type also widens —
 
 Create a new file for the activity type (e.g. `speaking_practice.ts`).
 Define your prompt constants and export a single `ActivityTypeDefinition`.
-Required fields: `label`, `persona`, `taskInstructions`, `conversationStart`,
+Required fields: `label`, `systemPrompt`, `conversationStart`,
 `evaluationPrompt`, `evaluationSystemPersona`, `labels`.
 Prompt strings use the same `{{variable}}` / `{{#if variable}}…{{/if}}`
 interpolation as the other types (see `promptInterpolation.ts`).
@@ -72,8 +72,7 @@ export const ACTIVITY_TYPE_REGISTRY = {
 speaking_practice: {
   kind: "speaking_practice",
   label: "Speaking Practice",                 // dropdown label
-  persona: SPEAKING_PERSONA,                  // {{language}}, {{title}}, {{#if instructions}}…
-  taskInstructions: SPEAKING_TASK,            // reinterprets {{rubric}} as "aspects to cover"
+  systemPrompt: SPEAKING_SYSTEM_PROMPT,       // {{language}}, {{title}}, {{#if instructions}}…, reinterprets {{rubric}} as "aspects to cover"
   conversationStart: { first_question: "…", subsequent_questions: "…" },
   evaluationPrompt: SPEAKING_EVALUATION,       // {{language}} base + {{#if support_language}} override (see step 4)
   evaluationSystemPersona: SPEAKING_EVALUATION_SYSTEM_PERSONA, // LLM system message persona (plain text)
@@ -201,7 +200,7 @@ read the registry — no per-type wiring needed.
 2. **Preview**: the assignment-detail / content-tab question preview
    (`QuestionView`) shows the same relabeling.
 3. **Runtime** (multimodal): the assembled system prompt contains the type's
-   persona + `buildMultimodalDirective`; when a support language is configured,
+   `systemPrompt` + `buildMultimodalDirective`; when a support language is configured,
    the support directive uses its `buildLanguageSupportDirective` when provided.
 4. **Evaluation**: scoring uses the type's `evaluationPrompt`; if it has a
    `{{#if support_language}}` override and a support language is selected, the

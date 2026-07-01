@@ -63,6 +63,17 @@ export default async function PlatformPage({
           default provider, model, and API keys for text-based AI features.
         </p>
 
+        <p className="text-sm">
+          <Link
+            href="/platform/templates"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            System template library
+          </Link>
+          {" — "}
+          add, edit, and delete the built-in activity types.
+        </p>
+
         {(okMsg || errorMsg) && (
           <div
             className={`rounded border px-4 py-3 text-sm ${

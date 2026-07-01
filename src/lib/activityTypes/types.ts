@@ -85,10 +85,8 @@ export interface ActivityTypeDefinition {
   kind: ActivityTypeKind;
   /** Label shown in the Activity Type dropdown. */
   label: string;
-  /** Persona fragment of the default system prompt. */
-  persona: string;
-  /** Task-instructions fragment of the default system prompt. */
-  taskInstructions: string;
+  /** The default system prompt — who the AI is and what it should do. */
+  systemPrompt: string;
   /** Default conversation-start greetings. */
   conversationStart: {
     first_question: string;

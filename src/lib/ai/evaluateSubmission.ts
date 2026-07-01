@@ -28,7 +28,7 @@ const MAX_FEEDBACK_DOC_ATTEMPTS = 2;
 
 const FEEDBACK_DOC_CORRECTIVE_NOTE = `
 
-IMPORTANT CORRECTION: Your previous response contained an invalid feedback_doc. Regenerate it strictly as { "version": 1, "blocks": [...] }, where every block has "kind": "section" with a "title" (string) and "content" (string). Do not invent other fields or block kinds, do not include the rubric scores, and keep all text plain (no markdown).`;
+IMPORTANT CORRECTION: Your previous response contained an invalid feedback_output. Regenerate it strictly as { "version": 1, "blocks": [...] }, where every block has "kind": "section" with a "title" (string) and "content" (string). Do not invent other fields or block kinds, do not include the rubric scores, and keep all text plain (no markdown).`;
 
 export interface EvaluateSubmissionParams {
   model: LanguageModelV3;
@@ -109,7 +109,7 @@ Please evaluate this answer according to the rubric. For each rubric item:
 2. Set points_possible to match the rubric item's maximum points
 3. Provide specific, constructive feedback in ${languageName}
 
-Then compose the feedback document (feedback_doc) in ${languageName} that is encouraging and helps the student understand their strengths and areas for improvement.
+Then compose the feedback output in ${languageName} that is encouraging and helps the student understand their strengths and areas for improvement.
 
 IMPORTANT: All feedback text must be written in ${languageName}.`;
   }
@@ -118,14 +118,14 @@ IMPORTANT: All feedback text must be written in ${languageName}.`;
   // a list of `"<title>": <description>` lines; the title drives the section
   // title. Appended regardless of whether a custom evaluation prompt is in use.
   if (feedbackFocus && feedbackFocus.trim()) {
-    userMessageContent += `\n\nFEEDBACK FOCUS (from the teacher): Create one feedback_doc "section" per focus area below, using the exact given title as that section's title and addressing its guidance in the section's content. Cover every area; you may add other sections too if helpful.\n${feedbackFocus.trim()}`;
+    userMessageContent += `\n\nFEEDBACK FOCUS (from the teacher): Create one feedback_output "section" per focus area below, using the exact given title as that section's title and addressing its guidance in the section's content. Cover every area; you may add other sections too if helpful.\n${feedbackFocus.trim()}`;
   }
 
   const systemMessage = buildEvaluationSystemMessage(
     activityType ?? "learning",
   );
 
-  // Generate, then validate feedback_doc against the Zod schema. If it is
+  // Generate, then validate feedback_output against the Zod schema. If it is
   // structurally invalid, regenerate (bounded) with a corrective note appended.
   // Only after exhausting retries do we fall back to wrapping overall_feedback in
   // a single paragraph — so storage/UI never see a malformed document.
@@ -148,10 +148,10 @@ IMPORTANT: All feedback text must be written in ${languageName}.`;
         ? { ...invocation, schemaName: "evaluationSchema" }
         : undefined,
     });
-    feedbackDoc = validateFeedbackDoc(evaluationResult.feedback_doc);
+    feedbackDoc = validateFeedbackDoc(evaluationResult.feedback_output);
     if (feedbackDoc) break;
     console.warn(
-      `[evaluate] feedback_doc invalid on attempt ${attempt + 1}/${MAX_FEEDBACK_DOC_ATTEMPTS}`,
+      `[evaluate] feedback_output invalid on attempt ${attempt + 1}/${MAX_FEEDBACK_DOC_ATTEMPTS}`,
     );
   }
 

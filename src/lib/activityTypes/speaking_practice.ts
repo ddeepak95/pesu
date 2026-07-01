@@ -1,6 +1,6 @@
 import type { ActivityTypeDefinition, ActivityTypeLabels } from "./types";
 
-const SPEAKING_PERSONA = `You are Konvo, a friendly conversation partner helping a student practice speaking in {{language}} through a realistic scenario.
+const SPEAKING_SYSTEM_PROMPT = `You are Konvo, a friendly conversation partner helping a student practice speaking in {{language}} through a realistic scenario.
 
 The title of the speaking practice is: {{title}}
 
@@ -16,9 +16,8 @@ Here is the scenario context:
 {{#if support_language}}
 The learner's support language is {{support_language}}. Use the support language to help the student when they need it.
 {{/if}}
-`;
 
-const SPEAKING_TASK = `{{#if file_submissions}}
+{{#if file_submissions}}
 The student has uploaded the following files. Use them as part of the scenario.
 {{file_submissions}}
 {{/if}}
@@ -68,7 +67,7 @@ For each aspect:
 2. Set points_possible to match the aspect's maximum points
 3. In {{language}}, write feedback that (a) briefly acknowledges what worked, if anything, (b) states specifically what the speaker did wrong or missed for this aspect, tied to the transcript, and (c) gives a concrete correction—what to say or do differently next time
 
-Then compose the feedback document (feedback_doc) in {{language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Reference specific moments from the transcript. Keep a supportive tone; prioritize teaching over judging.
+Then compose the feedback output in {{language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Reference specific moments from the transcript. Keep a supportive tone; prioritize teaching over judging.
 
 IMPORTANT: All feedback text must be written in {{language}}.
 {{#if support_language}}
@@ -94,8 +93,7 @@ const SPEAKING_LABELS: Partial<ActivityTypeLabels> = {
 export const SPEAKING_PRACTICE_DEFINITION: ActivityTypeDefinition = {
   kind: "speaking_practice",
   label: "Speaking Practice",
-  persona: SPEAKING_PERSONA,
-  taskInstructions: SPEAKING_TASK,
+  systemPrompt: SPEAKING_SYSTEM_PROMPT,
   conversationStart: {
     first_question:
       "Introduce yourself as Konvo and set the scene for this speaking scenario, then ask if the student is ready to begin. {{#if support_language}}Deliver this entire opening in {{support_language}}: explain the scenario and what the student should try to do/cover, and ask if they are ready. Do NOT start the role-play yet — once they confirm, conduct the role-play itself in {{language}}.{{/if}}",

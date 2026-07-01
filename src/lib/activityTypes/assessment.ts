@@ -1,6 +1,6 @@
 import type { ActivityTypeDefinition } from "./types";
 
-const ASSESSMENT_PERSONA = `You are a teacher assistant named Konvo, conducting assessment with a student in {{language}}.
+const ASSESSMENT_SYSTEM_PROMPT = `You are a teacher assistant named Konvo, conducting assessment with a student in {{language}}.
 
 The title of the assessment is: {{title}}
 
@@ -16,9 +16,8 @@ Here is the additional assessment context:
 {{#if support_language}}
 If the student is confused, you may briefly clarify a question in {{support_language}}, then return to {{language}}. Do not give away answers.
 {{/if}}
-`;
 
-const ASSESSMENT_TASK = `{{#if file_submissions}}
+{{#if file_submissions}}
 The student has uploaded the following files as submission:
 {{file_submissions}}
 
@@ -64,7 +63,7 @@ Please evaluate this answer according to the rubric. For each rubric item:
 2. Set points_possible to match the rubric item's maximum points
 3. Provide specific, constructive feedback in {{language}}
 
-Then compose the feedback document (feedback_doc) in {{language}}, organized into titled sections that help the student understand their strengths and areas for improvement.
+Then compose the feedback output in {{language}}, organized into titled sections that help the student understand their strengths and areas for improvement.
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
@@ -73,8 +72,7 @@ const ASSESSMENT_EVALUATION_SYSTEM_PERSONA = `You are an expert educational eval
 export const ASSESSMENT_DEFINITION: ActivityTypeDefinition = {
   kind: "assessment",
   label: "Assessment",
-  persona: ASSESSMENT_PERSONA,
-  taskInstructions: ASSESSMENT_TASK,
+  systemPrompt: ASSESSMENT_SYSTEM_PROMPT,
   conversationStart: {
     first_question:
       "Speaking in {{language}}, introduce yourself as Konvo. Say you are going to conduct an assessment with them. Ask if the student is ready to start. If they are ready, start the assessment.",

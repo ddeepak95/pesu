@@ -148,9 +148,7 @@ export function buildDefaultSystemPrompt(
 ): string {
   const def = getActivityTypeDefinition(activityType);
   return [
-    def.persona,
-    "",
-    def.taskInstructions,
+    def.systemPrompt,
     "",
     COMMON_INSTRUCTIONS,
     "",

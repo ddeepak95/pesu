@@ -1,6 +1,6 @@
 import type { ActivityTypeDefinition } from "./types";
 
-const CODE_REVIEW_PERSONA = `You are a teacher assistant named Konvo, conducting a code review interview with a student in {{language}}.
+const CODE_REVIEW_SYSTEM_PROMPT = `You are a teacher assistant named Konvo, conducting a code review interview with a student in {{language}}.
 
 The title of the assignment is: {{title}}
 
@@ -16,9 +16,8 @@ Here is additional context about the assignment:
 {{#if support_language}}
 If the student is confused by a question, you may briefly clarify in {{support_language}}, then return to {{language}}. Do not give away the answers.
 {{/if}}
-`;
 
-const CODE_REVIEW_TASK = `{{#if file_submissions}}
+{{#if file_submissions}}
 The student has submitted the following code:
 {{file_submissions}}
 {{/if}}
@@ -62,7 +61,7 @@ Please evaluate how well the student demonstrated understanding of their own cod
 2. Set points_possible to match the rubric item's maximum points
 3. Provide specific, constructive feedback in {{language}} — reference concrete moments from the interview
 
-Then compose the feedback document (feedback_doc) in {{language}}, organized into titled sections: what they explained well, where their understanding was shallow, and one actionable suggestion for improvement. Reference specific moments from the interview.
+Then compose the feedback output in {{language}}, organized into titled sections: what they explained well, where their understanding was shallow, and one actionable suggestion for improvement. Reference specific moments from the interview.
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
@@ -71,8 +70,7 @@ const CODE_REVIEW_EVALUATION_SYSTEM_PERSONA = `You are an expert educational eva
 export const CODE_REVIEW_DEFINITION: ActivityTypeDefinition = {
   kind: "code_review",
   label: "Code Review",
-  persona: CODE_REVIEW_PERSONA,
-  taskInstructions: CODE_REVIEW_TASK,
+  systemPrompt: CODE_REVIEW_SYSTEM_PROMPT,
   conversationStart: {
     first_question:
       "Speaking in {{language}}, introduce yourself as Konvo. Explain that you'll be conducting a code review interview about their submitted code. Ask if they're ready to begin, once they are ready, then begin the conversation.",

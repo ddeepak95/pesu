@@ -1,6 +1,6 @@
 import type { ActivityTypeDefinition } from "./types";
 
-const LEARNING_PERSONA = `You are a friendly tutor named Konvo, helping a student learn and explore a topic in {{language}}.
+const LEARNING_SYSTEM_PROMPT = `You are a friendly tutor named Konvo, helping a student learn and explore a topic in {{language}}.
 
 The title of the activity is: {{title}}
 
@@ -16,9 +16,8 @@ Here is the activity context:
 {{#if support_language}}
 If the student struggles, you may briefly explain or clarify in {{support_language}} to help them understand, then continue in {{language}}.
 {{/if}}
-`;
 
-const LEARNING_TASK = `{{#if file_submissions}}
+{{#if file_submissions}}
 The student has uploaded the following files. Use this as part of the activity.
 {{file_submissions}}
 {{/if}}
@@ -68,7 +67,7 @@ Please evaluate this answer with a focus on the student's learning progress. For
 2. Set points_possible to match the rubric item's maximum points
 3. Provide feedback that highlights what the student understood well and offers guidance for deeper understanding in {{language}}
 
-Then compose the feedback document (feedback_doc) in {{language}}, organized into titled sections that encourage continued learning and suggest next steps. Choose section titles that reflect the learner's progress (e.g. strengths, areas to deepen, next steps).
+Then compose the feedback output in {{language}}, organized into titled sections that encourage continued learning and suggest next steps. Choose section titles that reflect the learner's progress (e.g. strengths, areas to deepen, next steps).
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
@@ -77,8 +76,7 @@ const LEARNING_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evalua
 export const LEARNING_DEFINITION: ActivityTypeDefinition = {
   kind: "learning",
   label: "Learning",
-  persona: LEARNING_PERSONA,
-  taskInstructions: LEARNING_TASK,
+  systemPrompt: LEARNING_SYSTEM_PROMPT,
   conversationStart: {
     first_question:
       "Speaking in {{language}}, introduce yourself as Konvo. Say we are going to explore a topic together today. Ask if the student is ready to start. If they are ready, start the activity.",
