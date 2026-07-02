@@ -124,37 +124,22 @@ export type InteractionType =
   | "static_text"
   | "multimodal";
 
-const COMMON_INSTRUCTIONS = `Guidelines:
-- Conduct the conversation in {{language}}
-- Be encouraging and supportive
-- Keep your questions and responses short and concise`;
-
-const INTERACTION_MODIFIERS: Record<InteractionType, string> = {
-  voice:
-    "Keep responses brief and conversational.",
-  text_chat:
-    "Keep responses concise and conversational.",
-  static_text:
-    "The student will submit a single written answer. You will not have a back-and-forth conversation.",
-  multimodal:
-    "Use a multimodal, conversational style and adapt to changing context naturally.",
-};
-
 /**
- * Assemble the default system prompt from fragments.
+ * The default system prompt for an activity type = the type's own `systemPrompt`.
+ *
+ * No mode-specific or "common" fragments are appended: the conversation language
+ * comes from the type's persona (which names `{{language}}`), conciseness/format
+ * from the runtime directives (`SPEECH_FORMAT_DIRECTIVE` for multimodal, the
+ * chat/voice appendices for the retired modes), and tone from the type itself.
+ * `static_text` has no conversation, so its system prompt never reaches a model.
+ *
+ * `_interactionType` is retained for signature stability with existing callers.
  */
 export function buildDefaultSystemPrompt(
   activityType: ActivityType,
-  interactionType: InteractionType,
+  _interactionType: InteractionType,
 ): string {
-  const def = resolveActivityTemplate({ kind: activityType }).definition;
-  return [
-    def.systemPrompt,
-    "",
-    COMMON_INSTRUCTIONS,
-    "",
-    INTERACTION_MODIFIERS[interactionType],
-  ].join("\n");
+  return resolveActivityTemplate({ kind: activityType }).definition.systemPrompt;
 }
 
 /**
@@ -337,7 +322,7 @@ Rules:
 - For each index, produce prompt, rubric, and expected_answer in the structured output
 - Where dynamic_prompt is true: write a clear student-facing question grounded in the files and the teacher's guidelines for the question
 - Where dynamic_prompt is false: set prompt to align with the teacher's fixed question text
-- Where dynamic_rubric is true: create 3-5 rubric items that sum to exactly the total points for that question; expected_answer lists key points for evaluation
+- Where dynamic_rubric is true: create 2-3 rubric items that sum to exactly the total points for that question; expected_answer lists key points for evaluation
 - Where dynamic_rubric is false: still output rubric and expected_answer fields, but they will be replaced server-side — you may repeat the teacher's fixed content
 - Questions should be distinct from each other — avoid overlap
 - Set question_index to the 0-based index of each question (0 through N-1)

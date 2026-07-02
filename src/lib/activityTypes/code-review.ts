@@ -70,9 +70,9 @@ export const CODE_REVIEW_DEFINITION: ActivityTypeDefinition = {
   systemPrompt: CODE_REVIEW_SYSTEM_PROMPT,
   conversationStart: {
     first_question:
-      "Speaking in {{language}}, introduce yourself as Konvo. Explain that you'll be conducting a code review interview about their submitted code. Ask if they're ready to begin, once they are ready, then begin the conversation.",
+      "Introduce yourself as Konvo. Explain that you'll be conducting a code review interview about their submitted code. Ask if they're ready to begin, once they are ready, then begin the conversation.",
     subsequent_questions:
-      "Speaking in {{language}}, acknowledge we're moving to the next part of the review, then begin asking about it.",
+      "Acknowledge we're moving to the next part of the review, then begin asking about it.",
   },
   evaluationPrompt: CODE_REVIEW_EVALUATION,
   evaluationSystemPersona: CODE_REVIEW_EVALUATION_SYSTEM_PERSONA,

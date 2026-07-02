@@ -77,9 +77,9 @@ export const LEARNING_DEFINITION: ActivityTypeDefinition = {
   systemPrompt: LEARNING_SYSTEM_PROMPT,
   conversationStart: {
     first_question:
-      "Speaking in {{language}}, introduce yourself as Konvo. Say we are going to explore a topic together today. Ask if the student is ready to start. If they are ready, start the activity.",
+      "Introduce yourself as Konvo. Say we are going to explore a topic together today. Ask if the student is ready to start. If they are ready, start the activity.",
     subsequent_questions:
-      "Speaking in {{language}}, acknowledge we're moving to the next topic, then start the next topic.",
+      "Acknowledge we're moving to the next topic, then start the next topic.",
   },
   evaluationPrompt: LEARNING_EVALUATION,
   evaluationSystemPersona: LEARNING_EVALUATION_SYSTEM_PERSONA,
@@ -141,7 +141,7 @@ export const LEARNING_DEFINITION: ActivityTypeDefinition = {
     "in {{support_language}}, requests a translation, or asks you to explain something in " +
     "{{support_language}}, or (b) the learner speaks in {{support_language}} (rather than the " +
     "primary language) seeking help or clarification: reply for that one turn directly in " +
-    "{{support_language}}, in its native script — re-explain the concept clearly rather than " +
+    "{{support_language}} — re-explain the concept clearly rather than " +
     "translating it word-for-word, so the explanation still builds real understanding. Keep " +
     "technical and academic terms in their original language exactly as they appeared. If the " +
     "learner asks a doubt or question in the primary language, answer it normally in the " +

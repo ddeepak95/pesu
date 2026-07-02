@@ -73,9 +73,9 @@ export const ASSESSMENT_DEFINITION: ActivityTypeDefinition = {
   systemPrompt: ASSESSMENT_SYSTEM_PROMPT,
   conversationStart: {
     first_question:
-      "Speaking in {{language}}, introduce yourself as Konvo. Say you are going to conduct an assessment with them. Ask if the student is ready to start. If they are ready, start the assessment.",
+      "Introduce yourself as Konvo. Say you are going to conduct an assessment with them. Ask if the student is ready to start. If they are ready, start the assessment.",
     subsequent_questions:
-      "Speaking in {{language}}, acknowledge we're moving to the next question, then ask the student to answer it.",
+      "Acknowledge we're moving to the next question, then ask the student to answer it.",
   },
   evaluationPrompt: ASSESSMENT_EVALUATION,
   evaluationSystemPersona: ASSESSMENT_EVALUATION_SYSTEM_PERSONA,
@@ -113,8 +113,8 @@ export const ASSESSMENT_DEFINITION: ActivityTypeDefinition = {
     "this learner. When — and only when — (a) the learner explicitly asks to hear a question " +
     "in {{support_language}} or asks for a translation of the question, or (b) the learner " +
     "speaks in {{support_language}} (rather than the primary language) seeking clarification " +
-    "of what is being asked: reply for that one turn directly in {{support_language}}, in its " +
-    "native script — clarify ONLY the wording of the question, never the answer or any hint " +
+    "of what is being asked: reply for that one turn directly in {{support_language}} — " +
+    "clarify ONLY the wording of the question, never the answer or any hint " +
     "toward it. Keep technical and academic terms in their original language exactly as they " +
     "appeared. If the learner asks a doubt or question in the primary language, answer it " +
     "normally in the primary language (still without giving away the answer). Resume the " +

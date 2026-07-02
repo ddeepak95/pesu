@@ -30,10 +30,11 @@ export { SAFETY_DIRECTIVE };
  * "ice cream" stays in Latin script rather than being transliterated.
  */
 export const SPEECH_SCRIPT_DIRECTIVE =
-  "Always write the conversation-language words in that language's own native " +
-  "script — never romanize them — even when the line is code-mixed. Borrowed " +
-  "words from another language keep their own script (do not transliterate " +
-  "them). For example, in a Tamil conversation: எனக்கு ஒரு ice cream வேண்டும்.";
+  "Always write every language you speak — the conversation language, and any " +
+  "support-language reply — in that language's own native script; never " +
+  "romanize. Even when a line is code-mixed, each word stays in its own " +
+  "language's script (do not transliterate borrowed words). For example, in a " +
+  "Tamil conversation: எனக்கு ஒரு ice cream வேண்டும்.";
 
 /** Always-on: how to format the spoken `speech` field. */
 export const SPEECH_FORMAT_DIRECTIVE =
@@ -66,7 +67,7 @@ const DEFAULT_LANGUAGE_SUPPORT_DIRECTIVE =
   "When — and only when — (a) the learner explicitly asks to hear something in {{support_language}}, " +
   "requests a translation, or asks you to explain something in {{support_language}}, or (b) the learner " +
   "speaks in {{support_language}} (rather than the primary language) seeking help or clarification: " +
-  "reply for that one turn directly in {{support_language}}, in its native script — no primary-language " +
+  "reply for that one turn directly in {{support_language}} — no primary-language " +
   "preamble. Keep technical and academic terms in their original language exactly as they " +
   "appeared. If the learner asks a doubt or question in the primary language, answer it " +
   "normally in the primary language. Resume the conversation in the primary language on the " +

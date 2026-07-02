@@ -824,6 +824,32 @@ assignment holds only a read-only *snapshot* refreshed via "Update from template
 > and the shipped Platform > Templates mockup — the `persona`/`taskInstructions` split
 > originally sketched below was not carried forward.
 
+> **Resolved — one owner per instruction (no cross-block restatement).** Each cross-cutting
+> rule lives in exactly one place; author blocks must not repeat it (the seed prompts were
+> de-duplicated accordingly):
+> - **Conversation language** (`{{language}}`) — owned by each activity type's own `systemPrompt`
+>   persona (every seed names `{{language}}`). Greetings no longer prefix "Speaking in
+>   {{language}}", and the former `COMMON_INSTRUCTIONS` scaffolding line was **removed entirely**
+>   (it only restated what the persona already says).
+> - **Native script / no romanization** — owned by `SPEECH_SCRIPT_DIRECTIVE` (scaffolding),
+>   now explicitly covering the conversation language *and* any support-language reply. The
+>   "in its native script" clause was removed from every `languageSupportDirective`.
+> - **Conciseness / format** — owned by `SPEECH_FORMAT_DIRECTIVE` (multimodal) and the
+>   `CHAT_SYSTEM_APPENDIX` / `VOICE_SYSTEM_APPENDIX` (retired modes). The former
+>   `INTERACTION_MODIFIERS` map was **removed entirely**: its `voice`/`text_chat` lines
+>   duplicated those appendices, `multimodal` duplicated the directive block, and `static_text`
+>   has no conversation so its system prompt never reaches a model.
+> - **Tone** — owned per activity type in its own `systemPrompt` / `evaluationSystemPersona`,
+>   so a neutral assessment stays neutral (the former generic "be encouraging and supportive"
+>   scaffolding line, which mildly contradicted the neutral interview types, is gone).
+> - **Safety** — the canonical `SAFETY_DIRECTIVE` constant, appended to both the conversation
+>   directives and the evaluation footer (one source, referenced twice — not authored twice).
+> - **Support-language policy legitimately spans three author blocks** — `languageSupportDirective`
+>   (mid-conversation help), `conversationStart` (how to open when a support language is set), and
+>   `evaluationPrompt` (which language to grade in). These are **different model calls**, not
+>   duplication, so they stay separate; the editor tooltips cross-reference each other to keep
+>   them consistent.
+
 | Editor section | Field (`definition.*` unless noted) | Drives | Interpolation vars available |
 |---|---|---|---|
 | **Identity & defaults** | `name`, `description` (meta); `visibility`, owner (meta) | gallery label/blurb, sharing | — |
@@ -871,9 +897,10 @@ How the template's fields actually reach the model. **Editable** = from the temp
 ### B.1 Conversation turn — multimodal (two AI calls)
 
 1. **Build (editable → snapshot)** — `buildDefaultBotPromptConfig(activityType, interactionType)`
-   assembles `system_prompt = systemPrompt + COMMON_INSTRUCTIONS +
-   INTERACTION_MODIFIERS[interactionType]` and `conversation_start`. Snapshotted onto the
-   assignment; teacher may further edit.
+   sets `system_prompt = systemPrompt` (the type's own prompt, verbatim) and
+   `conversation_start`. Snapshotted onto the assignment; teacher may further edit. (The former
+   `COMMON_INSTRUCTIONS` / `INTERACTION_MODIFIERS[interactionType]` fragments were removed — see
+   the "one owner per instruction" note in Appendix A; `interactionType` is now unused here.)
 2. **Interpolate (client)** — `useInterpolatedPrompts` fills `{{…}}` → concrete `system_prompt`
    + `greeting`; POST to `/api/multimodal/turn` with `messages`, `availableActions`,
    `activityType`, `supportLanguageAvailable`, `ttsModelId`, …
@@ -938,7 +965,8 @@ schema (rich actions are multimodal-only).
 **Editable vs scaffolding, at a glance:** the template owns `systemPrompt` /
 `conversationStart` / `actionDirective` / `languageSupportDirective` /
 `endConditionInstruction` / `evaluationPrompt` / `evaluationSystemPersona` (+ labels,
-feedback-focus, generation copy, action preselection). The system always adds
-`COMMON_INSTRUCTIONS`, `INTERACTION_MODIFIERS`, the speech/safety/action/end-conversation
-directives, the appendices, the turn/evaluation **schemas**, and the second action-generation
-call — none of which appear in the editor.
+feedback-focus, generation copy, action preselection). The system always adds the
+speech/safety/action/end-conversation directives, the appendices (chat/voice), the
+turn/evaluation **schemas**, and the second action-generation call — none of which appear in
+the editor. (The default system prompt is now the type's `systemPrompt` verbatim — the old
+`COMMON_INSTRUCTIONS` / `INTERACTION_MODIFIERS` fragments were removed.)

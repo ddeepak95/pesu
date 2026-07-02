@@ -563,7 +563,7 @@ export function TemplateEditor({
 
           <Subsection
             title="Conversation system prompt"
-            tooltip="Who the AI is and what it should do — the core instructions sent with every turn of the conversation."
+            tooltip="Who the AI is and what it should do — the core instructions sent with every turn of the conversation. This is where the conversation language is set: name it via {{language}} in the persona. No need to restate what the system appends automatically — conciseness/format, native-script/no-romanization, and safety. Do put this type's tone here (e.g. an assessment stays neutral)."
             required
             divider={false}
           >
@@ -681,7 +681,7 @@ export function TemplateEditor({
             </label>
             <PromptField
               label="Language support directive"
-              hint="Replaces the default 'language support available' rule below when a support language is configured. Leave blank to use the default (e.g. Speaking Practice overrides this to stay in character and continue in the support language instead of translating)."
+              hint="Replaces the default 'language support available' rule when a support language is configured. Governs mid-conversation help only — the opening (greetings above) and grading language (evaluation prompt) handle the support language separately; keep all three consistent. No need to say 'in its native script' — that's applied to every reply automatically. Leave blank to use the default (e.g. Speaking Practice overrides it to stay in character and continue in the support language instead of translating)."
               value={def.languageSupportDirective}
               onChange={(v) => patchDef({ languageSupportDirective: v })}
               rows={4}
@@ -692,7 +692,7 @@ export function TemplateEditor({
 
           <Subsection
             title="Conversation start greetings"
-            tooltip="What the AI opens with, before the student has answered anything."
+            tooltip="What the AI opens with, before the student has answered anything. The system prompt already sets the conversation language, so don't prefix 'speak in {{language}}' here. If a support language is set, any special opening behavior (e.g. deliver the setup in the support language) is defined here — keep it consistent with the Language support directive below."
           >
             <PromptField
               label="First-question greeting"
