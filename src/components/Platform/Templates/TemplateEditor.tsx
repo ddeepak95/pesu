@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   ClipboardCheck,
   Eye,
   IdCard,
   Lightbulb,
   MessageSquare,
+  ShieldCheck,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -27,6 +29,14 @@ import {
 } from "@/components/ui/accordion";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,6 +50,7 @@ import {
   ASSESSMENT_MODE_OPTIONS,
   RETIRED_ASSESSMENT_MODES,
 } from "@/lib/settings/registry";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 
 import { PromptField } from "./PromptField";
 import {
@@ -47,6 +58,12 @@ import {
   type TemplateDefinition,
   type Visibility,
 } from "./types";
+import {
+  bareVarName,
+  validateFields,
+  type ValidatableField,
+  type ValidationIssue,
+} from "./validateTemplate";
 
 const PROMPT_VARS = [
   "{{title}}",
@@ -64,6 +81,14 @@ const GREETING_VARS = PROMPT_VARS;
 const EVAL_VARS = [...PROMPT_VARS, "{{answer_text}}"];
 const ACTION_VARS = listImplementedActions().map((a) => `{{action:${a.kind}}}`);
 const LANGUAGE_SUPPORT_VARS = ["{{language}}", "{{support_language}}"];
+
+// Bare (brace-stripped) equivalents of the vars lists above, for the
+// "{{#if variable}}" / "{{variable}}" validator, which checks against bare names.
+const PROMPT_VAR_NAMES = PROMPT_VARS.map(bareVarName);
+const GREETING_VAR_NAMES = PROMPT_VAR_NAMES;
+const EVAL_VAR_NAMES = EVAL_VARS.map(bareVarName);
+const ACTION_VAR_NAMES = ACTION_VARS.map(bareVarName);
+const LANGUAGE_SUPPORT_VAR_NAMES = LANGUAGE_SUPPORT_VARS.map(bareVarName);
 
 const GENERATION_FIELDS: {
   key: keyof TemplateDefinition["generation"];
@@ -192,6 +217,75 @@ function deriveAdvancedLabels(
   };
 }
 
+/** Every prompt-ish field, paired with its recognized variables, for the Validate button. */
+function buildValidatableFields(def: TemplateDefinition): ValidatableField[] {
+  return [
+    {
+      id: "systemPrompt",
+      label: "Conversation system prompt",
+      value: def.systemPrompt,
+      required: true,
+      knownVars: PROMPT_VAR_NAMES,
+    },
+    {
+      id: "actionDirective",
+      label: "Action directive",
+      value: def.actionDirective,
+      knownVars: ACTION_VAR_NAMES,
+    },
+    {
+      id: "languageSupportDirective",
+      label: "Language support directive",
+      value: def.languageSupportDirective,
+      knownVars: LANGUAGE_SUPPORT_VAR_NAMES,
+    },
+    {
+      id: "conversationStart.first_question",
+      label: "First-question greeting",
+      value: def.conversationStart.first_question,
+      knownVars: GREETING_VAR_NAMES,
+    },
+    {
+      id: "conversationStart.subsequent_questions",
+      label: "Subsequent-question greeting",
+      value: def.conversationStart.subsequent_questions,
+      knownVars: GREETING_VAR_NAMES,
+    },
+    {
+      id: "endConditionInstruction",
+      label: "Conversation end condition",
+      value: def.endConditionInstruction,
+      required: true,
+    },
+    {
+      id: "evaluationSystemPersona",
+      label: "Evaluator persona (system)",
+      value: def.evaluationSystemPersona,
+    },
+    {
+      id: "evaluationPrompt",
+      label: "Evaluation prompt (user)",
+      value: def.evaluationPrompt,
+      knownVars: EVAL_VAR_NAMES,
+    },
+    {
+      id: "generation.rubricCoverage",
+      label: "Rubric coverage",
+      value: def.generation.rubricCoverage,
+    },
+    {
+      id: "generation.expectedAnswerCoverage",
+      label: "Expected-answer coverage",
+      value: def.generation.expectedAnswerCoverage,
+    },
+    {
+      id: "generation.dynamicGenerationGuidance",
+      label: "Runtime question-generation guidance",
+      value: def.generation.dynamicGenerationGuidance,
+    },
+  ];
+}
+
 interface TemplateEditorProps {
   template: MockTemplate;
   isNew: boolean;
@@ -218,6 +312,15 @@ export function TemplateEditor({
     expectedAnswerHelp: false,
     questionNoun: false,
   });
+  // Validation must be re-run (and pass) after every edit before Save unlocks —
+  // tracked by snapshotting the definition at the moment Validate was last run.
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(
+    [],
+  );
+  const [validatedSnapshot, setValidatedSnapshot] = useState<string | null>(
+    null,
+  );
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
 
   const patch = (next: Partial<MockTemplate>) =>
     setDraft((d) => ({ ...d, ...next }));
@@ -232,6 +335,24 @@ export function TemplateEditor({
     });
 
   const def = draft.definition;
+
+  const defSnapshot = JSON.stringify(def);
+  const isValidated = validatedSnapshot === defSnapshot;
+  const canSave = isValidated && validationIssues.length === 0;
+
+  const runValidation = () => {
+    const issues = validateFields(buildValidatableFields(def));
+    setValidationIssues(issues);
+    setValidatedSnapshot(defSnapshot);
+    if (issues.length === 0) {
+      showSuccessToast("All prompts are valid.");
+    } else {
+      showErrorToast(
+        `${issues.length} issue${issues.length === 1 ? "" : "s"} found — see details.`,
+      );
+      setShowErrorDialog(true);
+    }
+  };
 
   const toggleAction = (kind: ActionKind, on: boolean) => {
     const current = def.defaults.multimodal.availableActions;
@@ -757,6 +878,35 @@ export function TemplateEditor({
           </Accordion>
         </SettingsCard>
 
+        {/* Validation errors dialog */}
+        <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                {validationIssues.length} issue
+                {validationIssues.length === 1 ? "" : "s"} found
+              </DialogTitle>
+              <DialogDescription>
+                Fix these before the template can be saved.
+              </DialogDescription>
+            </DialogHeader>
+            <ul className="max-h-96 list-disc space-y-2 overflow-y-auto pl-5 text-sm">
+              {validationIssues.map((issue, i) => (
+                <li key={`${issue.fieldId}-${i}`}>
+                  <span className="font-medium">{issue.fieldLabel}:</span>{" "}
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+            <DialogFooter>
+              <Button onClick={() => setShowErrorDialog(false)} type="button">
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Sticky footer */}
         <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
@@ -769,7 +919,24 @@ export function TemplateEditor({
               <Button variant="outline" onClick={onCancel} type="button">
                 Cancel
               </Button>
-              <Button onClick={() => onSave(draft)} type="button">
+              <Button
+                variant="outline"
+                onClick={runValidation}
+                type="button"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Validate
+              </Button>
+              <Button
+                onClick={() => onSave(draft)}
+                type="button"
+                disabled={!canSave}
+                title={
+                  !canSave
+                    ? "Run Validate and resolve any issues before saving"
+                    : undefined
+                }
+              >
                 {isNew ? "Create template" : "Save changes"}
               </Button>
             </div>
