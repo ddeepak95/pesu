@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { Assignment, ResponderFieldConfig, BotPromptConfig, FileSubmissionConfig, DynamicGenerationSpec } from "@/types/assignment";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import {
+  SYSTEM_TEMPLATE_IDS,
+  registryToDefinition,
+} from "@/lib/activityTypes/templates";
 import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 import { nanoid } from "nanoid";
 import { softDeleteContentItemByRef } from "./contentItems";
@@ -227,6 +231,12 @@ export async function createAssignment(
   const supabase = createClient();
   const assignmentId = generateAssignmentId();
 
+  // Provenance + self-contained snapshot (Phase 1). Derived from the built-in
+  // kind: the seeded system row's definition is identical to the registry's, so
+  // this snapshots without a DB round-trip. Re-derived on every save so the
+  // link/snapshot always match the chosen activity type.
+  const activityType = assignment.activity_type ?? "learning";
+
   const { data, error } = await supabase
     .from("assignments")
     .insert({
@@ -241,7 +251,10 @@ export async function createAssignment(
       preferred_language: assignment.preferred_language,
       lock_language: assignment.lock_language ?? false,
       is_public: assignment.is_public ?? false,
-      activity_type: assignment.activity_type ?? "learning",
+      activity_type: activityType,
+      activity_template_id: SYSTEM_TEMPLATE_IDS[activityType],
+      activity_definition_snapshot: registryToDefinition(activityType),
+      template_synced_at: new Date().toISOString(),
       assessment_mode: assignment.assessment_mode ?? "voice",
       responder_fields_config: assignment.responder_fields_config ?? null,
       max_attempts: assignment.max_attempts ?? 1,
@@ -338,6 +351,8 @@ export async function updateAssignment(
 ): Promise<Assignment> {
   const supabase = createClient();
 
+  const activityType = assignment.activity_type ?? "learning";
+
   const updatePayload: Record<string, unknown> = {
     title: assignment.title,
     questions: assignment.questions,
@@ -345,7 +360,10 @@ export async function updateAssignment(
     preferred_language: assignment.preferred_language,
     lock_language: assignment.lock_language ?? false,
     is_public: assignment.is_public ?? false,
-    activity_type: assignment.activity_type ?? "learning",
+    activity_type: activityType,
+    activity_template_id: SYSTEM_TEMPLATE_IDS[activityType],
+    activity_definition_snapshot: registryToDefinition(activityType),
+    template_synced_at: new Date().toISOString(),
     assessment_mode: assignment.assessment_mode ?? "voice",
     responder_fields_config: assignment.responder_fields_config ?? null,
     max_attempts: assignment.max_attempts ?? 1,

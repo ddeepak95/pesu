@@ -1,6 +1,7 @@
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import type { MultimodalActionsConfig } from "@/lib/multimodal/turnConfig";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import type { TemplateDefinition } from "@/lib/activityTypes/templates";
 import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 
 export interface FileSubmissionConfig {
@@ -230,6 +231,21 @@ export interface Assignment {
    * Defaults to "learning" for legacy assignments where this field is missing.
    */
   activity_type?: ActivityTypeKind;
+  /**
+   * Provenance link to the source activity template (Phase 1). Nullable —
+   * `ON DELETE SET NULL`, and null for legacy rows created before templates.
+   * Not read at runtime/view time; the assignment uses its own snapshot below.
+   */
+  activity_template_id?: string | null;
+  /**
+   * Self-contained snapshot of the resolved template definition (labels,
+   * generation copy, directive fields, defaults). Keeps view/runtime reads off
+   * `activity_templates`. Re-derived when the activity type changes or via an
+   * explicit "Update from template" pull. Null for legacy rows.
+   */
+  activity_definition_snapshot?: TemplateDefinition | null;
+  /** When the definition snapshot was last (re)pulled. Null for legacy rows. */
+  template_synced_at?: string | null;
   /**
    * Configuration for responder details collection in public assignments.
    * Defines what fields to collect from public responders.

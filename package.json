@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "validate:locales": "npx tsx scripts/validate-locales.ts",
-    "seed:platform-ai": "npx tsx scripts/seed-platform-ai-catalog.ts"
+    "seed:platform-ai": "npx tsx scripts/seed-platform-ai-catalog.ts",
+    "generate:system-template-seed": "npx tsx scripts/generate-system-template-seed.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.59",
