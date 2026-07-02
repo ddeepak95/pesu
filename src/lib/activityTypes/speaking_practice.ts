@@ -13,9 +13,6 @@ The instructions for the activity shared to the student are:
 Here is the scenario context:
 {{context_for_ai}}
 {{/if}}
-{{#if support_language}}
-The learner's support language is {{support_language}}. Use the support language to help the student when they need it.
-{{/if}}
 
 {{#if file_submissions}}
 The student has uploaded the following files. Use them as part of the scenario.
@@ -137,26 +134,23 @@ export const SPEAKING_PRACTICE_DEFINITION: ActivityTypeDefinition = {
       "for each aspect, how the tutor should guide the conversation and what kind of responses are expected from the learner — the conversational guidance an evaluator would use to judge whether the learner handled that aspect well",
     guidance:
       "This is a SPEAKING-PRACTICE role-play scenario, not a written question. Frame the rubric items as the distinct conversational aspects the learner must cover while speaking. For the conversation-guidance field, describe — aspect by aspect — how the tutor should steer the dialogue and the responses expected from the learner, not a written model answer.",
+    dynamicGenerationGuidance: `
+- Phrase each generated prompt as a scenario setup for the tutor to role-play, not a question to answer — describe the setting, the tutor's role, and the learner's role.
+- Ground the scenario in the student's submitted files where relevant (e.g. a scenario brief or context document), but the prompt itself must describe a spoken role-play, not a written task.
+- Keep the scenario description in plain prose — avoid Markdown formatting, since this prompt is read aloud to set up the role-play, not displayed on screen.`,
   },
-  buildMultimodalDirective: () =>
-    "SPEAKING PRACTICE: You are a role-play partner in a speaking scenario, not a " +
-    "quizmaster. Stay in character, keep your spoken turns short and natural, and let " +
-    "the student do most of the talking. Draw out the scenario's target aspects through " +
-    "the flow of the conversation rather than asking about them directly.\n" +
-    "WRITE IN NATIVE SCRIPT: Always write the `speech` text in the native script of the " +
-    "language you are speaking (for example, Devanagari for Hindi — never romanized " +
-    '"Hinglish"). Do not transliterate or romanize that language into Roman/Latin ' +
-    "letters. The only exception: English words or proper nouns that are genuinely " +
-    "borrowed into the conversation may stay in Roman script.",
-  buildLanguageSupportDirective: ({ languageLabel }) =>
-    `LANGUAGE SUPPORT AVAILABLE: A ${languageLabel} support channel is available. ` +
-    `Only when the learner explicitly asks for help in ${languageLabel} mid-scenario (e.g. asks ` +
-    `you to explain something in ${languageLabel}, says they are confused and want ${languageLabel} ` +
-    `help, or speaks in ${languageLabel} seeking clarification): for that one reply, stay in ` +
-    `character and continue the speaking scenario naturally in ${languageLabel}, helping them ` +
-    `understand and keep going — keep proper nouns and any scenario-specific terms from the ` +
-    `primary language as they were. Do NOT interrupt the role-play to offer ${languageLabel} help ` +
-    `unprompted — wait until the learner asks. If they ask a doubt in the primary language, answer ` +
-    `it in character in the primary language. Resume the role-play in the primary language on the ` +
-    `next turn.`,
+  languageSupportDirective:
+    "LANGUAGE SUPPORT AVAILABLE: A {{support_language}} support channel is available. " +
+    "Only when the learner explicitly asks for help in {{support_language}} mid-scenario (e.g. asks " +
+    "you to explain something in {{support_language}}, says they are confused and want {{support_language}} " +
+    "help, or speaks in {{support_language}} seeking clarification): for that one reply, stay in " +
+    "character and continue the speaking scenario naturally in {{support_language}}, helping them " +
+    "understand and keep going — keep proper nouns and any scenario-specific terms from the " +
+    "primary language as they were. Do NOT interrupt the role-play to offer {{support_language}} help " +
+    "unprompted — wait until the learner asks. If they ask a doubt in the primary language, answer " +
+    "it in character in the primary language. Resume the role-play in the primary language on the " +
+    "next turn.",
+  endConditionInstruction:
+    "the learner has completed the scenario's target aspects through the role-play, or has " +
+    "explicitly refused to continue the scenario.",
 };

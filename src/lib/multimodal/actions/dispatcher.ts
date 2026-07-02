@@ -11,7 +11,7 @@ import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider"
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ActionInput } from "./schema";
-import { handleDisplayMarkdownAction } from "./display-markdown";
+import { handleDisplayContentAction } from "./display-content";
 import { handleMcqAction } from "./mcq";
 import { handleSuggestedResponseAction } from "./suggested-response";
 
@@ -57,8 +57,8 @@ export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
       return handleMcqAction({ ...args, action: args.action });
     case "suggested_response":
       return handleSuggestedResponseAction({ ...args, action: args.action });
-    case "display_markdown":
-      return handleDisplayMarkdownAction({ ...args, action: args.action });
+    case "display_content":
+      return handleDisplayContentAction({ ...args, action: args.action });
     // case "image": return handleImageAction(args);
     // case "equation": return handleEquationAction(args);
     default:

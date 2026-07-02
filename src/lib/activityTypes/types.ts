@@ -114,23 +114,39 @@ export interface ActivityTypeDefinition {
   /** Activity-type-specific guidance for the rubric/expected-answer generator. */
   generation?: ActivityTypeGeneration;
   /**
-   * Optional extra multimodal system-prompt directive, appended after the
-   * actions + end-conversation directives. Return null for none.
+   * Optional action-usage guidance, appended after the actions +
+   * end-conversation directives. Scope: how/when to use THIS type's enabled
+   * actions in context (e.g. tie an MCQ's topic to the rubric, or constrain
+   * what display_content may show) — not general persona/role guidance
+   * (that belongs in `systemPrompt`), and not an action's own mechanics
+   * (schema fields, format — that belongs in the action's own
+   * `buildDirective()` in the action registry, which already applies
+   * whenever the action is enabled, for any type). May reference an enabled
+   * action's live display label via a {{action:kind}} placeholder (e.g.
+   * {{action:display_content}}), resolved against the action registry.
+   * Omit when the type has no action-specific context to add.
    */
-  buildMultimodalDirective?: () => string | null;
+  actionDirective?: string;
   /**
-   * Optional override of the language-support directive — the single, always-on
-   * instruction (added whenever a support language is configured) that tells the
-   * model to reply inline in the support language when the learner asks for help.
-   *
-   * Return a string to replace the default directive text.
-   * Return null to suppress language help entirely for this activity type (no
-   *   directive is added).
-   * Return undefined (or omit the hook) to use the default directive.
+   * Overrides the default "language support available" directive text (the
+   * single, always-on instruction added whenever a support language is
+   * configured, telling the model to reply inline in the support language when
+   * the learner asks for help). May contain a {{support_language}} placeholder,
+   * substituted with the resolved language label. When unset, the generic
+   * default directive is used. Full replacement, not additive — set this when a
+   * type needs different behavior than "translate this one turn" (e.g. Speaking
+   * Practice stays in character and continues the role-play in the support
+   * language).
    */
-  buildLanguageSupportDirective?: (input: {
-    languageLabel: string;
-  }) => string | null | undefined;
+  languageSupportDirective?: string;
+  /**
+   * Guidance on *when* to end the conversation, specific to this activity
+   * type. Layers onto the fixed base end-condition rule under a single "When
+   * to end:" heading in the composed directive. Required — every activity
+   * type should state its own end condition rather than relying on the base
+   * rule alone.
+   */
+  endConditionInstruction: string;
 }
 
 export const DEFAULT_ACTIVITY_TYPE_LABELS: ActivityTypeLabels = {

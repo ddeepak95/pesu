@@ -27,11 +27,10 @@ import { buildMultimodalDirectives } from "./multimodal-directives";
 export const TURN_SCHEMA_NAME = "multimodal_turn";
 
 const endConversationField = z
-  .enum(["thorough", "refusal"])
-  .nullable()
+  .boolean()
   .describe(
-    "Set to 'thorough' when the end condition is met, 'refusal' if the learner " +
-      "is off-topic or refuses, otherwise null.",
+    "Whether to end the conversation now, per the guidance in the system prompt. " +
+      "When true, make your `speech` a warm closing message.",
   );
 
 const speechField = z
@@ -86,6 +85,8 @@ export interface MultimodalTurnStreamOptions {
   availableActions: ActionKind[];
   endConversation?: EndConversationConfig;
   languageHelpAvailable?: { languageLabel: string };
+  /** Primary conversation language label, for the language-support directive's {{language}} placeholder. */
+  primaryLanguageLabel?: string;
   activityType?: ActivityTypeKind;
   /** Present when the latest user message contains two transcript candidates. */
   dualTranscript?: { primaryLabel: string; supportLabel: string };
@@ -109,8 +110,8 @@ export function resolveMultimodalTurnCall(
     systemPrompt +
     buildMultimodalDirectives({
       availableActions,
-      endConversation: options.endConversation,
       languageHelpAvailable: options.languageHelpAvailable,
+      primaryLanguageLabel: options.primaryLanguageLabel,
       activityType: options.activityType,
       dualTranscript: options.dualTranscript,
     });

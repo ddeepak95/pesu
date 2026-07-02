@@ -11,6 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PROMPT_VARIABLES } from "@/lib/promptTemplates";
 
 type VariableEntry = {
@@ -103,6 +104,7 @@ function VariablePanel({
 
 export function PromptField({
   label,
+  required,
   hint,
   value,
   onChange,
@@ -111,7 +113,9 @@ export function PromptField({
   mono = true,
   placeholder,
 }: {
-  label: string;
+  label?: string;
+  /** Marks the field as required with a trailing asterisk next to the label. */
+  required?: boolean;
   hint?: string;
   value: string;
   onChange: (v: string) => void;
@@ -144,8 +148,15 @@ export function PromptField({
 
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {label && (
+        <div className="flex items-center gap-1.5">
+          <Label>
+            {label}
+            {required && <span className="text-destructive"> *</span>}
+          </Label>
+          {hint && <InfoTooltip text={hint} />}
+        </div>
+      )}
       <div className="flex flex-col gap-3 md:flex-row">
         <Textarea
           ref={textareaRef}

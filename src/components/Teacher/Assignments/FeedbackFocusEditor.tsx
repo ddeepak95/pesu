@@ -5,12 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 
 interface FeedbackFocusEditorProps {
   value: FeedbackFocusArea[];
   onChange: (next: FeedbackFocusArea[]) => void;
   disabled?: boolean;
+  /** Hide the built-in "Feedback focus" label, for callers that already
+   * render an equivalent heading around this editor. */
+  hideLabel?: boolean;
 }
 
 /**
@@ -23,6 +27,7 @@ export function FeedbackFocusEditor({
   value,
   onChange,
   disabled = false,
+  hideLabel = false,
 }: FeedbackFocusEditorProps) {
   const update = (index: number, patch: Partial<FeedbackFocusArea>) =>
     onChange(value.map((a, i) => (i === index ? { ...a, ...patch } : a)));
@@ -32,14 +37,12 @@ export function FeedbackFocusEditor({
 
   return (
     <div className="space-y-3">
-      <div>
-        <Label>Feedback focus</Label>
-        <p className="text-xs text-muted-foreground">
-          Each area becomes a section in the student&apos;s feedback. The title is
-          the section heading; the description tells the AI what that section
-          should cover. This steers the feedback, not the score.
-        </p>
-      </div>
+      {!hideLabel && (
+        <div className="flex items-center gap-1.5">
+          <Label>Feedback focus</Label>
+          <InfoTooltip text="Each area becomes a section in the student's feedback. The title is the section heading; the description tells the AI what that section should cover. This steers the feedback, not the score." />
+        </div>
+      )}
 
       {value.length === 0 && (
         <p className="text-sm text-muted-foreground">

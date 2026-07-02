@@ -32,8 +32,8 @@ export const suggestedResponseActionInputSchema = z.object({
     .describe("Copy the bot's most recent spoken utterance here verbatim."),
 });
 
-export const displayMarkdownActionInputSchema = z.object({
-  kind: z.literal("display_markdown"),
+export const displayContentActionInputSchema = z.object({
+  kind: z.literal("display_content"),
   content: z
     .string()
     .describe(
@@ -49,7 +49,7 @@ export const displayMarkdownActionInputSchema = z.object({
 export const actionInputSchema = z.discriminatedUnion("kind", [
   mcqActionInputSchema,
   suggestedResponseActionInputSchema,
-  displayMarkdownActionInputSchema,
+  displayContentActionInputSchema,
   // z.object({ kind: z.literal("image"), query: z.string() }),
   // z.object({ kind: z.literal("equation"), latex: z.string() }),
 ]);

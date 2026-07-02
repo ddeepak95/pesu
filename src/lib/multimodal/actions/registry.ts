@@ -19,7 +19,7 @@ import type { ModelTask } from "@/lib/ai/catalog/types";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
 import {
-  displayMarkdownActionInputSchema,
+  displayContentActionInputSchema,
   mcqActionInputSchema,
   suggestedResponseActionInputSchema,
 } from "./schema";
@@ -63,12 +63,19 @@ export interface ActionDefinition {
   clientTrigger?: ActionClientTrigger;
 }
 
-// One string per paragraph; joined for the orchestrator system prompt.
+// One string per paragraph; joined for the orchestrator system prompt. Mechanics
+// only (schema fields + the retry protocol tied to `repeatPrevious`) — how often
+// to pose a question is a pacing judgment that belongs in each activity type's
+// `actionDirective`, not here, so it stays overridable per type.
 const MCQ_DIRECTIVE_PARAGRAPHS = [
-  // Frequency: questions are deliberate checkpoints, not a reflex.
-  "You may pose multiple choice questions, but use them sparingly — as deliberate comprehension checkpoints, not after every point. Only pose one once you have explained a substantial concept and the learner has had a chance to engage with it, and space them out so the conversation stays a genuine back-and-forth: most turns should set `action` to null and keep explaining or discussing. When a real checkpoint is reached, attach at most ONE question: set `action.kind` to \"mcq\", `action.topic` to the concept to assess, and `action.difficulty` to easy, medium, or hard, and briefly tell the learner in your `speech` that a question will appear on their screen. When in doubt, favor continuing the conversation over quizzing.",
-  // Answer handling.
-  'When the learner answers, you receive a hidden note with the result, the correct answer, and an explanation. If they were WRONG, give a brief spoken hint WITHOUT stating the correct answer and re-ask the SAME question by setting `action.kind` to "mcq" with `action.repeatPrevious` set to true. If they were CORRECT, acknowledge it and move on (do not re-ask). If they have struggled several times, you may reveal the answer and move on instead of re-asking.',
+  // Schema mechanics.
+  'To pose a multiple choice question, set `action.kind` to "mcq", `action.topic` to the concept being assessed, and `action.difficulty` to easy, medium, or hard, and briefly tell the learner in your `speech` that a question will appear on their screen.',
+  // Answer-delivery mechanics only. What to actually do with a right/wrong
+  // answer (hint, reveal, re-ask, stay neutral) is a pedagogical judgment that
+  // varies by type (e.g. it directly conflicts with an examiner's "never give
+  // away the answer" rule) — that belongs in each activity type's
+  // `actionDirective`, not here.
+  'When the learner answers, you receive a hidden note with the result, the correct answer, and an explanation. To re-ask the exact same question, set `action.kind` to "mcq" with `action.repeatPrevious` set to true.',
 ];
 
 const MCQ_DIRECTIVE = MCQ_DIRECTIVE_PARAGRAPHS.join("\n");
@@ -108,23 +115,24 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     inputSchema: mcqActionInputSchema,
     buildDirective: () => MCQ_DIRECTIVE,
   },
-  display_markdown: {
-    kind: "display_markdown",
-    label: "Display code / markdown",
+  display_content: {
+    kind: "display_content",
+    label: "Display content",
     description:
       "The tutor can show a code snippet or formatted content in the content box instead of reading it aloud.",
     implemented: true,
     requiredTasks: ["text_generation"],
-    appFunctionKey: "text.display_markdown",
-    inputSchema: displayMarkdownActionInputSchema,
+    appFunctionKey: "text.display_content",
+    inputSchema: displayContentActionInputSchema,
+    // Mechanics only — when it's appropriate to use this action is a per-type
+    // judgment that belongs in each activity type's `actionDirective`.
     buildDirective: () =>
-      "Use the `display_markdown` action when you want to highlight a specific function, variable, code block, " +
-      "or formatted content from the student's submission that you are actively discussing. Set `action.kind` " +
-      "to \"display_markdown\", `action.content` to the exact markdown (e.g. a fenced code block), and " +
-      "optionally `action.title` to a short label (e.g. the function name). In your `speech`, refer to it as " +
-      "'the code shown on screen' or 'the snippet I've highlighted' — never read code syntax or markdown " +
-      "formatting aloud. Do not use this action when wrapping up or closing the conversation — set `action` " +
-      "to null in those turns."+ "Be thoughtful about using this action and only use it when you are actively discussing a specific function, variable, code block, or formatted content from the student's submission.",
+      "To use the `display_content` action, set `action.kind` to \"display_content\", " +
+      "`action.content` to the exact markdown (e.g. a fenced code block), and optionally " +
+      "`action.title` to a short label (e.g. the function name). In your `speech`, refer to it " +
+      "as 'the code shown on screen' or 'the snippet I've highlighted' — never read code syntax " +
+      "or markdown formatting aloud. Do not use it when wrapping up or closing the conversation " +
+      "— set `action` to null in those turns.",
     clientTrigger: {
       hiddenMessage: "",
       autoAvailableForActivityTypes: ["code_review"],

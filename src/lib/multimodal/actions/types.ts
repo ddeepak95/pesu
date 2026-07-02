@@ -7,7 +7,7 @@
  * action kinds (image, video, equation, animation) are drop-in additions.
  */
 
-export type ActionKind = "mcq" | "image" | "video" | "equation" | "animation" | "suggested_response" | "display_markdown";
+export type ActionKind = "mcq" | "image" | "video" | "equation" | "animation" | "suggested_response" | "display_content";
 
 export interface McqActionPayload {
   kind: "mcq";
@@ -27,8 +27,14 @@ export interface SuggestedResponseActionPayload {
   translation?: string;
 }
 
-export interface DisplayMarkdownActionPayload {
-  kind: "display_markdown";
+export interface DisplayContentActionPayload {
+  /**
+   * "display_markdown" is the pre-rename kind, kept here only so historical
+   * `chat_message_actions` rows still type-check and render. New payloads are
+   * always "display_content" — remove the legacy member once old rows have
+   * aged out.
+   */
+  kind: "display_content" | "display_markdown";
   /** Markdown content to render in the content box (e.g. a fenced code block). */
   content: string;
   /** Optional short label shown above the content (e.g. a function name). */
@@ -41,7 +47,7 @@ export interface DisplayMarkdownActionPayload {
 // export interface EquationActionPayload { kind: "equation"; latex: string; display: "inline" | "block"; }
 // export interface AnimationActionPayload { kind: "animation"; animationId: string; params?: Record<string, unknown>; }
 
-export type ActionPayload = McqActionPayload | SuggestedResponseActionPayload | DisplayMarkdownActionPayload;
+export type ActionPayload = McqActionPayload | SuggestedResponseActionPayload | DisplayContentActionPayload;
 // | ImageActionPayload | VideoActionPayload | EquationActionPayload | AnimationActionPayload;
 
 /**

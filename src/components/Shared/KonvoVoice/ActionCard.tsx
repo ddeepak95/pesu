@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type { PendingAction } from "./actionTypes";
-import { DisplayMarkdownCard } from "./cards/DisplayMarkdownCard";
+import { DisplayContentCard } from "./cards/DisplayContentCard";
 import { MCQCard } from "./cards/McqCard";
 import { SuggestedResponseCard } from "./cards/SuggestedResponseCard";
 
@@ -19,7 +19,7 @@ function ActionSkeleton({ kind }: { kind: ActionKind }) {
       ? "Preparing a question…"
       : kind === "suggested_response"
         ? "Preparing a suggested response…"
-        : kind === "display_markdown"
+        : kind === "display_content"
           ? "Loading content…"
           : "Preparing content…";
   return (
@@ -65,8 +65,11 @@ export function ActionCard({ action, onMcqAnswer, ttsConfig }: ActionCardProps) 
       );
     case "suggested_response":
       return <SuggestedResponseCard payload={action.payload} ttsConfig={ttsConfig} />;
+    case "display_content":
+    // Legacy kind, pre-rename — still present in historical chat_message_actions
+    // rows. Render with the same card until old rows age out.
     case "display_markdown":
-      return <DisplayMarkdownCard payload={action.payload} />;
+      return <DisplayContentCard payload={action.payload} />;
     default:
       return null;
   }

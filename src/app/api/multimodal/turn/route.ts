@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
         };
 
         let fullReply = "";
-        let endConversationReason: string | null = null;
+        let endConversationTriggered = false;
         let resolvedAction: ActionInput | null = null;
         let firstInvocationId: string | null = null;
         // Dual-transcript tracking: emit `user_transcript` SSE once the model resolves it.
@@ -509,6 +509,7 @@ export async function POST(request: NextRequest) {
               languageHelpAvailable && supportAvail
                 ? { languageLabel: localeLabel(supportAvail) }
                 : undefined,
+            primaryLanguageLabel: localeLabel(language),
             activityType: body.activityType,
             dualTranscript: dualTranscriptDescriptor,
           };
@@ -600,16 +601,10 @@ export async function POST(request: NextRequest) {
                   await pushSpeechDelta(delta);
                 }
 
-                if (partial.endConversation && !endConversationReason) {
-                  endConversationReason =
-                    partial.endConversation === "refusal"
-                      ? "refusal"
-                      : "thorough";
+                if (partial.endConversation && !endConversationTriggered) {
+                  endConversationTriggered = true;
                   deliveredToClient = true;
-                  enqueue({
-                    type: "end_conversation",
-                    reason: endConversationReason,
-                  });
+                  enqueue({ type: "end_conversation" });
                 }
               }
 
@@ -666,15 +661,9 @@ export async function POST(request: NextRequest) {
                   deliveredToClient = true;
                   await pushSpeechDelta(delta);
                 }
-                if (finalObject.endConversation && !endConversationReason) {
-                  endConversationReason =
-                    finalObject.endConversation === "refusal"
-                      ? "refusal"
-                      : "thorough";
-                  enqueue({
-                    type: "end_conversation",
-                    reason: endConversationReason,
-                  });
+                if (finalObject.endConversation && !endConversationTriggered) {
+                  endConversationTriggered = true;
+                  enqueue({ type: "end_conversation" });
                 }
                 if (finalObject.action) {
                   resolvedAction = finalObject.action as ActionInput;
@@ -888,7 +877,7 @@ export async function POST(request: NextRequest) {
                   {
                     sdkResponse: sdkResponse ?? {
                       text: fullReply,
-                      endConversationReason,
+                      endConversationTriggered,
                     },
                     usage,
                     finishReason,

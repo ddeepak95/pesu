@@ -1,13 +1,13 @@
 "use client";
 
 import MarkdownContent from "@/components/Shared/MarkdownContent";
-import type { DisplayMarkdownActionPayload } from "@/lib/multimodal/actions/types";
+import type { DisplayContentActionPayload } from "@/lib/multimodal/actions/types";
 
-interface DisplayMarkdownCardProps {
-  payload: DisplayMarkdownActionPayload;
+interface DisplayContentCardProps {
+  payload: DisplayContentActionPayload;
 }
 
-export function DisplayMarkdownCard({ payload }: DisplayMarkdownCardProps) {
+export function DisplayContentCard({ payload }: DisplayContentCardProps) {
   return (
     <div className="rounded-xl border border-border/60 bg-background/60 p-3">
       {payload.title ? (

@@ -34,9 +34,9 @@ function toMockDefinition(def: ActivityTypeDefinition): TemplateDefinition {
   return {
     systemPrompt: def.systemPrompt,
     conversationStart: { ...def.conversationStart },
-    // The former hooks only ever returned text — surface that text as data.
-    multimodalDirective: def.buildMultimodalDirective?.() ?? "",
-    endConditionInstruction: "",
+    actionDirective: def.actionDirective ?? "",
+    languageSupportDirective: def.languageSupportDirective ?? "",
+    endConditionInstruction: def.endConditionInstruction,
     evaluationPrompt: def.evaluationPrompt,
     evaluationSystemPersona: def.evaluationSystemPersona,
     labels: { ...DEFAULT_ACTIVITY_TYPE_LABELS, ...def.labels },
@@ -117,7 +117,8 @@ export function emptyDefinition(): TemplateDefinition {
   return {
     systemPrompt: "",
     conversationStart: { first_question: "", subsequent_questions: "" },
-    multimodalDirective: "",
+    actionDirective: "",
+    languageSupportDirective: "",
     endConditionInstruction: "",
     evaluationPrompt: "",
     evaluationSystemPersona: "",

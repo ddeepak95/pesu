@@ -4,8 +4,9 @@ import {
   Question,
   teacherPromptOrFocus,
 } from "@/types/assignment";
-import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
+import { resolveActivityTemplate } from "@/lib/activityTypes/templateResolver";
 import type { ActivityTypeDefinition, ActivityTypeKind } from "@/lib/activityTypes/types";
+import { SAFETY_DIRECTIVE } from "@/lib/ai/safetyDirective";
 
 /**
  * Supported variable placeholders for prompt templates.
@@ -146,7 +147,7 @@ export function buildDefaultSystemPrompt(
   activityType: ActivityType,
   interactionType: InteractionType,
 ): string {
-  const def = getActivityTypeDefinition(activityType);
+  const def = resolveActivityTemplate({ kind: activityType }).definition;
   return [
     def.systemPrompt,
     "",
@@ -162,7 +163,7 @@ export function buildDefaultSystemPrompt(
 export function buildDefaultConversationStart(
   activityType: ActivityType,
 ): { first_question: string; subsequent_questions: string } {
-  const { conversationStart } = getActivityTypeDefinition(activityType);
+  const { conversationStart } = resolveActivityTemplate({ kind: activityType }).definition;
   return {
     first_question: conversationStart.first_question,
     subsequent_questions: conversationStart.subsequent_questions,
@@ -175,7 +176,7 @@ export function buildDefaultConversationStart(
 export function buildDefaultEvaluationPrompt(
   activityType: ActivityType,
 ): string {
-  return getActivityTypeDefinition(activityType).evaluationPrompt;
+  return resolveActivityTemplate({ kind: activityType }).definition.evaluationPrompt;
 }
 
 /**
@@ -230,8 +231,7 @@ export const CHAT_SYSTEM_APPENDIX = `
 OUTPUT FORMAT:
 Your output is rendered as a plain text chat message. Do NOT use any special characters, markdown formatting, or code blocks. Keep responses concise and conversational.
 
-SAFETY:
-The users are students. Never output anything offensive, inappropriate, or sexual. Always maintain a supportive and age-appropriate tone.
+${SAFETY_DIRECTIVE}
 
 TOOL USAGE:
 You have access to an end_conversation tool. You MUST call it when:
@@ -247,8 +247,7 @@ When calling end_conversation, always include a polite ending message in {{langu
 export const VOICE_SYSTEM_APPENDIX = `
 The text you generate will be used for text to speech conversion, so don't include any special characters or formatting. Use colloquial language and be friendly. Keep your responses very short with no more than 10 words. More conversational turns are better than longer responses from your side. For bilingual conversations, use the English words directly in the dialogue when English terms are used in the conversation instead of putting them in brackets and write the English words using English alphabet.
 
-SAFETY:
-The users are students. Never output anything offensive, inappropriate, or sexual. Always maintain a supportive and age-appropriate tone.`;
+${SAFETY_DIRECTIVE}`;
 
 /**
  * Get the default bot prompt configuration.

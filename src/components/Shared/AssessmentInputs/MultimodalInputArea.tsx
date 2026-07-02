@@ -67,7 +67,7 @@ type ChatPhase =
 
 type MultimodalTurnEvent =
   | { type: "text-delta"; content: string }
-  | { type: "end_conversation"; reason: "thorough" | "refusal" }
+  | { type: "end_conversation" }
   | { type: "speech_start"; index?: number; sampleRate?: number }
   | { type: "speech_chunk"; index?: number; base64: string }
   | { type: "speech_end"; index?: number }

@@ -1,5 +1,5 @@
 /**
- * display_markdown action handler.
+ * display_content action handler.
  *
  * Pass-through: the orchestrator already provides the markdown content in the
  * ActionInput, so no secondary LLM call is needed. The handler persists the
@@ -7,19 +7,19 @@
  */
 
 import { insertChatMessageAction } from "@/lib/queries/chatMessageActions";
-import type { DisplayMarkdownActionPayload } from "./types";
+import type { DisplayContentActionPayload } from "./types";
 import type { DispatchActionArgs } from "./dispatcher";
 import type { ActionInput } from "./schema";
 
-type DisplayMarkdownAction = Extract<ActionInput, { kind: "display_markdown" }>;
+type DisplayContentAction = Extract<ActionInput, { kind: "display_content" }>;
 
-export async function handleDisplayMarkdownAction(
-  args: DispatchActionArgs & { action: DisplayMarkdownAction },
+export async function handleDisplayContentAction(
+  args: DispatchActionArgs & { action: DisplayContentAction },
 ): Promise<void> {
   const { id, action, enqueue, supabase, submissionId, chatMessageId } = args;
 
-  const payload: DisplayMarkdownActionPayload = {
-    kind: "display_markdown",
+  const payload: DisplayContentActionPayload = {
+    kind: "display_content",
     content: action.content,
     title: action.title,
   };
@@ -28,9 +28,9 @@ export async function handleDisplayMarkdownAction(
     id,
     chatMessageId,
     submissionId,
-    kind: "display_markdown",
+    kind: "display_content",
     payload,
   });
 
-  enqueue({ type: "action_payload", id, kind: "display_markdown", data: payload });
+  enqueue({ type: "action_payload", id, kind: "display_content", data: payload });
 }

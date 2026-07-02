@@ -21,6 +21,7 @@ import { LEARNING_DEFINITION } from "./learning";
 import { ASSESSMENT_DEFINITION } from "./assessment";
 import { SPEAKING_PRACTICE_DEFINITION } from "./speaking_practice";
 import { CODE_REVIEW_DEFINITION } from "./code-review";
+import { SAFETY_DIRECTIVE } from "@/lib/ai/safetyDirective";
 
 export const ACTIVITY_TYPE_REGISTRY: Record<
   ActivityTypeKind,
@@ -45,8 +46,7 @@ Rules:
 - Every text field is PLAIN TEXT. Do NOT use markdown, code blocks, asterisks, or other special formatting characters inside any text field.
 - Keep \`overall_feedback\` as a short plain-text summary of the same feedback (used as a fallback); the detailed structure lives in \`feedback_output\`.
 
-SAFETY:
-The users are students. All feedback must be age-appropriate, supportive, and respectful. Never include anything offensive, inappropriate, or sexual in your evaluation feedback.`;
+${SAFETY_DIRECTIVE}`;
 
 export function buildEvaluationSystemMessage(
   activityType: ActivityTypeKind = "learning",

@@ -10,11 +10,14 @@
  * is independent of the "how the turn streams" (schema + streamObject) layer.
  */
 
-import { buildActionsDirective } from "@/lib/multimodal/actions/registry";
+import { buildActionsDirective, getActionDefinition } from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
-import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
-import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
+import { resolveActivityTemplate } from "@/lib/activityTypes/templateResolver";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import { SAFETY_DIRECTIVE } from "./safetyDirective";
+
+/** Re-exported for backward compatibility with existing importers (e.g. the Platform Templates preview). */
+export { SAFETY_DIRECTIVE };
 
 /**
  * Shared by every TTS-bound text generator: write the conversation language in
@@ -41,63 +44,77 @@ export const SPEECH_FORMAT_DIRECTIVE =
   " Keep responses reasonably concise — a few sentences at a time, favoring " +
   "back-and-forth over long monologues.";
 
-/** Always-on safety guidance. */
-export const SAFETY_DIRECTIVE =
-  "SAFETY: The users are students. Never output anything offensive, " +
-  "inappropriate, or sexual. Always maintain a supportive, age-appropriate tone.";
-
 /**
- * When + how to end the conversation via the `endConversation` field. The
- * default (thorough completion / refusal) always applies; the teacher's custom
- * guidance, if any, only adds to it.
+ * When + how to end the conversation via the boolean `endConversation` field.
+ * The base rule always applies; an activity type's own `endConditionInstruction`
+ * (if set) layers on top under a single "When to end:" heading.
  */
-export function buildEndConversationDirective(config?: EndConversationConfig): string {
+export function buildEndConversationDirective(input: {
+  /** Activity-type-level guidance on when to end (`endConditionInstruction`). */
+  endConditionInstruction?: string;
+}): string {
   const base =
-    'End the conversation by setting `endConversation`: use "thorough" once the ' +
-    "learner has engaged with and reasonably covered the topic, and \"refusal\" if " +
-    "the learner is off-topic or refuses to engage. Otherwise keep it null. When " +
-    "you set it, make your `speech` a warm closing message.";
-  const custom = config?.customInstruction?.trim();
-  return custom
-    ? `${base} Additional guidance on when to wrap up: ${custom}`
-    : base;
+    "To end the conversation, set `endConversation` to true (false otherwise). When you " +
+    "set it to true, make your `speech` a warm closing message.";
+  const guidance = input.endConditionInstruction?.trim();
+  return guidance ? `${base}\n\nWhen to end: ${guidance}` : base;
 }
 
+/** Default "language support available" directive text, with a {{support_language}} placeholder. */
+const DEFAULT_LANGUAGE_SUPPORT_DIRECTIVE =
+  "LANGUAGE SUPPORT AVAILABLE: A {{support_language}} support channel is available for this learner. " +
+  "When — and only when — (a) the learner explicitly asks to hear something in {{support_language}}, " +
+  "requests a translation, or asks you to explain something in {{support_language}}, or (b) the learner " +
+  "speaks in {{support_language}} (rather than the primary language) seeking help or clarification: " +
+  "reply for that one turn directly in {{support_language}}, in its native script — no primary-language " +
+  "preamble. Keep technical and academic terms in their original language exactly as they " +
+  "appeared. If the learner asks a doubt or question in the primary language, answer it " +
+  "normally in the primary language. Resume the conversation in the primary language on the " +
+  "next turn.";
+
 /**
- * Language-support guidance. Returns null when no support language is configured
- * (or the activity type suppresses it). The single always-on directive lets the
- * model reply inline in the support language when the learner asks — TTS always
- * renders in the primary voice, so no separate turn or voice switch is needed.
+ * Language-support guidance. Returns null when no support language is configured.
+ * The single always-on directive lets the model reply inline in the support
+ * language when the learner asks — TTS always renders in the primary voice, so
+ * no separate turn or voice switch is needed. An activity type may fully
+ * replace this text via `languageSupportDirective` (e.g. Speaking Practice
+ * stays in character instead of translating). Supports both {{support_language}}
+ * and {{language}} placeholders (the primary conversation language).
  */
 export function buildLanguageSupportDirective(input: {
   languageHelpAvailable?: { languageLabel: string };
+  /** Primary conversation language label, substituted for {{language}}. */
+  primaryLanguageLabel?: string;
   activityType?: ActivityTypeKind;
 }): string | null {
   if (!input.languageHelpAvailable) return null;
 
   const label = input.languageHelpAvailable.languageLabel;
+  const template =
+    (input.activityType &&
+      resolveActivityTemplate({ kind: input.activityType }).definition
+        .languageSupportDirective) ||
+    DEFAULT_LANGUAGE_SUPPORT_DIRECTIVE;
 
-  // Activity-type override (e.g. speaking practice stays in character and
-  // continues the role-play in the support language when the learner asks).
-  if (input.activityType) {
-    const override = getActivityTypeDefinition(
-      input.activityType,
-    ).buildLanguageSupportDirective?.({ languageLabel: label });
-    if (override === null) return null; // activity type suppresses help entirely
-    if (override !== undefined) return override;
-  }
+  return template
+    .replaceAll("{{support_language}}", label)
+    .replaceAll("{{language}}", input.primaryLanguageLabel ?? "{{language}}");
+}
 
-  return (
-    `LANGUAGE SUPPORT AVAILABLE: A ${label} support channel is available for this learner. ` +
-    `When — and only when — (a) the learner explicitly asks to hear something in ${label}, ` +
-    `requests a translation, or asks you to explain something in ${label}, or (b) the learner ` +
-    `speaks in ${label} (rather than the primary language) seeking help or clarification: ` +
-    `reply for that one turn directly in ${label}, in its native script — no primary-language ` +
-    `preamble. Keep technical and academic terms in their original language exactly as they ` +
-    `appeared. If the learner asks a doubt or question in the primary language, answer it ` +
-    `normally in the primary language. Resume the conversation in the primary language on the ` +
-    `next turn.`
-  );
+/**
+ * Resolves {{action:kind}} placeholders in directive text against the action
+ * registry's live display label, so template authors don't have to hardcode a
+ * raw action kind name that could drift if the action is ever relabeled.
+ * Unresolvable kinds are left as-is (visible) rather than silently dropped.
+ */
+function substituteActionReferences(text: string): string {
+  return text.replace(/\{\{action:([a-zA-Z0-9_]+)\}\}/g, (match, kind) => {
+    try {
+      return getActionDefinition(kind as ActionKind).label;
+    } catch {
+      return match;
+    }
+  });
 }
 
 /**
@@ -106,12 +123,13 @@ export function buildLanguageSupportDirective(input: {
  */
 export function buildMultimodalDirectives(input: {
   availableActions: ActionKind[];
-  endConversation?: EndConversationConfig;
   /**
    * A support language is configured for this learner. Lets the model reply
    * inline in `languageLabel` when the learner asks for help.
    */
   languageHelpAvailable?: { languageLabel: string };
+  /** Primary conversation language label, for the language-support directive's {{language}} placeholder. */
+  primaryLanguageLabel?: string;
   /** Activity type — may contribute an extra directive (e.g. speaking practice). */
   activityType?: ActivityTypeKind;
   /**
@@ -126,18 +144,24 @@ export function buildMultimodalDirectives(input: {
     SPEECH_FORMAT_DIRECTIVE,
     SAFETY_DIRECTIVE,
     buildActionsDirective(input.availableActions),
-    buildEndConversationDirective(input.endConversation),
+    buildEndConversationDirective({
+      endConditionInstruction: input.activityType
+        ? resolveActivityTemplate({ kind: input.activityType }).definition
+            .endConditionInstruction
+        : undefined,
+    }),
   ];
 
   if (input.activityType) {
-    const activityDirective = getActivityTypeDefinition(
-      input.activityType,
-    ).buildMultimodalDirective?.();
-    if (activityDirective) lines.push(activityDirective);
+    const actionDirective = resolveActivityTemplate({
+      kind: input.activityType,
+    }).definition.actionDirective;
+    if (actionDirective) lines.push(substituteActionReferences(actionDirective));
   }
 
   const languageDirective = buildLanguageSupportDirective({
     languageHelpAvailable: input.languageHelpAvailable,
+    primaryLanguageLabel: input.primaryLanguageLabel,
     activityType: input.activityType,
   });
   if (languageDirective) lines.push(languageDirective);

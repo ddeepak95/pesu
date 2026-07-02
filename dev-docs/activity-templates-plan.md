@@ -41,7 +41,7 @@ The codebase already has the two patterns we need.
 | Prompt seeding | `buildDefault{SystemPrompt,ConversationStart,EvaluationPrompt}` read the registry | `src/lib/promptTemplates.ts` |
 | Labels (view) | `getActivityTypeLabels(kind)` re-resolved at render | QuestionCard / `Shared/QuestionView.tsx` |
 | Generation copy | `getActivityTypeGenerationCopy(kind)` | `api/generate-rubric-and-answer/route.ts` |
-| Server directives | `buildMultimodalDirective` / `buildLanguageSupportDirective` hooks | `src/lib/ai/multimodal-directives.ts` |
+| Server directives | ~~`buildMultimodalDirective` / `buildLanguageSupportDirective` hooks~~ — converted to plain `actionDirective` / `languageSupportDirective` data fields in Phase 0 | `src/lib/ai/multimodal-directives.ts` |
 | Persisted on assignment | `activity_type` (text), plus **snapshotted** `bot_prompt_config`, `evaluation_prompt`, `feedback_focus` | `src/types/assignment.ts` |
 
 **Crucial existing behavior — assignments already snapshot prompts.**
@@ -57,10 +57,11 @@ That snapshot is the key to a low-risk migration and is the basis for the whole 
 
 ### The two server "directives" are just text
 
-`buildMultimodalDirective()` and `buildLanguageSupportDirective()` look like code but only ever
-return **strings** appended to the system prompt. The plan converts them into ordinary,
-editable **template prompt fields** — removing the last non-serializable part of a definition,
-so a template is fully self-describing data (§6.3).
+`buildMultimodalDirective()` and `buildLanguageSupportDirective()` looked like code but only
+ever returned **strings** appended to the system prompt. **Converted in Phase 0** into ordinary,
+editable **template prompt fields** (`actionDirective`, `languageSupportDirective`) —
+removing the last non-serializable part of a definition, so a template is fully self-describing
+data (§6.3).
 
 ---
 
@@ -135,7 +136,7 @@ so a template is fully self-describing data (§6.3).
 
 7. **Directives are data, not code.** The former directive *functions* only produced text, so
    that text moves into the template `definition` as editable prompt fields (optional
-   `multimodalDirective` and `endConditionInstruction`, plus inline `{{#if support_language}}`
+   `actionDirective` and `endConditionInstruction`, plus inline `{{#if support_language}}`
    behavior). No `behavior_key` and no per-type code registry — templates are fully
    self-describing and authors edit this behavior directly (§6.3). The runtime
    `endConversation` schema field stays as the dumb, reliable *signal*; the template field only
@@ -162,7 +163,7 @@ CREATE TABLE public.activity_templates (
   name            text NOT NULL,              -- gallery / dropdown label
   description     text,                       -- gallery blurb
   -- The serialized ActivityTypeDefinition (zod-validated on write), INCLUDING directives as data:
-  --   definition.multimodalDirective?      — extra system-prompt text in multimodal mode
+  --   definition.actionDirective?      — extra system-prompt text in multimodal mode
   --   definition.endConditionInstruction?  — when to end the conversation (drives endConversation field)
   --   language-support behavior            — inline via {{#if support_language}} in the prompt
   definition      jsonb NOT NULL,
@@ -293,7 +294,7 @@ settings resolver).
 | `buildDefault*Prompt` | registry | takes a `ResolvedTemplate` instead of a `kind` |
 | Question Card / preview labels | `getActivityTypeLabels(kind)` | assignment's `activity_definition_snapshot.labels` (→ registry fallback for legacy rows) |
 | Generation copy (editor) | `getActivityTypeGenerationCopy(kind)` | resolved template's `generation` block |
-| Server multimodal directives (runtime) | registry hooks by kind | generic composition reads `multimodalDirective` (+ `{{#if support_language}}`) from the snapshot |
+| Server multimodal directives (runtime) | ~~registry hooks by kind~~ (Phase 0: plain fields, still read live by `kind` via the resolver) | generic composition reads `actionDirective` / `languageSupportDirective` from the snapshot |
 
 The resolver runs only at **seed/pull time** (creating an assignment or "Update from
 template"). At **runtime and view time, reads come from the assignment's snapshot**, never the
@@ -301,29 +302,46 @@ template — that's what makes deletion/edit of a template harmless.
 
 ### 6.3 Directives are template data (no code hooks)
 
+**Implemented in Phase 0** (`src/lib/activityTypes/types.ts`, `src/lib/ai/multimodal-directives.ts`).
 The two former hooks (`buildMultimodalDirective`, `buildLanguageSupportDirective`) only ever
-produced **text** appended to the system prompt, so that text moves into the template
+produced **text** appended to the system prompt, so that text moved into the template
 `definition` as ordinary, editable prompt fields:
 
-- `definition.multimodalDirective?` — extra guidance applied only in multimodal mode (e.g.
-  speaking practice's "stay in character, let the student talk"). Interpolated with the
-  standard `{{variable}}` engine.
-- `definition.endConditionInstruction?` — *when* to end the conversation. Replaces today's
-  hardcoded end-conversation base directive; the teacher's per-assignment
-  `endConversationConfig.customInstruction` still layers on top. Drives the runtime
-  `endConversation` schema field (the signal) — which stays code-side and is never a tool.
-- **Language-support behavior** is written inline in the prompt via the existing
-  `{{#if support_language}}…{{/if}}` conditional (as the Learning template already does) — no
-  separate hook. A template wanting role-play-style help just writes that text.
+- `definition.actionDirective?` — extra guidance applied only in multimodal mode (e.g.
+  speaking practice's "stay in character, let the student talk"). May reference an enabled
+  action's live label via a `{{action:kind}}` placeholder, resolved against the action registry.
+- `definition.endConditionInstruction?` — *when* to end the conversation, two layers only:
+  a fixed base rule (`endConversation` is now a plain **boolean** field, not a
+  `"thorough"|"refusal"` enum) plus the activity type's own guidance under a single
+  "When to end:" heading. The per-assignment `EndConversationConfig.customInstruction` layer
+  was **dropped** from this directive's composition in Phase 0 (kept as a currently-unused
+  type/UI, not removed outright) — see the note on assignments-as-pure-snapshots below.
+- `definition.languageSupportDirective?` — **not** inline `{{#if support_language}}` text as
+  originally sketched here. Implemented instead as a dedicated optional field with
+  **full-replace** semantics (may contain a `{{support_language}}` placeholder, substituted by
+  the composer): when unset, the generic default directive is used; when set, it entirely
+  replaces the default rather than being appended alongside it. This is a more direct, lower-risk
+  translation of the hook's actual (full-replace) behavior — it also avoids moving a type's
+  guidance to a different position in the composed prompt. Still "data, not code," satisfying
+  the underlying goal of this section even though the mechanism differs from what was first
+  proposed.
 
 The runtime composition (`multimodal-directives.ts`) stays **generic**: it assembles teacher
 system prompt + interaction modifier + (multimodal: action/end-conversation scaffolding +
-`multimodalDirective`) + appendices, reading the fields from the resolved/snapshotted
+`actionDirective`) + appendices, reading the fields from the resolved/snapshotted
 definition. There is **no `behavior_key` and no per-type code** — an author edits this behavior
 directly in the template.
 
 > Genuinely *behavioral* changes (new tool wiring, action sets) would still be a code change,
 > but none of the current activity types need that — the directives were always just text.
+
+> **Note on assignment-level customization (raised, not resolved, in Phase 0):** dropping
+> `EndConversationConfig.customInstruction` from the end-condition directive raised a broader
+> question — should assignments allow *any* independent per-assignment prompt editing at all,
+> or become pure template snapshots with only an explicit "pull updates from template" action?
+> That's a real, bigger direction (it would touch the assignment data model and the
+> `AssignmentForm`/`MoreOptionsAIBot` editing UI, not just prompt-composition code) and is
+> **out of scope** for Phase 0 — flagged here for a future planning pass, not decided.
 
 ### 6.4 Seeding & maintaining system templates
 
@@ -597,9 +615,24 @@ resolver (which re-validates and falls back).
 
 ## 11. Migration & rollout
 
-**Phase 0 — Resolver refactor (no behavior change).** Introduce `ResolvedTemplate`; route
-registry reads through `resolveActivityTemplate` (wrapping the registry); start writing
-`activity_definition_snapshot` on new assignments. Nothing user-visible changes.
+**Phase 0 — Resolver refactor (no behavior change). ✅ Implemented.** Introduced
+`ResolvedTemplate` + `resolveActivityTemplate` (`src/lib/activityTypes/templateResolver.ts`),
+routing the prompt-composition call sites (`buildDefault*Prompt` in `promptTemplates.ts`, the
+`actionDirective`/`languageSupportDirective`/`endConditionInstruction` lookups in
+`multimodal-directives.ts`) through it — synchronous, kind-only, wrapping the registry (no DB
+yet). Also landed the directive-consolidation groundwork bundled into this phase: one canonical
+`SAFETY_DIRECTIVE` (`src/lib/ai/safetyDirective.ts`) shared by the multimodal turn, legacy
+chat/voice appendices, and evaluation footer (previously 3 independently-drifted copies); the
+`buildMultimodalDirective`/`buildLanguageSupportDirective` hooks replaced by plain
+`actionDirective`/`languageSupportDirective` data fields (§6.3); `endConditionInstruction`
+added as a real field with boolean `endConversation` schema (was
+`"thorough"|"refusal"` enum) and two-layer directive composition (base → activity-type only —
+the per-assignment `EndConversationConfig.customInstruction` layer was dropped from this one
+directive, see §6.3's note). Confirmed-dead `konvo-voice/prompt.ts`/`promptAppendix.ts`
+deleted. **Deferred to Phase 1** (requires a schema migration, out of this phase's "no DB"
+scope): `activity_definition_snapshot`/`activity_template_id`/`template_synced_at` columns and
+their write path — existing snapshot fields (`bot_prompt_config`, `evaluation_prompt`,
+`feedback_focus`) already covered Phase 0's needs.
 
 **Phase 1 — Tables + seed + read path.** Create `activity_templates` +
 `template_scope_enablement`; seed the 4 system templates; resolver prefers DB (registry
@@ -635,8 +668,10 @@ action.
   confirm, replaces current copy) + credit; re-share via **Publish as new template**. (§7.4)
 - *Pull-conflict UX?* **Confirm-then-overwrite** — "Update to the latest? This replaces your
   copy." No diff/merge UI. (§7.4)
-- *Behavior hooks?* **Removed.** Directives are editable template **data** (`multimodalDirective`
-  field + inline `{{#if support_language}}`); no `behavior_key`, no per-type code. (§6.3)
+- *Behavior hooks?* **Removed (Phase 0, implemented).** Directives are editable template
+  **data**: `actionDirective` (additive) and `languageSupportDirective` (full-replace,
+  not inline `{{#if support_language}}` text as originally sketched — see §6.3 for why); no
+  `behavior_key`, no per-type code. (§6.3)
 - *Editing system/built-in prompts?* **Platform super admins get full add/edit/delete** via the
   same gallery/editor as everyone else; the registry is bootstrap seed + legacy fallback. (§6.4)
 - *Class availability?* A curated **palette**: system on by default, institution per curation,
@@ -671,7 +706,7 @@ action.
 
 ## 14. Checklist (per phase)
 
-- [ ] Phase 0: `ResolvedTemplate` + resolver wrapping registry; write `activity_definition_snapshot`; tsc/eslint clean; parity verified.
+- [x] Phase 0: `ResolvedTemplate` + resolver wrapping registry; directive consolidation (canonical `SAFETY_DIRECTIVE`, hooks → data fields, boolean `endConversation` + `endConditionInstruction`); tsc/eslint clean. (`activity_definition_snapshot` write path deferred to Phase 1 — requires a migration.)
 - [ ] Phase 1: tables (`activity_templates` + enablement) + RLS; seed 4 system templates; resolver prefers DB; builder snapshots template + records `activity_template_id`.
 - [ ] Phase 2: My Templates; create/edit/archive; flat clone + upstream pull + publish-as-new; class "Activity Types" (Available to select + Class Templates + Add from my library); class-owned create-in-context; "Update from template".
 - [ ] Phase 3: Institution Templates library + enablement + `allow_child_override`; `visibility='institution'`; `default_template_inclusion`.
@@ -687,17 +722,20 @@ owns. Everything else that reaches the model is **runtime scaffolding** (Appendi
 **assignment form** edits the per-assignment *snapshot* (and can override `system_prompt` /
 `conversation_start` / `evaluation_prompt` for that one assignment).
 
+> **Resolved:** kept a single `systemPrompt` field, matching the real `ActivityTypeDefinition`
+> and the shipped Platform > Templates mockup — the `persona`/`taskInstructions` split
+> originally sketched below was not carried forward.
+
 | Editor section | Field (`definition.*` unless noted) | Drives | Interpolation vars available |
 |---|---|---|---|
 | **Identity & defaults** | `name`, `description` (meta); `visibility`, owner (meta) | gallery label/blurb, sharing | — |
 | | `defaults.interactionType` | preselected Interaction Type (if class allows) | — |
 | | `defaults.display.useStarDisplay`, `defaults.fileSubmission.required` | star display + file-submission presets | — |
-| **Conversation prompt** | `persona` | system-prompt persona fragment | `{{title}}`, `{{instructions}}`, `{{context_for_ai}}`, `{{language}}`, `{{support_language}}` |
-| | `taskInstructions` | system-prompt task fragment | `{{question_prompt}}`, `{{rubric}}`, `{{expected_answer}}`, `{{file_submissions}}` |
-| | `conversationStart.first_question` / `subsequent_questions` | per-question greeting | `{{language}}`, `{{support_language}}` |
-| | `multimodalDirective` (optional) | extra system-prompt text appended **only** in multimodal mode | standard vars |
-| | `endConditionInstruction` (optional) | **when** the model should end the conversation — drives the runtime `endConversation` field; teacher's per-assignment "wrap up" guidance layers on top | standard vars |
-| | language-support behavior | inline in persona/task via `{{#if support_language}}…{{/if}}` | `{{support_language}}` |
+| **Conversation prompt** | `systemPrompt` | the full system prompt — who the AI is and what it should do | `{{title}}`, `{{instructions}}`, `{{context_for_ai}}`, `{{language}}`, `{{support_language}}`, `{{question_prompt}}`, `{{rubric}}`, `{{expected_answer}}`, `{{file_submissions}}` |
+| | `conversationStart.first_question` / `subsequent_questions` | per-question greeting | same as `systemPrompt` (confirmed: greetings get the identical runtime interpolation context) |
+| | `actionDirective` (optional) | extra system-prompt text appended **only** in multimodal mode | standard vars + `{{action:kind}}` (resolves to an enabled action's live label) |
+| | `endConditionInstruction` (optional) | **when** the model should end the conversation — layers under a "When to end:" heading onto the fixed base rule. `endConversation` is a plain **boolean** schema field (not `"thorough"\|"refusal"`). Two layers only (base → activity-type); the per-assignment `EndConversationConfig.customInstruction` layer was dropped in Phase 0 (§6.3) | standard vars |
+| | `languageSupportDirective` (optional) | **full-replace** override of the default "language support available" directive (not inline `{{#if support_language}}` text — see §6.3) | `{{support_language}}` |
 | **Evaluation** | `evaluationPrompt` | grading **user** message (→ `custom_evaluation_prompt`) | all static vars + `{{answer_text}}` |
 | | `evaluationSystemPersona` | grading **system** persona (before the shared footer) | — (plain text) |
 | **Question Card labels** | `labels.{question,questionPlaceholder,rubric,rubricItemPlaceholder,rubricItemNoun,expectedAnswer,expectedAnswerPlaceholder,expectedAnswerHelp,questionNoun}` | relabels the teacher's Question Card + read-only preview | — |
@@ -735,19 +773,23 @@ How the template's fields actually reach the model. **Editable** = from the temp
 ### B.1 Conversation turn — multimodal (two AI calls)
 
 1. **Build (editable → snapshot)** — `buildDefaultBotPromptConfig(activityType, interactionType)`
-   assembles `system_prompt = persona + taskInstructions + COMMON_INSTRUCTIONS +
+   assembles `system_prompt = systemPrompt + COMMON_INSTRUCTIONS +
    INTERACTION_MODIFIERS[interactionType]` and `conversation_start`. Snapshotted onto the
    assignment; teacher may further edit.
 2. **Interpolate (client)** — `useInterpolatedPrompts` fills `{{…}}` → concrete `system_prompt`
    + `greeting`; POST to `/api/multimodal/turn` with `messages`, `availableActions`,
-   `endConversationConfig`, `activityType`, `supportLanguageAvailable`, `ttsModelId`, …
+   `activityType`, `supportLanguageAvailable`, `ttsModelId`, …
 3. **Compose (server, scaffolding)** — `resolveMultimodalTurnCall` →
    `system = system_prompt + buildMultimodalDirectives(…)`, then (first turn only)
    `+ "[Instructions for your first response]: {greeting}"`. The directive block (in order):
-   `[Multimodal turn instructions]` · `SPEECH_FORMAT_DIRECTIVE` · `SAFETY_DIRECTIVE` ·
+   `[Multimodal turn instructions]` · `SPEECH_FORMAT_DIRECTIVE` · canonical `SAFETY_DIRECTIVE`
+   (shared with the legacy chat/voice appendices and the evaluation footer) ·
    **actions directive** (per enabled action, or "set action to null") · **end-conversation
-   directive** (template **`endConditionInstruction`** + teacher `customInstruction`) · template
-   **`multimodalDirective`** · **language-support directive** (if a support language is set) ·
+   directive** (fixed base + template **`endConditionInstruction`** under a "When to end:"
+   heading — two layers only, no per-assignment layer) · template **`actionDirective`**
+   (may reference an enabled action's label via `{{action:kind}}`) · **language-support
+   directive** (if a support language is set — the template's own `languageSupportDirective`
+   fully replaces the generic default when set, rather than being appended alongside it) ·
    dual-transcript (if applicable).
 4. **Call 1 — `streamObject`** with schema
    `{ userTranscript?, speech, action, endConversation }`:
@@ -755,7 +797,9 @@ How the template's fields actually reach the model. **Editable** = from the temp
    - `action` = **nullable discriminated union of the enabled actions' input schemas**
      (`mcq` / `suggested_response` / `display_markdown`); forced to `null` when none enabled, so
      the model can't invent one. **This is the "tool request."**
-   - `endConversation` (`"thorough" | "refusal" | null`) — replaces the old end-conversation tool.
+   - `endConversation` (**boolean** — Phase 0 dropped the `"thorough"|"refusal"` enum since
+     nothing downstream branched on the distinction; the closing message itself lives in
+     `speech`) — replaces the old end-conversation tool.
 5. **Call 2 — action payload (only if `action != null`)** — `dispatchAction` resolves the
    action's *own* model (its `appFunctionKey`, e.g. `text.mcq_generation`) and generates the
    payload (e.g. MCQ `question/choices/correctIndex/explanation`), streamed as
@@ -777,10 +821,11 @@ schema (rich actions are multimodal-only).
 > multimodal path (B.1) already replaced it with the `endConversation` schema field — strictly
 > better for conversation (a tool call pauses generation mid-speech; a field resolves inline).
 > So the template model needs **no "tool" concept**: `endConversation` is runtime scaffolding,
-> and the one template/teacher knob is the optional "when to wrap up" text
-> (`endConversationConfig.customInstruction`) appended to the base directive. Fully deleting the
-> legacy tool would require migrating the retired modes to `streamObject` — not worth it while
-> they're retired.
+> and the one template knob is the optional "when to end" text (`endConditionInstruction`)
+> layered onto the base directive (Phase 0 — see §6.3 for why the per-assignment
+> `endConversationConfig.customInstruction` layer was dropped from this composition). Fully
+> deleting the legacy tool would require migrating the retired modes to `streamObject` — not
+> worth it while they're retired.
 
 ### B.3 Evaluation (grading) — one structured call
 
@@ -792,9 +837,10 @@ schema (rich actions are multimodal-only).
   feedback_doc }`; `feedback_doc` is zod-validated with a bounded corrective-regeneration loop.
   No tools.
 
-**Editable vs scaffolding, at a glance:** the template owns `persona` / `taskInstructions` /
-`conversationStart` / `multimodalDirective` / `evaluationPrompt` / `evaluationSystemPersona`
-(+ labels, feedback-focus, generation copy, action preselection). The system always adds
+**Editable vs scaffolding, at a glance:** the template owns `systemPrompt` /
+`conversationStart` / `actionDirective` / `languageSupportDirective` /
+`endConditionInstruction` / `evaluationPrompt` / `evaluationSystemPersona` (+ labels,
+feedback-focus, generation copy, action preselection). The system always adds
 `COMMON_INSTRUCTIONS`, `INTERACTION_MODIFIERS`, the speech/safety/action/end-conversation
 directives, the appendices, the turn/evaluation **schemas**, and the second action-generation
 call — none of which appear in the editor.

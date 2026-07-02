@@ -3,7 +3,7 @@
  *
  * Mirrors the serialized `ActivityTypeDefinition` shape from the plan
  * (dev-docs/activity-templates-plan.md, Appendix A) — directives are data
- * fields (`multimodalDirective`, `endConditionInstruction`) and the action↔type
+ * fields (`actionDirective`, `endConditionInstruction`) and the action↔type
  * coupling is inverted onto the template (`bulbAction`). Used only to
  * demonstrate the editor surface; nothing here is persisted.
  */
@@ -27,8 +27,14 @@ export interface TemplateDefinition {
     first_question: string;
     subsequent_questions: string;
   };
-  /** Extra system-prompt text appended only in multimodal mode. */
-  multimodalDirective: string;
+  /** Action-usage guidance — how/when to use this type's enabled actions. */
+  actionDirective: string;
+  /**
+   * Overrides the default "language support available" directive (e.g.
+   * speaking practice stays in character and continues the role-play in the
+   * support language instead of translating). Blank = use the system default.
+   */
+  languageSupportDirective: string;
   /** When the model should end the conversation (drives the endConversation field). */
   endConditionInstruction: string;
 

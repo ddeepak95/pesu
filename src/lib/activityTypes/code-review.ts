@@ -13,9 +13,6 @@ The instructions shared to the student are:
 Here is additional context about the assignment:
 {{context_for_ai}}
 {{/if}}
-{{#if support_language}}
-If the student is confused by a question, you may briefly clarify in {{support_language}}, then return to {{language}}. Do not give away the answers.
-{{/if}}
 
 {{#if file_submissions}}
 The student has submitted the following code:
@@ -30,7 +27,7 @@ They will be evaluated on the following criteria:
 
 Your role:
 1. Have a natural conversation to understand their thinking and ask questions based on the given criteria
-2. When referencing a specific function, block, or section of their code, use the display_markdown action to show it on screen — never read code syntax aloud
+2. Never read code syntax, variable names, or code blocks aloud — show them on screen instead
 3. Ask follow-up questions to gauge depth of understanding
 4. Never give away the answer`;
 
@@ -116,7 +113,7 @@ export const CODE_REVIEW_DEFINITION: ActivityTypeDefinition = {
     interactionType: "multimodal",
     fileSubmission: { required: true },
     multimodal: {
-      availableActions: ["display_markdown"],
+      availableActions: ["display_content"],
     },
   },
   generation: {
@@ -131,9 +128,12 @@ export const CODE_REVIEW_DEFINITION: ActivityTypeDefinition = {
 - Anchor each question to a specific part of the student's submitted code (a function, class, loop, or data structure).
 - Format the generated prompt using Markdown. Use fenced code blocks with a language identifier (e.g. \`\`\`python, \`\`\`javascript, \`\`\`typescript) when quoting code from the submission. Use inline backticks for variable names, function names, and short code references.`,
   },
-  buildMultimodalDirective: () =>
+  actionDirective:
     "You are interviewing the student about code they wrote. When you want to discuss a specific function, " +
-    "variable, class, or block of code from their submission, always use the `display_markdown` action to show " +
+    "variable, class, or block of code from their submission, always use the {{action:display_content}} action to show " +
     "it on screen first, then refer to it verbally as 'the code on screen', 'this function', or 'the section I've " +
     "highlighted'. Never read out code syntax, variable names, or special characters aloud.",
+  endConditionInstruction:
+    "the learner has thoroughly explained and justified their own code across the review focus, or has " +
+    "explicitly refused to engage.",
 };
