@@ -16,7 +16,7 @@ import type {
 import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 
 export type OwnerScope = "user" | "class" | "institution" | "system";
-export type Visibility = "private" | "institution" | "public";
+export type Visibility = "private" | "public";
 export type TemplateStatus = "active" | "archived";
 
 export interface TemplateDefinition {

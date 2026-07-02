@@ -443,7 +443,7 @@ export function TemplateEditor({
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
                 <Label>Visibility</Label>
-                <InfoTooltip text="Private: only its owner sees it. Institution: shared with the owner's institution. Public: listed in the community gallery for any teacher to use." />
+                <InfoTooltip text="Private: only its owner sees it. Public: any teacher can open its shared link and clone it (no browsable gallery)." />
               </div>
               <Select
                 value={draft.visibility}
@@ -454,8 +454,7 @@ export function TemplateEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="private">Private</SelectItem>
-                  <SelectItem value="institution">Institution</SelectItem>
-                  <SelectItem value="public">Public (community)</SelectItem>
+                  <SelectItem value="public">Public (shared link)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

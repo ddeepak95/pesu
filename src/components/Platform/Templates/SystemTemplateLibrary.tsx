@@ -27,8 +27,6 @@ import type { MockTemplate, Visibility } from "./types";
 
 const VISIBILITY_STYLE: Record<Visibility, string> = {
   private: "border-muted-foreground/30 bg-muted text-muted-foreground",
-  institution:
-    "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400",
   public:
     "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
 };

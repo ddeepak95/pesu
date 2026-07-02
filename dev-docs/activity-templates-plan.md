@@ -80,23 +80,38 @@ data (§6.3).
 - A visual prompt builder / WYSIWYG. Templates are authored as prompt text + labels.
 - Full version history / branching. Cloning is **flat** (single level); audit history is an
   optional later add-on (§7.9).
-- Changing the multimodal action registry (`adding-multimodal-actions.md`) — actions stay
-  code-defined; a template *references* action kinds by id.
-- Heavy moderation tooling for public templates (report queues, review). Public sharing itself
-  is **in scope and first-class** (§7.5); moderation tooling can come later.
+- Changing the multimodal action **kinds** (`adding-multimodal-actions.md`) — schemas, handlers,
+  and per-action directives stay code-defined; a template *references* action kinds by id. (The
+  *type-attachment wiring* — which actions auto-enable / drive the bulb button — **does** move
+  onto the template; see the action↔type inversion in Appendix A.)
+- A public **community gallery / browse surface** + moderation tooling (report queues, takedown).
+  Public sharing itself **is in scope**: an author can set `visibility='public'` and **any teacher
+  can clone it** — but discovery is via a **shared link** (the template's id / detail page), not a
+  platform-wide browsable gallery. No `institution` visibility tier.
+- **Per-class curation / institution allow-lists** (the enablement table, precedence,
+  `allow_child_override`, `default_template_inclusion`) — **deferred to Phase 3**. Phase 2 uses a
+  simple, uncurated class palette (§8).
+- **Independent per-assignment prompt editing.** Assignments become **pure template snapshots**
+  (edit the template, then pull) — the free-form per-assignment prompt overrides are removed (§6.3, §7.6).
 
 ---
 
 ## 4. Design decisions
 
-1. **Template = serialized `ActivityTypeDefinition` + metadata.** One table,
-   `activity_templates`, with a `definition jsonb` (the existing shape: persona,
-   taskInstructions, conversationStart, evaluationPrompt, evaluationSystemPersona, labels,
-   defaultFeedbackFocusAreas, defaults, generation) plus ownership / sharing / lineage columns.
+1. **Template = serialized-definition variant + metadata.** One table, `activity_templates`,
+   with a `definition jsonb` plus ownership / sharing / lineage columns. `definition` is
+   **modeled on `ActivityTypeDefinition` but is not identical to it** — it is a **new zod schema**,
+   not `z.infer` of the existing TS type: `name`/`description`/`visibility`/owner are **columns**
+   (not in `definition`); `kind`/`label` are **dropped** (a template's identity is its row `id`,
+   not a closed `kind`); and the action↔type wiring (`autoActions`/`bulbAction`) is **added**
+   (Appendix A). The shipped `/platform/templates` mockup (`src/components/Platform/Templates/types.ts`)
+   already reflects this variant. It carries: systemPrompt, conversationStart, evaluationPrompt,
+   evaluationSystemPersona, labels, defaultFeedbackFocusAreas, defaults, generation, and the
+   directive fields (`actionDirective`, `endConditionInstruction`, `languageSupportDirective`).
 
 2. **Registry = bootstrap seed + legacy fallback; the DB is the source of truth.** A resolver
-   (`resolveActivityTemplate`) returns a DB template when present, else the built-in registry
-   entry by `kind`/`slug`. The 4 built-ins are seeded as `owner_scope='system'` rows and
+   (`resolveActivityTemplate`) returns a DB template when present (by `id`), else the built-in
+   registry entry by `kind`. The 4 built-ins are seeded as `owner_scope='system'` rows and
    **managed thereafter by platform super admins through the same gallery/editor** every other
    library uses (add / edit / delete) — for full consistency. The registry remains only as the
    one-time seed and as the fallback for legacy `activity_type`-only assignments, so the app
@@ -109,6 +124,13 @@ data (§6.3).
    **hard-deleted has zero effect** on existing assignments. `activity_template_id` is a
    **nullable provenance link (`ON DELETE SET NULL`)**, not a runtime dependency. Propagation
    is opt-in via an explicit **"Update from template"** pull (§7.6).
+
+   **The snapshot is the _only_ per-assignment prompt state — no independent editing (resolved).**
+   Assignments are **pure snapshots**: the only way to change an assignment's prompts is to edit
+   the source template and **pull**. The free-form per-assignment prompt overrides
+   (`AssignmentForm` / `MoreOptionsAIBot`) are **removed** (Phase 2). This gives one editing
+   surface (the template) and one propagation verb (pull), eliminating the confusing middle
+   ground where an assignment could both diverge locally *and* claim a template lineage (§6.3).
 
 4. **Two orthogonal axes — never conflate them.** This is the backbone of the whole design:
    - **Ownership** = *who may edit* a template. Set by the **library it lives in** (§5).
@@ -142,10 +164,14 @@ data (§6.3).
    `endConversation` schema field stays as the dumb, reliable *signal*; the template field only
    drives *when* it fires (the policy).
 
-8. **Curation reuses the settings hierarchy, as an enablement catalog.** Templates are an open
-   set, so instead of a fixed `string_array` setting we use an **enablement table**
-   (`template_scope_enablement`) with institution → class precedence. System templates are
-   **on by default**; personal/cloned ones require an explicit add (§8).
+8. **Curation reuses the settings hierarchy, as an enablement catalog — but is Phase 3.**
+   Templates are an open set, so instead of a fixed `string_array` setting we use an **enablement
+   table** (`template_scope_enablement`) with institution → class precedence. System templates are
+   **on by default**; personal/cloned ones require an explicit add (§8). **This whole layer
+   (enablement table, precedence, `allow_child_override`, `default_template_inclusion`) lands in
+   Phase 3.** Phase 2 ships a **simple uncurated palette** — system (on) + class-owned (auto) +
+   personal-you-added — with no precedence machinery, so the core clone/edit/snapshot loop can be
+   validated before the curation model is built.
 
 ---
 
@@ -158,27 +184,32 @@ The template is **identity + ownership + lineage + the current definition**. Edi
 
 ```sql
 CREATE TABLE public.activity_templates (
+  -- No slug. System rows are seeded with fixed, well-known UUIDs (§6.4); every
+  -- other row is addressed by id. Non-system rows have no stable business key.
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug            text NOT NULL,              -- stable id, e.g. 'speaking_practice', 'my-debate-coach'
-  name            text NOT NULL,              -- gallery / dropdown label
-  description     text,                       -- gallery blurb
-  -- The serialized ActivityTypeDefinition (zod-validated on write), INCLUDING directives as data:
+  name            text NOT NULL,              -- dropdown / library label
+  description     text,                       -- library blurb
+  -- The serialized definition variant (zod-validated on write), INCLUDING directives as data:
   --   definition.actionDirective?      — extra system-prompt text in multimodal mode
   --   definition.endConditionInstruction?  — when to end the conversation (drives endConversation field)
-  --   language-support behavior            — inline via {{#if support_language}} in the prompt
+  --   definition.languageSupportDirective? — full-replace language-support directive
   definition      jsonb NOT NULL,
 
   -- OWNERSHIP (who may edit) — set by create/clone-in-context (§7.2)
   owner_scope     text NOT NULL DEFAULT 'user',    -- 'user' | 'class' | 'institution' | 'system'
   owner_user_id   uuid REFERENCES auth.users(id),         -- set when owner_scope='user'
   owner_class_id  uuid REFERENCES public.classes(id),     -- set when owner_scope='class'
-  institution_id  uuid REFERENCES public.institutions(id),-- set for 'institution' (+ denormalized home institution for user/class)
+  institution_id  uuid REFERENCES public.institutions(id),-- set ONLY when owner_scope='institution'
 
-  -- SHARING / discovery (independent of ownership and of curation §8)
-  visibility      text NOT NULL DEFAULT 'private', -- 'private' | 'institution' | 'public'
+  -- SHARING / discovery (independent of ownership and of curation §8).
+  -- 'public' = any teacher may read + clone it. No 'institution' tier. There is
+  -- NO community gallery: a public template is discovered via a shared link
+  -- (its id / detail page), not a platform-wide browse surface (§7.5).
+  visibility      text NOT NULL DEFAULT 'private', -- 'private' | 'public'
   status          text NOT NULL DEFAULT 'active',  -- 'active' | 'archived'
 
-  -- LINEAGE (flat clone — decision 6)
+  -- LINEAGE (flat clone — decision 6). Clone any readable source: system, your
+  -- institution's library, your own, or any 'public' template.
   forked_from     uuid REFERENCES public.activity_templates(id) ON DELETE SET NULL, -- the canonical source
   upstream_synced_at  timestamptz,            -- last pull; vs source.updated_at → "update available"
   origin_author_id    uuid,                   -- original author, cached so credit survives deletion
@@ -197,20 +228,22 @@ CREATE TABLE public.activity_templates (
     (owner_scope = 'system')
   ),
   CONSTRAINT activity_templates_visibility_check
-    CHECK (visibility IN ('private','institution','public')),
+    CHECK (visibility IN ('private','public')),
   CONSTRAINT activity_templates_status_check
     CHECK (status IN ('active','archived'))
 );
-
-CREATE UNIQUE INDEX activity_templates_system_slug
-  ON public.activity_templates (slug) WHERE owner_scope = 'system';
 ```
 
 **Flatness invariant**: `forked_from` must point at a template whose own `forked_from IS NULL`
-(a canonical source). Enforced in the clone action (and optionally a trigger). "Publish as new
-template" clears `forked_from`, minting a new canonical source.
+(a canonical source). Enforced in the clone action (and optionally a trigger). **"Publish as new
+template"** clears `forked_from`, minting a fresh canonical source — which, set to
+`visibility='public'`, others can clone (discovered via its shared link, not a gallery).
 
-### 5.2 Availability / curation — `template_scope_enablement`
+### 5.2 Availability / curation — `template_scope_enablement` (Phase 3)
+
+> **Phase 3.** This table and its precedence logic are **not built in Phase 2** — Phase 2 uses a
+> simple palette (system + class-owned + added-personal) with no institution curation. Shown here
+> for the eventual model (§8).
 
 The class palette and institution allow-list. Mirrors `setting_values`' (scope, scope_id)
 addressing, but as an explicit allow/deny catalog because the option set is open-ended.
@@ -335,21 +368,29 @@ directly in the template.
 > Genuinely *behavioral* changes (new tool wiring, action sets) would still be a code change,
 > but none of the current activity types need that — the directives were always just text.
 
-> **Note on assignment-level customization (raised, not resolved, in Phase 0):** dropping
-> `EndConversationConfig.customInstruction` from the end-condition directive raised a broader
-> question — should assignments allow *any* independent per-assignment prompt editing at all,
-> or become pure template snapshots with only an explicit "pull updates from template" action?
-> That's a real, bigger direction (it would touch the assignment data model and the
-> `AssignmentForm`/`MoreOptionsAIBot` editing UI, not just prompt-composition code) and is
-> **out of scope** for Phase 0 — flagged here for a future planning pass, not decided.
+> **Note on assignment-level customization — RESOLVED (Phase 2).** The question raised in Phase 0
+> (should assignments allow *any* independent per-assignment prompt editing, or become pure
+> template snapshots?) is now decided: **pure snapshots.** Assignments carry only a snapshot,
+> refreshed exclusively via **"Update from template"**; the free-form per-assignment prompt
+> overrides in `AssignmentForm` / `MoreOptionsAIBot` are **removed in Phase 2** (decision 3, §7.6).
+> Editing happens in **one place — the template**. Dropping `EndConversationConfig.customInstruction`
+> in Phase 0 was the first step of this direction; Phase 2 completes it. (If a one-off assignment
+> needs a bespoke prompt, the workflow is: clone the template into your library, tweak, and select
+> the clone — not edit the assignment in place.)
 
 ### 6.4 Seeding & maintaining system templates
 
 A migration (or idempotent seed script) writes the 4 registry definitions as
 `owner_scope='system'` templates (`definition` = the serialized registry entry, directive text
-included), `slug` = kind. Re-running upserts by slug. **After seeding, platform super admins
-add / edit / delete system templates through the same gallery/editor as everyone else** (§7.1,
-§9); the registry is only the initial bootstrap + the legacy `activity_type` fallback.
+included). **There is no `slug`: each system row is seeded with a fixed, well-known UUID** and
+inserted via **`INSERT … ON CONFLICT (id) DO NOTHING`** — idempotent, and **insert-if-absent, never
+update**. This is deliberate: because super admins can **edit** system templates in-UI after
+seeding (§7.1, §9), a re-run that *updated* would silently **clobber those edits** on the next
+deploy. `DO NOTHING` only ever fills in missing rows; an existing system template is owned by the
+editor from then on. (A brand-new built-in added to the registry later gets its own fixed UUID and
+is picked up on the next seed run because that id is still absent.) The `kind → system-row-UUID`
+map lives in code (a small constant), used by the seed and anywhere a built-in `kind` must resolve
+to its seeded row. The registry is only the initial bootstrap + the legacy `activity_type` fallback.
 
 ---
 
@@ -437,26 +478,35 @@ flowchart LR
 - **Re-share a customized clone** — *Publish as new template* clears `forked_from`, minting a
   fresh canonical source others can clone (optionally crediting the original as inspiration).
 
-### 7.5 Sharing & visibility (private · institution · public)
+### 7.5 Sharing & visibility (private · public)
 
 Every template's author chooses its **visibility**, independent of who owns it or where it's
-used:
+used. **Two tiers for now — no `institution` tier** (a template is either kept within its owner
+scope or opened to the whole platform):
 
-| Visibility | Who can discover & clone it |
+| Visibility | Who can read & clone it |
 |---|---|
 | **Private** (default) | only the owner scope — you, or the co-teachers of a class template |
-| **Institution** | anyone in the same institution |
-| **Public** | **any teacher on the platform** — a cross-institution community library |
+| **Public** | **any teacher on the platform** — readable + cloneable by anyone |
 
-Public means **truly public**: a public template is a canonical source any teacher in any
-institution can browse in a **community gallery** and clone into their own library (flat clone,
-§7.4), with the original author credited. Changing visibility never touches existing clones or
+**Public is a real, usable tier — there just isn't a gallery.** Setting `visibility='public'`
+makes the template readable and cloneable by any teacher (flat clone, §7.4), with the original
+author credited. What's cut is the **browse/discovery surface**: there is no platform-wide
+community gallery and no moderation tooling (report queues, takedown). Instead, **discovery is by
+shared link** — the author shares the template's URL (a detail page addressed by `id`), and the
+recipient opens it and clicks **Clone**. This keeps the sharing capability while avoiding the cost
+and moderation burden of a public gallery. Changing visibility never touches existing clones or
 snapshots — they keep working regardless.
 
-Sharing ≠ availability: making a template public lets others *find and clone* it; it still
-isn't *selectable in a class* until added to that class's palette (§8). Lightweight safeguards
-for the public tier (a "report" action; super-admin takedown) are in scope; heavier moderation
-tooling is a later phase.
+> **`institution` visibility is intentionally omitted.** It required denormalizing a "home
+> institution" onto user/class rows, ill-defined under the real schema (`institution_members` is
+> many-to-many; a teacher's classes can span institutions or they may be a member of none).
+> Institution-*owned* templates still reach classes — via the institution **library + curation**
+> (Phase 3, §8), not via a visibility flag. Add the tier later (with an explicit "share with which
+> institution?" picker) only if per-institution sharing of *personal* templates is wanted.
+
+Sharing ≠ availability: a public template is cloneable by anyone, but a clone still isn't
+*selectable in a class* until added to that class's palette (§8).
 
 ### 7.6 Snapshot + pull (assignment ↔ template)
 
@@ -487,11 +537,15 @@ assignments and for explicit pulls**, not a live dependency.
 
 ### 7.8 RLS sketch
 
-Read: everyone reads `owner_scope='system'`; institution members read templates whose
-`institution_id` is theirs with `visibility IN ('institution','public')`; owners read their
-own. Write: `user` → `owner_user_id`; `class` → membership in `class_teachers` for
-`owner_class_id`; `institution`/`system` → institution-admin / super-admin roles. Cloning only
-requires read on the source + write on the destination scope.
+Read: everyone reads `owner_scope='system'`; **everyone reads `visibility='public'`** (readable +
+cloneable platform-wide — the shared-link tier, no gallery needed); institution members read
+`owner_scope='institution'` rows whose `institution_id` is theirs (the institution library —
+surfaced via curation, Phase 3); owners read their own (`user` → `owner_user_id`; `class` →
+membership in `class_teachers` for `owner_class_id`). With no `institution` **visibility** tier,
+there is **no** "same-institution can read a personal template" rule — a personal template is
+`private` (owner-only) or `public` (everyone). Write: `user` → `owner_user_id`; `class` →
+membership in `class_teachers` for `owner_class_id`; `institution`/`system` → institution-admin /
+super-admin roles. Cloning only requires read on the source + write on the destination scope.
 
 ### 7.9 Optional later: version history
 
@@ -504,8 +558,19 @@ without migrating data.
 
 ## 8. Availability: the class palette & curation
 
-The second axis. "What activity types can I pick in this class?" resolves with settings-style
-precedence and a default policy.
+The second axis. "What activity types can I pick in this class?" **Two-stage delivery:**
+
+- **Phase 2 — simple palette (no curation).** The class dropdown = **system templates (all, on)**
+  + **class-owned templates (auto)** + **personal templates the teacher explicitly added**. No
+  enablement rows, no institution precedence, no `allow_child_override`, no default-policy setting.
+  `listAvailableTemplatesForClass(classId)` just unions those three sources.
+- **Phase 3 — curated palette.** Introduces `template_scope_enablement` (§5.2), the institution
+  library, institution → class precedence, `allow_child_override`, and the
+  `default_template_inclusion` baseline. Everything from "Default policy" down applies **only from
+  Phase 3 on**.
+
+The rest of this section describes the **Phase 3** curated model; precedence resolves settings-style
+with a default policy.
 
 ```mermaid
 flowchart TD
@@ -516,13 +581,17 @@ flowchart TD
     PAL["Class palette"] -->|snapshot on create| ASG["Assignment (self-contained copy)"]
 ```
 
-### Default policy (no enablement rows)
+### Default policy (no enablement rows) — Phase 3
 
-A platform setting in `SETTINGS_REGISTRY` controls the baseline so a brand-new class works
-immediately:
+`default_template_inclusion` controls the baseline so a brand-new class works immediately:
 
-- `default_template_inclusion` — `all_system` (default) | `none` | `system_plus_institution`.
-  **System templates are available by default**; the teacher can prune ones they don't want.
+- values: `all_system` (default) | `none` | `system_plus_institution`. **System templates are
+  available by default**; the teacher can prune ones they don't want.
+- **Placement:** it is a normal `SETTINGS_REGISTRY` entry scoped `['institution','class']`, and its
+  registry `default` (`all_system`) *is* the platform baseline applied when no row exists — the
+  settings system has no separate "platform scope", so "platform default" means exactly "the
+  registry `default`". An institution admin can shift the baseline for their institution; a class
+  can override within `allow_child_override`.
 
 ### Institution library + curation (institution admin)
 
@@ -567,13 +636,13 @@ function listAvailableTemplatesForClass(classId): Promise<TemplateSummary[]>
 
 | Surface | Who | What |
 |---|---|---|
-| **My Templates** (`/teacher/templates`) | teacher | Personal library: create, clone (from anywhere visible), edit own, set **visibility (private / institution / public)**, archive, publish-as-new. |
-| **Community gallery** (`/teacher/templates/community`) | any teacher | Browse & clone **public** templates from across the platform; shows original-author credit; "report" action on a public template. |
+| **My Templates** (`/teacher/templates`) | teacher | Personal library: create, clone (from anywhere visible), edit own, set **visibility (private / public)**, archive, publish-as-new. |
+| **Public template detail / share link** (`/teacher/templates/:id`) | any teacher (if `public`) | Open a **public** template by its shared URL; shows definition preview + original-author credit + **Clone** button. This is the whole public-sharing surface — **no browsable community gallery, no report/takedown** (§7.5). |
 | **Class settings → Activity Types** | teacher / co-teachers | Two groups (§8): *Available to select* (system + institution, read-only, Add / Clone-to-customize) and *Class Templates* (editable, co-owned). "Add from my library" for personal templates. |
 | **Institution admin → Templates** | institution admin | Maintain the institution library (create/edit/clone) + curate `enabled` / `allow_child_override`. Lives beside the existing `SettingsList`. |
 | **Platform admin → System library** | super admin | Add / edit / delete **system** templates through the **same** gallery/editor as everyone else (consistency); registry seeds the initial set. |
-| **Template editor** | owner / admin | Form over the `ActivityTypeDefinition` fields (name, description, labels, persona, task, conversation start, evaluation prompt, feedback focus, defaults, generation copy, optional multimodal directive). Reuses `PromptConfigEditor` + feedback-focus editor. Shows lineage/credit + "Pull updates" for clones. |
-| **Assignment builder** | teacher | Activity-type dropdown becomes "Choose template", sourced from `listAvailableTemplatesForClass`; selecting one **snapshots** prompts/labels exactly as `handleActivityTypeChange` does today. Shows "Update from template" when the source has changed. |
+| **Template editor** | owner / admin | Form over the `definition` fields (name, description, labels, **system prompt**, conversation start, evaluation prompt + persona, feedback focus, defaults, generation copy, optional directive fields). Reuses `PromptConfigEditor` + feedback-focus editor. Shows lineage/credit + "Pull updates" for clones. Full field map in Appendix A. |
+| **Assignment builder** | teacher | Activity-type dropdown becomes "Choose template", sourced from `listAvailableTemplatesForClass`; selecting one **snapshots** prompts/labels exactly as `handleActivityTypeChange` does today. Shows "Update from template" when the source has changed. **The free-form per-assignment prompt overrides (`MoreOptionsAIBot`) are removed** — the assignment is a read-only snapshot; edit the template + pull instead (decision 3, §6.3). |
 
 Build these as **reusable components** (ui/ shell + feature composer), per the
 modular-component preference, not inlined.
@@ -629,27 +698,40 @@ added as a real field with boolean `endConversation` schema (was
 `"thorough"|"refusal"` enum) and two-layer directive composition (base → activity-type only —
 the per-assignment `EndConversationConfig.customInstruction` layer was dropped from this one
 directive, see §6.3's note). Confirmed-dead `konvo-voice/prompt.ts`/`promptAppendix.ts`
-deleted. **Deferred to Phase 1** (requires a schema migration, out of this phase's "no DB"
-scope): `activity_definition_snapshot`/`activity_template_id`/`template_synced_at` columns and
-their write path — existing snapshot fields (`bot_prompt_config`, `evaluation_prompt`,
-`feedback_focus`) already covered Phase 0's needs.
+deleted. **Verification note:** the `endConversation` enum→boolean change is behavior-shaped even
+though nothing downstream branched on `"thorough"|"refusal"` — confirm no telemetry/analytics
+consumer read the enum value before considering Phase 0 fully closed. **Deferred to Phase 1**
+(requires a schema migration, out of this phase's "no DB" scope):
+`activity_definition_snapshot`/`activity_template_id`/`template_synced_at` columns and their write
+path — existing snapshot fields (`bot_prompt_config`, `evaluation_prompt`, `feedback_focus`)
+already covered Phase 0's needs.
 
-**Phase 1 — Tables + seed + read path.** Create `activity_templates` +
-`template_scope_enablement`; seed the 4 system templates; resolver prefers DB (registry
-fallback). Assignment builder reads system templates from the DB and **snapshots** them (+
-`activity_template_id` link). No authoring UI yet; verify parity.
+**Phase 1 — `activity_templates` table + seed + read path.** Create **`activity_templates` only**
+(the enablement table is Phase 3); seed the 4 system templates (**insert-if-absent**, §6.4);
+resolver prefers DB (registry fallback). Assignment builder reads system templates from the DB and
+**snapshots** them (+ `activity_template_id` link). No authoring UI yet; verify parity.
 
-**Phase 2 — Personal library + cloning + class palette.** My Templates (create/edit/clone/
-archive/publish-as-new); flat-clone + upstream pull; **visibility (private / institution /
-public)**; class "Activity Types" section (Available to select + Class Templates + Add from my
-library); class-owned create-in-context; "Update from template" on assignments.
+**Phase 2 — Personal + class libraries, cloning, simple palette, pure-snapshot assignments.**
+My Templates (create/edit/clone/archive/publish-as-new); flat-clone + upstream pull; **visibility
+(private / public)** — `public` is fully usable: a public template detail page (`/teacher/templates/:id`)
+lets any teacher open a shared link and **Clone** (no gallery, no report/takedown); class "Activity Types" section
+(Available-to-select = system, read-only Add/Clone-to-customize · Class Templates, co-editable ·
+Add-from-my-library); class-owned create-in-context; **simple uncurated palette** (system + class
++ added-personal — no enablement rows). **Assignments become pure snapshots:** remove the
+free-form per-assignment prompt overrides from `AssignmentForm`/`MoreOptionsAIBot`; the only prompt
+mutation is **"Update from template"**. **Invert the action↔activity-type coupling:** move
+`autoAvailableForActivityTypes`/`bulbForActivityTypes` off the action registry onto the template
+(`definition.autoActions`/`bulbAction`), so custom (non-`kind`) templates get bulb/auto actions
+(Appendix A note) — **required this phase or custom templates ship with no bulb/auto action.**
 
-**Phase 3 — Institution library + curation + public community.** Institution Templates section;
-institution enablement + `allow_child_override`; `default_template_inclusion` in
-`SETTINGS_REGISTRY`; **public community gallery** (browse & clone any public template) + report
-action.
+**Phase 3 — Institution library + curation.** Create **`template_scope_enablement`**; Institution
+Templates section (`owner_scope='institution'`); institution → class enablement +
+`allow_child_override`; `default_template_inclusion` in `SETTINGS_REGISTRY`; the class palette
+gains the curated two-group model (§8).
 
-**Phase 4 — Version history (§7.9) / public-template moderation tooling.** (Later.)
+**Phase 4 — Optional version history.** (Later, if wanted.) Append-only `template_versions` audit
+log (§7.9). **Not** a community gallery — public sharing already ships in Phase 2 via shared link;
+a browsable gallery + moderation tooling is explicitly out of scope (§7.5).
 
 **Backfill:** none. Legacy assignments (null `activity_template_id`) fall back to
 `activity_type` + registry and keep working before any seeding.
@@ -664,6 +746,9 @@ action.
 - *Co-teacher editing?* Yes for **class-owned** templates (born class-owned via *Clone to
   customize* in class settings); edit rights never come from use. (§7.7)
 - *Snapshot vs. live?* **Snapshot (copy-on-create) + opt-in pull** — delete/edit-safe. (§7.6)
+- *Per-assignment prompt editing?* **Removed — assignments are pure snapshots.** One editing
+  surface (the template) + one propagation verb (pull); the `AssignmentForm`/`MoreOptionsAIBot`
+  free-form prompt overrides go away in Phase 2. One-offs: clone → tweak → select the clone. (§6.3, decision 3)
 - *Cloning model?* **Flat** (clone canonical source only) + upstream pull (plain yes/no
   confirm, replaces current copy) + credit; re-share via **Publish as new template**. (§7.4)
 - *Pull-conflict UX?* **Confirm-then-overwrite** — "Update to the latest? This replaces your
@@ -674,42 +759,55 @@ action.
   `behavior_key`, no per-type code. (§6.3)
 - *Editing system/built-in prompts?* **Platform super admins get full add/edit/delete** via the
   same gallery/editor as everyone else; the registry is bootstrap seed + legacy fallback. (§6.4)
-- *Class availability?* A curated **palette**: system on by default, institution per curation,
-  **personal/cloned require explicit Add**. (§8)
-- *Public sharing?* **Truly public, author-selected visibility** (private / institution /
-  public); public templates are discoverable & cloneable platform-wide via a community gallery,
-  original author credited. (§7.5)
+- *Class availability?* A **palette**, delivered in two stages: **Phase 2** simple/uncurated
+  (system + class-owned + added-personal, no enablement); **Phase 3** curated (institution
+  precedence, `allow_child_override`, `default_template_inclusion`). (§8)
+- *Public sharing?* **Author-selected visibility — `private` / `public` only (no `institution`
+  tier).** `public` is fully usable in Phase 2 (any teacher can read + clone), but discovery is
+  by **shared link** (template detail page), **not a browsable community gallery** — and there is
+  no report/takedown moderation tooling. Institution-owned templates reach classes via the Phase 3
+  library + curation, not a visibility flag. (§7.5)
+- *No `slug`?* **Removed.** Rows are addressed by `id`; the 4 system rows are seeded with **fixed,
+  well-known UUIDs** via `ON CONFLICT (id) DO NOTHING`, and the `kind → system-row-id` map lives in
+  code. Non-system rows carry no stable business key. (§5.1, §6.4)
 
 **Resolved with recommended defaults (override later if needed):**
-1. **`kind` union** → keep `ActivityTypeKind` as a closed union (built-in set); treat template
-   slugs as opaque strings elsewhere. Internal code detail, no product impact.
+1. **`kind` union** → keep `ActivityTypeKind` as a closed union (built-in set); a template's
+   identity is its row `id` (no `kind`/`slug` on non-system rows). Internal code detail, no product impact.
 
 ---
 
 ## 13. Touch map (where work lands)
 
-- **New**: `activity_templates`, `template_scope_enablement` migrations; seed script;
+- **New**: `activity_templates` migration (Phase 1); `template_scope_enablement` migration
+  (**Phase 3**); seed script (**insert-if-absent**);
   `src/lib/activityTypes/{templates,templateResolver,curation}.ts`;
   `src/lib/templates/*` server actions; My Templates / Class Activity Types / Institution
-  Templates / Platform System-library UIs + template editor.
+  Templates (Phase 3) / Platform System-library UIs + template editor.
 - **Changed**: `src/lib/activityTypes/registry.ts` (bootstrap seed + legacy fallback);
   `src/lib/promptTemplates.ts` (`buildDefault*` take a `ResolvedTemplate`);
-  `AssignmentForm.tsx` (`handleActivityTypeChange` + dropdown source + "Update from template");
+  `AssignmentForm.tsx` (`handleActivityTypeChange` + dropdown source + "Update from template")
+  **and `MoreOptionsAIBot` — remove the free-form per-assignment prompt overrides (pure-snapshot)**;
+  **the multimodal _action registry_ (`multimodal/actions/registry.ts`) — invert the
+  action↔type coupling: drop `autoAvailableForActivityTypes`/`bulbForActivityTypes` and read
+  `definition.autoActions`/`bulbAction` instead** (action *kinds*/schemas/handlers stay code-defined);
   QuestionCard / `Shared/QuestionView.tsx` (labels from the assignment snapshot);
   `multimodal-directives.ts` (generic composition reads directive text from snapshot — no per-type code); `api/generate-rubric-and-answer`;
-  `src/lib/settings/registry.ts` (`default_template_inclusion`); `src/types/assignment.ts`
+  `src/lib/settings/registry.ts` (`default_template_inclusion`, Phase 3); `src/types/assignment.ts`
   (`activity_template_id`, `activity_definition_snapshot`, `template_synced_at`).
 - **Unchanged**: the prompt *interpolation* engine; runtime/grading read paths (already use the
-  assignment's own snapshot); the multimodal *action* registry.
+  assignment's own snapshot); the multimodal action **kinds** themselves (schemas, handlers,
+  directives — only their *type-attachment wiring* moves to the template).
 
 ---
 
 ## 14. Checklist (per phase)
 
 - [x] Phase 0: `ResolvedTemplate` + resolver wrapping registry; directive consolidation (canonical `SAFETY_DIRECTIVE`, hooks → data fields, boolean `endConversation` + `endConditionInstruction`); tsc/eslint clean. (`activity_definition_snapshot` write path deferred to Phase 1 — requires a migration.)
-- [ ] Phase 1: tables (`activity_templates` + enablement) + RLS; seed 4 system templates; resolver prefers DB; builder snapshots template + records `activity_template_id`.
-- [ ] Phase 2: My Templates; create/edit/archive; flat clone + upstream pull + publish-as-new; class "Activity Types" (Available to select + Class Templates + Add from my library); class-owned create-in-context; "Update from template".
-- [ ] Phase 3: Institution Templates library + enablement + `allow_child_override`; `visibility='institution'`; `default_template_inclusion`.
+- [ ] Phase 1: `activity_templates` table (**not** enablement) + RLS; seed 4 system templates (**insert-if-absent**); resolver prefers DB; builder snapshots template + records `activity_template_id`.
+- [ ] Phase 2: My Templates + Class Templates; create/edit/archive; flat clone + upstream pull + publish-as-new; visibility `private`/`public` + **public template detail/share page (`/teacher/templates/:id`) with Clone** (no gallery); class "Activity Types" (Available to select + Class Templates + Add from my library); class-owned create-in-context; "Update from template"; **simple uncurated palette (no enablement)**; **assignments → pure snapshots (remove per-assignment prompt overrides in `AssignmentForm`/`MoreOptionsAIBot`)**; **invert action↔type coupling → `definition.autoActions`/`bulbAction`**.
+- [ ] Phase 3: `template_scope_enablement` + RLS; Institution Templates library; institution→class enablement + `allow_child_override`; `default_template_inclusion`; curated two-group class palette.
+- [ ] Phase 4 (optional, later): `template_versions` audit log. (No community gallery — public sharing ships in Phase 2 via shared link.)
 - [ ] Docs: fold into / supersede `adding-activity-types.md` once Phase 2 ships.
 
 ---
@@ -718,9 +816,9 @@ action.
 
 What the editor exposes = exactly the parts of `definition` (+ template metadata) the author
 owns. Everything else that reaches the model is **runtime scaffolding** (Appendix B) and is
-*not* in the editor. Note two edit layers: the **template editor** edits `definition`; the
-**assignment form** edits the per-assignment *snapshot* (and can override `system_prompt` /
-`conversation_start` / `evaluation_prompt` for that one assignment).
+*not* in the editor. **One editing surface:** the **template editor** edits `definition`; the
+assignment holds only a read-only *snapshot* refreshed via "Update from template" (decision 3,
+§6.3) — there is no per-assignment prompt override layer.
 
 > **Resolved:** kept a single `systemPrompt` field, matching the real `ActivityTypeDefinition`
 > and the shipped Platform > Templates mockup — the `persona`/`taskInstructions` split
@@ -755,8 +853,8 @@ owns. Everything else that reaches the model is **runtime scaffolding** (Appendi
 > Today the **action** declares which activity types it attaches to, by hardcoded
 > `ActivityTypeKind` name (`clientTrigger.autoAvailableForActivityTypes` /
 > `bulbForActivityTypes` in `actions/registry.ts`, read via `getAutoAvailableActions` /
-> `getBulbActionForActivityType`). A custom DB template's slug is **not** one of those four
-> names, so it would match nothing and get no bulb/auto action.
+> `getBulbActionForActivityType`). A custom DB template has **no `kind`** (its identity is a row
+> `id`), so it matches none of those four names and would get no bulb/auto action.
 >
 > Fix: **flip the direction** — the *template* declares `definition.autoActions` /
 > `definition.bulbAction`; the runtime reads those instead of the kind-keyed lookups. Only the
