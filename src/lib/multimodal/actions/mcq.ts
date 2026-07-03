@@ -62,6 +62,7 @@ export async function handleMcqAction(
       prompt:
         `Topic: ${action.topic}\n` +
         `Difficulty: ${action.difficulty}\n` +
+        (action.guidance ? `Requirement: ${action.guidance}\n` : "") +
         `Write the question, all four choices, and the explanation in ${languageLabel} ` +
         `to match the conversation language.`,
     });

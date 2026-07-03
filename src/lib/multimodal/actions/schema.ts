@@ -13,6 +13,15 @@ export const mcqActionInputSchema = z.object({
   kind: z.literal("mcq"),
   topic: z.string().describe("The concept the question should assess."),
   difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
+  guidance: z
+    .string()
+    .optional()
+    .describe(
+      "Any specific requirement this question must satisfy beyond topic/difficulty — " +
+        "e.g. a misconception the learner just showed to target, a wrong-answer pattern " +
+        "to include as a distractor, or a constraint tying it to what was just discussed. " +
+        "Omit when topic/difficulty already say enough.",
+    ),
   repeatPrevious: z
     .boolean()
     .default(false)

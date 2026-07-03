@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { TemplateEditor } from "@/components/Platform/Templates/TemplateEditor";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { cloneTemplate } from "@/lib/templates/actions";
+import { invalidateActivityTemplatesCache } from "@/hooks/swr";
 import type { ActivityTemplateRow } from "@/lib/queries/activityTemplates";
 
 import { rowToMockTemplate } from "./adapters";
@@ -39,6 +40,7 @@ export function TemplateDetail({
     setCloning(true);
     try {
       await cloneTemplate({ sourceId: template.id, destScope: "user" });
+      await invalidateActivityTemplatesCache();
       showSuccessToast("Cloned to your library.");
       router.push("/teacher/activity-templates");
     } catch (e) {

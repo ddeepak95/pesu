@@ -117,7 +117,7 @@ function buildActionsAndGuidanceDirective(
     .map((k) => {
       const def = getActionDefinition(k);
       const guidanceText = actionGuidance?.[k];
-      return [def.buildDirective(), guidanceText ? `${"When to use"}: ${guidanceText}` : ""]
+      return [def.buildDirective(), guidanceText ? `${"Additional guidance"}: ${guidanceText}` : ""]
         .filter(Boolean)
         .join(" ");
     })

@@ -14,6 +14,7 @@ import {
   setTemplateVisibility,
   updateTemplate,
 } from "@/lib/templates/actions";
+import { invalidateActivityTemplatesCache } from "@/hooks/swr";
 
 import { fromEditorDefinition, rowToMockTemplate } from "./adapters";
 
@@ -71,6 +72,7 @@ export function UserTemplateEditor({
           await setTemplateVisibility(template!.id, next.visibility);
         }
       }
+      await invalidateActivityTemplatesCache();
       showSuccessToast(isNew ? "Template created." : "Template saved.");
       router.push(backHref);
     } catch (e) {

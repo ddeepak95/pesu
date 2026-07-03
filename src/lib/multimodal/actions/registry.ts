@@ -71,7 +71,10 @@ const MCQ_DIRECTIVE_PARAGRAPHS = [
   // Schema mechanics.
   'To pose an MCQ, set `action.kind` to "mcq", `action.topic` (the concept assessed), and ' +
     "`action.difficulty` (easy/medium/hard), and briefly tell the learner in `speech` a " +
-    "question will appear.",
+    "question will appear. Set `action.guidance` to any specific requirement this question " +
+    "must satisfy beyond topic/difficulty (e.g. target a misconception the learner just " +
+    "showed, or tie a distractor to their last wrong answer) — omit it when topic/" +
+    "difficulty already say enough.",
   // Answer-delivery mechanics only. What to actually do with a right/wrong
   // answer (hint, reveal, re-ask, stay neutral) is a pedagogical judgment that
   // varies by type (e.g. it directly conflicts with an examiner's "never give

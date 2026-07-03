@@ -43,6 +43,7 @@ import {
   pullUpstream,
   setTemplateVisibility,
 } from "@/lib/templates/actions";
+import { invalidateActivityTemplatesCache } from "@/hooks/swr";
 
 /** Which library this is — drives create ownership and the refresh source. */
 export type LibraryOwner =
@@ -85,7 +86,7 @@ export function TemplateLibrary({
   async function run(fn: () => Promise<unknown>, successMsg: string) {
     try {
       await fn();
-      await refresh();
+      await Promise.all([refresh(), invalidateActivityTemplatesCache()]);
       showSuccessToast(successMsg);
     } catch (e) {
       showErrorToast(e instanceof Error ? e.message : "Something went wrong.");

@@ -392,6 +392,7 @@ export async function updateAssignment(
     shared_context_enabled: assignment.shared_context_enabled ?? false,
     shared_context: assignment.shared_context ?? null,
     evaluation_prompt: assignment.evaluation_prompt ?? null,
+    feedback_focus: assignment.feedback_focus ?? null,
     experience_rating_enabled: assignment.experience_rating_enabled ?? false,
     experience_rating_required: assignment.experience_rating_required ?? false,
     feedback_requires_approval: assignment.feedback_requires_approval ?? false,
