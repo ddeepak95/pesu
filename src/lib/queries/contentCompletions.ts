@@ -8,6 +8,7 @@ import { getAssignmentsByIdsForTeacher } from "./assignments";
 import { getQuizzesByIds, deleteQuizSubmissionForStudent } from "./quizzes";
 import { getSurveysByIds } from "./surveys";
 import { deleteSurveyResponseForStudent } from "./surveyResponses";
+import { getSubmissionByStudentAndAssignment, markAttemptsAsStale } from "./submissions";
 
 /**
  * Mark a content item as complete for the current user
@@ -589,6 +590,14 @@ export async function resetStudentProgress(
           surveyId: refId,
           studentId,
         });
+      } else if (type === "formative_assignment") {
+        const submission = await getSubmissionByStudentAndAssignment(
+          studentId,
+          refId
+        );
+        if (submission) {
+          await markAttemptsAsStale(submission.submission_id);
+        }
       }
     } catch (err) {
       console.error(

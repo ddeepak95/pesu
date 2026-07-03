@@ -29,11 +29,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
-import { TemplateEditor } from "@/components/Platform/Templates/TemplateEditor";
-import { cloneSeedDefinition } from "@/components/Platform/Templates/mockData";
-import type { MockTemplate } from "@/components/Platform/Templates/types";
-import type { TemplateDefinition as RealDefinition } from "@/lib/activityTypes/templates";
 import type { ActivityTemplateRow } from "@/lib/queries/activityTemplates";
 import {
   fetchClassTemplatesTracked,
@@ -42,79 +39,33 @@ import {
 import {
   archiveTemplate,
   cloneTemplate,
-  createTemplate,
   publishAsNewTemplate,
   pullUpstream,
   setTemplateVisibility,
-  updateTemplate,
 } from "@/lib/templates/actions";
-
-import { fromEditorDefinition, rowToMockTemplate } from "./adapters";
 
 /** Which library this is — drives create ownership and the refresh source. */
 export type LibraryOwner =
   | { scope: "user"; userId: string }
   | { scope: "class"; classId: string };
 
-type View =
-  | { mode: "gallery" }
-  | {
-      mode: "edit";
-      template: MockTemplate;
-      isNew: boolean;
-      original: RealDefinition | null;
-    };
-
-const CHROME: Record<
-  LibraryOwner["scope"],
-  { badge: React.ReactNode; ownerLabel: string }
-> = {
-  user: {
-    badge: (
-      <span className="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-400">
-        My library · you own this
-      </span>
-    ),
-    ownerLabel: "You (personal library)",
-  },
-  class: {
-    badge: (
-      <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-400">
-        Class library · co-editable
-      </span>
-    ),
-    ownerLabel: "This class (co-editable by co-teachers)",
-  },
-};
-
-function blankTemplate(scope: LibraryOwner["scope"]): MockTemplate {
-  return {
-    id: `new-${Date.now()}`,
-    name: "",
-    description: "",
-    ownerScope: scope,
-    visibility: "private",
-    status: "active",
-    definition: cloneSeedDefinition("learning"),
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 export function TemplateLibrary({
   owner,
   initialTemplates,
   title,
   description,
+  basePath,
 }: {
   owner: LibraryOwner;
   initialTemplates: ActivityTemplateRow[];
   title: string;
   description: string;
+  /** Route prefix for the create/edit subpages, e.g. "/teacher/activity-templates". */
+  basePath: string;
 }) {
+  const router = useTrackedRouter();
   const [templates, setTemplates] =
     useState<ActivityTemplateRow[]>(initialTemplates);
-  const [view, setView] = useState<View>({ mode: "gallery" });
-  const [saving, setSaving] = useState(false);
   const [pendingArchive, setPendingArchive] =
     useState<ActivityTemplateRow | null>(null);
   const [pendingPull, setPendingPull] = useState<ActivityTemplateRow | null>(
@@ -141,59 +92,6 @@ export function TemplateLibrary({
     }
   }
 
-  async function handleSave(next: MockTemplate) {
-    setSaving(true);
-    try {
-      const original = view.mode === "edit" ? view.original : null;
-      const definition = fromEditorDefinition(next.definition, original);
-      const isNew = view.mode === "edit" && view.isNew;
-
-      if (isNew) {
-        await createTemplate({
-          scope: owner.scope,
-          classId: owner.scope === "class" ? owner.classId : undefined,
-          name: next.name,
-          description: next.description || null,
-          visibility: next.visibility,
-          definition,
-        });
-      } else {
-        await updateTemplate(next.id, {
-          name: next.name,
-          description: next.description || null,
-          definition,
-        });
-        const prev = templates.find((t) => t.id === next.id);
-        if (prev && prev.visibility !== next.visibility) {
-          await setTemplateVisibility(next.id, next.visibility);
-        }
-      }
-      await refresh();
-      showSuccessToast(isNew ? "Template created." : "Template saved.");
-      setView({ mode: "gallery" });
-    } catch (e) {
-      showErrorToast(e instanceof Error ? e.message : "Could not save.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (view.mode === "edit") {
-    return (
-      <TemplateEditor
-        template={view.template}
-        isNew={view.isNew}
-        saving={saving}
-        onSave={handleSave}
-        onCancel={() => setView({ mode: "gallery" })}
-        ownerBadge={CHROME[owner.scope].badge}
-        ownerLabel={CHROME[owner.scope].ownerLabel}
-        newTitle="New template"
-        footerNote={null}
-      />
-    );
-  }
-
   return (
     <div className="space-y-8">
       <header className="flex items-start justify-between gap-4">
@@ -201,16 +99,7 @@ export function TemplateLibrary({
           <h1 className="text-2xl font-semibold">{title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button
-          onClick={() =>
-            setView({
-              mode: "edit",
-              template: blankTemplate(owner.scope),
-              isNew: true,
-              original: null,
-            })
-          }
-        >
+        <Button onClick={() => router.push(`${basePath}/new`)}>
           <Plus className="mr-1.5 h-4 w-4" /> New template
         </Button>
       </header>
@@ -225,13 +114,7 @@ export function TemplateLibrary({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => {
             const isClone = t.forked_from !== null;
-            const openEdit = () =>
-              setView({
-                mode: "edit",
-                template: rowToMockTemplate(t),
-                isNew: false,
-                original: t.definition,
-              });
+            const openEdit = () => router.push(`${basePath}/${t.id}/edit`);
             return (
               <div
                 key={t.id}

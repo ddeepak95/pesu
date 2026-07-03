@@ -1,0 +1,111 @@
+"use client";
+
+import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
+
+import { useTrackedRouter } from "@/hooks/useTrackedRouter";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { TemplateEditor } from "@/components/Platform/Templates/TemplateEditor";
+import { cloneSeedDefinition } from "@/components/Platform/Templates/mockData";
+import type { MockTemplate } from "@/components/Platform/Templates/types";
+import type { ActivityTemplateRow } from "@/lib/queries/activityTemplates";
+import {
+  createTemplate,
+  setTemplateVisibility,
+  updateTemplate,
+} from "@/lib/templates/actions";
+
+import { fromEditorDefinition, rowToMockTemplate } from "./adapters";
+
+function blankUserTemplate(): MockTemplate {
+  return {
+    id: `new-${Date.now()}`,
+    name: "",
+    description: "",
+    ownerScope: "user",
+    visibility: "private",
+    status: "active",
+    definition: cloneSeedDefinition("learning"),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Full-page create/edit surface for a personal ("My Activity Templates")
+ * activity template — the personal-library counterpart to
+ * `Classes/Settings/ClassTemplateEditor`. Save/cancel navigate back to the
+ * library list.
+ */
+export function UserTemplateEditor({
+  template,
+}: {
+  template?: ActivityTemplateRow;
+}) {
+  const router = useTrackedRouter();
+  const isNew = !template;
+  const [saving, setSaving] = useState(false);
+  const original = template?.definition ?? null;
+  const initial = template ? rowToMockTemplate(template) : blankUserTemplate();
+
+  const backHref = "/teacher/activity-templates";
+
+  async function handleSave(next: MockTemplate) {
+    setSaving(true);
+    try {
+      const definition = fromEditorDefinition(next.definition, original);
+      if (isNew) {
+        await createTemplate({
+          scope: "user",
+          name: next.name,
+          description: next.description || null,
+          visibility: next.visibility,
+          definition,
+        });
+      } else {
+        await updateTemplate(template!.id, {
+          name: next.name,
+          description: next.description || null,
+          definition,
+        });
+        if (template!.visibility !== next.visibility) {
+          await setTemplateVisibility(template!.id, next.visibility);
+        }
+      }
+      showSuccessToast(isNew ? "Template created." : "Template saved.");
+      router.push(backHref);
+    } catch (e) {
+      showErrorToast(e instanceof Error ? e.message : "Could not save.");
+      setSaving(false);
+    }
+  }
+
+  const header = (
+    <div className="space-y-6">
+      <button
+        onClick={() => router.push(backHref)}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to My Activity Templates
+      </button>
+      <div>
+        <h1 className="text-2xl font-semibold">
+          {isNew ? "New template" : `Edit · ${template!.name}`}
+        </h1>
+      </div>
+    </div>
+  );
+
+  return (
+    <TemplateEditor
+      template={initial}
+      isNew={isNew}
+      saving={saving}
+      onSave={handleSave}
+      onCancel={() => router.push(backHref)}
+      header={header}
+      ownerLabel="You (personal library)"
+      newTitle="New template"
+      footerNote={null}
+    />
+  );
+}

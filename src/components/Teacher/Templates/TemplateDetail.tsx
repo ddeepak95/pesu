@@ -65,8 +65,8 @@ export function TemplateDetail({
         <div className="flex shrink-0 items-center gap-2">
           {isOwner ? (
             <Button asChild variant="outline">
-              <Link href="/teacher/activity-templates">
-                <Pencil className="mr-1.5 h-4 w-4" /> Edit in My Templates
+              <Link href={`/teacher/activity-templates/${template.id}/edit`}>
+                <Pencil className="mr-1.5 h-4 w-4" /> Edit
               </Link>
             </Button>
           ) : (

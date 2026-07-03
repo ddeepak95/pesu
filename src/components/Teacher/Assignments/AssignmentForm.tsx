@@ -16,17 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  MutedPrimaryTabsList,
-  MutedPrimaryTabsTrigger,
-} from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
-import { MoreOptionsAIBot } from "@/components/Teacher/Assignments/MoreOptionsAIBot";
+import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
 import { AssignmentLanguageSection } from "@/components/Teacher/Assignments/AssignmentLanguageSection";
 import { CollapsibleSection } from "@/components/Teacher/Assignments/CollapsibleSection";
 import { AssignmentFormFooter } from "@/components/Teacher/Assignments/AssignmentFormFooter";
-import type { ActionKind } from "@/lib/multimodal/actions/types";
 import {
   Assignment,
   Question,
@@ -383,36 +378,6 @@ export default function AssignmentForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentAssessmentMode]);
 
-  // Which multimodal actions the class can actually run (capability gating for
-  // the teacher toggles). Undefined while unresolved / not multimodal → no gate.
-  const [availableActionKinds, setAvailableActionKinds] = useState<
-    ActionKind[] | undefined
-  >(undefined);
-  useEffect(() => {
-    if (currentAssessmentMode !== "multimodal" || !classDbId) {
-      setAvailableActionKinds(undefined);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/multimodal/available-actions?classDbId=${encodeURIComponent(
-            classDbId,
-          )}`,
-        );
-        if (!res.ok) return;
-        const data = (await res.json()) as { availableActions?: ActionKind[] };
-        if (!cancelled) setAvailableActionKinds(data.availableActions ?? []);
-      } catch {
-        // Leave undefined → no gating rather than blocking the editor.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [currentAssessmentMode, classDbId]);
-
   // Locales the class's STT + TTS models both support — restricts the teacher's
   // support-language picker to capable languages. Undefined while unresolved.
   const [supportedLocales, setSupportedLocales] = useState<
@@ -534,17 +499,12 @@ export default function AssignmentForm({
     },
     [],
   );
-  const [dynamicGenerationPrompt, setDynamicGenerationPrompt] = useState(
+  const [dynamicGenerationPrompt] = useState(
     initialDynamicGenerationPrompt || buildDefaultDynamicGenerationPrompt(),
   );
 
-  const hasPerQuestionDynamic = useMemo(
-    () => assignmentHasDynamicQuestionParts(questions),
-    [questions],
-  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showBotPreview, setShowBotPreview] = useState(false);
 
   // Save and Preview state. `previewAssignment` is the saved row driving the
   // overlay; it persists across exits so repeat previews re-save the same row.
@@ -1279,6 +1239,14 @@ export default function AssignmentForm({
             />
           </CollapsibleSection>
 
+          <SharedContextSection
+            sharedContextEnabled={sharedContextEnabled}
+            setSharedContextEnabled={setSharedContextEnabled}
+            sharedContext={sharedContext}
+            setSharedContext={setSharedContext}
+            loading={loading}
+          />
+
           <div className="space-y-4">
             {questions.map((question, index) => (
               <QuestionCard
@@ -1329,106 +1297,55 @@ export default function AssignmentForm({
         </TabsContent>
 
         <TabsContent value="settings" className="pt-6">
-          <Tabs defaultValue="general">
-            <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
-              <MutedPrimaryTabsTrigger
-                value="general"
-                className="rounded-sm px-4 py-2"
-              >
-                General
-              </MutedPrimaryTabsTrigger>
-              <MutedPrimaryTabsTrigger
-                value="aibot"
-                className="rounded-sm px-4 py-2"
-              >
-                AI Config
-              </MutedPrimaryTabsTrigger>
-            </MutedPrimaryTabsList>
-
-            <TabsContent value="general">
-              <MoreOptionsGeneral
-                maxAttempts={maxAttempts}
-                setMaxAttempts={setMaxAttempts}
-                requireAllAttempts={requireAllAttempts}
-                setRequireAllAttempts={setRequireAllAttempts}
-                showRubric={showRubric}
-                setShowRubric={setShowRubric}
-                showRubricPoints={showRubricPoints}
-                setShowRubricPoints={setShowRubricPoints}
-                useStarDisplay={useStarDisplay}
-                setUseStarDisplay={setUseStarDisplay}
-                starScale={starScale}
-                setStarScale={setStarScale}
-                experienceRatingEnabled={experienceRatingEnabled}
-                setExperienceRatingEnabled={setExperienceRatingEnabled}
-                experienceRatingRequired={experienceRatingRequired}
-                setExperienceRatingRequired={setExperienceRatingRequired}
-                feedbackRequiresApproval={feedbackRequiresApproval}
-                setFeedbackRequiresApproval={setFeedbackRequiresApproval}
-                batchGradeRelease={batchGradeRelease}
-                setBatchGradeRelease={setBatchGradeRelease}
-                integritySettings={integritySettings}
-                setIntegritySettings={setIntegritySettings}
-                isPublic={isPublic}
-                setIsPublic={setIsPublic}
-                responderFieldsConfig={responderFieldsConfig}
-                setResponderFieldsConfig={setResponderFieldsConfig}
-                fileSubmissionEnabled={fileSubmissionEnabled}
-                setFileSubmissionEnabled={(enabled) => {
-                  setFileSubmissionEnabled(enabled);
-                  if (!enabled) {
-                    setQuestions((prev) =>
-                      stripDynamicFlagsFromQuestions(prev),
-                    );
-                  }
-                  if (enabled && fileAllowedTypes.length === 0) {
-                    setFileAllowedTypes([
-                      ...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES,
-                    ]);
-                  }
-                }}
-                fileAllowMultiple={fileAllowMultiple}
-                setFileAllowMultiple={setFileAllowMultiple}
-                fileAllowedTypes={fileAllowedTypes}
-                onToggleAllowedFileType={handleToggleAllowedFileType}
-                fileInstructions={fileInstructions}
-                setFileInstructions={setFileInstructions}
-                loading={loading}
-              />
-            </TabsContent>
-
-            <TabsContent value="aibot">
-              <MoreOptionsAIBot
-                assessmentMode={currentAssessmentMode}
-                showBotPreview={showBotPreview}
-                setShowBotPreview={setShowBotPreview}
-                botPromptConfig={botPromptConfig}
-                setBotPromptConfig={setBotPromptConfig}
-                evaluationPrompt={evaluationPrompt}
-                setEvaluationPrompt={setEvaluationPrompt}
-                feedbackFocus={feedbackFocus}
-                setFeedbackFocus={setFeedbackFocus}
-                activityType={activityType}
-                questions={questions}
-                title={title}
-                studentInstructions={studentInstructions}
-                preferredLanguage={preferredLanguage}
-                maxAttempts={maxAttempts}
-                sharedContextEnabled={sharedContextEnabled}
-                setSharedContextEnabled={setSharedContextEnabled}
-                sharedContext={sharedContext}
-                setSharedContext={setSharedContext}
-                loading={loading}
-                dynamicQuestionsEnabled={
-                  fileSubmissionEnabled && hasPerQuestionDynamic
-                }
-                dynamicGenerationPrompt={dynamicGenerationPrompt}
-                setDynamicGenerationPrompt={setDynamicGenerationPrompt}
-                availableActionKinds={availableActionKinds}
-                showPromptOverrides={false}
-              />
-            </TabsContent>
-          </Tabs>
+          <MoreOptionsGeneral
+            maxAttempts={maxAttempts}
+            setMaxAttempts={setMaxAttempts}
+            requireAllAttempts={requireAllAttempts}
+            setRequireAllAttempts={setRequireAllAttempts}
+            showRubric={showRubric}
+            setShowRubric={setShowRubric}
+            showRubricPoints={showRubricPoints}
+            setShowRubricPoints={setShowRubricPoints}
+            useStarDisplay={useStarDisplay}
+            setUseStarDisplay={setUseStarDisplay}
+            starScale={starScale}
+            setStarScale={setStarScale}
+            experienceRatingEnabled={experienceRatingEnabled}
+            setExperienceRatingEnabled={setExperienceRatingEnabled}
+            experienceRatingRequired={experienceRatingRequired}
+            setExperienceRatingRequired={setExperienceRatingRequired}
+            feedbackRequiresApproval={feedbackRequiresApproval}
+            setFeedbackRequiresApproval={setFeedbackRequiresApproval}
+            batchGradeRelease={batchGradeRelease}
+            setBatchGradeRelease={setBatchGradeRelease}
+            integritySettings={integritySettings}
+            setIntegritySettings={setIntegritySettings}
+            isPublic={isPublic}
+            setIsPublic={setIsPublic}
+            responderFieldsConfig={responderFieldsConfig}
+            setResponderFieldsConfig={setResponderFieldsConfig}
+            fileSubmissionEnabled={fileSubmissionEnabled}
+            setFileSubmissionEnabled={(enabled) => {
+              setFileSubmissionEnabled(enabled);
+              if (!enabled) {
+                setQuestions((prev) =>
+                  stripDynamicFlagsFromQuestions(prev),
+                );
+              }
+              if (enabled && fileAllowedTypes.length === 0) {
+                setFileAllowedTypes([
+                  ...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES,
+                ]);
+              }
+            }}
+            fileAllowMultiple={fileAllowMultiple}
+            setFileAllowMultiple={setFileAllowMultiple}
+            fileAllowedTypes={fileAllowedTypes}
+            onToggleAllowedFileType={handleToggleAllowedFileType}
+            fileInstructions={fileInstructions}
+            setFileInstructions={setFileInstructions}
+            loading={loading}
+          />
         </TabsContent>
       </Tabs>
 

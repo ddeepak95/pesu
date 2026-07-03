@@ -17,7 +17,8 @@ export default async function TeacherTemplatesPage() {
         owner={{ scope: "user", userId: user.id }}
         initialTemplates={templates}
         title="My Activity Templates"
-        description="Your personal activity-type library. Create your own, clone others', and share via a link. Assignments snapshot a template when created, so editing here never changes existing assignments."
+        description=""
+        basePath="/teacher/activity-templates"
       />
     </PageLayout>
   );
