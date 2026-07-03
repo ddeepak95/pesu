@@ -114,6 +114,12 @@ interface MultimodalTurnRequestBody {
   /** Activity type — varies the multimodal + language-support directives. */
   activityType?: ActivityTypeKind;
   /**
+   * The assignment's own resolved template definition snapshot (already
+   * loaded client-side), preferred over the kind-registry for the directive
+   * fields when present and valid. Null/undefined falls back to the registry.
+   */
+  activityDefinitionSnapshot?: unknown | null;
+  /**
    * When the latest student utterance was transcribed in two languages in parallel,
    * both candidates are passed here so the model can pick the coherent one.
    * Must have exactly 2 entries; first entry corresponds to the primary language.
@@ -520,6 +526,7 @@ export async function POST(request: NextRequest) {
                 : undefined,
             primaryLanguageLabel: localeLabel(language),
             activityType: body.activityType,
+            activityDefinitionSnapshot: body.activityDefinitionSnapshot,
             dualTranscript: dualTranscriptDescriptor,
           };
 

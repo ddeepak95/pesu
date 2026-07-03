@@ -11,8 +11,17 @@ import {
 import { DEFAULT_ACTIVITY_TYPE_LABELS } from "@/lib/activityTypes/types";
 import type { ActivityTypeDefinition } from "@/lib/activityTypes/types";
 import { COMMON_DEFAULT_FEEDBACK_FOCUS_AREAS } from "@/lib/feedbackFocus";
+import { listImplementedActions } from "@/lib/multimodal/actions/registry";
+import type { ActionKind } from "@/lib/multimodal/actions/types";
 
 import type { MockTemplate, TemplateDefinition } from "./types";
+
+/** Blank-filled `actionGuidance` for every implemented action kind. */
+function emptyActionGuidance(): Partial<Record<ActionKind, string>> {
+  return Object.fromEntries(
+    listImplementedActions().map((action) => [action.kind, ""]),
+  ) as Partial<Record<ActionKind, string>>;
+}
 
 const DESCRIPTIONS: Record<string, string> = {
   learning:
@@ -34,7 +43,10 @@ function toMockDefinition(def: ActivityTypeDefinition): TemplateDefinition {
   return {
     systemPrompt: def.systemPrompt,
     conversationStart: { ...def.conversationStart },
-    actionDirective: def.actionDirective ?? "",
+    actionGuidance: {
+      ...emptyActionGuidance(),
+      ...def.actionGuidance,
+    },
     languageSupportDirective: def.languageSupportDirective ?? "",
     endConditionInstruction: def.endConditionInstruction,
     evaluationPrompt: def.evaluationPrompt,
@@ -82,6 +94,7 @@ export function cloneSeedDefinition(kind: string = "learning"): TemplateDefiniti
   return {
     ...definition,
     conversationStart: { ...definition.conversationStart },
+    actionGuidance: { ...definition.actionGuidance },
     labels: { ...definition.labels },
     defaultFeedbackFocusAreas: definition.defaultFeedbackFocusAreas.map((a) => ({
       ...a,
@@ -117,7 +130,7 @@ export function emptyDefinition(): TemplateDefinition {
   return {
     systemPrompt: "",
     conversationStart: { first_question: "", subsequent_questions: "" },
-    actionDirective: "",
+    actionGuidance: emptyActionGuidance(),
     languageSupportDirective: "",
     endConditionInstruction: "",
     evaluationPrompt: "",

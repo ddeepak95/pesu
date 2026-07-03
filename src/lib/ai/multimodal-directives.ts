@@ -10,9 +10,13 @@
  * is independent of the "how the turn streams" (schema + streamObject) layer.
  */
 
-import { buildActionsDirective, getActionDefinition } from "@/lib/multimodal/actions/registry";
+import {
+  buildActionsDirective,
+  filterImplemented,
+  getActionDefinition,
+} from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
-import { resolveActivityTemplate } from "@/lib/activityTypes/templateResolver";
+import { resolveActivityDefinitionForRuntime } from "@/lib/activityTypes/templateResolver";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { SAFETY_DIRECTIVE } from "./safetyDirective";
 
@@ -30,20 +34,17 @@ export { SAFETY_DIRECTIVE };
  * "ice cream" stays in Latin script rather than being transliterated.
  */
 export const SPEECH_SCRIPT_DIRECTIVE =
-  "Always write every language you speak — the conversation language, and any " +
-  "support-language reply — in that language's own native script; never " +
-  "romanize. Even when a line is code-mixed, each word stays in its own " +
-  "language's script (do not transliterate borrowed words). For example, in a " +
-  "Tamil conversation: எனக்கு ஒரு ice cream வேண்டும்.";
+  "Write each language you speak in its own native script — never romanized, " +
+  "even when code-mixed with borrowed words (e.g. Tamil: எனக்கு ஒரு ice cream " +
+  "வேண்டும்).";
 
 /** Always-on: how to format the spoken `speech` field. */
 export const SPEECH_FORMAT_DIRECTIVE =
-  "Respond with a JSON object. The `speech` field is what you say aloud, so " +
-  "it is converted to speech: use complete, natural, conversational sentences " +
-  "with no markdown, code, or special formatting characters. " +
+  "Respond with a JSON object. `speech` is converted to audio: natural, " +
+  "conversational sentences, no markdown/code/special characters. " +
   SPEECH_SCRIPT_DIRECTIVE +
-  " Keep responses reasonably concise — a few sentences at a time, favoring " +
-  "back-and-forth over long monologues.";
+  " Keep it concise — a few sentences at a time, favoring back-and-forth over " +
+  "monologue.";
 
 /**
  * When + how to end the conversation via the boolean `endConversation` field.
@@ -63,15 +64,9 @@ export function buildEndConversationDirective(input: {
 
 /** Default "language support available" directive text, with a {{support_language}} placeholder. */
 const DEFAULT_LANGUAGE_SUPPORT_DIRECTIVE =
-  "LANGUAGE SUPPORT AVAILABLE: A {{support_language}} support channel is available for this learner. " +
-  "When — and only when — (a) the learner explicitly asks to hear something in {{support_language}}, " +
-  "requests a translation, or asks you to explain something in {{support_language}}, or (b) the learner " +
-  "speaks in {{support_language}} (rather than the primary language) seeking help or clarification: " +
-  "reply for that one turn directly in {{support_language}} — no primary-language " +
-  "preamble. Keep technical and academic terms in their original language exactly as they " +
-  "appeared. If the learner asks a doubt or question in the primary language, answer it " +
-  "normally in the primary language. Resume the conversation in the primary language on the " +
-  "next turn.";
+  "LANGUAGE SUPPORT: {{support_language}} help is available. If the learner asks for it or " +
+  "speaks in {{support_language}}, reply that one turn in {{support_language}} (technical " +
+  "terms unchanged); otherwise always use {{language}}.";
 
 /**
  * Language-support guidance. Returns null when no support language is configured.
@@ -86,16 +81,13 @@ export function buildLanguageSupportDirective(input: {
   languageHelpAvailable?: { languageLabel: string };
   /** Primary conversation language label, substituted for {{language}}. */
   primaryLanguageLabel?: string;
-  activityType?: ActivityTypeKind;
+  /** Resolved definition's own override, if any — already snapshot/registry-resolved by the caller. */
+  languageSupportDirective?: string;
 }): string | null {
   if (!input.languageHelpAvailable) return null;
 
   const label = input.languageHelpAvailable.languageLabel;
-  const template =
-    (input.activityType &&
-      resolveActivityTemplate({ kind: input.activityType }).definition
-        .languageSupportDirective) ||
-    DEFAULT_LANGUAGE_SUPPORT_DIRECTIVE;
+  const template = input.languageSupportDirective || DEFAULT_LANGUAGE_SUPPORT_DIRECTIVE;
 
   return template
     .replaceAll("{{support_language}}", label)
@@ -103,19 +95,28 @@ export function buildLanguageSupportDirective(input: {
 }
 
 /**
- * Resolves {{action:kind}} placeholders in directive text against the action
- * registry's live display label, so template authors don't have to hardcode a
- * raw action kind name that could drift if the action is ever relabeled.
- * Unresolvable kinds are left as-is (visible) rather than silently dropped.
+ * Per-action, hand-written pedagogy fragments for the enabled kinds actually
+ * available this turn, joined. Distinct from `buildActionsDirective`'s
+ * per-action *mechanics* (schema fields, always-on when the action is
+ * enabled, for any type) — this is per (activity type, action) guidance
+ * authored on the type itself (`ActivityTypeDefinition.actionGuidance`),
+ * e.g. "use MCQ sparingly" for one type vs. "hint on wrong answers" for
+ * another. Each fragment is auto-prefixed with the action's own live display
+ * label (from the action registry) so authored text never needs to name the
+ * action itself. Empty string when nothing applies.
  */
-function substituteActionReferences(text: string): string {
-  return text.replace(/\{\{action:([a-zA-Z0-9_]+)\}\}/g, (match, kind) => {
-    try {
-      return getActionDefinition(kind as ActionKind).label;
-    } catch {
-      return match;
-    }
-  });
+function buildActionGuidance(
+  actionGuidance: Partial<Record<ActionKind, string>> | undefined,
+  enabledKinds: ActionKind[],
+): string {
+  if (!actionGuidance) return "";
+  return filterImplemented(enabledKinds)
+    .map((k) => {
+      const text = actionGuidance[k];
+      return text ? `${getActionDefinition(k).label}: ${text}` : null;
+    })
+    .filter((s): s is string => Boolean(s))
+    .join("\n");
 }
 
 /**
@@ -134,11 +135,22 @@ export function buildMultimodalDirectives(input: {
   /** Activity type — may contribute an extra directive (e.g. speaking practice). */
   activityType?: ActivityTypeKind;
   /**
+   * The assignment's own resolved template definition (labels, generation
+   * copy, directive fields). Preferred over the kind-registry when present
+   * and valid; falls back to the registry default for legacy/missing/
+   * malformed snapshots. See `resolveActivityDefinitionForRuntime`.
+   */
+  activityDefinitionSnapshot?: unknown | null;
+  /**
    * When set, the learner's audio was transcribed in two languages simultaneously.
    * The model must pick the coherent reading and write it to `userTranscript`.
    */
   dualTranscript?: { primaryLabel: string; supportLabel: string };
 }): string {
+  const resolvedDefinition = input.activityType
+    ? resolveActivityDefinitionForRuntime(input.activityType, input.activityDefinitionSnapshot)
+    : undefined;
+
   const lines: string[] = [
     "",
     "[Multimodal turn instructions]",
@@ -146,24 +158,22 @@ export function buildMultimodalDirectives(input: {
     SAFETY_DIRECTIVE,
     buildActionsDirective(input.availableActions),
     buildEndConversationDirective({
-      endConditionInstruction: input.activityType
-        ? resolveActivityTemplate({ kind: input.activityType }).definition
-            .endConditionInstruction
-        : undefined,
+      endConditionInstruction: resolvedDefinition?.endConditionInstruction,
     }),
   ];
 
   if (input.activityType) {
-    const actionDirective = resolveActivityTemplate({
-      kind: input.activityType,
-    }).definition.actionDirective;
-    if (actionDirective) lines.push(substituteActionReferences(actionDirective));
+    const actionGuidance = buildActionGuidance(
+      resolvedDefinition?.actionGuidance,
+      input.availableActions,
+    );
+    if (actionGuidance) lines.push(actionGuidance);
   }
 
   const languageDirective = buildLanguageSupportDirective({
     languageHelpAvailable: input.languageHelpAvailable,
     primaryLanguageLabel: input.primaryLanguageLabel,
-    activityType: input.activityType,
+    languageSupportDirective: resolvedDefinition?.languageSupportDirective,
   });
   if (languageDirective) lines.push(languageDirective);
 

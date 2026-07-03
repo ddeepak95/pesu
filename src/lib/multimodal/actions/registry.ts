@@ -66,16 +66,19 @@ export interface ActionDefinition {
 // One string per paragraph; joined for the orchestrator system prompt. Mechanics
 // only (schema fields + the retry protocol tied to `repeatPrevious`) — how often
 // to pose a question is a pacing judgment that belongs in each activity type's
-// `actionDirective`, not here, so it stays overridable per type.
+// `actionGuidance` for this action, not here, so it stays overridable per type.
 const MCQ_DIRECTIVE_PARAGRAPHS = [
   // Schema mechanics.
-  'To pose a multiple choice question, set `action.kind` to "mcq", `action.topic` to the concept being assessed, and `action.difficulty` to easy, medium, or hard, and briefly tell the learner in your `speech` that a question will appear on their screen.',
+  'To pose an MCQ, set `action.kind` to "mcq", `action.topic` (the concept assessed), and ' +
+    "`action.difficulty` (easy/medium/hard), and briefly tell the learner in `speech` a " +
+    "question will appear.",
   // Answer-delivery mechanics only. What to actually do with a right/wrong
   // answer (hint, reveal, re-ask, stay neutral) is a pedagogical judgment that
   // varies by type (e.g. it directly conflicts with an examiner's "never give
   // away the answer" rule) — that belongs in each activity type's
-  // `actionDirective`, not here.
-  'When the learner answers, you receive a hidden note with the result, the correct answer, and an explanation. To re-ask the exact same question, set `action.kind` to "mcq" with `action.repeatPrevious` set to true.',
+  // `actionGuidance` for this action, not here.
+  "On answer, you get a hidden note with the result, correct answer, and explanation. To " +
+    "re-ask the same question, set `action.repeatPrevious` to true.",
 ];
 
 const MCQ_DIRECTIVE = MCQ_DIRECTIVE_PARAGRAPHS.join("\n");
@@ -125,14 +128,13 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     appFunctionKey: "text.display_content",
     inputSchema: displayContentActionInputSchema,
     // Mechanics only — when it's appropriate to use this action is a per-type
-    // judgment that belongs in each activity type's `actionDirective`.
+    // judgment that belongs in each activity type's `actionGuidance` for this
+    // action.
     buildDirective: () =>
-      "To use the `display_content` action, set `action.kind` to \"display_content\", " +
-      "`action.content` to the exact markdown (e.g. a fenced code block), and optionally " +
-      "`action.title` to a short label (e.g. the function name). In your `speech`, refer to it " +
-      "as 'the code shown on screen' or 'the snippet I've highlighted' — never read code syntax " +
-      "or markdown formatting aloud. Do not use it when wrapping up or closing the conversation " +
-      "— set `action` to null in those turns.",
+      "To use `display_content`, set `action.content` to the markdown to show (e.g. a fenced " +
+      "code block) and optionally `action.title`. In `speech`, refer to it as 'the code on " +
+      "screen' — never read code syntax or markdown aloud. Set `action` to null when closing " +
+      "the conversation.",
     clientTrigger: {
       hiddenMessage: "",
       autoAvailableForActivityTypes: ["code_review"],

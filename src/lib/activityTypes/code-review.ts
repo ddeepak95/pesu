@@ -128,11 +128,13 @@ export const CODE_REVIEW_DEFINITION: ActivityTypeDefinition = {
 - Anchor each question to a specific part of the student's submitted code (a function, class, loop, or data structure).
 - Format the generated prompt using Markdown. Use fenced code blocks with a language identifier (e.g. \`\`\`python, \`\`\`javascript, \`\`\`typescript) when quoting code from the submission. Use inline backticks for variable names, function names, and short code references.`,
   },
-  actionDirective:
-    "You are interviewing the student about code they wrote. When you want to discuss a specific function, " +
-    "variable, class, or block of code from their submission, always use the {{action:display_content}} action to show " +
-    "it on screen first, then refer to it verbally as 'the code on screen', 'this function', or 'the section I've " +
-    "highlighted'. Never read out code syntax, variable names, or special characters aloud.",
+  actionGuidance: {
+    display_content:
+      "When discussing a specific function, variable, class, or code block from the " +
+      "submission, show it on screen first, then refer to it verbally as 'the code on " +
+      "screen' or 'this function'. Never read code syntax, variable names, or special " +
+      "characters aloud.",
+  },
   endConditionInstruction:
     "the learner has thoroughly explained and justified their own code across the review focus, or has " +
     "explicitly refused to engage.",

@@ -98,27 +98,21 @@ export const ASSESSMENT_DEFINITION: ActivityTypeDefinition = {
 - Do not phrase the question in a way that implies what a correct answer should include.
 - Format the generated prompt using Markdown. Use fenced code blocks with a language identifier when quoting code from the submission, and inline backticks for terms the student should address directly.`,
   },
-  actionDirective:
-    "Use {{action:mcq}} sparingly, spaced across the interview — treat it as another " +
-    "interview question, not a hint. The options must not make the answer more obvious " +
-    "than your spoken questions would, and your follow-up must stay neutral regardless of " +
-    "whether they got it right: do NOT give a hint, do NOT explain why an answer was " +
-    "wrong, and do NOT reveal the correct answer, even after repeated wrong attempts — " +
-    "acknowledge the response neutrally and move on to the next question either way. Use " +
-    "{{action:display_content}} only when actively presenting neutral reference material " +
-    "(e.g. a code excerpt or diagram to ask about) — never a worked example or anything " +
-    "that reveals reasoning toward the answer.",
+  actionGuidance: {
+    mcq:
+      "Use sparingly, as another interview question — not a hint, and no more revealing than " +
+      "your spoken questions. Stay neutral regardless of the answer: never hint, explain, or " +
+      "reveal, even after repeated wrong attempts. Acknowledge and move on.",
+    display_content:
+      "Use only for neutral reference material (e.g. a code excerpt or diagram to ask about) " +
+      "— never a worked example or anything that reveals reasoning toward the answer.",
+  },
   languageSupportDirective:
-    "LANGUAGE SUPPORT AVAILABLE: A {{support_language}} support channel is available for " +
-    "this learner. When — and only when — (a) the learner explicitly asks to hear a question " +
-    "in {{support_language}} or asks for a translation of the question, or (b) the learner " +
-    "speaks in {{support_language}} (rather than the primary language) seeking clarification " +
-    "of what is being asked: reply for that one turn directly in {{support_language}} — " +
-    "clarify ONLY the wording of the question, never the answer or any hint " +
-    "toward it. Keep technical and academic terms in their original language exactly as they " +
-    "appeared. If the learner asks a doubt or question in the primary language, answer it " +
-    "normally in the primary language (still without giving away the answer). Resume the " +
-    "conversation in the primary language on the next turn.",
+    "LANGUAGE SUPPORT: {{support_language}} help is available. If the learner asks to " +
+    "hear/translate the question in {{support_language}} or speaks in it, reply that turn in " +
+    "{{support_language}} — clarify ONLY the wording, never the answer or a hint toward it " +
+    "(technical terms unchanged); otherwise always use {{language}}, never giving away the " +
+    "answer.",
   defaults: {
     interactionType: "multimodal",
     multimodal: {

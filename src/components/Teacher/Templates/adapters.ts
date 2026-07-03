@@ -13,6 +13,7 @@
  */
 
 import type { ActionKind } from "@/lib/multimodal/actions/types";
+import { listImplementedActions } from "@/lib/multimodal/actions/registry";
 import type { TemplateDefinition as RealDefinition } from "@/lib/activityTypes/templates";
 import { DEFAULT_ACTIVITY_TYPE_LABELS } from "@/lib/activityTypes/types";
 import type {
@@ -25,7 +26,12 @@ export function toEditorDefinition(real: RealDefinition): EditorDefinition {
   return {
     systemPrompt: real.systemPrompt,
     conversationStart: { ...real.conversationStart },
-    actionDirective: real.actionDirective ?? "",
+    actionGuidance: Object.fromEntries(
+      listImplementedActions().map((action) => [
+        action.kind,
+        real.actionGuidance?.[action.kind] ?? "",
+      ]),
+    ) as Partial<Record<ActionKind, string>>,
     languageSupportDirective: real.languageSupportDirective ?? "",
     endConditionInstruction: real.endConditionInstruction,
     evaluationPrompt: real.evaluationPrompt,
@@ -83,7 +89,7 @@ export function fromEditorDefinition(
       },
     },
     generation: { ...editor.generation },
-    actionDirective: editor.actionDirective,
+    actionGuidance: { ...editor.actionGuidance },
     languageSupportDirective: editor.languageSupportDirective,
     endConditionInstruction: editor.endConditionInstruction,
     // The editor doesn't manage `autoActions` — preserve the source's value.

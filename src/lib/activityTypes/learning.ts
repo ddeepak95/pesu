@@ -122,30 +122,20 @@ export const LEARNING_DEFINITION: ActivityTypeDefinition = {
 - Ground the topic in the student's submitted files where relevant, but the goal is understanding the underlying concept, not just describing the file.
 - Format the generated prompt using Markdown. Use fenced code blocks with a language identifier when quoting code from the submission, and inline backticks for terms the tutor should carry into the conversation.`,
   },
-  actionDirective:
-    "Use {{action:mcq}} sparingly — as a deliberate comprehension checkpoint, not after " +
-    "every point. Only pose one once you've explained a substantial concept and the " +
-    "student has had a chance to engage with it; most turns should not use it. Base the " +
-    "question on a concept from the rubric the student needs to reach, not an incidental " +
-    "detail — it's a checkpoint on the learning goal, not a trivia break. When in doubt, " +
-    "favor continuing the conversation over quizzing. If the student answers WRONG, give " +
-    "a brief spoken hint WITHOUT stating the correct answer and re-ask the same question. " +
-    "If CORRECT, acknowledge it and move on — do not re-ask. If they've struggled several " +
-    "times, you may reveal the answer and move on instead of re-asking. Use " +
-    "{{action:display_content}} only when actively presenting a diagram, worked example, " +
-    "or formatted explanation that's clearer shown than spoken — refer to it in your " +
-    "`speech` as 'what's on screen' rather than reading its contents aloud.",
+  actionGuidance: {
+    mcq:
+      "Use sparingly, as a checkpoint after a substantial concept — not a trivia break. Base " +
+      "it on a rubric concept. WRONG: hint (don't reveal) and re-ask. CORRECT: acknowledge and " +
+      "move on. After repeated struggle: reveal and move on.",
+    display_content:
+      "Use only when presenting a diagram, worked example, or explanation that's clearer " +
+      "shown than spoken. Refer to it in `speech` as 'what's on screen' — don't read it aloud.",
+  },
   languageSupportDirective:
-    "LANGUAGE SUPPORT AVAILABLE: A {{support_language}} support channel is available for " +
-    "this learner. When — and only when — (a) the learner explicitly asks to hear something " +
-    "in {{support_language}}, requests a translation, or asks you to explain something in " +
-    "{{support_language}}, or (b) the learner speaks in {{support_language}} (rather than the " +
-    "primary language) seeking help or clarification: reply for that one turn directly in " +
-    "{{support_language}} — re-explain the concept clearly rather than " +
-    "translating it word-for-word, so the explanation still builds real understanding. Keep " +
-    "technical and academic terms in their original language exactly as they appeared. If the " +
-    "learner asks a doubt or question in the primary language, answer it normally in the " +
-    "primary language. Resume the conversation in the primary language on the next turn.",
+    "LANGUAGE SUPPORT: {{support_language}} help is available. If the learner asks for it or " +
+    "speaks in {{support_language}}, reply that turn in {{support_language}} — re-explain the " +
+    "concept rather than translating word-for-word (technical terms unchanged); otherwise " +
+    "always use {{language}}.",
   defaults: {
     interactionType: "multimodal",
     multimodal: {

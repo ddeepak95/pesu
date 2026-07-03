@@ -14,7 +14,9 @@ import {
   SYSTEM_TEMPLATE_IDS,
   SYSTEM_TEMPLATE_ID_TO_KIND,
   normalizeDefinition,
+  registryToDefinition,
 } from "./templates";
+import type { TemplateDefinition } from "./templates";
 import type { ActivityTypeDefinition, ActivityTypeKind } from "./types";
 
 /** A fully-resolved activity-type definition. */
@@ -86,4 +88,18 @@ export async function resolveActivityTemplateFromDb(
   }
 
   return resolveActivityTemplate({ kind: ref.kind ?? "learning" });
+}
+
+/**
+ * Runtime (per-turn) resolution: prefer the assignment's own snapshot,
+ * degrading to the kind-registry when the snapshot is null/malformed (legacy
+ * assignments, or a corrupt row). No DB round-trip — mirrors
+ * resolveAutoActions/resolveBulbAction's snapshot-preferring convention
+ * (src/lib/multimodal/actions/registry.ts).
+ */
+export function resolveActivityDefinitionForRuntime(
+  kind: ActivityTypeKind,
+  snapshot: unknown | null | undefined,
+): TemplateDefinition {
+  return normalizeDefinition(snapshot) ?? registryToDefinition(kind);
 }

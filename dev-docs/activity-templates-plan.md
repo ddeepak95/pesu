@@ -325,7 +325,7 @@ settings resolver).
 | `buildDefault*Prompt`                             | registry                                                                                       | takes a `ResolvedTemplate` instead of a `kind`                                             |
 | Question Card / preview labels                    | `getActivityTypeLabels(kind)`                                                                  | assignment's `activity_definition_snapshot.labels` (→ registry fallback for legacy rows)   |
 | Generation copy (editor)                          | `getActivityTypeGenerationCopy(kind)`                                                          | resolved template's `generation` block                                                     |
-| Server multimodal directives (runtime)            | ~~registry hooks by kind~~ (Phase 0: plain fields, still read live by `kind` via the resolver) | generic composition reads `actionDirective` / `languageSupportDirective` from the snapshot |
+| Server multimodal directives (runtime)            | ~~registry hooks by kind~~ ~~(Phase 0: plain fields, still read live by `kind` via the resolver)~~ **Done**: `resolveActivityDefinitionForRuntime` | generic composition reads `endConditionInstruction` / `actionGuidance` / `languageSupportDirective` from the assignment's own `activity_definition_snapshot`, falling back to the kind-registry for legacy/missing/malformed snapshots |
 
 The resolver runs only at **seed/pull time** (creating an assignment or "Update from
 template"). At **runtime and view time, reads come from the assignment's snapshot**, never the
@@ -338,9 +338,19 @@ The two former hooks (`buildMultimodalDirective`, `buildLanguageSupportDirective
 produced **text** appended to the system prompt, so that text moved into the template
 `definition` as ordinary, editable prompt fields:
 
-- `definition.actionDirective?` — extra guidance applied only in multimodal mode (e.g.
-  speaking practice's "stay in character, let the student talk"). May reference an enabled
-  action's live label via a `{{action:kind}}` placeholder, resolved against the action registry.
+- `definition.actionGuidance?` — hand-written, **per-action** pedagogy fragments
+  (`Partial<Record<ActionKind, string>>`), e.g. assessment's "use MCQ sparingly, never give a
+  hint" vs. learning's "use MCQ as a comprehension checkpoint, hint on wrong answers" for the
+  same `mcq` action. Only the fragment for a currently-*enabled* action is composed in
+  (`buildActionGuidance` in `multimodal-directives.ts`), so it reflects the turn's actual
+  `availableActions`, not a static list. Authored directly in each built-in type's file
+  (`assessment.ts`/`learning.ts`/`code-review.ts`); in the Template Editor, each guidance box
+  lives on its action's own card under "Multimodal actions" and appears only while that action is
+  enabled. This is the **only** action-usage directive field — the earlier standalone
+  `actionDirective` (a single, un-gated free-text field appended regardless of which actions were
+  enabled) was removed once every built-in type's content had a natural per-action home here.
+  May reference an enabled action's live label via a `{{action:kind}}` placeholder, resolved
+  against the action registry.
 - `definition.endConditionInstruction?` — _when_ to end the conversation, two layers only:
   a fixed base rule (`endConversation` is now a plain **boolean** field, not a
   `"thorough"|"refusal"` enum) plus the activity type's own guidance under a single
@@ -359,7 +369,7 @@ produced **text** appended to the system prompt, so that text moved into the tem
 
 The runtime composition (`multimodal-directives.ts`) stays **generic**: it assembles teacher
 system prompt + interaction modifier + (multimodal: action/end-conversation scaffolding +
-`actionDirective`) + appendices, reading the fields from the resolved/snapshotted
+`actionGuidance`) + appendices, reading the fields from the resolved/snapshotted
 definition. There is **no** `behavior_key` **and no per-type code** — an author edits this behavior
 directly in the template.
 

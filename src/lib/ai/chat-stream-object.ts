@@ -88,6 +88,13 @@ export interface MultimodalTurnStreamOptions {
   /** Primary conversation language label, for the language-support directive's {{language}} placeholder. */
   primaryLanguageLabel?: string;
   activityType?: ActivityTypeKind;
+  /**
+   * The assignment's own resolved template definition snapshot, when
+   * available — preferred over the kind-registry for the directive fields
+   * (`endConditionInstruction`, `actionGuidance`, `languageSupportDirective`).
+   * See `resolveActivityDefinitionForRuntime`.
+   */
+  activityDefinitionSnapshot?: unknown | null;
   /** Present when the latest user message contains two transcript candidates. */
   dualTranscript?: { primaryLabel: string; supportLabel: string };
 }
@@ -113,6 +120,7 @@ export function resolveMultimodalTurnCall(
       languageHelpAvailable: options.languageHelpAvailable,
       primaryLanguageLabel: options.primaryLanguageLabel,
       activityType: options.activityType,
+      activityDefinitionSnapshot: options.activityDefinitionSnapshot,
       dualTranscript: options.dualTranscript,
     });
 

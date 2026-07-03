@@ -3,7 +3,7 @@
  *
  * Mirrors the serialized `ActivityTypeDefinition` shape from the plan
  * (dev-docs/activity-templates-plan.md, Appendix A) — directives are data
- * fields (`actionDirective`, `endConditionInstruction`) and the action↔type
+ * fields (`actionGuidance`, `endConditionInstruction`) and the action↔type
  * coupling is inverted onto the template (`bulbAction`). Used only to
  * demonstrate the editor surface; nothing here is persisted.
  */
@@ -27,8 +27,12 @@ export interface TemplateDefinition {
     first_question: string;
     subsequent_questions: string;
   };
-  /** Action-usage guidance — how/when to use this type's enabled actions. */
-  actionDirective: string;
+  /**
+   * Per-action pedagogy fragments — how/when to use each enabled action in
+   * context, keyed by action kind. Only the enabled actions' fragments are
+   * shown in the editor and composed into the live prompt.
+   */
+  actionGuidance: Partial<Record<ActionKind, string>>;
   /**
    * Overrides the default "language support available" directive (e.g.
    * speaking practice stays in character and continues the role-play in the

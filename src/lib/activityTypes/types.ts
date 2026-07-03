@@ -114,19 +114,19 @@ export interface ActivityTypeDefinition {
   /** Activity-type-specific guidance for the rubric/expected-answer generator. */
   generation?: ActivityTypeGeneration;
   /**
-   * Optional action-usage guidance, appended after the actions +
-   * end-conversation directives. Scope: how/when to use THIS type's enabled
-   * actions in context (e.g. tie an MCQ's topic to the rubric, or constrain
-   * what display_content may show) — not general persona/role guidance
-   * (that belongs in `systemPrompt`), and not an action's own mechanics
-   * (schema fields, format — that belongs in the action's own
-   * `buildDirective()` in the action registry, which already applies
-   * whenever the action is enabled, for any type). May reference an enabled
-   * action's live display label via a {{action:kind}} placeholder (e.g.
-   * {{action:display_content}}), resolved against the action registry.
-   * Omit when the type has no action-specific context to add.
+   * Per-action pedagogy fragments, hand-written on this type: how/when to use
+   * THIS type's enabled actions in context (e.g. tie an MCQ's topic to the
+   * rubric, or constrain what display_content may show) — not general
+   * persona/role guidance (that belongs in `systemPrompt`), and not an
+   * action's own mechanics (schema fields, format — that belongs in the
+   * action's own `buildDirective()` in the action registry, which already
+   * applies whenever the action is enabled, for any type). Only the fragment
+   * for a currently-enabled action is included in the composed prompt, and
+   * it's auto-prefixed with that action's own live display label from the
+   * action registry — authored text should not name the action itself. Omit
+   * an action's key when the type has nothing specific to add for it.
    */
-  actionDirective?: string;
+  actionGuidance?: Partial<Record<ActionKind, string>>;
   /**
    * Overrides the default "language support available" directive text (the
    * single, always-on instruction added whenever a support language is

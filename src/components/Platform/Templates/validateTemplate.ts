@@ -22,7 +22,7 @@ export interface ValidatableField {
   /** Marks the field as required — an empty value is reported as an issue. */
   required?: boolean;
   /**
-   * Bare variable names (no braces, e.g. "title", "action:mcq") recognized in
+   * Bare variable names (no braces, e.g. "title", "support_language") recognized in
    * this field. Omit to skip the unknown-variable check (e.g. fields with no
    * documented variable set).
    */

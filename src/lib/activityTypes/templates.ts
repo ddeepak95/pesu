@@ -124,7 +124,7 @@ export const templateDefinitionSchema = z.object({
   defaultFeedbackFocusAreas: z.array(feedbackFocusAreaSchema),
   defaults: defaultsSchema,
   generation: generationSchema,
-  actionDirective: z.string().optional(),
+  actionGuidance: z.partialRecord(actionKindSchema, z.string()).optional(),
   languageSupportDirective: z.string().optional(),
   endConditionInstruction: z.string(),
   // Phase 2 (action↔type inversion, Appendix A) — optional until then.
@@ -152,8 +152,8 @@ export function registryToDefinition(
     defaultFeedbackFocusAreas: getDefaultFeedbackFocusAreas(kind),
     defaults: def.defaults ?? {},
     generation: def.generation ?? {},
-    ...(def.actionDirective !== undefined
-      ? { actionDirective: def.actionDirective }
+    ...(def.actionGuidance !== undefined
+      ? { actionGuidance: def.actionGuidance }
       : {}),
     ...(def.languageSupportDirective !== undefined
       ? { languageSupportDirective: def.languageSupportDirective }

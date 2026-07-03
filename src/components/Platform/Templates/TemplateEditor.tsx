@@ -79,7 +79,6 @@ const PROMPT_VARS = [
 
 const GREETING_VARS = PROMPT_VARS;
 const EVAL_VARS = [...PROMPT_VARS, "{{answer_text}}"];
-const ACTION_VARS = listImplementedActions().map((a) => `{{action:${a.kind}}}`);
 const LANGUAGE_SUPPORT_VARS = ["{{language}}", "{{support_language}}"];
 
 // Bare (brace-stripped) equivalents of the vars lists above, for the
@@ -87,7 +86,6 @@ const LANGUAGE_SUPPORT_VARS = ["{{language}}", "{{support_language}}"];
 const PROMPT_VAR_NAMES = PROMPT_VARS.map(bareVarName);
 const GREETING_VAR_NAMES = PROMPT_VAR_NAMES;
 const EVAL_VAR_NAMES = EVAL_VARS.map(bareVarName);
-const ACTION_VAR_NAMES = ACTION_VARS.map(bareVarName);
 const LANGUAGE_SUPPORT_VAR_NAMES = LANGUAGE_SUPPORT_VARS.map(bareVarName);
 
 const GENERATION_FIELDS: {
@@ -227,12 +225,11 @@ function buildValidatableFields(def: TemplateDefinition): ValidatableField[] {
       required: true,
       knownVars: PROMPT_VAR_NAMES,
     },
-    {
-      id: "actionDirective",
-      label: "Action directive",
-      value: def.actionDirective,
-      knownVars: ACTION_VAR_NAMES,
-    },
+    ...listImplementedActions().map((action) => ({
+      id: `actionGuidance.${action.kind}`,
+      label: `${action.label} guidance`,
+      value: def.actionGuidance[action.kind] ?? "",
+    })),
     {
       id: "languageSupportDirective",
       label: "Language support directive",
@@ -404,6 +401,11 @@ export function TemplateEditor({
       setShowErrorDialog(true);
     }
   };
+
+  const patchActionGuidance = (kind: ActionKind, value: string) =>
+    patchDef({
+      actionGuidance: { ...def.actionGuidance, [kind]: value },
+    });
 
   const toggleAction = (kind: ActionKind, on: boolean) => {
     const current = def.defaults.multimodal.availableActions;
@@ -640,12 +642,15 @@ export function TemplateEditor({
 
           <Subsection
             title="Multimodal actions"
-            tooltip="On-screen actions (like showing an MCQ or suggesting a response) the AI can trigger during a multimodal conversation. Select these before writing the action directive below, so it can reference them by name."
+            tooltip="On-screen actions (like showing an MCQ or suggesting a response) the AI can trigger during a multimodal conversation. Enable an action to write its guidance — how/when to use it in context (e.g. tie an MCQ's topic to the rubric) — right on its card."
             divider={false}
           >
             <div className="space-y-3">
               {listImplementedActions().map((action) => {
                 const toggleId = `template-action-toggle-${action.kind}`;
+                const enabled = def.defaults.multimodal.availableActions.includes(
+                  action.kind,
+                );
                 return (
                   <div
                     key={action.kind}
@@ -669,12 +674,22 @@ export function TemplateEditor({
                         id={toggleId}
                         disabled={readOnly}
                         className={readOnlyControl}
-                        checked={def.defaults.multimodal.availableActions.includes(
-                          action.kind,
-                        )}
+                        checked={enabled}
                         onCheckedChange={(on) => toggleAction(action.kind, on)}
                       />
                     </div>
+                    {enabled && (
+                      <div className="mt-3 border-t pt-3">
+                        <PromptField
+                          label="Guidance"
+                          value={def.actionGuidance[action.kind] ?? ""}
+                          onChange={(v) => patchActionGuidance(action.kind, v)}
+                          rows={3}
+                          placeholder="Leave blank when this action needs no type-specific guidance."
+                          readOnly={readOnly}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -708,21 +723,6 @@ export function TemplateEditor({
                 </SelectContent>
               </Select>
             </div>
-          </Subsection>
-
-          <Subsection
-            title="Action directive"
-            tooltip="How/when to use this type's enabled actions in context (e.g. tie an MCQ's topic to the rubric). Not general persona text — that belongs in the system prompt above. Reference a selected action by its live label with {{action:kind}}."
-            divider={false}
-          >
-            <PromptField
-              value={def.actionDirective}
-              onChange={(v) => patchDef({ actionDirective: v })}
-              rows={5}
-              vars={ACTION_VARS}
-              placeholder="Leave blank when this type has no action-specific context to add."
-              readOnly={readOnly}
-            />
           </Subsection>
 
           <Subsection title="Language support" divider={false}>

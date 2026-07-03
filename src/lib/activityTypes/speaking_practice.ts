@@ -140,16 +140,10 @@ export const SPEAKING_PRACTICE_DEFINITION: ActivityTypeDefinition = {
 - Keep the scenario description in plain prose — avoid Markdown formatting, since this prompt is read aloud to set up the role-play, not displayed on screen.`,
   },
   languageSupportDirective:
-    "LANGUAGE SUPPORT AVAILABLE: A {{support_language}} support channel is available. " +
-    "Only when the learner explicitly asks for help in {{support_language}} mid-scenario (e.g. asks " +
-    "you to explain something in {{support_language}}, says they are confused and want {{support_language}} " +
-    "help, or speaks in {{support_language}} seeking clarification): for that one reply, stay in " +
-    "character and continue the speaking scenario naturally in {{support_language}}, helping them " +
-    "understand and keep going — keep proper nouns and any scenario-specific terms from the " +
-    "primary language as they were. Do NOT interrupt the role-play to offer {{support_language}} help " +
-    "unprompted — wait until the learner asks. If they ask a doubt in the primary language, answer " +
-    "it in character in the primary language. Resume the role-play in the primary language on the " +
-    "next turn.",
+    "LANGUAGE SUPPORT: {{support_language}} help is available. If the learner explicitly asks " +
+    "for it mid-scenario or speaks in {{support_language}}, stay in character and reply that " +
+    "turn in {{support_language}} (proper nouns and scenario terms stay in {{language}}); " +
+    "never offer unprompted. Otherwise stay in character in {{language}}.",
   endConditionInstruction:
     "the learner has completed the scenario's target aspects through the role-play, or has " +
     "explicitly refused to continue the scenario.",

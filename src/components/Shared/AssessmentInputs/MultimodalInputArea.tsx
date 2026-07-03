@@ -629,6 +629,7 @@ export function MultimodalInputArea({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             activityType,
+            activityDefinitionSnapshot,
             assignmentId,
             submissionId,
             questionOrder: question.order,
