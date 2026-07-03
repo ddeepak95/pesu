@@ -9,6 +9,7 @@ import {
 } from "@/types/assignment";
 import {
   buildDefaultDynamicGenerationPrompt,
+  buildDynamicGenerationUserMessage,
   formatQuestionsForDynamicGenerationPrompt,
 } from "@/lib/promptTemplates";
 import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
@@ -172,7 +173,8 @@ async function generateMergedQuestions(
     ? getActivityTypeDefinition(activityType)
     : undefined;
   const promptTemplateStr =
-    customPromptTemplate?.trim() || buildDefaultDynamicGenerationPrompt(activityDef);
+    customPromptTemplate?.trim() ||
+    buildDefaultDynamicGenerationPrompt(activityDef?.generation?.dynamicGenerationGuidance);
 
   const templateVariables: Record<string, string> = {
     title: context.title || "",
@@ -195,7 +197,7 @@ async function generateMergedQuestions(
       { role: "system", content: systemMessage },
       {
         role: "user",
-        content: `Generate exactly ${n} question object(s) as specified. For each index i, the rubric must sum to the total points given for question i in the generation requirements.`,
+        content: buildDynamicGenerationUserMessage(n),
       },
     ],
     invocation: logging

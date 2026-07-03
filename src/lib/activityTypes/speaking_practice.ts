@@ -62,11 +62,11 @@ Please review this speaking practice with primary emphasis on actionable feedbac
 For each aspect:
 1. Assign points_earned generously: reward partial effort and good-faith attempts; prefer the upper part of the range when the student addressed the aspect reasonably, and only deduct meaningfully for clear gaps (0 to the maximum for that aspect - do not exceed the maximum)
 2. Set points_possible to match the aspect's maximum points
-3. In {{language}}, write feedback that (a) briefly acknowledges what worked, if anything, (b) states specifically what the speaker did wrong or missed for this aspect, tied to the transcript, and (c) gives a concrete correction—what to say or do differently next time
+3. Write feedback that (a) briefly acknowledges what worked, if anything, (b) states specifically what the speaker did wrong or missed for this aspect, tied to the transcript, and (c) gives a concrete correction—what to say or do differently next time
 
-Then compose the feedback output in {{language}} using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Reference specific moments from the transcript. Keep a supportive tone; prioritize teaching over judging.
+Then compose the feedback output using the same pattern: brief positives, then what went wrong or was weak across the conversation, then clear steps to improve on the next attempt. Reference specific moments from the transcript. Keep a supportive tone; prioritize teaching over judging.
 
-IMPORTANT: All feedback text must be written in {{language}}.
+Write all feedback text — per-aspect and overall — in {{language}}.
 {{#if support_language}}
 LANGUAGE OVERRIDE: The learner had {{support_language}} available as a support language. Write ALL feedback (both per-aspect and overall) in {{support_language}} instead of {{language}}.
 {{/if}}`;

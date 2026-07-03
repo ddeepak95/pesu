@@ -10,6 +10,10 @@ import { buildEvaluationSystemMessage } from "@/lib/activityTypes/registry";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import {
+  appendFeedbackFocusBlock,
+  buildDefaultEvaluationUserMessage,
+} from "./evaluationPromptText";
+import {
   feedbackDocFromText,
   flattenFeedbackDoc,
   validateFeedbackDoc,
@@ -80,46 +84,23 @@ export async function evaluateSubmission(
   } = params;
 
   const maxScore = rubric.reduce((sum, item) => sum + item.points, 0);
-  const rubricText = rubric
-    .map((item) => `- ${item.item} (${item.points} points)`)
-    .join("\n");
 
   const languageNames = Object.fromEntries(
     supportedLanguages.map((lang) => [lang.code, lang.name]),
   );
   const languageName = languageNames[language] || "English";
 
-  let userMessageContent: string;
-  if (customEvaluationPrompt) {
-    userMessageContent = customEvaluationPrompt;
-  } else {
-    const sharedContextSection = sharedContext
-      ? `Additional context:\n${sharedContext}\n\n`
-      : "";
-    userMessageContent = `${sharedContextSection}Question: ${questionPrompt}
-
-Evaluation Rubric:
-${rubricText}
-
-Student's Answer:
-${answerText}
-
-Please evaluate this answer according to the rubric. For each rubric item:
-1. Assign points earned (0 to the maximum points for that item - do not exceed the maximum)
-2. Set points_possible to match the rubric item's maximum points
-3. Provide specific, constructive feedback in ${languageName}
-
-Then compose the feedback output in ${languageName} that is encouraging and helps the student understand their strengths and areas for improvement.
-
-IMPORTANT: All feedback text must be written in ${languageName}.`;
-  }
-
-  // Teacher "Feedback focus" areas steer the AI's sections. The resolved text is
-  // a list of `"<title>": <description>` lines; the title drives the section
-  // title. Appended regardless of whether a custom evaluation prompt is in use.
-  if (feedbackFocus && feedbackFocus.trim()) {
-    userMessageContent += `\n\nFEEDBACK FOCUS (from the teacher): Create one feedback_output "section" per focus area below, using the exact given title as that section's title and addressing its guidance in the section's content. Cover every area; you may add other sections too if helpful.\n${feedbackFocus.trim()}`;
-  }
+  const userMessageContent = appendFeedbackFocusBlock(
+    customEvaluationPrompt ||
+      buildDefaultEvaluationUserMessage({
+        questionPrompt,
+        rubric,
+        answerText,
+        languageName,
+        sharedContext,
+      }),
+    feedbackFocus,
+  );
 
   const systemMessage = buildEvaluationSystemMessage(
     activityType ?? "learning",

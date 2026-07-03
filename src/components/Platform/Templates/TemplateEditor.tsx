@@ -9,7 +9,6 @@ import {
   IdCard,
   Lightbulb,
   MessageSquare,
-  ShieldCheck,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -44,13 +43,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FeedbackFocusEditor } from "@/components/Teacher/Assignments/FeedbackFocusEditor";
+import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
+import { fromEditorDefinition } from "@/components/Teacher/Templates/adapters";
 import { listImplementedActions } from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import {
   ASSESSMENT_MODE_OPTIONS,
   RETIRED_ASSESSMENT_MODES,
 } from "@/lib/settings/registry";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
+import type { BotPromptConfig } from "@/types/assignment";
 
 import { PromptField } from "./PromptField";
 import {
@@ -353,15 +355,11 @@ export function TemplateEditor({
     expectedAnswerHelp: false,
     questionNoun: false,
   });
-  // Validation must be re-run (and pass) after every edit before Save unlocks —
-  // tracked by snapshotting the definition at the moment Validate was last run.
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(
     [],
   );
-  const [validatedSnapshot, setValidatedSnapshot] = useState<string | null>(
-    null,
-  );
   const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [showPromptPreview, setShowPromptPreview] = useState(false);
 
   const patch = (next: Partial<MockTemplate>) =>
     setDraft((d) => ({ ...d, ...next }));
@@ -377,9 +375,15 @@ export function TemplateEditor({
 
   const def = draft.definition;
 
-  const defSnapshot = JSON.stringify(def);
-  const isValidated = validatedSnapshot === defSnapshot;
-  const canSave = isValidated && validationIssues.length === 0;
+  // Real, persisted-shape definition — same conversion save() runs — fed to
+  // the prompt-preview dialog so it reflects the live draft (buildMultimodalDirectives
+  // needs this exact shape).
+  const previewActivityDefinition = fromEditorDefinition(def);
+  const previewConfig: BotPromptConfig = {
+    system_prompt: def.systemPrompt,
+    conversation_start: def.conversationStart,
+  };
+  const isMultimodal = def.defaults.interactionType === "multimodal";
 
   // In read-only mode the toggles/selects are disabled to make them
   // non-interactive, but we cancel the greyed "disabled" styling so their
@@ -388,18 +392,17 @@ export function TemplateEditor({
     ? "disabled:cursor-default disabled:opacity-100"
     : undefined;
 
-  const runValidation = () => {
+  const handleSaveClick = () => {
     const issues = validateFields(buildValidatableFields(def));
     setValidationIssues(issues);
-    setValidatedSnapshot(defSnapshot);
-    if (issues.length === 0) {
-      showSuccessToast("All prompts are valid.");
-    } else {
+    if (issues.length > 0) {
       showErrorToast(
         `${issues.length} issue${issues.length === 1 ? "" : "s"} found — see details.`,
       );
       setShowErrorDialog(true);
+      return;
     }
+    onSave?.(draft);
   };
 
   const patchActionGuidance = (kind: ActionKind, value: string) =>
@@ -988,12 +991,42 @@ export function TemplateEditor({
         </Dialog>
         )}
 
+        {/* Prompt preview dialog */}
+        {!readOnly && (
+        <Dialog open={showPromptPreview} onOpenChange={setShowPromptPreview}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Prompt preview</DialogTitle>
+              <DialogDescription>
+                Exactly what gets sent to the model, with sample values filled
+                in for runtime variables — updates live as you edit.
+              </DialogDescription>
+            </DialogHeader>
+            <PromptPreview
+              config={previewConfig}
+              assignment={{}}
+              languageCode={undefined}
+              assessmentMode={def.defaults.interactionType}
+              showBotPrompts={def.defaults.interactionType !== "static_text"}
+              showDynamicGenerationPrompt
+              evaluationPrompt={def.evaluationPrompt}
+              dynamicGenerationTypeGuidance={def.generation.dynamicGenerationGuidance}
+              activityDefinitionSnapshot={previewActivityDefinition}
+              showMultimodalDirectives={isMultimodal}
+              languageSupportEnabled={def.defaults.multimodal.languageSupportEnabled}
+              evaluationSystemPersona={def.evaluationSystemPersona}
+              feedbackFocusAreas={def.defaultFeedbackFocusAreas}
+            />
+          </DialogContent>
+        </Dialog>
+        )}
+
         {/* Sticky footer */}
         {!readOnly && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 backdrop-blur">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
-            {footerNote}
-            <div className="flex items-center gap-2">
+          <div className="mx-auto grid max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-3 sm:px-8">
+            <div className="justify-self-start">{footerNote}</div>
+            <div className="flex items-center gap-2 justify-self-center">
               <Button
                 variant="outline"
                 onClick={() => onCancel?.()}
@@ -1002,30 +1035,24 @@ export function TemplateEditor({
               >
                 Cancel
               </Button>
-              <Button
-                variant="outline"
-                onClick={runValidation}
-                type="button"
-                disabled={saving}
-              >
-                <ShieldCheck className="h-4 w-4" />
-                Validate
-              </Button>
-              <Button
-                onClick={() => onSave?.(draft)}
-                type="button"
-                disabled={!canSave || saving}
-                title={
-                  !canSave
-                    ? "Run Validate and resolve any issues before saving"
-                    : undefined
-                }
-              >
+              {process.env.NODE_ENV === "development" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPromptPreview(true)}
+                  type="button"
+                  disabled={saving}
+                >
+                  <Eye className="h-4 w-4" />
+                  Preview prompts
+                </Button>
+              )}
+              <Button onClick={handleSaveClick} type="button" disabled={saving}>
                 {saving
                   ? "Saving…"
                   : saveLabel ?? (isNew ? "Create template" : "Save changes")}
               </Button>
             </div>
+            <div />
           </div>
         </div>
         )}

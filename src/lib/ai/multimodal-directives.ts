@@ -11,7 +11,6 @@
  */
 
 import {
-  buildActionsDirective,
   filterImplemented,
   getActionDefinition,
 } from "@/lib/multimodal/actions/registry";
@@ -43,7 +42,7 @@ export const SPEECH_FORMAT_DIRECTIVE =
   "Respond with a JSON object. `speech` is converted to audio: natural, " +
   "conversational sentences, no markdown/code/special characters. " +
   SPEECH_SCRIPT_DIRECTIVE +
-  " Keep it concise — a few sentences at a time, favoring back-and-forth over " +
+  " Keep it concise — a few words at a time, favoring back-and-forth over " +
   "monologue.";
 
 /**
@@ -59,7 +58,7 @@ export function buildEndConversationDirective(input: {
     "To end the conversation, set `endConversation` to true (false otherwise). When you " +
     "set it to true, make your `speech` a warm closing message.";
   const guidance = input.endConditionInstruction?.trim();
-  return guidance ? `${base}\n\nWhen to end: ${guidance}` : base;
+  return guidance ? `**\n${base} Condition for ending the conversation: ${guidance}` : base;
 }
 
 /** Default "language support available" directive text, with a {{support_language}} placeholder. */
@@ -95,28 +94,35 @@ export function buildLanguageSupportDirective(input: {
 }
 
 /**
- * Per-action, hand-written pedagogy fragments for the enabled kinds actually
- * available this turn, joined. Distinct from `buildActionsDirective`'s
- * per-action *mechanics* (schema fields, always-on when the action is
- * enabled, for any type) — this is per (activity type, action) guidance
- * authored on the type itself (`ActivityTypeDefinition.actionGuidance`),
- * e.g. "use MCQ sparingly" for one type vs. "hint on wrong answers" for
- * another. Each fragment is auto-prefixed with the action's own live display
- * label (from the action registry) so authored text never needs to name the
- * action itself. Empty string when nothing applies.
+ * Per-action instructions: each enabled+implemented action's own *mechanics*
+ * (schema fields, always-on for any type — `buildDirective()`) immediately
+ * followed by that action's own *guidance* — hand-written pedagogy authored
+ * per (activity type, action) on the type itself
+ * (`ActivityTypeDefinition.actionGuidance`), e.g. "use MCQ sparingly" for one
+ * type vs. "hint on wrong answers" for another, auto-prefixed with the
+ * action's own live display label so authored text never needs to name the
+ * action itself. Kept paired per action (rather than all actions' mechanics
+ * in one block and all actions' guidance in a separate block elsewhere in the
+ * prompt) so the model reads "how to use X" and "when to use X" together.
  */
-function buildActionGuidance(
-  actionGuidance: Partial<Record<ActionKind, string>> | undefined,
+function buildActionsAndGuidanceDirective(
   enabledKinds: ActionKind[],
+  actionGuidance: Partial<Record<ActionKind, string>> | undefined,
 ): string {
-  if (!actionGuidance) return "";
-  return filterImplemented(enabledKinds)
+  const enabled = filterImplemented(enabledKinds);
+  if (enabled.length === 0) {
+    return "Always set `action` to null.";
+  }
+  return enabled
     .map((k) => {
-      const text = actionGuidance[k];
-      return text ? `${getActionDefinition(k).label}: ${text}` : null;
+      const def = getActionDefinition(k);
+      const guidanceText = actionGuidance?.[k];
+      return [def.buildDirective(), guidanceText ? `${"When to use"}: ${guidanceText}` : ""]
+        .filter(Boolean)
+        .join(" ");
     })
-    .filter((s): s is string => Boolean(s))
-    .join("\n");
+    .filter(Boolean)
+    .join("\n--\n");
 }
 
 /**
@@ -154,21 +160,15 @@ export function buildMultimodalDirectives(input: {
   const lines: string[] = [
     "",
     "[Multimodal turn instructions]",
-    SPEECH_FORMAT_DIRECTIVE,
-    SAFETY_DIRECTIVE,
-    buildActionsDirective(input.availableActions),
-    buildEndConversationDirective({
-      endConditionInstruction: resolvedDefinition?.endConditionInstruction,
-    }),
-  ];
-
-  if (input.activityType) {
-    const actionGuidance = buildActionGuidance(
-      resolvedDefinition?.actionGuidance,
+    SPEECH_FORMAT_DIRECTIVE, "**",
+    SAFETY_DIRECTIVE, "**",
+    "You can use the following actions to make the conversation more engaging:\n----",
+    buildActionsAndGuidanceDirective(
       input.availableActions,
-    );
-    if (actionGuidance) lines.push(actionGuidance);
-  }
+      resolvedDefinition?.actionGuidance,
+    ),
+    "**",
+  ];
 
   const languageDirective = buildLanguageSupportDirective({
     languageHelpAvailable: input.languageHelpAvailable,
@@ -187,6 +187,15 @@ export function buildMultimodalDirectives(input: {
         `only obvious mis-recognitions), and respond to it. Ignore the garbled reading entirely.`,
     );
   }
+
+  // End-conversation instructions go last — they're the final decision the
+  // model makes each turn, so keeping them closest to the actual output
+  // fields (right before the schema takes over) keeps them top-of-mind.
+  lines.push(
+    buildEndConversationDirective({
+      endConditionInstruction: resolvedDefinition?.endConditionInstruction,
+    }),
+  );
 
   return lines.join("\n");
 }

@@ -37,6 +37,8 @@ export const ACTIVITY_TYPE_REGISTRY: Record<
 export const EVALUATION_SYSTEM_SHARED_FOOTER = `OUTPUT FORMAT:
 Return both \`rubric_scores\` (the grade) and \`feedback_output\` (a structured feedback output shown to the student).
 
+For each rubric item in \`rubric_scores\`, assign \`points_earned\` (0 to that item's maximum — do not exceed it), set \`points_possible\` to match that maximum, and give specific, constructive \`feedback\` for that item.
+
 Compose \`feedback_output\` as a list of titled "section" blocks. Each "section" has a \`title\` (a short heading) and a \`content\` string (a single plain-text body covering that area; use "\n" line breaks within \`content\` to separate paragraphs or points).
 
 Rules:

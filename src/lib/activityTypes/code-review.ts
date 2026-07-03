@@ -53,14 +53,11 @@ Evaluation Rubric:
 Student's responses during the interview:
 {{answer_text}}
 
-Please evaluate how well the student demonstrated understanding of their own code. For each rubric item:
-1. Assign points earned (0 to the maximum points for that item — do not exceed the maximum)
-2. Set points_possible to match the rubric item's maximum points
-3. Provide specific, constructive feedback in {{language}} — reference concrete moments from the interview
+Please evaluate how well the student demonstrated understanding of their own code, referencing concrete moments from the interview throughout.
 
-Then compose the feedback output in {{language}}, organized into titled sections: what they explained well, where their understanding was shallow, and one actionable suggestion for improvement. Reference specific moments from the interview.
+Then compose the feedback output organized into titled sections: what they explained well, where their understanding was shallow, and one actionable suggestion for improvement.
 
-IMPORTANT: All feedback text must be written in {{language}}.`;
+Write all feedback text — per-item and overall — in {{language}}.`;
 
 const CODE_REVIEW_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evaluator. Assess how well the student can explain and justify their own code based on the given rubric criteria. Be fair, constructive, and specific. Evaluate based on the interview content, not the code quality.`;
 

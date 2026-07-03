@@ -5,7 +5,7 @@ import {
   teacherPromptOrFocus,
 } from "@/types/assignment";
 import { resolveActivityTemplate } from "@/lib/activityTypes/templateResolver";
-import type { ActivityTypeDefinition, ActivityTypeKind } from "@/lib/activityTypes/types";
+import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { SAFETY_DIRECTIVE } from "@/lib/ai/safetyDirective";
 
 /**
@@ -290,10 +290,10 @@ export function formatQuestionsForDynamicGenerationPrompt(questions: Question[])
 /**
  * Default system prompt template for dynamic question generation.
  * Uses template variables that are interpolated server-side.
- * Pass an ActivityTypeDefinition to append type-specific generation guidance.
+ * Pass an activity type's `generation.dynamicGenerationGuidance` to append
+ * type-specific generation guidance.
  */
-export function buildDefaultDynamicGenerationPrompt(activityDef?: ActivityTypeDefinition): string {
-  const typeGuidance = activityDef?.generation?.dynamicGenerationGuidance ?? "";
+export function buildDefaultDynamicGenerationPrompt(typeGuidance?: string): string {
   return `You are an expert educational content creator. You will output one structured entry per assignment question (see generation_spec). Use the student's file submission to generate any fields marked dynamic; respect teacher-fixed text where indicated.
 
 {{#if title}}
@@ -326,7 +326,12 @@ Rules:
 - Where dynamic_rubric is false: still output rubric and expected_answer fields, but they will be replaced server-side — you may repeat the teacher's fixed content
 - Questions should be distinct from each other — avoid overlap
 - Set question_index to the 0-based index of each question (0 through N-1)
-- Format the generated prompt using Markdown when the submission contains code${typeGuidance}`;
+- Format the generated prompt using Markdown when the submission contains code${typeGuidance ?? ""}`;
+}
+
+/** Fixed user message accompanying the dynamic-generation system message. */
+export function buildDynamicGenerationUserMessage(questionCount: number): string {
+  return `Generate exactly ${questionCount} question object(s) as specified. For each index i, the rubric must sum to the total points given for question i in the generation requirements.`;
 }
 
 const GENERATION_PROMPT_VARIABLE_KEYS: PromptVariableKey[] = [

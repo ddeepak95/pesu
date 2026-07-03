@@ -60,14 +60,9 @@ Evaluation Rubric:
 Student's Answer:
 {{answer_text}}
 
-Please evaluate this answer with a focus on the student's learning progress. For each rubric item:
-1. Assign points earned (0 to the maximum points for that item - do not exceed the maximum)
-2. Set points_possible to match the rubric item's maximum points
-3. Provide feedback that highlights what the student understood well and offers guidance for deeper understanding in {{language}}
+Please evaluate this answer with a focus on the student's learning progress.
 
-Then compose the feedback output in {{language}}, organized into titled sections that encourage continued learning and suggest next steps. Choose section titles that reflect the learner's progress (e.g. strengths, areas to deepen, next steps).
-
-IMPORTANT: All feedback text must be written in {{language}}.`;
+Write all feedback text — per-item and the overall feedback output — in {{language}}.`;
 
 const LEARNING_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evaluator focused on learning progress. Your task is to review student responses against the rubric and the questions asked by the bot. Be fair, constructive, and encouraging. Highlight what the student understood well and offer guidance for deeper understanding. Evaluate based solely on the content of the student's answer.`;
 

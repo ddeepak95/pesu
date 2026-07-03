@@ -96,6 +96,12 @@ export function interpolatePrompt(
     }
   }
 
+  // Step 3: collapse blank-line runs left behind by resolved {{#if}} blocks.
+  // A block's own boundary newlines (right after {{#if}}, right before
+  // {{/if}}) combine with the template's own surrounding blank line — true
+  // or false — into 2-3 blank lines in a row; cap it at a single blank line.
+  result = result.replace(/\n{3,}/g, "\n\n");
+
   return result;
 }
 

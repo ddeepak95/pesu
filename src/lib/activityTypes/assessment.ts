@@ -56,14 +56,9 @@ Evaluation Rubric:
 Student's Answer:
 {{answer_text}}
 
-Please evaluate this answer according to the rubric. For each rubric item:
-1. Assign points earned (0 to the maximum points for that item - do not exceed the maximum)
-2. Set points_possible to match the rubric item's maximum points
-3. Provide specific, constructive feedback in {{language}}
+Please evaluate this answer according to the rubric.
 
-Then compose the feedback output in {{language}}, organized into titled sections that help the student understand their strengths and areas for improvement.
-
-IMPORTANT: All feedback text must be written in {{language}}.`;
+Write all feedback text — per-item and the overall feedback output — in {{language}}.`;
 
 const ASSESSMENT_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evaluator. Your task is to grade student responses based on provided rubric criteria. Be fair, constructive, and encouraging in your feedback. Evaluate based solely on the content of the student's answer.`;
 

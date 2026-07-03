@@ -10,11 +10,27 @@ import {
   InterpolationContext,
 } from "@/lib/promptInterpolation";
 import {
+  buildDefaultDynamicGenerationPrompt,
+  buildDynamicGenerationUserMessage,
   CHAT_SYSTEM_APPENDIX,
   VOICE_SYSTEM_APPENDIX,
 } from "@/lib/promptTemplates";
-import { Info, MessageSquare, Volume2 } from "lucide-react";
+import { Info } from "lucide-react";
 import type { AssessmentMode } from "@/lib/settings/registry";
+import type { TemplateDefinition as RealTemplateDefinition } from "@/lib/activityTypes/templates";
+import {
+  buildEndConversationDirective,
+  buildMultimodalDirectives,
+} from "@/lib/ai/multimodal-directives";
+import { EVALUATION_SYSTEM_SHARED_FOOTER } from "@/lib/activityTypes/registry";
+import {
+  appendFeedbackFocusBlock,
+  buildDefaultEvaluationUserMessage,
+} from "@/lib/ai/evaluationPromptText";
+import {
+  buildFeedbackFocusPromptText,
+  type FeedbackFocusArea,
+} from "@/lib/feedbackFocus";
 
 interface PromptPreviewProps {
   config: BotPromptConfig;
@@ -27,9 +43,42 @@ interface PromptPreviewProps {
   showEndConversation?: boolean;
   showDynamicGenerationPrompt?: boolean;
   evaluationPrompt?: string;
+  /** Assignment-level full override of the dynamic-generation system message, if set. */
   dynamicGenerationPrompt?: string;
+  /**
+   * Template-level `generation.dynamicGenerationGuidance` fragment — appended
+   * inside the real default wrapper (`buildDefaultDynamicGenerationPrompt`)
+   * when no full override (`dynamicGenerationPrompt`) is set.
+   */
+  dynamicGenerationTypeGuidance?: string;
   /** Rendered to the right of the prompt-type tab list (e.g. an Edit/Preview switch). */
   rightSlot?: React.ReactNode;
+  /**
+   * The full, persisted-shape template definition (e.g. from
+   * `fromEditorDefinition()`) — required to compute `buildMultimodalDirectives`
+   * below. Omit to keep the legacy client-interpolation-only preview.
+   */
+  activityDefinitionSnapshot?: RealTemplateDefinition;
+  /**
+   * When true (multimodal interactionType), additionally renders the
+   * server-appended "[Multimodal turn instructions]" block (actions, end
+   * condition, action guidance, language support) on top of the base
+   * interpolated system prompt, and renders the Ending tab from the real
+   * composed end-conversation directive.
+   */
+  showMultimodalDirectives?: boolean;
+  /** Overrides the config-derived support-language lookup below. */
+  languageSupportEnabled?: boolean;
+  /** Overrides the config-derived support-language lookup below. */
+  supportLanguageCode?: string;
+  /**
+   * When provided (alongside `evaluationPrompt`), renders the full evaluation
+   * exchange — system message (persona + shared footer) and user message
+   * (custom prompt or the real built-in template, plus the feedback-focus
+   * block) — instead of just the raw `evaluationPrompt` field.
+   */
+  evaluationSystemPersona?: string;
+  feedbackFocusAreas?: FeedbackFocusArea[];
 }
 
 /** A single rendered prompt block (interpolated text in a muted box). */
@@ -58,20 +107,70 @@ export function PromptPreview({
   showDynamicGenerationPrompt = false,
   evaluationPrompt = "",
   dynamicGenerationPrompt = "",
+  dynamicGenerationTypeGuidance,
   rightSlot,
+  activityDefinitionSnapshot,
+  showMultimodalDirectives = false,
+  languageSupportEnabled,
+  supportLanguageCode,
+  evaluationSystemPersona,
+  feedbackFocusAreas,
 }: PromptPreviewProps) {
   // Preview the configured support language (when enabled) so {{support_language}}
-  // blocks render as they would for a learner who has it selected.
-  const previewSupportLanguage = config.multimodal_actions?.languageSupport?.enabled
-    ? config.multimodal_actions.languageSupport.defaultLanguage
-    : undefined;
+  // blocks render as they would for a learner who has it selected. Explicit
+  // `languageSupportEnabled`/`supportLanguageCode` props (callers with no
+  // per-assignment BotPromptConfig, e.g. the template editor) take priority
+  // over reading them off `config`; falls back to a generic sample language
+  // when enabled but no specific code is known.
+  const effectiveLanguageSupportEnabled =
+    languageSupportEnabled ??
+    Boolean(config.multimodal_actions?.languageSupport?.enabled);
+  const previewSupportLanguage =
+    supportLanguageCode ??
+    (config.multimodal_actions?.languageSupport?.enabled
+      ? config.multimodal_actions.languageSupport.defaultLanguage
+      : undefined) ??
+    (effectiveLanguageSupportEnabled ? "es" : undefined);
 
   // Build preview context with sample values
   const previewContext = useMemo(
     (): InterpolationContext =>
-      buildPreviewContext(assignment, question, languageCode, previewSupportLanguage),
-    [assignment, question, languageCode, previewSupportLanguage]
+      buildPreviewContext(
+        assignment,
+        question,
+        languageCode,
+        effectiveLanguageSupportEnabled ? previewSupportLanguage : undefined,
+      ),
+    [assignment, question, languageCode, effectiveLanguageSupportEnabled, previewSupportLanguage]
   );
+
+  const multimodalDirectives = useMemo(() => {
+    if (!showMultimodalDirectives || !activityDefinitionSnapshot) return null;
+    return buildMultimodalDirectives({
+      availableActions:
+        activityDefinitionSnapshot.defaults?.multimodal?.availableActions ?? [],
+      languageHelpAvailable:
+        effectiveLanguageSupportEnabled && previewContext.support_language
+          ? { languageLabel: previewContext.support_language }
+          : undefined,
+      primaryLanguageLabel: previewContext.language,
+      activityType: "learning",
+      activityDefinitionSnapshot,
+    });
+  }, [
+    showMultimodalDirectives,
+    activityDefinitionSnapshot,
+    effectiveLanguageSupportEnabled,
+    previewContext.support_language,
+    previewContext.language,
+  ]);
+
+  const endingDirectiveText = useMemo(() => {
+    if (!showMultimodalDirectives || !activityDefinitionSnapshot) return null;
+    return buildEndConversationDirective({
+      endConditionInstruction: activityDefinitionSnapshot.endConditionInstruction,
+    });
+  }, [showMultimodalDirectives, activityDefinitionSnapshot]);
 
   // Interpolate the system prompt
   const interpolatedSystemPrompt = useMemo(
@@ -104,15 +203,60 @@ export function PromptPreview({
     [evaluationPrompt, previewContext]
   );
 
-  const interpolatedGeneration = useMemo(() => {
+  // Fuller evaluation preview (system message + real user-message recipe) is
+  // only computed when the caller opts in via `evaluationSystemPersona` —
+  // otherwise this stays null and the evaluation tab falls back to just
+  // showing the raw `evaluationPrompt` field, unchanged from before.
+  const evaluationSystemMessage = useMemo(() => {
+    if (evaluationSystemPersona === undefined) return null;
+    return `${evaluationSystemPersona}\n\n${EVALUATION_SYSTEM_SHARED_FOOTER}`;
+  }, [evaluationSystemPersona]);
+
+  const evaluationUserMessage = useMemo(() => {
+    if (evaluationSystemPersona === undefined) return null;
+    const base = evaluationPrompt
+      ? interpolatedEvaluation
+      : buildDefaultEvaluationUserMessage({
+          questionPrompt: previewContext.question_prompt,
+          rubric: question?.rubric ?? [],
+          answerText: previewContext.answer_text,
+          languageName: previewContext.language,
+          sharedContext: previewContext.context_for_ai,
+        });
+    return appendFeedbackFocusBlock(
+      base,
+      buildFeedbackFocusPromptText(feedbackFocusAreas ?? []),
+    );
+  }, [
+    evaluationSystemPersona,
+    evaluationPrompt,
+    interpolatedEvaluation,
+    previewContext,
+    question,
+    feedbackFocusAreas,
+  ]);
+
+  // Real recipe (generate-dynamic-questions/route.ts): the assignment's own
+  // full override verbatim if set, else the real default wrapper template
+  // with the template's own generation guidance embedded — not just the raw
+  // guidance fragment shown in isolation.
+  const generationSystemMessage = useMemo(() => {
+    const base = dynamicGenerationPrompt.trim()
+      ? dynamicGenerationPrompt
+      : buildDefaultDynamicGenerationPrompt(dynamicGenerationTypeGuidance);
     // generation_spec is a runtime-only variable not in the preview context;
     // seed a sample so the preview doesn't show a raw placeholder.
     const generationContext = {
       ...previewContext,
       generation_spec: "[Generation instructions will appear here]",
     };
-    return interpolatePrompt(dynamicGenerationPrompt, generationContext);
-  }, [dynamicGenerationPrompt, previewContext]);
+    return interpolatePrompt(base, generationContext);
+  }, [dynamicGenerationPrompt, dynamicGenerationTypeGuidance, previewContext]);
+
+  const generationUserMessage = useMemo(
+    () => buildDynamicGenerationUserMessage(previewContext.total_questions),
+    [previewContext.total_questions],
+  );
 
   const endingInstruction =
     config.multimodal_actions?.endConversation?.customInstruction?.trim() ?? "";
@@ -131,10 +275,11 @@ export function PromptPreview({
     return null;
   }, [assessmentMode, previewContext.language]);
 
-  const appendixLabel =
-    assessmentMode === "voice"
-      ? "Auto-appended for voice mode:"
-      : "Auto-appended for text chat mode:";
+  // Concatenated exactly as runtime does (systemPrompt += appendix /
+  // system = systemPrompt + directives, no separator inserted) so the
+  // preview shows one continuous block instead of visually split sections.
+  const fullSystemPromptText =
+    interpolatedSystemPrompt + (modalityAppendix ?? "") + (multimodalDirectives ?? "");
 
   const defaultTab = showBotPrompts
     ? "system"
@@ -180,26 +325,9 @@ export function PromptPreview({
             <TabsContent value="system" className="space-y-2">
               <Label className="text-sm font-medium">System Prompt</Label>
               <div className="rounded-lg border bg-muted/50 p-3">
-                <pre className="whitespace-pre-wrap font-sans text-sm">
-                  {interpolatedSystemPrompt}
+                <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground italic">
+                  {fullSystemPromptText}
                 </pre>
-                {modalityAppendix && (
-                  <div className="mt-3 pt-3 border-t border-dashed">
-                    <div className="flex items-center gap-2 mb-1">
-                      {assessmentMode === "voice" ? (
-                        <Volume2 className="h-3 w-3 text-muted-foreground" />
-                      ) : (
-                        <MessageSquare className="h-3 w-3 text-muted-foreground" />
-                      )}
-                      <span className="text-xs text-muted-foreground font-medium">
-                        {appendixLabel}
-                      </span>
-                    </div>
-                    <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground italic">
-                      {modalityAppendix}
-                    </pre>
-                  </div>
-                )}
               </div>
             </TabsContent>
 
@@ -223,7 +351,9 @@ export function PromptPreview({
         {showEndConversation && (
           <TabsContent value="ending" className="space-y-2">
             <Label className="text-sm font-medium">Ending the conversation</Label>
-            {endingInstruction ? (
+            {endingDirectiveText ? (
+              <PreviewBlock text={endingDirectiveText} />
+            ) : endingInstruction ? (
               <PreviewBlock text={endingInstruction} />
             ) : (
               <p className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
@@ -236,29 +366,47 @@ export function PromptPreview({
           </TabsContent>
         )}
 
-        <TabsContent value="evaluation" className="space-y-2">
-          <Label className="text-sm font-medium">Evaluation Prompt</Label>
-          {evaluationPrompt ? (
-            <PreviewBlock text={interpolatedEvaluation} />
-          ) : (
-            <p className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-              Using the default evaluation prompt.
-            </p>
+        <TabsContent value="evaluation" className="space-y-4">
+          {evaluationSystemMessage !== null && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Evaluation System Message
+              </Label>
+              <PreviewBlock text={evaluationSystemMessage} />
+            </div>
           )}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              {evaluationSystemMessage !== null
+                ? "Evaluation User Message"
+                : "Evaluation Prompt"}
+            </Label>
+            {evaluationUserMessage !== null ? (
+              <PreviewBlock text={evaluationUserMessage} />
+            ) : evaluationPrompt ? (
+              <PreviewBlock text={interpolatedEvaluation} />
+            ) : (
+              <p className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+                Using the default evaluation prompt.
+              </p>
+            )}
+          </div>
         </TabsContent>
 
         {showDynamicGenerationPrompt && (
-          <TabsContent value="generation" className="space-y-2">
-            <Label className="text-sm font-medium">
-              Question Generation Prompt
-            </Label>
-            {dynamicGenerationPrompt ? (
-              <PreviewBlock text={interpolatedGeneration} />
-            ) : (
-              <p className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-                Using the default question generation prompt.
-              </p>
-            )}
+          <TabsContent value="generation" className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Question Generation System Message
+              </Label>
+              <PreviewBlock text={generationSystemMessage} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Question Generation User Message
+              </Label>
+              <PreviewBlock text={generationUserMessage} />
+            </div>
           </TabsContent>
         )}
       </Tabs>
