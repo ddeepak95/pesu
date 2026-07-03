@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import MarkdownEditor from "@/components/Shared/MarkdownEditor";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,12 @@ import {
   getActivityTypeLabels,
   getDefaultFeedbackFocusAreas,
 } from "@/lib/activityTypes/registry";
+import {
+  SYSTEM_TEMPLATE_IDS,
+  SYSTEM_TEMPLATE_ID_TO_KIND,
+  type TemplateDefinition,
+} from "@/lib/activityTypes/templates";
+import { useAvailableTemplatesForClass } from "@/hooks/swr";
 import {
   normalizeFeedbackFocusAreas,
   type FeedbackFocusArea,
@@ -134,6 +141,8 @@ interface AssignmentFormProps {
   initialLockLanguage?: boolean;
   initialIsPublic?: boolean;
   initialActivityType?: ActivityType;
+  initialActivityTemplateId?: string | null;
+  initialActivityDefinition?: TemplateDefinition | null;
   initialAssessmentMode?: AssessmentMode;
   initialResponderFieldsConfig?: ResponderFieldConfig[];
   initialMaxAttempts?: number;
@@ -179,6 +188,10 @@ export interface AssignmentFormSubmitData {
   lockLanguage: boolean;
   isPublic: boolean;
   activityType: ActivityType;
+  /** Provenance link to the selected template (system row id for built-ins). */
+  activityTemplateId?: string | null;
+  /** The selected template's definition, snapshotted onto the assignment. */
+  activityDefinitionSnapshot?: TemplateDefinition | null;
   assessmentMode: AssessmentMode;
   isDraft: boolean;
   responderFieldsConfig?: ResponderFieldConfig[];
@@ -233,6 +246,8 @@ export default function AssignmentForm({
   initialLockLanguage = false,
   initialIsPublic = false,
   initialActivityType = "learning",
+  initialActivityTemplateId = null,
+  initialActivityDefinition = null,
   initialAssessmentMode = "voice",
   initialResponderFieldsConfig,
   initialMaxAttempts = 3,
@@ -270,9 +285,44 @@ export default function AssignmentForm({
   const [isPublic, setIsPublic] = useState(initialIsPublic);
   const [activityType, setActivityType] =
     useState<ActivityType>(initialActivityType);
+  // The selected template's provenance id + snapshotted definition. Built-ins
+  // map to their fixed system-row id; the definition drives prompt/eval/label
+  // seeding so custom (non-`kind`) templates work too.
+  const [activityTemplateId, setActivityTemplateId] = useState<string | null>(
+    initialActivityTemplateId ?? SYSTEM_TEMPLATE_IDS[initialActivityType] ?? null,
+  );
+  const [activityDefinition, setActivityDefinition] =
+    useState<TemplateDefinition | null>(initialActivityDefinition);
   const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>(
     initialAssessmentMode,
   );
+
+  // The class palette (system + class-owned + added-personal). Drives the
+  // activity-type picker; falls back to the built-in registry list when a class
+  // context isn't available yet.
+  const availableTemplatesQuery = useAvailableTemplatesForClass(classDbId);
+  const availableTemplates = useMemo(
+    () => availableTemplatesQuery.data ?? [],
+    [availableTemplatesQuery.data],
+  );
+  // `data === undefined` = the palette query hasn't resolved yet; `[]` = it
+  // resolved to an empty class palette (all system types pruned, no class/
+  // personal templates). Only the latter shows the explicit empty state; while
+  // loading or without a class context we fall back to the built-in kind list.
+  const templatesLoaded = availableTemplatesQuery.data !== undefined;
+  const useTemplatePicker =
+    !!classDbId && templatesLoaded && availableTemplates.length > 0;
+  const showNoActivityTypes =
+    !!classDbId && templatesLoaded && availableTemplates.length === 0;
+  // Ensure the current selection is always an option, even if it's been removed
+  // from the palette or archived since this assignment was created.
+  const templateOptions = useMemo(() => {
+    const opts = availableTemplates.map((t) => ({ id: t.id, name: t.name }));
+    if (activityTemplateId && !opts.some((o) => o.id === activityTemplateId)) {
+      opts.unshift({ id: activityTemplateId, name: "Current template" });
+    }
+    return opts;
+  }, [availableTemplates, activityTemplateId]);
 
   // In create mode, seed multimodal bot configs from the class language defaults
   // (support enabled/default/lock). No-op in edit mode — the saved assignment
@@ -680,9 +730,84 @@ export default function AssignmentForm({
 
   // Switch activity type: rebuild the default prompts and apply the type's
   // preselected config (interaction type + multimodal language support/actions).
+  /**
+   * Seed the prompt/eval/label/display/file state from a template's definition
+   * (copy-on-select snapshot). Shared by the template picker and the built-in
+   * kind fallback so both paths produce identical assignment state.
+   */
+  const seedFromDefinition = (def: TemplateDefinition) => {
+    let targetMode = currentAssessmentMode;
+    const desired = def.defaults?.interactionType;
+    if (desired && allowedAssessmentModes.has(desired)) {
+      targetMode = desired;
+      setAssessmentMode(desired);
+    }
+
+    let nextConfig: BotPromptConfig = {
+      system_prompt: def.systemPrompt,
+      conversation_start: { ...def.conversationStart },
+    };
+    const mm = def.defaults?.multimodal;
+    if (mm && targetMode === "multimodal") {
+      nextConfig = {
+        ...nextConfig,
+        multimodal_actions: {
+          ...nextConfig.multimodal_actions,
+          ...(mm.availableActions !== undefined
+            ? { availableActions: mm.availableActions }
+            : {}),
+          ...(mm.languageSupportEnabled !== undefined
+            ? {
+                languageSupport: {
+                  ...nextConfig.multimodal_actions?.languageSupport,
+                  enabled: mm.languageSupportEnabled,
+                },
+              }
+            : {}),
+        },
+      };
+    }
+
+    setBotPromptConfig(applyClassLang(nextConfig, targetMode));
+    setEvaluationPrompt(def.evaluationPrompt);
+    setFeedbackFocus(def.defaultFeedbackFocusAreas);
+    setUseStarDisplay(def.defaults?.display?.useStarDisplay ?? false);
+    if (def.defaults?.fileSubmission?.required) {
+      setFileSubmissionEnabled(true);
+      if (fileAllowedTypes.length === 0) {
+        setFileAllowedTypes([...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES]);
+      }
+    }
+  };
+
+  /** Teacher picked a template from the class palette → snapshot its definition. */
+  const handleTemplateChange = (templateId: string) => {
+    const row = availableTemplates.find((t) => t.id === templateId);
+    if (!row) return;
+    setActivityTemplateId(row.id);
+    setActivityDefinition(row.definition);
+    setActivityType(SYSTEM_TEMPLATE_ID_TO_KIND[row.id] ?? activityType);
+    seedFromDefinition(row.definition);
+  };
+
+  /** Re-pull the selected template's current definition into this assignment. */
+  const handleUpdateFromTemplate = () => {
+    if (!activityTemplateId) return;
+    const row = availableTemplates.find((t) => t.id === activityTemplateId);
+    if (!row) return;
+    setActivityDefinition(row.definition);
+    seedFromDefinition(row.definition);
+    showSuccessToast("Updated from template.");
+  };
+
   const handleActivityTypeChange = (value: string) => {
     const newType = value as ActivityType;
     setActivityType(newType);
+    // Built-in kind fallback (used before the class palette loads): point the
+    // provenance at the seeded system row and let the save path re-derive the
+    // snapshot from the registry (definition left null).
+    setActivityTemplateId(SYSTEM_TEMPLATE_IDS[newType] ?? null);
+    setActivityDefinition(null);
 
     const def = getActivityTypeDefinition(newType);
 
@@ -817,6 +942,8 @@ export default function AssignmentForm({
       lockLanguage,
       isPublic,
       activityType,
+      activityTemplateId,
+      activityDefinitionSnapshot: activityDefinition,
       assessmentMode: currentAssessmentMode,
       isDraft: draft,
       responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
@@ -1005,22 +1132,62 @@ export default function AssignmentForm({
               <Label htmlFor="activityType">
                 Activity Type <span className="text-destructive">*</span>
               </Label>
-              <Select
-                value={activityType}
-                onValueChange={handleActivityTypeChange}
-                disabled={loading}
-              >
-                <SelectTrigger id="activityType">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {listActivityTypes().map((def) => (
-                    <SelectItem key={def.kind} value={def.kind}>
-                      {def.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {useTemplatePicker ? (
+                <Select
+                  value={activityTemplateId ?? ""}
+                  onValueChange={handleTemplateChange}
+                  disabled={loading}
+                >
+                  <SelectTrigger id="activityType">
+                    <SelectValue placeholder="Choose a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        {opt.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : showNoActivityTypes ? (
+                <div className="rounded-md border border-dashed bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+                  No activity types are enabled for this class.{" "}
+                  <Link
+                    href={`/teacher/classes/${classId}/settings`}
+                    className="font-medium text-foreground underline underline-offset-2"
+                  >
+                    Enable some in Class settings → Activity Types
+                  </Link>
+                  .
+                </div>
+              ) : (
+                <Select
+                  value={activityType}
+                  onValueChange={handleActivityTypeChange}
+                  disabled={loading}
+                >
+                  <SelectTrigger id="activityType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {listActivityTypes().map((def) => (
+                      <SelectItem key={def.kind} value={def.kind}>
+                        {def.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {useTemplatePicker && activityTemplateId && (
+                <button
+                  type="button"
+                  onClick={handleUpdateFromTemplate}
+                  disabled={loading}
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+                >
+                  Update from template
+                </button>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -1032,12 +1199,17 @@ export default function AssignmentForm({
                 onValueChange={(value) => {
                   const newMode = value as AssessmentMode;
                   setAssessmentMode(newMode);
-                  setBotPromptConfig(
-                    applyClassLang(
-                      buildDefaultBotPromptConfig(activityType, newMode),
-                      newMode,
-                    ),
-                  );
+                  // Keep the selected template's prompt when re-seeding for the
+                  // new mode (mode never changes the system prompt itself).
+                  const baseConfig: BotPromptConfig = activityDefinition
+                    ? {
+                        system_prompt: activityDefinition.systemPrompt,
+                        conversation_start: {
+                          ...activityDefinition.conversationStart,
+                        },
+                      }
+                    : buildDefaultBotPromptConfig(activityType, newMode);
+                  setBotPromptConfig(applyClassLang(baseConfig, newMode));
                 }}
                 disabled={loading}
               >
@@ -1253,6 +1425,7 @@ export default function AssignmentForm({
                 dynamicGenerationPrompt={dynamicGenerationPrompt}
                 setDynamicGenerationPrompt={setDynamicGenerationPrompt}
                 availableActionKinds={availableActionKinds}
+                showPromptOverrides={false}
               />
             </TabsContent>
           </Tabs>

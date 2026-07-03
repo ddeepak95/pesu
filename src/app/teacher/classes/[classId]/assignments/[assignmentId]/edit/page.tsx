@@ -18,6 +18,7 @@ import {
   FileSubmissionConfig,
 } from "@/types/assignment";
 import type { ActivityType } from "@/lib/promptTemplates";
+import type { TemplateDefinition } from "@/lib/activityTypes/templates";
 import {
   parseFeedbackFocusAreas,
   type FeedbackFocusArea,
@@ -39,6 +40,11 @@ export default function EditAssignmentPage() {
   const [lockLanguage, setLockLanguage] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [activityType, setActivityType] = useState<ActivityType>("learning");
+  const [activityTemplateId, setActivityTemplateId] = useState<string | null>(
+    null,
+  );
+  const [activityDefinition, setActivityDefinition] =
+    useState<TemplateDefinition | null>(null);
   const [assessmentMode, setAssessmentMode] =
     useState<AssessmentMode>("voice");
   const [responderFieldsConfig, setResponderFieldsConfig] = useState<
@@ -98,6 +104,8 @@ export default function EditAssignmentPage() {
     setLockLanguage(assignmentData.lock_language ?? false);
     setIsPublic(assignmentData.is_public);
     setActivityType(assignmentData.activity_type ?? "learning");
+    setActivityTemplateId(assignmentData.activity_template_id ?? null);
+    setActivityDefinition(assignmentData.activity_definition_snapshot ?? null);
     setAssessmentMode(assignmentData.assessment_mode ?? "voice");
     setResponderFieldsConfig(assignmentData.responder_fields_config);
     setMaxAttempts(assignmentData.max_attempts ?? 1);
@@ -174,6 +182,8 @@ export default function EditAssignmentPage() {
     lock_language: data.lockLanguage,
     is_public: data.isPublic,
     activity_type: data.activityType,
+    activity_template_id: data.activityTemplateId ?? null,
+    activity_definition_snapshot: data.activityDefinitionSnapshot ?? null,
     assessment_mode: data.assessmentMode,
     responder_fields_config: data.responderFieldsConfig,
     max_attempts: data.maxAttempts ?? 1,
@@ -254,6 +264,8 @@ export default function EditAssignmentPage() {
           initialLockLanguage={lockLanguage}
           initialIsPublic={isPublic}
           initialActivityType={activityType}
+          initialActivityTemplateId={activityTemplateId}
+          initialActivityDefinition={activityDefinition}
           initialAssessmentMode={assessmentMode}
           initialResponderFieldsConfig={responderFieldsConfig}
           initialMaxAttempts={maxAttempts}

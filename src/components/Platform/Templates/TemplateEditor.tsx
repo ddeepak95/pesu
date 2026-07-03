@@ -291,13 +291,44 @@ interface TemplateEditorProps {
   isNew: boolean;
   onSave: (next: MockTemplate) => void;
   onCancel: () => void;
+  /** Corner badge (defaults to the system-library chrome). */
+  ownerBadge?: React.ReactNode;
+  /** Read-only "Owner" field copy (defaults to the system-library text). */
+  ownerLabel?: string;
+  /** Heading shown when creating a new template. */
+  newTitle?: string;
+  /** Sticky-footer note (defaults to the in-memory mockup disclaimer). */
+  footerNote?: React.ReactNode;
+  /** Label on the primary save button (defaults derive from `isNew`). */
+  saveLabel?: string;
+  /** Disables Save while a persist is in flight. */
+  saving?: boolean;
 }
+
+const DEFAULT_OWNER_BADGE = (
+  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+    System library · super admin
+  </span>
+);
+
+const DEFAULT_FOOTER_NOTE = (
+  <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+    <Eye className="h-3.5 w-3.5" />
+    Mockup — changes are in-memory only, nothing is saved to a database.
+  </span>
+);
 
 export function TemplateEditor({
   template,
   isNew,
   onSave,
   onCancel,
+  ownerBadge = DEFAULT_OWNER_BADGE,
+  ownerLabel = "System (read-only catalog · edited by super admins)",
+  newTitle = "New system template",
+  footerNote = DEFAULT_FOOTER_NOTE,
+  saveLabel,
+  saving = false,
 }: TemplateEditorProps) {
   const [draft, setDraft] = useState<MockTemplate>(template);
   // Tracks which advanced label fields the admin has manually overridden, so
@@ -399,14 +430,12 @@ export function TemplateEditor({
             <ArrowLeft className="h-4 w-4" />
             Back to library
           </button>
-          <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-            System library · super admin
-          </span>
+          {ownerBadge}
         </div>
 
         <div>
           <h1 className="text-2xl font-semibold">
-            {isNew ? "New system template" : `Edit · ${template.name}`}
+            {isNew ? newTitle : `Edit · ${template.name}`}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Everything the author owns to shape the AI conversation, evaluation,
@@ -461,7 +490,7 @@ export function TemplateEditor({
             <div className="space-y-1.5">
               <Label>Owner</Label>
               <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground">
-                System (read-only catalog · edited by super admins)
+                {ownerLabel}
               </div>
             </div>
           </div>
@@ -909,19 +938,21 @@ export function TemplateEditor({
         {/* Sticky footer */}
         <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
-            <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-              <Eye className="h-3.5 w-3.5" />
-              Mockup — changes are in-memory only, nothing is saved to a
-              database.
-            </span>
+            {footerNote}
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={onCancel} type="button">
+              <Button
+                variant="outline"
+                onClick={onCancel}
+                type="button"
+                disabled={saving}
+              >
                 Cancel
               </Button>
               <Button
                 variant="outline"
                 onClick={runValidation}
                 type="button"
+                disabled={saving}
               >
                 <ShieldCheck className="h-4 w-4" />
                 Validate
@@ -929,14 +960,16 @@ export function TemplateEditor({
               <Button
                 onClick={() => onSave(draft)}
                 type="button"
-                disabled={!canSave}
+                disabled={!canSave || saving}
                 title={
                   !canSave
                     ? "Run Validate and resolve any issues before saving"
                     : undefined
                 }
               >
-                {isNew ? "Create template" : "Save changes"}
+                {saving
+                  ? "Saving…"
+                  : saveLabel ?? (isNew ? "Create template" : "Save changes")}
               </Button>
             </div>
           </div>

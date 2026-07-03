@@ -3,6 +3,7 @@
 import { PromptConfigEditor } from "@/components/Teacher/Assignments/PromptConfigEditor";
 import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
 import { MultimodalActionsConfigEditor } from "@/components/Teacher/Assignments/MultimodalActionsConfigEditor";
+import { FeedbackFocusEditor } from "@/components/Teacher/Assignments/FeedbackFocusEditor";
 import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
 import { SettingsCard } from "@/components/ui/settings-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +46,14 @@ interface MoreOptionsAIBotProps {
   setDynamicGenerationPrompt?: (prompt: string) => void;
   /** Action kinds whose content-generation model is configured + capable for this class. */
   availableActionKinds?: ActionKind[];
+  /**
+   * Whether to show the free-form per-assignment prompt editors (system prompt,
+   * conversation start, evaluation prompt, dynamic-generation prompt). Pure
+   * template snapshots (activity-templates-plan.md §6.3) turn this OFF — the
+   * only way to change prompts is to edit the source template and pull. Feedback
+   * focus stays editable regardless (it's teacher content appended at runtime).
+   */
+  showPromptOverrides?: boolean;
 }
 
 /** Icon-only Edit/Preview switch shown to the right of the prompt-type tabs. */
@@ -113,6 +122,7 @@ export function MoreOptionsAIBot({
   dynamicGenerationPrompt = "",
   setDynamicGenerationPrompt,
   availableActionKinds,
+  showPromptOverrides = true,
 }: MoreOptionsAIBotProps) {
   const isConversational =
     assessmentMode === "voice" ||
@@ -154,7 +164,30 @@ export function MoreOptionsAIBot({
         </SettingsCard>
       )}
 
+      {/* Feedback focus stays editable in the pure-snapshot model — it's teacher
+          content appended to the evaluation at runtime, not a prompt override. */}
+      {!showPromptOverrides && (
+        <SettingsCard className="space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">
+              Feedback focus
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Each area becomes a section in the student&apos;s feedback. The
+              prompts themselves come from the activity template — edit the
+              template and pull to change them.
+            </p>
+          </div>
+          <FeedbackFocusEditor
+            value={feedbackFocus}
+            onChange={setFeedbackFocus}
+            hideLabel
+          />
+        </SettingsCard>
+      )}
+
       {/* Prompt Customizations */}
+      {showPromptOverrides && (
       <SettingsCard className="space-y-4">
         <div>
           <h4 className="text-sm font-semibold text-foreground">
@@ -218,6 +251,7 @@ export function MoreOptionsAIBot({
         />
       )}
       </SettingsCard>
+      )}
     </div>
   );
 }

@@ -121,3 +121,11 @@ export {
   useEffectiveInstitutionSettings,
   useEffectiveClassSettings,
 } from "./useSettings";
+export {
+  invalidateActivityTemplatesCache,
+  useAvailableTemplatesForClass,
+  useClassTemplates,
+  useClassTemplateEnablement,
+  useSystemTemplates,
+  useMyTemplates,
+} from "./useActivityTemplates";

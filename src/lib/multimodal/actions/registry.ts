@@ -212,6 +212,36 @@ export function getAutoAvailableActions(activityType: ActivityTypeKind): ActionK
 }
 
 /**
+ * Action↔type inversion seam (Phase 2 of activity-templates-plan.md, Appendix A).
+ *
+ * The runtime wiring — which actions auto-enable and which one drives the bulb
+ * button — moves *onto the template* (`definition.autoActions` / `bulbAction`),
+ * so a custom (non-`kind`) template can declare its own. These helpers prefer
+ * the resolved/snapshotted definition and fall back to the legacy kind-keyed
+ * registry lookups for snapshots authored before the fields existed. The action
+ * *kinds* (schemas, handlers, directives) stay code-defined.
+ */
+export function resolveAutoActions(
+  def: { autoActions?: ActionKind[] } | null | undefined,
+  activityType: ActivityTypeKind,
+): ActionKind[] {
+  return filterImplemented(def?.autoActions ?? getAutoAvailableActions(activityType));
+}
+
+export function resolveBulbAction(
+  def: { bulbAction?: ActionKind | "none" } | null | undefined,
+  activityType: ActivityTypeKind,
+): ActionDefinition | undefined {
+  const fromDef = def?.bulbAction;
+  if (fromDef !== undefined) {
+    if (fromDef === "none") return undefined;
+    const d = ACTION_REGISTRY[fromDef];
+    return d?.implemented ? d : undefined;
+  }
+  return getBulbActionForActivityType(activityType);
+}
+
+/**
  * Per-action system-prompt guidance for the enabled kinds, joined. Returns a
  * fallback instruction when nothing is enabled.
  */

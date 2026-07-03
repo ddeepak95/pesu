@@ -88,6 +88,10 @@ export interface AssessmentShellProps {
   fileSubmissionsContent?: string;
   /** Activity type for prompt defaults */
   activityType?: import("@/lib/activityTypes/types").ActivityTypeKind;
+  /** The assignment's self-contained definition snapshot (action↔type wiring). */
+  activityDefinitionSnapshot?:
+    | import("@/lib/activityTypes/templates").TemplateDefinition
+    | null;
   /** Assignment title for prompt interpolation */
   title?: string;
   /** Student instructions for prompt interpolation */
@@ -140,6 +144,7 @@ export function AssessmentShell({
   headerTotalQuestions,
   fileSubmissionsContent,
   activityType = "learning",
+  activityDefinitionSnapshot,
   title,
   studentInstructions,
 }: AssessmentShellProps) {
@@ -473,6 +478,7 @@ export function AssessmentShell({
     onIntegrityAccessRevoked,
     fileSubmissionsContent,
     activityType,
+    activityDefinitionSnapshot,
     title,
     studentInstructions,
     onVoiceMicPermissionRequestPendingChange,

@@ -5,6 +5,7 @@ import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import {
   SYSTEM_TEMPLATE_IDS,
   registryToDefinition,
+  type TemplateDefinition,
 } from "@/lib/activityTypes/templates";
 import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 import { nanoid } from "nanoid";
@@ -199,6 +200,10 @@ export async function createAssignment(
     lock_language?: boolean;
     is_public?: boolean;
     activity_type?: ActivityTypeKind;
+    /** Explicit provenance link (any owned/available template). Falls back to the built-in kind's system row. */
+    activity_template_id?: string | null;
+    /** Explicit self-contained snapshot. Falls back to the built-in kind's registry definition. */
+    activity_definition_snapshot?: TemplateDefinition | null;
     assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
@@ -252,8 +257,11 @@ export async function createAssignment(
       lock_language: assignment.lock_language ?? false,
       is_public: assignment.is_public ?? false,
       activity_type: activityType,
-      activity_template_id: SYSTEM_TEMPLATE_IDS[activityType],
-      activity_definition_snapshot: registryToDefinition(activityType),
+      activity_template_id:
+        assignment.activity_template_id ?? SYSTEM_TEMPLATE_IDS[activityType],
+      activity_definition_snapshot:
+        assignment.activity_definition_snapshot ??
+        registryToDefinition(activityType),
       template_synced_at: new Date().toISOString(),
       assessment_mode: assignment.assessment_mode ?? "voice",
       responder_fields_config: assignment.responder_fields_config ?? null,
@@ -321,6 +329,10 @@ export async function updateAssignment(
     lock_language?: boolean;
     is_public?: boolean;
     activity_type?: ActivityTypeKind;
+    /** Explicit provenance link (any owned/available template). Falls back to the built-in kind's system row. */
+    activity_template_id?: string | null;
+    /** Explicit self-contained snapshot. Falls back to the built-in kind's registry definition. */
+    activity_definition_snapshot?: TemplateDefinition | null;
     assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
@@ -361,8 +373,11 @@ export async function updateAssignment(
     lock_language: assignment.lock_language ?? false,
     is_public: assignment.is_public ?? false,
     activity_type: activityType,
-    activity_template_id: SYSTEM_TEMPLATE_IDS[activityType],
-    activity_definition_snapshot: registryToDefinition(activityType),
+    activity_template_id:
+      assignment.activity_template_id ?? SYSTEM_TEMPLATE_IDS[activityType],
+    activity_definition_snapshot:
+      assignment.activity_definition_snapshot ??
+      registryToDefinition(activityType),
     template_synced_at: new Date().toISOString(),
     assessment_mode: assignment.assessment_mode ?? "voice",
     responder_fields_config: assignment.responder_fields_config ?? null,

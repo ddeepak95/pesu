@@ -19,7 +19,7 @@ export default async function PlatformClassSettingsPage({
   params: Promise<{ id: string; classDbId: string }>;
 }) {
   const { id, classDbId } = await params;
-  const { supabase } = await requireSuperAdmin();
+  const { user, supabase } = await requireSuperAdmin();
 
   const [institution, classRes, institutionPolicy] = await Promise.all([
     getInstitution(supabase, id),
@@ -39,6 +39,7 @@ export default async function PlatformClassSettingsPage({
     <ClassSettingsClient
       classData={cls}
       classId={cls.class_id}
+      userId={user.id}
       viewerRole="super_admin"
       backHref={`/platform/institutions/${id}?tab=classes`}
       backLabel={`Back to ${institution.name}`}

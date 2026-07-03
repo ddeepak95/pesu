@@ -1,0 +1,24 @@
+import PageLayout from "@/components/PageLayout";
+import { TemplateLibrary } from "@/components/Teacher/Templates/TemplateLibrary";
+import { verifySession } from "@/lib/dal";
+import { listMyTemplates } from "@/lib/queries/activityTemplates";
+
+export const metadata = {
+  title: "My Templates",
+};
+
+export default async function TeacherTemplatesPage() {
+  const { user, supabase } = await verifySession();
+  const templates = await listMyTemplates(user.id, supabase);
+
+  return (
+    <PageLayout>
+      <TemplateLibrary
+        owner={{ scope: "user", userId: user.id }}
+        initialTemplates={templates}
+        title="My Templates"
+        description="Your personal activity-type library. Create your own, clone others', and share via a link. Assignments snapshot a template when created, so editing here never changes existing assignments."
+      />
+    </PageLayout>
+  );
+}

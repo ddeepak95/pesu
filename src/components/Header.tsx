@@ -1,6 +1,9 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { LayoutTemplate } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,6 +25,8 @@ interface HeaderProps {
 export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
+  const pathname = usePathname();
+  const isTeacherArea = pathname?.startsWith("/teacher") ?? false;
   const displayName =
     userName ||
     user?.user_metadata?.display_name ||
@@ -93,6 +98,14 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                   </>
+                )}
+                {user && !onLogoutSubmission && isTeacherArea && (
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/teacher/templates">
+                      <LayoutTemplate className="mr-2 h-4 w-4" />
+                      My Templates
+                    </Link>
+                  </DropdownMenuItem>
                 )}
                 {onLogoutSubmission ? (
                   <DropdownMenuItem

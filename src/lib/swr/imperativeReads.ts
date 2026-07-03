@@ -26,6 +26,10 @@ import {
 } from "@/lib/queries/submissions";
 import type { ContentItem } from "@/types/contentItem";
 import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
+import {
+  listClassTemplates,
+  listMyTemplates,
+} from "@/lib/queries/activityTemplates";
 import { increment, decrement } from "./busyStore";
 
 /**
@@ -72,6 +76,16 @@ export function fetchPreviewSubmissionTracked(
   assignmentId: string
 ) {
   return runTracked(() => getPreviewSubmission(teacherId, assignmentId));
+}
+
+/** Refresh the teacher's personal template library after a mutation. */
+export function fetchMyTemplatesTracked(userId: string) {
+  return runTracked(() => listMyTemplates(userId));
+}
+
+/** Refresh a class's class-owned template library after a mutation. */
+export function fetchClassTemplatesTracked(classDbId: string) {
+  return runTracked(() => listClassTemplates(classDbId));
 }
 
 /** Imperative read for delete/unlink confirm flows (teacher detail & content list). */

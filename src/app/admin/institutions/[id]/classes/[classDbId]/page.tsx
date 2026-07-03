@@ -19,7 +19,8 @@ export default async function AdminClassSettingsPage({
   params: Promise<{ id: string; classDbId: string }>;
 }) {
   const { id, classDbId } = await params;
-  const { supabase, viewerRole } = await requireInstitutionAdminOrSuper(id);
+  const { user, supabase, viewerRole } =
+    await requireInstitutionAdminOrSuper(id);
 
   const [institution, classRes, institutionPolicy] = await Promise.all([
     getInstitution(supabase, id),
@@ -39,6 +40,7 @@ export default async function AdminClassSettingsPage({
     <ClassSettingsClient
       classData={cls}
       classId={cls.class_id}
+      userId={user.id}
       viewerRole={viewerRole}
       backHref={`/admin/institutions/${id}?tab=classes`}
       backLabel={`Back to ${institution.name}`}

@@ -52,6 +52,7 @@ export default async function ClassSettingsPage({
     <ClassSettingsClient
       classData={classData}
       classId={classId}
+      userId={user.id}
       viewerRole={viewerRole}
       institutionPolicy={institutionPolicy}
     />

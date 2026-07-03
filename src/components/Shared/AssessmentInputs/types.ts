@@ -49,6 +49,15 @@ export interface AssessmentInputProps {
   fileSubmissionsContent?: string;
   /** Activity type for prompt defaults (learning / assessment / speaking practice). */
   activityType?: import("@/lib/activityTypes/types").ActivityTypeKind;
+  /**
+   * The assignment's self-contained definition snapshot. Drives the inverted
+   * action↔type wiring (autoActions / bulbAction) at runtime — read via
+   * `resolveAutoActions` / `resolveBulbAction`, which fall back to the built-in
+   * `activityType` for legacy assignments that predate the snapshot.
+   */
+  activityDefinitionSnapshot?:
+    | import("@/lib/activityTypes/templates").TemplateDefinition
+    | null;
   /** Assignment title for prompt interpolation */
   title?: string;
   /** Student instructions for prompt interpolation */

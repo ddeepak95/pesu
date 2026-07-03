@@ -29,8 +29,8 @@ import type {
 } from "@/lib/multimodal/actions/types";
 import {
   type ActionDefinition,
-  getBulbActionForActivityType,
-  getAutoAvailableActions,
+  resolveAutoActions,
+  resolveBulbAction,
 } from "@/lib/multimodal/actions/registry";
 import { useEndConversationFinish } from "./useEndConversationFinish";
 import type { AssessmentInputProps } from "./types";
@@ -174,6 +174,7 @@ export function MultimodalInputArea({
   onIntegrityAccessRevoked,
   fileSubmissionsContent,
   activityType = "learning",
+  activityDefinitionSnapshot,
   title,
   studentInstructions,
   maxAttempts,
@@ -653,7 +654,7 @@ export function MultimodalInputArea({
               : {}),
             availableActions: (() => {
               if (opts?.availableActionsOverride) return opts.availableActionsOverride;
-              const auto = getAutoAvailableActions(activityType);
+              const auto = resolveAutoActions(activityDefinitionSnapshot, activityType);
               const configured = botPromptConfig?.multimodal_actions?.availableActions ?? [];
               return [...auto, ...configured.filter((k) => !auto.includes(k))];
             })(),
@@ -918,6 +919,7 @@ export function MultimodalInputArea({
     },
     [
       activityType,
+      activityDefinitionSnapshot,
       assignmentId,
       nextAttemptNumber,
       botPromptConfig?.multimodal_actions,
@@ -1515,7 +1517,10 @@ export function MultimodalInputArea({
               }}
             />
             {(() => {
-              const bulbDef = getBulbActionForActivityType(activityType);
+              const bulbDef = resolveBulbAction(
+                activityDefinitionSnapshot,
+                activityType,
+              );
               if (bulbDef) {
                 return (
                   <Button
@@ -1534,7 +1539,8 @@ export function MultimodalInputArea({
               }
               return null;
             })()}
-            {!getBulbActionForActivityType(activityType) && supportEnabled ? (
+            {!resolveBulbAction(activityDefinitionSnapshot, activityType) &&
+            supportEnabled ? (
               <Button
                 type="button"
                 variant="secondary"

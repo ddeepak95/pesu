@@ -634,6 +634,9 @@ export default function AssignmentResponseCore({
           }
           fileSubmissionsContent={fileSubmissionsContent}
           activityType={assignmentData.activity_type ?? "learning"}
+          activityDefinitionSnapshot={
+            assignmentData.activity_definition_snapshot
+          }
           title={assignmentData.title}
           studentInstructions={assignmentData.student_instructions}
         />

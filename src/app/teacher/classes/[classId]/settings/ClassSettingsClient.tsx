@@ -8,6 +8,7 @@ import BackButton from "@/components/ui/back-button";
 import GeneralSettingsSection from "@/components/Teacher/Classes/Settings/GeneralSettingsSection";
 import ManageTeachersSection from "@/components/Teacher/Classes/Settings/ManageTeachersSection";
 import GroupSettingsSection from "@/components/Teacher/Classes/Settings/GroupSettingsSection";
+import ActivityTypesSection from "@/components/Teacher/Classes/Settings/ActivityTypesSection";
 import ProfileFieldsSection from "@/components/Teacher/Classes/Settings/ProfileFieldsSection";
 import ProgressiveUnlockSection from "@/components/Teacher/Classes/Settings/ProgressiveUnlockSection";
 import ResetProgressSection from "@/components/Teacher/Classes/Settings/ResetProgressSection";
@@ -25,6 +26,7 @@ import { Class } from "@/types/class";
 interface ClassSettingsClientProps {
   classData: Class;
   classId: string;
+  userId: string;
   viewerRole: ViewerRole;
   institutionPolicy?: AiInstitutionPolicy;
   /**
@@ -40,6 +42,7 @@ interface ClassSettingsClientProps {
 export default function ClassSettingsClient({
   classData: initialClassData,
   classId,
+  userId,
   viewerRole,
   backHref,
   backLabel,
@@ -133,6 +136,12 @@ export default function ClassSettingsClient({
               <ProfileFieldsSection
                 classData={initialClassData}
                 isOwner={sectionMayEdit}
+              />
+
+              <ActivityTypesSection
+                classData={initialClassData}
+                classShortId={classId}
+                userId={userId}
               />
 
               <ProgressiveUnlockSection

@@ -17,6 +17,11 @@
 import { z } from "zod";
 
 import {
+  getAutoAvailableActions,
+  getBulbActionForActivityType,
+} from "@/lib/multimodal/actions/registry";
+
+import {
   getActivityTypeDefinition,
   getActivityTypeLabels,
   getDefaultFeedbackFocusAreas,
@@ -154,6 +159,14 @@ export function registryToDefinition(
       ? { languageSupportDirective: def.languageSupportDirective }
       : {}),
     endConditionInstruction: def.endConditionInstruction,
+    // Action↔type wiring, inverted onto the template (Phase 2, Appendix A). Today
+    // the *action* registry declares which kinds attach to which activity type;
+    // we resolve that here so the definition carries it, and custom (non-`kind`)
+    // templates can author their own bulb/auto actions. Runtime reads prefer
+    // these via `resolveAutoActions`/`resolveBulbAction`, falling back to the
+    // kind-keyed lookups for legacy snapshots.
+    autoActions: getAutoAvailableActions(kind),
+    bulbAction: getBulbActionForActivityType(kind)?.kind ?? "none",
   };
 }
 
