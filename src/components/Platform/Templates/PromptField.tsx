@@ -112,6 +112,7 @@ export function PromptField({
   vars,
   mono = true,
   placeholder,
+  readOnly = false,
 }: {
   label?: string;
   /** Marks the field as required with a trailing asterisk next to the label. */
@@ -124,6 +125,8 @@ export function PromptField({
   vars?: string[];
   mono?: boolean;
   placeholder?: string;
+  /** Renders the field read-only: uneditable textarea, no Insert Variable panel. */
+  readOnly?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -144,7 +147,8 @@ export function PromptField({
     }, 0);
   };
 
-  const variables = vars && vars.length > 0 ? resolveVariables(vars) : [];
+  const variables =
+    !readOnly && vars && vars.length > 0 ? resolveVariables(vars) : [];
 
   return (
     <div className="space-y-1.5">
@@ -164,7 +168,10 @@ export function PromptField({
           onChange={(e) => onChange(e.target.value)}
           rows={rows}
           placeholder={placeholder}
-          className={`flex-1 ${mono ? "font-mono text-sm" : "text-sm"}`}
+          readOnly={readOnly}
+          className={`flex-1 ${mono ? "font-mono text-sm" : "text-sm"}${
+            readOnly ? " bg-muted/30" : ""
+          }`}
         />
         {variables.length > 0 && (
           <VariablePanel variables={variables} onInsert={insertVariable} />

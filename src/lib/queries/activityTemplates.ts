@@ -120,7 +120,7 @@ export async function listClassTemplates(
 /**
  * Fetch a single template by id. RLS decides readability (system / public /
  * your own user rows / class rows you co-teach). Returns null when absent or
- * unreadable — this powers the public share page (`/teacher/templates/:id`).
+ * unreadable — this powers the public share page (`/teacher/activity-templates/:id`).
  */
 export async function getTemplateById(
   id: string,

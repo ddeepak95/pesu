@@ -12,6 +12,9 @@ interface FeedbackFocusEditorProps {
   value: FeedbackFocusArea[];
   onChange: (next: FeedbackFocusArea[]) => void;
   disabled?: boolean;
+  /** Read-only display: fields stay legible (not greyed) and the add/remove
+   * affordances are hidden. */
+  readOnly?: boolean;
   /** Hide the built-in "Feedback focus" label, for callers that already
    * render an equivalent heading around this editor. */
   hideLabel?: boolean;
@@ -27,6 +30,7 @@ export function FeedbackFocusEditor({
   value,
   onChange,
   disabled = false,
+  readOnly = false,
   hideLabel = false,
 }: FeedbackFocusEditorProps) {
   const update = (index: number, patch: Partial<FeedbackFocusArea>) =>
@@ -58,19 +62,22 @@ export function FeedbackFocusEditor({
               onChange={(e) => update(i, { title: e.target.value })}
               placeholder="Section title (e.g. Concept understanding)"
               disabled={disabled}
+              readOnly={readOnly}
               className="bg-background"
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0 text-muted-foreground hover:text-destructive"
-              disabled={disabled}
-              onClick={() => remove(i)}
-              aria-label="Remove focus area"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                disabled={disabled}
+                onClick={() => remove(i)}
+                aria-label="Remove focus area"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           <Textarea
             value={area.description}
@@ -78,12 +85,13 @@ export function FeedbackFocusEditor({
             placeholder="What should this section cover?"
             rows={2}
             disabled={disabled}
+            readOnly={readOnly}
             className="resize-none bg-background text-sm"
           />
         </div>
       ))}
 
-      {!disabled && (
+      {!disabled && !readOnly && (
         <Button type="button" variant="outline" size="sm" onClick={add}>
           <Plus className="mr-1 h-3.5 w-3.5" /> Add focus area
         </Button>

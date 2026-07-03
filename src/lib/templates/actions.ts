@@ -23,7 +23,7 @@ import { templateDefinitionSchema } from "@/lib/activityTypes/templates";
  * (Phase 3 / Platform); this layer only mints `user`- and `class`-owned rows.
  */
 
-const TEMPLATES_PATH = "/teacher/templates";
+const TEMPLATES_PATH = "/teacher/activity-templates";
 
 type CreateScope = "user" | "class";
 

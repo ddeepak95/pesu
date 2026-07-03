@@ -65,7 +65,7 @@ export default async function PlatformPage({
 
         <p className="text-sm">
           <Link
-            href="/platform/templates"
+            href="/platform/activity-templates"
             className="text-primary underline-offset-4 hover:underline"
           >
             System template library

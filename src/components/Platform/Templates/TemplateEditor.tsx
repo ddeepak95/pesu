@@ -289,8 +289,19 @@ function buildValidatableFields(def: TemplateDefinition): ValidatableField[] {
 interface TemplateEditorProps {
   template: MockTemplate;
   isNew: boolean;
-  onSave: (next: MockTemplate) => void;
-  onCancel: () => void;
+  onSave?: (next: MockTemplate) => void;
+  onCancel?: () => void;
+  /**
+   * Renders the whole surface read-only: every control is uneditable and the
+   * validate/save footer is hidden. Used by the template view/detail page so it
+   * mirrors the editor's look and information flow exactly, minus editing.
+   */
+  readOnly?: boolean;
+  /**
+   * Replaces the default back-link + owner-badge + title header block. Lets the
+   * read-only detail page supply its own header (share chips, Clone/Edit).
+   */
+  header?: React.ReactNode;
   /** Corner badge (defaults to the system-library chrome). */
   ownerBadge?: React.ReactNode;
   /** Read-only "Owner" field copy (defaults to the system-library text). */
@@ -323,6 +334,8 @@ export function TemplateEditor({
   isNew,
   onSave,
   onCancel,
+  readOnly = false,
+  header,
   ownerBadge = DEFAULT_OWNER_BADGE,
   ownerLabel = "System (read-only catalog · edited by super admins)",
   newTitle = "New system template",
@@ -370,6 +383,13 @@ export function TemplateEditor({
   const defSnapshot = JSON.stringify(def);
   const isValidated = validatedSnapshot === defSnapshot;
   const canSave = isValidated && validationIssues.length === 0;
+
+  // In read-only mode the toggles/selects are disabled to make them
+  // non-interactive, but we cancel the greyed "disabled" styling so their
+  // values stay as legible as the read-only text fields.
+  const readOnlyControl = readOnly
+    ? "disabled:cursor-default disabled:opacity-100"
+    : undefined;
 
   const runValidation = () => {
     const issues = validateFields(buildValidatableFields(def));
@@ -420,28 +440,33 @@ export function TemplateEditor({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="space-y-6 pb-28">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <button
-            onClick={onCancel}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to library
-          </button>
-          {ownerBadge}
-        </div>
+      <div className={`space-y-6 ${readOnly ? "pb-8" : "pb-28"}`}>
+        {header ?? (
+          <>
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <button
+                onClick={() => onCancel?.()}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to library
+              </button>
+              {ownerBadge}
+            </div>
 
-        <div>
-          <h1 className="text-2xl font-semibold">
-            {isNew ? newTitle : `Edit · ${template.name}`}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Everything the author owns to shape the AI conversation, evaluation,
-            and question-generation behavior for this activity type.
-          </p>
-        </div>
+            <div>
+              <h1 className="text-2xl font-semibold">
+                {isNew ? newTitle : `Edit · ${template.name}`}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Everything the author owns to shape the AI conversation,
+                evaluation, and question-generation behavior for this activity
+                type.
+              </p>
+            </div>
+          </>
+        )}
 
         {/* Identity */}
         <SettingsCard className="space-y-4">
@@ -456,6 +481,7 @@ export function TemplateEditor({
               value={draft.name}
               onChange={(e) => patch({ name: e.target.value })}
               placeholder="e.g. Speaking Practice"
+              readOnly={readOnly}
             />
           </div>
           <div className="space-y-1.5">
@@ -465,6 +491,7 @@ export function TemplateEditor({
               onChange={(e) => patch({ description: e.target.value })}
               rows={2}
               placeholder="Short blurb shown in the gallery and dropdown."
+              readOnly={readOnly}
               className="text-sm"
             />
           </div>
@@ -477,13 +504,14 @@ export function TemplateEditor({
               <Select
                 value={draft.visibility}
                 onValueChange={(v) => patch({ visibility: v as Visibility })}
+                disabled={readOnly}
               >
-                <SelectTrigger>
+                <SelectTrigger className={readOnlyControl}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="private">Private</SelectItem>
-                  <SelectItem value="public">Public (shared link)</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -519,8 +547,9 @@ export function TemplateEditor({
                   },
                 })
               }
+              disabled={readOnly}
             >
-              <SelectTrigger className="sm:w-96">
+              <SelectTrigger className={`sm:w-96 ${readOnlyControl ?? ""}`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -543,6 +572,8 @@ export function TemplateEditor({
             </span>
             <Switch
               checked={def.defaults.fileSubmission.required}
+              disabled={readOnly}
+              className={readOnlyControl}
               onCheckedChange={(on) =>
                 patchDef({
                   defaults: {
@@ -560,6 +591,8 @@ export function TemplateEditor({
             </span>
             <Switch
               checked={def.defaults.display.useStarDisplay}
+              disabled={readOnly}
+              className={readOnlyControl}
               onCheckedChange={(on) =>
                 patchDef({
                   defaults: {
@@ -601,6 +634,7 @@ export function TemplateEditor({
               onChange={(v) => patchDef({ systemPrompt: v })}
               rows={16}
               vars={PROMPT_VARS}
+              readOnly={readOnly}
             />
           </Subsection>
 
@@ -633,6 +667,8 @@ export function TemplateEditor({
                       </div>
                       <Switch
                         id={toggleId}
+                        disabled={readOnly}
+                        className={readOnlyControl}
                         checked={def.defaults.multimodal.availableActions.includes(
                           action.kind,
                         )}
@@ -657,8 +693,9 @@ export function TemplateEditor({
                     bulbAction: v as TemplateDefinition["bulbAction"],
                   })
                 }
+                disabled={readOnly}
               >
-                <SelectTrigger className="sm:w-96">
+                <SelectTrigger className={`sm:w-96 ${readOnlyControl ?? ""}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -684,6 +721,7 @@ export function TemplateEditor({
               rows={5}
               vars={ACTION_VARS}
               placeholder="Leave blank when this type has no action-specific context to add."
+              readOnly={readOnly}
             />
           </Subsection>
 
@@ -695,6 +733,8 @@ export function TemplateEditor({
               </span>
               <Switch
                 checked={def.defaults.multimodal.languageSupportEnabled}
+                disabled={readOnly}
+                className={readOnlyControl}
                 onCheckedChange={(on) =>
                   patchDef({
                     defaults: {
@@ -716,6 +756,7 @@ export function TemplateEditor({
               rows={4}
               vars={LANGUAGE_SUPPORT_VARS}
               placeholder="Leave blank for the default below."
+              readOnly={readOnly}
             />
           </Subsection>
 
@@ -736,6 +777,7 @@ export function TemplateEditor({
               }
               rows={5}
               vars={GREETING_VARS}
+              readOnly={readOnly}
             />
             <PromptField
               label="Subsequent-question greeting"
@@ -751,6 +793,7 @@ export function TemplateEditor({
               }
               rows={5}
               vars={GREETING_VARS}
+              readOnly={readOnly}
             />
           </Subsection>
 
@@ -764,6 +807,7 @@ export function TemplateEditor({
               onChange={(v) => patchDef({ endConditionInstruction: v })}
               rows={3}
               placeholder="e.g. the learner has thoroughly answered the question, or has explicitly refused to engage."
+              readOnly={readOnly}
             />
           </Subsection>
         </SettingsCard>
@@ -783,6 +827,7 @@ export function TemplateEditor({
             <FeedbackFocusEditor
               value={def.defaultFeedbackFocusAreas}
               onChange={(v) => patchDef({ defaultFeedbackFocusAreas: v })}
+              readOnly={readOnly}
               hideLabel
             />
           </Subsection>
@@ -796,6 +841,7 @@ export function TemplateEditor({
               onChange={(v) => patchDef({ evaluationSystemPersona: v })}
               rows={4}
               mono={false}
+              readOnly={readOnly}
             />
           </Subsection>
 
@@ -809,6 +855,7 @@ export function TemplateEditor({
               onChange={(v) => patchDef({ evaluationPrompt: v })}
               rows={10}
               vars={EVAL_VARS}
+              readOnly={readOnly}
             />
           </Subsection>
         </SettingsCard>
@@ -834,6 +881,7 @@ export function TemplateEditor({
                 onChange={(v) => patchGeneration(key, v)}
                 rows={3}
                 mono={false}
+                readOnly={readOnly}
               />
             ))}
           </Subsection>
@@ -851,6 +899,7 @@ export function TemplateEditor({
                 onChange={(v) => patchGeneration(key, v)}
                 rows={3}
                 mono={false}
+                readOnly={readOnly}
               />
             ))}
           </Subsection>
@@ -877,6 +926,7 @@ export function TemplateEditor({
                 <Input
                   value={def.labels[key]}
                   onChange={(e) => patchPrimaryLabel(key, e.target.value)}
+                  readOnly={readOnly}
                 />
               </div>
             ))}
@@ -897,6 +947,7 @@ export function TemplateEditor({
                         onChange={(e) =>
                           patchAdvancedLabel(key, e.target.value)
                         }
+                        readOnly={readOnly}
                       />
                     </div>
                   ))}
@@ -907,6 +958,7 @@ export function TemplateEditor({
         </SettingsCard>
 
         {/* Validation errors dialog */}
+        {!readOnly && (
         <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
           <DialogContent>
             <DialogHeader>
@@ -934,15 +986,17 @@ export function TemplateEditor({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        )}
 
         {/* Sticky footer */}
+        {!readOnly && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
             {footerNote}
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={onCancel}
+                onClick={() => onCancel?.()}
                 type="button"
                 disabled={saving}
               >
@@ -958,7 +1012,7 @@ export function TemplateEditor({
                 Validate
               </Button>
               <Button
-                onClick={() => onSave(draft)}
+                onClick={() => onSave?.(draft)}
                 type="button"
                 disabled={!canSave || saving}
                 title={
@@ -974,6 +1028,7 @@ export function TemplateEditor({
             </div>
           </div>
         </div>
+        )}
       </div>
     </TooltipProvider>
   );
