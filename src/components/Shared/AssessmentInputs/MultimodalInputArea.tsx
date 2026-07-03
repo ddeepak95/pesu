@@ -1414,7 +1414,6 @@ export function MultimodalInputArea({
     isThinking,
     isTranscribing,
     maxAttemptsReached,
-    persistUtteranceAudio,
     playback,
     recorder,
     commitAssistantTurnToMessages,

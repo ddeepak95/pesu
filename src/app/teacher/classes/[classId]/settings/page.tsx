@@ -29,7 +29,7 @@ export default async function ClassSettingsPage({
   const { viewerRole } = await resolveClassSettingsViewer(
     supabase,
     user.id,
-    classData.id
+    classData.id,
   );
 
   const mayConfigureClass =
@@ -55,6 +55,8 @@ export default async function ClassSettingsPage({
       userId={user.id}
       viewerRole={viewerRole}
       institutionPolicy={institutionPolicy}
+      backHref={`/teacher/classes/${classId}`}
+      backLabel={`Back to class`}
     />
   );
 }
