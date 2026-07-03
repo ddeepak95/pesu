@@ -150,6 +150,7 @@ export default function CreateAssignmentPage() {
     activity_type: data.activityType,
     activity_template_id: data.activityTemplateId ?? null,
     activity_definition_snapshot: data.activityDefinitionSnapshot ?? null,
+    template_synced_at: data.templateSyncedAt ?? new Date().toISOString(),
     assessment_mode: data.assessmentMode,
     responder_fields_config: data.responderFieldsConfig,
     max_attempts: data.maxAttempts ?? 1,

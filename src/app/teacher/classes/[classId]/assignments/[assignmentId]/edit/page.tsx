@@ -45,6 +45,9 @@ export default function EditAssignmentPage() {
   );
   const [activityDefinition, setActivityDefinition] =
     useState<TemplateDefinition | null>(null);
+  const [templateSyncedAt, setTemplateSyncedAt] = useState<string | null>(
+    null,
+  );
   const [assessmentMode, setAssessmentMode] =
     useState<AssessmentMode>("voice");
   const [responderFieldsConfig, setResponderFieldsConfig] = useState<
@@ -106,6 +109,7 @@ export default function EditAssignmentPage() {
     setActivityType(assignmentData.activity_type ?? "learning");
     setActivityTemplateId(assignmentData.activity_template_id ?? null);
     setActivityDefinition(assignmentData.activity_definition_snapshot ?? null);
+    setTemplateSyncedAt(assignmentData.template_synced_at ?? null);
     setAssessmentMode(assignmentData.assessment_mode ?? "voice");
     setResponderFieldsConfig(assignmentData.responder_fields_config);
     setMaxAttempts(assignmentData.max_attempts ?? 1);
@@ -184,6 +188,7 @@ export default function EditAssignmentPage() {
     activity_type: data.activityType,
     activity_template_id: data.activityTemplateId ?? null,
     activity_definition_snapshot: data.activityDefinitionSnapshot ?? null,
+    template_synced_at: data.templateSyncedAt ?? null,
     assessment_mode: data.assessmentMode,
     responder_fields_config: data.responderFieldsConfig,
     max_attempts: data.maxAttempts ?? 1,
@@ -266,6 +271,7 @@ export default function EditAssignmentPage() {
           initialActivityType={activityType}
           initialActivityTemplateId={activityTemplateId}
           initialActivityDefinition={activityDefinition}
+          initialTemplateSyncedAt={templateSyncedAt}
           initialAssessmentMode={assessmentMode}
           initialResponderFieldsConfig={responderFieldsConfig}
           initialMaxAttempts={maxAttempts}

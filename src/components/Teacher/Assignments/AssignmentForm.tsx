@@ -169,6 +169,8 @@ interface AssignmentFormProps {
   initialActivityType?: ActivityType;
   initialActivityTemplateId?: string | null;
   initialActivityDefinition?: TemplateDefinition | null;
+  /** When the snapshot was last (re)pulled from a template; drives the edit-mode "update available" hint. */
+  initialTemplateSyncedAt?: string | null;
   initialAssessmentMode?: AssessmentMode;
   initialResponderFieldsConfig?: ResponderFieldConfig[];
   initialMaxAttempts?: number;
@@ -218,6 +220,8 @@ export interface AssignmentFormSubmitData {
   activityTemplateId?: string | null;
   /** The selected template's definition, snapshotted onto the assignment. */
   activityDefinitionSnapshot?: TemplateDefinition | null;
+  /** When the snapshot was last (re)pulled from a template. */
+  templateSyncedAt?: string | null;
   assessmentMode: AssessmentMode;
   isDraft: boolean;
   responderFieldsConfig?: ResponderFieldConfig[];
@@ -274,6 +278,7 @@ export default function AssignmentForm({
   initialActivityType = "learning",
   initialActivityTemplateId = null,
   initialActivityDefinition = null,
+  initialTemplateSyncedAt = null,
   initialAssessmentMode = "voice",
   initialResponderFieldsConfig,
   initialMaxAttempts = 3,
@@ -319,6 +324,11 @@ export default function AssignmentForm({
   );
   const [activityDefinition, setActivityDefinition] =
     useState<TemplateDefinition | null>(initialActivityDefinition);
+  // When the snapshot was last (re)pulled from a template — advanced only at
+  // the seedFromDefinition call sites below, never on a plain save.
+  const [templateSyncedAt, setTemplateSyncedAt] = useState<string | null>(
+    initialTemplateSyncedAt,
+  );
   // In create mode, honor the activity type's preselected interaction type
   // (e.g. Learning → multimodal) instead of the generic "voice" fallback; edit
   // mode always uses the saved value. Restricted by allowedAssessmentModes via
@@ -808,6 +818,7 @@ export default function AssignmentForm({
     const row = availableTemplates.find((t) => t.id === activityTemplateId);
     if (!row) return;
     setActivityDefinition(row.definition);
+    setTemplateSyncedAt(row.updated_at);
     seedFromDefinition(row.definition);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, activityTemplateId, activityDefinition, availableTemplates]);
@@ -818,6 +829,7 @@ export default function AssignmentForm({
     if (!row) return;
     setActivityTemplateId(row.id);
     setActivityDefinition(row.definition);
+    setTemplateSyncedAt(row.updated_at);
     setActivityType(SYSTEM_TEMPLATE_ID_TO_KIND[row.id] ?? activityType);
     seedFromDefinition(row.definition);
   };
@@ -828,9 +840,17 @@ export default function AssignmentForm({
     const row = availableTemplates.find((t) => t.id === activityTemplateId);
     if (!row) return;
     setActivityDefinition(row.definition);
+    setTemplateSyncedAt(row.updated_at);
     seedFromDefinition(row.definition);
     showSuccessToast("Updated from template.");
   };
+
+  const isUpdateAvailable = useMemo(() => {
+    if (mode !== "edit" || !activityTemplateId || !templateSyncedAt) return false;
+    const row = availableTemplates.find((t) => t.id === activityTemplateId);
+    if (!row) return false;
+    return new Date(row.updated_at).getTime() > new Date(templateSyncedAt).getTime();
+  }, [mode, activityTemplateId, availableTemplates, templateSyncedAt]);
 
   const handleActivityTypeChange = (value: string) => {
     const newType = value as ActivityType;
@@ -961,6 +981,7 @@ export default function AssignmentForm({
       activityType,
       activityTemplateId,
       activityDefinitionSnapshot: activityDefinition,
+      templateSyncedAt,
       assessmentMode: currentAssessmentMode,
       isDraft: draft,
       responderFieldsConfig: isPublic ? responderFieldsConfig : undefined,
@@ -1195,15 +1216,20 @@ export default function AssignmentForm({
                   </SelectContent>
                 </Select>
               )}
-              {useTemplatePicker && activityTemplateId && (
-                <button
-                  type="button"
-                  onClick={handleUpdateFromTemplate}
-                  disabled={loading}
-                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
-                >
-                  Update from template
-                </button>
+              {mode === "edit" && isUpdateAvailable && (
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    Update available
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleUpdateFromTemplate}
+                    disabled={loading}
+                    className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+                  >
+                    Apply Updates Now
+                  </button>
+                </div>
               )}
             </div>
 

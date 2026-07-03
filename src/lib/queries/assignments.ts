@@ -333,6 +333,8 @@ export async function updateAssignment(
     activity_template_id?: string | null;
     /** Explicit self-contained snapshot. Falls back to the built-in kind's registry definition. */
     activity_definition_snapshot?: TemplateDefinition | null;
+    /** When the snapshot was last (re)pulled from a template. Preserved on plain saves; only advanced by an explicit template sync. */
+    template_synced_at?: string | null;
     assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
@@ -378,7 +380,7 @@ export async function updateAssignment(
     activity_definition_snapshot:
       assignment.activity_definition_snapshot ??
       registryToDefinition(activityType),
-    template_synced_at: new Date().toISOString(),
+    template_synced_at: assignment.template_synced_at ?? new Date().toISOString(),
     assessment_mode: assignment.assessment_mode ?? "voice",
     responder_fields_config: assignment.responder_fields_config ?? null,
     max_attempts: assignment.max_attempts ?? 1,
