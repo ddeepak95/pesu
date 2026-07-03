@@ -102,24 +102,14 @@ export const SPEAKING_PRACTICE_DEFINITION: ActivityTypeDefinition = {
   labels: SPEAKING_LABELS,
   defaultFeedbackFocusAreas: [
     {
-      title: "Pronunciation & fluency",
+      title: "What worked well?",
       description:
-        "Comment on clarity of pronunciation, pacing, and how smoothly the student spoke.",
+        "Highlight what the student did well.",
     },
     {
-      title: "Vocabulary & grammar",
+      title: "What could be improved?",
       description:
-        "Note vocabulary range and grammatical accuracy, with specific corrections.",
-    },
-    {
-      title: "Task completion",
-      description:
-        "Assess how well the student covered the scenario's target aspects.",
-    },
-    {
-      title: "Next steps",
-      description:
-        "Give concrete suggestions to improve on the next attempt.",
+        "Point out gaps or misconceptions to work on.",
     },
   ],
   defaults: {

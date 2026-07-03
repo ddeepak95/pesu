@@ -44,7 +44,6 @@ import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
 import { type AssignmentIntegritySettingsValues } from "@/components/Shared/Integrity/AssignmentIntegritySettings";
 import {
   getDefaultBotPromptConfig,
-  getDefaultEvaluationPrompt,
   buildDefaultBotPromptConfig,
   buildDefaultEvaluationPrompt,
   buildDefaultDynamicGenerationPrompt,
@@ -61,6 +60,7 @@ import {
   SYSTEM_TEMPLATE_ID_TO_KIND,
   type TemplateDefinition,
 } from "@/lib/activityTypes/templates";
+import type { ActivityTypeDefaults } from "@/lib/activityTypes/types";
 import { useAvailableTemplatesForClass } from "@/hooks/swr";
 import {
   normalizeFeedbackFocusAreas,
@@ -111,6 +111,37 @@ function withClassLanguageDefaults(
           : {}),
         locked: classLang.lockSupportLanguage ?? false,
       },
+    },
+  };
+}
+
+/**
+ * Merge an activity type's multimodal preselection (language support + actions)
+ * into a bot prompt config. No-op when the target mode isn't multimodal or the
+ * type declares no multimodal defaults. Shared by initial-mount seeding and the
+ * template/type change handlers so all three paths apply defaults identically.
+ */
+function withActivityTypeMultimodalDefaults(
+  config: BotPromptConfig,
+  multimodalDefaults: ActivityTypeDefaults["multimodal"],
+  targetMode: AssessmentMode,
+): BotPromptConfig {
+  if (!multimodalDefaults || targetMode !== "multimodal") return config;
+  return {
+    ...config,
+    multimodal_actions: {
+      ...config.multimodal_actions,
+      ...(multimodalDefaults.availableActions !== undefined
+        ? { availableActions: multimodalDefaults.availableActions }
+        : {}),
+      ...(multimodalDefaults.languageSupportEnabled !== undefined
+        ? {
+            languageSupport: {
+              ...config.multimodal_actions?.languageSupport,
+              enabled: multimodalDefaults.languageSupportEnabled,
+            },
+          }
+        : {}),
     },
   };
 }
@@ -288,8 +319,15 @@ export default function AssignmentForm({
   );
   const [activityDefinition, setActivityDefinition] =
     useState<TemplateDefinition | null>(initialActivityDefinition);
+  // In create mode, honor the activity type's preselected interaction type
+  // (e.g. Learning → multimodal) instead of the generic "voice" fallback; edit
+  // mode always uses the saved value. Restricted by allowedAssessmentModes via
+  // the currentAssessmentMode/useEffect pair below if the class disallows it.
   const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>(
-    initialAssessmentMode,
+    mode === "create"
+      ? (getActivityTypeDefinition(initialActivityType).defaults
+          ?.interactionType ?? initialAssessmentMode)
+      : initialAssessmentMode,
   );
 
   // The class palette (system + class-owned + added-personal). Drives the
@@ -422,9 +460,25 @@ export default function AssignmentForm({
       },
     ],
   );
-  const [botPromptConfig, setBotPromptConfig] = useState<BotPromptConfig>(
-    initialBotPromptConfig || getDefaultBotPromptConfig(),
-  );
+  // In create mode, seed the type's own system prompt/conversation start plus
+  // its multimodal preselection (e.g. Learning → MCQ + display_content, language
+  // support) instead of the generic voice-mode fallback; edit mode always uses
+  // the saved value.
+  const [botPromptConfig, setBotPromptConfig] = useState<BotPromptConfig>(() => {
+    if (initialBotPromptConfig) return initialBotPromptConfig;
+    if (mode !== "create") return getDefaultBotPromptConfig();
+    const base = buildDefaultBotPromptConfig(initialActivityType, assessmentMode);
+    const withMultimodal = withActivityTypeMultimodalDefaults(
+      base,
+      getActivityTypeDefinition(initialActivityType).defaults?.multimodal,
+      assessmentMode,
+    );
+    return withClassLanguageDefaults(
+      withMultimodal,
+      assessmentMode,
+      classLanguageConfig,
+    );
+  });
   const [studentInstructions, setStudentInstructions] = useState(
     initialStudentInstructions,
   );
@@ -449,7 +503,7 @@ export default function AssignmentForm({
   );
   const [sharedContext, setSharedContext] = useState(initialSharedContext);
   const [evaluationPrompt, setEvaluationPrompt] = useState(
-    initialEvaluationPrompt || getDefaultEvaluationPrompt(),
+    initialEvaluationPrompt || buildDefaultEvaluationPrompt(initialActivityType),
   );
   const [feedbackFocus, setFeedbackFocus] = useState<FeedbackFocusArea[]>(
     initialFeedbackFocus ?? getDefaultFeedbackFocusAreas(initialActivityType),
@@ -472,8 +526,13 @@ export default function AssignmentForm({
       tabSwitchPolicy: initialTabSwitchPolicy,
       tabSwitchMaxLeaves: initialTabSwitchMaxLeaves,
     });
+  // In create mode, honor the activity type's file-submission default (e.g.
+  // code review → required); edit mode always uses the saved value.
   const [fileSubmissionEnabled, setFileSubmissionEnabled] = useState(
-    !!initialFileSubmissionConfig?.required,
+    mode === "create"
+      ? (getActivityTypeDefinition(initialActivityType).defaults?.fileSubmission
+          ?.required ?? !!initialFileSubmissionConfig?.required)
+      : !!initialFileSubmissionConfig?.required,
   );
   const [fileAllowMultiple, setFileAllowMultiple] = useState(
     initialFileSubmissionConfig?.allow_multiple ?? false,
@@ -481,9 +540,18 @@ export default function AssignmentForm({
   const [fileInstructions, setFileInstructions] = useState(
     initialFileSubmissionConfig?.instructions ?? "",
   );
-  const [fileAllowedTypes, setFileAllowedTypes] = useState<string[]>(() =>
-    allowedFileTypesFromConfig(initialFileSubmissionConfig),
-  );
+  const [fileAllowedTypes, setFileAllowedTypes] = useState<string[]>(() => {
+    const configured = allowedFileTypesFromConfig(initialFileSubmissionConfig);
+    if (
+      configured.length === 0 &&
+      mode === "create" &&
+      getActivityTypeDefinition(initialActivityType).defaults?.fileSubmission
+        ?.required
+    ) {
+      return [...DEFAULT_FILE_SUBMISSION_ALLOWED_TYPES];
+    }
+    return configured;
+  });
 
   const handleToggleAllowedFileType = useCallback(
     (ext: string, selected: boolean) => {
@@ -703,30 +771,15 @@ export default function AssignmentForm({
       setAssessmentMode(desired);
     }
 
-    let nextConfig: BotPromptConfig = {
+    const baseConfig: BotPromptConfig = {
       system_prompt: def.systemPrompt,
       conversation_start: { ...def.conversationStart },
     };
-    const mm = def.defaults?.multimodal;
-    if (mm && targetMode === "multimodal") {
-      nextConfig = {
-        ...nextConfig,
-        multimodal_actions: {
-          ...nextConfig.multimodal_actions,
-          ...(mm.availableActions !== undefined
-            ? { availableActions: mm.availableActions }
-            : {}),
-          ...(mm.languageSupportEnabled !== undefined
-            ? {
-                languageSupport: {
-                  ...nextConfig.multimodal_actions?.languageSupport,
-                  enabled: mm.languageSupportEnabled,
-                },
-              }
-            : {}),
-        },
-      };
-    }
+    const nextConfig = withActivityTypeMultimodalDefaults(
+      baseConfig,
+      def.defaults?.multimodal,
+      targetMode,
+    );
 
     setBotPromptConfig(applyClassLang(nextConfig, targetMode));
     setEvaluationPrompt(def.evaluationPrompt);
@@ -739,6 +792,25 @@ export default function AssignmentForm({
       }
     }
   };
+
+  // Create mode: the initial prompt/eval/label/display/file state above is
+  // seeded synchronously from the compiled registry (so the form isn't blank
+  // while the class's template palette is still loading). Once that palette
+  // resolves, re-seed from the DB row for whatever's currently selected — the
+  // initial default, or a pre-load pick made via the built-in-kind fallback
+  // picker — so a super admin's DB-only edit to a system template is honored
+  // even when the teacher never touches the Activity Type control. No-op once
+  // `activityDefinition` is set (an explicit template pick already captured
+  // the DB row directly, synchronously — this only fills the gap before that).
+  useEffect(() => {
+    if (mode !== "create") return;
+    if (!activityTemplateId || activityDefinition) return;
+    const row = availableTemplates.find((t) => t.id === activityTemplateId);
+    if (!row) return;
+    setActivityDefinition(row.definition);
+    seedFromDefinition(row.definition);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, activityTemplateId, activityDefinition, availableTemplates]);
 
   /** Teacher picked a template from the class palette → snapshot its definition. */
   const handleTemplateChange = (templateId: string) => {
@@ -779,29 +851,14 @@ export default function AssignmentForm({
       setAssessmentMode(desired);
     }
 
-    let nextConfig = buildDefaultBotPromptConfig(newType, targetMode);
+    const baseConfig = buildDefaultBotPromptConfig(newType, targetMode);
 
     // Multimodal preselection (language support + actions) for the new type.
-    const mm = def.defaults?.multimodal;
-    if (mm && targetMode === "multimodal") {
-      nextConfig = {
-        ...nextConfig,
-        multimodal_actions: {
-          ...nextConfig.multimodal_actions,
-          ...(mm.availableActions !== undefined
-            ? { availableActions: mm.availableActions }
-            : {}),
-          ...(mm.languageSupportEnabled !== undefined
-            ? {
-                languageSupport: {
-                  ...nextConfig.multimodal_actions?.languageSupport,
-                  enabled: mm.languageSupportEnabled,
-                },
-              }
-            : {}),
-        },
-      };
-    }
+    const nextConfig = withActivityTypeMultimodalDefaults(
+      baseConfig,
+      def.defaults?.multimodal,
+      targetMode,
+    );
 
     // Layer the class language defaults under the activity type's preselection
     // (the activity type's support-enabled flag wins where it sets one).

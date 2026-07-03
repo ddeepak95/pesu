@@ -75,23 +75,14 @@ export const CODE_REVIEW_DEFINITION: ActivityTypeDefinition = {
   evaluationSystemPersona: CODE_REVIEW_EVALUATION_SYSTEM_PERSONA,
   defaultFeedbackFocusAreas: [
     {
-      title: "Understanding of your code",
+      title: "What worked well?",
       description:
-        "How well the student explained and justified the code they wrote.",
+        "Highlight what the student did well.",
     },
     {
-      title: "Design & tradeoffs",
+      title: "What could be improved?",
       description:
-        "Comment on the design decisions, structure, and tradeoffs they discussed.",
-    },
-    {
-      title: "Edge cases",
-      description:
-        "Whether the student considered edge cases and error handling.",
-    },
-    {
-      title: "Suggestions",
-      description: "Concrete, actionable suggestions for improvement.",
+        "Point out gaps or misconceptions to work on.",
     },
   ],
   labels: {

@@ -20,19 +20,14 @@ export interface FeedbackFocusArea {
 /** Fallback default areas when an activity type doesn't define its own. */
 export const COMMON_DEFAULT_FEEDBACK_FOCUS_AREAS: FeedbackFocusArea[] = [
   {
-    title: "Strengths",
+    title: "What worked well?",
     description:
-      "Highlight what the student did well and the ideas they understood correctly.",
+      "Highlight what the student did well.",
   },
   {
-    title: "Areas to improve",
+    title: "What could be improved?",
     description:
-      "Point out gaps, misconceptions, or weaknesses in the response.",
-  },
-  {
-    title: "Next steps",
-    description:
-      "Give concrete, actionable suggestions for how to improve.",
+      "Point out gaps or misconceptions to work on.",
   },
 ];
 

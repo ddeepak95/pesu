@@ -123,7 +123,7 @@ export const LEARNING_DEFINITION: ActivityTypeDefinition = {
   defaults: {
     interactionType: "multimodal",
     multimodal: {
-      languageSupportEnabled: true,
+      languageSupportEnabled: false,
       availableActions: ["mcq", "display_content"],
     },
   },
