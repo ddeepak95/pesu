@@ -103,7 +103,7 @@ export default function Header({ userName, onLogoutSubmission }: HeaderProps) {
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link href="/teacher/activity-templates">
                       <LayoutTemplate className="mr-2 h-4 w-4" />
-                      My Templates
+                      My Activity Templates
                     </Link>
                   </DropdownMenuItem>
                 )}

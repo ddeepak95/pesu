@@ -92,9 +92,9 @@ export default function AddFromLibraryDialog({
   const sourceRows = useMemo<ActivityTemplateRow[]>(
     () =>
       source === "platform"
-        ? systemQuery.data ?? []
+        ? (systemQuery.data ?? [])
         : source === "personal"
-          ? myQuery.data ?? []
+          ? (myQuery.data ?? [])
           : [],
     [source, systemQuery.data, myQuery.data],
   );
@@ -139,7 +139,8 @@ export default function AddFromLibraryDialog({
     if (source === "platform") {
       void act(
         t.id,
-        () => setSystemTemplateAvailability(classDbId, t.id, added ? false : true),
+        () =>
+          setSystemTemplateAvailability(classDbId, t.id, added ? false : true),
         added
           ? `"${t.name}" hidden from this class.`
           : `"${t.name}" added to this class.`,
@@ -222,7 +223,7 @@ export default function AddFromLibraryDialog({
                       href="/teacher/activity-templates"
                       className="underline"
                     >
-                      Create one in My Templates
+                      Create one in My Activity Templates
                     </Link>
                     .
                   </>
@@ -259,7 +260,8 @@ export default function AddFromLibraryDialog({
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Preview
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />{" "}
+                          Preview
                         </a>
                       </Button>
                       <Tooltip>

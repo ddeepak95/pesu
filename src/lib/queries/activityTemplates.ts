@@ -44,7 +44,7 @@ export interface ActivityTemplateRow {
 const TEMPLATE_COLUMNS =
   "id, name, description, definition, owner_scope, owner_user_id, owner_class_id, institution_id, visibility, status, forked_from, upstream_synced_at, origin_author_id, origin_author_name, created_by, created_at, updated_at";
 
-/** The teacher's personal ("My Templates") library — active user-owned rows. */
+/** The teacher's personal ("My Activity Templates") library — active user-owned rows. */
 export async function listMyTemplates(
   userId: string,
   client?: SupabaseClient,

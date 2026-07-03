@@ -4,7 +4,7 @@ import { verifySession } from "@/lib/dal";
 import { listMyTemplates } from "@/lib/queries/activityTemplates";
 
 export const metadata = {
-  title: "My Templates",
+  title: "My Activity Templates",
 };
 
 export default async function TeacherTemplatesPage() {
@@ -16,7 +16,7 @@ export default async function TeacherTemplatesPage() {
       <TemplateLibrary
         owner={{ scope: "user", userId: user.id }}
         initialTemplates={templates}
-        title="My Templates"
+        title="My Activity Templates"
         description="Your personal activity-type library. Create your own, clone others', and share via a link. Assignments snapshot a template when created, so editing here never changes existing assignments."
       />
     </PageLayout>
