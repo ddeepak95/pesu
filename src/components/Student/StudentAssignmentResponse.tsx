@@ -118,8 +118,9 @@ export default function StudentAssignmentResponse({
       // First, check URL for submission ID
       const urlSubmissionId = getSubmissionIdFromUrl();
 
-      // Then check localStorage
-      const localSession = loadSession(assignmentId);
+      // Then check localStorage (scoped to this user, so a previous
+      // student's leftover session on a shared computer is never read)
+      const localSession = loadSession(assignmentId, user.id);
 
       // ALWAYS try to get existing submission by student and assignment first
       const existingSubmission =
@@ -141,7 +142,8 @@ export default function StudentAssignmentResponse({
 
         if (
           !submission ||
-          submission.assignment_id !== assignmentData.assignment_id
+          submission.assignment_id !== assignmentData.assignment_id ||
+          (submission.student_id && submission.student_id !== user.id)
         ) {
           if (!existingSubmission) {
             await createNewSubmission();
@@ -197,13 +199,17 @@ export default function StudentAssignmentResponse({
           updateUrlWithSubmissionId(assignmentId, submission.submission_id);
         }
 
-        saveSession(assignmentId, {
-          submissionId: submission.submission_id,
-          studentName: name,
-          preferredLanguage: submission.preferred_language,
-          currentQuestionIndex: questionIndex,
-          phase: "answering",
-        });
+        saveSession(
+          assignmentId,
+          {
+            submissionId: submission.submission_id,
+            studentName: name,
+            preferredLanguage: submission.preferred_language,
+            currentQuestionIndex: questionIndex,
+            phase: "answering",
+          },
+          user.id
+        );
       } else {
         await createNewSubmission();
       }
@@ -254,13 +260,17 @@ export default function StudentAssignmentResponse({
       }
 
       // Save session to localStorage
-      saveSession(assignmentId, {
-        submissionId: submission.submission_id,
-        studentName: name,
-        preferredLanguage,
-        currentQuestionIndex: 0,
-        phase: "answering",
-      });
+      saveSession(
+        assignmentId,
+        {
+          submissionId: submission.submission_id,
+          studentName: name,
+          preferredLanguage,
+          currentQuestionIndex: 0,
+          phase: "answering",
+        },
+        user.id
+      );
 
       // Update URL with submission ID
       updateUrlWithSubmissionId(assignmentId, submission.submission_id);
@@ -300,7 +310,7 @@ export default function StudentAssignmentResponse({
     }
     setExistingAnswers(reconstructedAnswers);
 
-    const localSession = loadSession(assignmentId);
+    const localSession = loadSession(assignmentId, user?.id);
     let questionIndex = localSession?.currentQuestionIndex ?? 0;
 
     const maxValidIndex =
@@ -318,13 +328,17 @@ export default function StudentAssignmentResponse({
     updateUrlWithSubmissionId(assignmentId, submission.submission_id);
 
     // Save/update localStorage
-    saveSession(assignmentId, {
-      submissionId: submission.submission_id,
-      studentName: name,
-      preferredLanguage: submission.preferred_language,
-      currentQuestionIndex: questionIndex,
-      phase: "answering",
-    });
+    saveSession(
+      assignmentId,
+      {
+        submissionId: submission.submission_id,
+        studentName: name,
+        preferredLanguage: submission.preferred_language,
+        currentQuestionIndex: questionIndex,
+        phase: "answering",
+      },
+      user?.id
+    );
   };
 
   const getDisplayName = (submission: {
@@ -346,12 +360,16 @@ export default function StudentAssignmentResponse({
     setPreferredLanguage(newLanguage);
 
     // Update language in localStorage session
-    const session = loadSession(assignmentId);
+    const session = loadSession(assignmentId, user?.id);
     if (session) {
-      saveSession(assignmentId, {
-        ...session,
-        preferredLanguage: newLanguage,
-      });
+      saveSession(
+        assignmentId,
+        {
+          ...session,
+          preferredLanguage: newLanguage,
+        },
+        user?.id
+      );
     }
   };
 
@@ -400,6 +418,7 @@ export default function StudentAssignmentResponse({
           submissionId={submissionId}
           displayName={displayName}
           preferredLanguage={preferredLanguage}
+          sessionUserId={user?.id}
           contentItemId={contentItemId}
           onComplete={() => {
             if (onComplete) {

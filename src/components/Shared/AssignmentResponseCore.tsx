@@ -39,6 +39,8 @@ interface AssignmentResponseCoreProps {
   onBack?: () => void;
   onLanguageChange?: (lang: string) => void;
   assignmentId: string; // For session storage
+  /** Scopes the localStorage session key to the logged-in student; omitted for the public (no-account) flow. */
+  sessionUserId?: string;
   initialQuestionIndex?: number; // Initial question index
   existingAnswers?: { [key: number]: string }; // Existing answers to restore
   /** When server returns integrity lock during evaluate */
@@ -85,6 +87,7 @@ export default function AssignmentResponseCore({
   onBack: _onBack,
   onLanguageChange,
   assignmentId,
+  sessionUserId,
   initialQuestionIndex = 0,
   existingAnswers = {},
   onIntegrityAccessRevoked,
@@ -187,9 +190,9 @@ export default function AssignmentResponseCore({
     (qIdx: number) => {
       const stepIdx = qIdx + questionOffset;
       setCurrentStepIndex(stepIdx);
-      updateQuestionIndex(assignmentId, stepIdx);
+      updateQuestionIndex(assignmentId, stepIdx, sessionUserId);
     },
-    [assignmentId, questionOffset]
+    [assignmentId, questionOffset, sessionUserId]
   );
 
   // Activity tracking for assignment-level time
@@ -209,14 +212,14 @@ export default function AssignmentResponseCore({
       [currentQuestion.order]: transcript,
     }));
 
-    updateQuestionIndex(assignmentId, currentStepIndex);
+    updateQuestionIndex(assignmentId, currentStepIndex, sessionUserId);
   };
 
   const handlePrevious = () => {
     if (currentStepIndex > 0) {
       const newIndex = currentStepIndex - 1;
       setCurrentStepIndex(newIndex);
-      updateQuestionIndex(assignmentId, newIndex);
+      updateQuestionIndex(assignmentId, newIndex, sessionUserId);
     }
   };
 
@@ -224,11 +227,11 @@ export default function AssignmentResponseCore({
     if (currentStepIndex < totalSteps - 1) {
       const newIndex = currentStepIndex + 1;
       setCurrentStepIndex(newIndex);
-      updateQuestionIndex(assignmentId, newIndex);
+      updateQuestionIndex(assignmentId, newIndex, sessionUserId);
     } else {
       onComplete?.();
     }
-  }, [assignmentId, currentStepIndex, onComplete, totalSteps]);
+  }, [assignmentId, currentStepIndex, onComplete, totalSteps, sessionUserId]);
 
   // No explicit submission needed - attempts are automatically saved
   // When student finishes last question, they can navigate back or close
@@ -301,7 +304,7 @@ export default function AssignmentResponseCore({
         // Advance to first question step explicitly — handleNext() is a no-op here
         // because totalSteps is still 1 until generatedQuestions is applied (empty assignment.questions).
         setCurrentStepIndex(questionOffset);
-        updateQuestionIndex(assignmentId, questionOffset);
+        updateQuestionIndex(assignmentId, questionOffset, sessionUserId);
       } catch (err) {
         console.error("Dynamic question generation failed:", err);
         setGenerateError(
@@ -317,6 +320,7 @@ export default function AssignmentResponseCore({
       assignmentId,
       questionOffset,
       onDynamicQuestionsSaved,
+      sessionUserId,
     ],
   );
 

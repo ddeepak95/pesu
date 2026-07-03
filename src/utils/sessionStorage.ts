@@ -12,10 +12,16 @@ export interface AssignmentSession {
 }
 
 /**
- * Generate storage key for a specific assignment
+ * Generate storage key for a specific assignment.
+ *
+ * Scoped by userId so a leftover in-progress session from a previously
+ * logged-in student (e.g. a shared computer where the next student signs in
+ * without explicitly signing out) is never picked up by another account.
+ * `userId` is omitted only for the unauthenticated public-link flow, which
+ * has no accounts to collide across.
  */
-function getStorageKey(assignmentId: string): string {
-  return `assignment_session_${assignmentId}`;
+function getStorageKey(assignmentId: string, userId?: string): string {
+  return `assignment_session_${assignmentId}_${userId ?? "anon"}`;
 }
 
 /**
@@ -23,10 +29,11 @@ function getStorageKey(assignmentId: string): string {
  */
 export function saveSession(
   assignmentId: string,
-  session: AssignmentSession
+  session: AssignmentSession,
+  userId?: string
 ): void {
   try {
-    const key = getStorageKey(assignmentId);
+    const key = getStorageKey(assignmentId, userId);
     localStorage.setItem(key, JSON.stringify(session));
   } catch (error) {
     console.error("Error saving session to localStorage:", error);
@@ -37,10 +44,11 @@ export function saveSession(
  * Load session data from localStorage
  */
 export function loadSession(
-  assignmentId: string
+  assignmentId: string,
+  userId?: string
 ): AssignmentSession | null {
   try {
-    const key = getStorageKey(assignmentId);
+    const key = getStorageKey(assignmentId, userId);
     const data = localStorage.getItem(key);
     if (!data) return null;
     return JSON.parse(data) as AssignmentSession;
@@ -55,23 +63,28 @@ export function loadSession(
  */
 export function updateQuestionIndex(
   assignmentId: string,
-  questionIndex: number
+  questionIndex: number,
+  userId?: string
 ): void {
-  const session = loadSession(assignmentId);
+  const session = loadSession(assignmentId, userId);
   if (session) {
-    saveSession(assignmentId, {
-      ...session,
-      currentQuestionIndex: questionIndex,
-    });
+    saveSession(
+      assignmentId,
+      {
+        ...session,
+        currentQuestionIndex: questionIndex,
+      },
+      userId
+    );
   }
 }
 
 /**
  * Clear session data from localStorage
  */
-export function clearSession(assignmentId: string): void {
+export function clearSession(assignmentId: string, userId?: string): void {
   try {
-    const key = getStorageKey(assignmentId);
+    const key = getStorageKey(assignmentId, userId);
     localStorage.removeItem(key);
   } catch (error) {
     console.error("Error clearing session from localStorage:", error);
