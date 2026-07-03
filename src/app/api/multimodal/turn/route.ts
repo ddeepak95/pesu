@@ -256,32 +256,20 @@ export async function POST(request: NextRequest) {
     };
     const invocationModel = modelMetaFromResolved(config, keySource);
 
-    // In single-transcript mode, log the student message upfront (existing behavior).
-    // In dual-transcript mode, we defer until the model resolves `userTranscript`.
-    if (!dualTranscriptDescriptor) {
-      try {
-        const latestMessage = messages[messages.length - 1];
-        const latestStudent =
-          latestMessage?.role === "student" &&
-          latestMessage.content?.trim() &&
-          !latestMessage.hidden
-            ? latestMessage
-            : null;
-        if (latestStudent) {
-          await insertChatMessage(supabase, {
-            id: latestMessageId,
-            submission_id: submissionId ?? null,
-            assignment_id: assignmentId,
-            question_order: questionOrder,
-            role: "student",
-            content: latestStudent.content,
-            attempt_number: attemptNumber ?? null,
-          });
-        }
-      } catch (error) {
-        console.error("[multimodal/turn] Failed to log student chat message:", error);
-      }
-    }
+    // In single-transcript mode, the student message content is already known
+    // (unlike dual mode, which waits for the model to resolve `userTranscript`).
+    // The actual insert + client notification happens inside the stream below,
+    // via `latestStudentContent` — this keeps the "insert row, then tell the
+    // client it's safe to upload audio" ordering consistent across both modes.
+    const latestStudentContent = (() => {
+      if (dualTranscriptDescriptor) return null;
+      const latestMessage = messages[messages.length - 1];
+      return latestMessage?.role === "student" &&
+        latestMessage.content?.trim() &&
+        !latestMessage.hidden
+        ? latestMessage.content
+        : null;
+    })();
 
     // Build SDK messages. In dual mode, replace the last user message with the
     // both-candidates payload so the model can choose the coherent reading.
@@ -329,6 +317,27 @@ export async function POST(request: NextRequest) {
         const enqueue = (data: Record<string, unknown>) => {
           controller.enqueue(encoder.encode(sseEvent(data)));
         };
+
+        // Single-transcript mode: insert the student message first, then tell
+        // the client it's safe to upload the utterance audio (which links to
+        // this row by FK). Must happen before any other event so the client's
+        // audio upload never races ahead of this insert.
+        if (latestStudentContent) {
+          try {
+            await insertChatMessage(supabase, {
+              id: latestMessageId,
+              submission_id: submissionId ?? null,
+              assignment_id: assignmentId,
+              question_order: questionOrder,
+              role: "student",
+              content: latestStudentContent,
+              attempt_number: attemptNumber ?? null,
+            });
+          } catch (error) {
+            console.error("[multimodal/turn] Failed to log student chat message:", error);
+          }
+          enqueue({ type: "user_transcript", text: latestStudentContent });
+        }
 
         let fullReply = "";
         let endConversationTriggered = false;
@@ -575,7 +584,10 @@ export async function POST(request: NextRequest) {
                     const chosen = lastPartialUserTranscript.trim();
                     if (chosen) {
                       userTranscriptEmitted = true;
-                      enqueue({ type: "user_transcript", text: chosen });
+                      // Insert BEFORE notifying the client — the client reacts to
+                      // this event by immediately posting the utterance audio with
+                      // this chat_message_id, which would race the insert below and
+                      // violate the FK constraint if the event went out first.
                       try {
                         await insertChatMessage(supabase, {
                           id: latestMessageId,
@@ -592,6 +604,7 @@ export async function POST(request: NextRequest) {
                           dbErr,
                         );
                       }
+                      enqueue({ type: "user_transcript", text: chosen });
                     }
                   }
 
@@ -632,7 +645,6 @@ export async function POST(request: NextRequest) {
                   ).trim();
                   if (chosen) {
                     userTranscriptEmitted = true;
-                    enqueue({ type: "user_transcript", text: chosen });
                     try {
                       await insertChatMessage(supabase, {
                         id: latestMessageId,
@@ -649,6 +661,7 @@ export async function POST(request: NextRequest) {
                         dbErr,
                       );
                     }
+                    enqueue({ type: "user_transcript", text: chosen });
                   }
                 }
 
@@ -706,7 +719,6 @@ export async function POST(request: NextRequest) {
               "[multimodal/turn] userTranscript never resolved in dual mode; falling back to primary candidate.",
             );
             if (fallbackText) {
-              enqueue({ type: "user_transcript", text: fallbackText });
               try {
                 await insertChatMessage(supabase, {
                   id: latestMessageId,
@@ -723,6 +735,7 @@ export async function POST(request: NextRequest) {
                   dbErr,
                 );
               }
+              enqueue({ type: "user_transcript", text: fallbackText });
             }
           }
 

@@ -859,23 +859,27 @@ export function MultimodalInputArea({
           scheduleAutoFinish();
         }
       } catch (turnError) {
-        // Fallback: if the turn errored before user_transcript arrived, resolve
-        // any pending dual-transcript bubble to the primary candidate text.
+        // Fallback: the turn request failed before its user_transcript event
+        // arrived, so no deferred audio was flushed. Resolve each pending
+        // bubble to its already-known content (the primary candidate for
+        // dual-transcript bubbles, the plain transcript otherwise).
         for (const [msgId, audioBlob] of deferredStudentAudioRef.current) {
-          const primaryText = messagesRef.current
-            .find((m) => m.role === "student" && m.transcriptCandidates?.length)
-            ?.transcriptCandidates?.[0]?.text ?? "";
-          if (primaryText) {
+          const pendingMessage = messagesRef.current.find(
+            (m) => m.id === msgId && m.role === "student",
+          );
+          const resolvedText =
+            pendingMessage?.transcriptCandidates?.[0]?.text ?? pendingMessage?.content ?? "";
+          if (resolvedText) {
             setMessages((prev) =>
               prev.map((m) =>
-                m.role === "student" && m.transcriptCandidates?.length
-                  ? { ...m, content: primaryText, transcriptCandidates: undefined, status: undefined }
+                m.id === msgId
+                  ? { ...m, content: resolvedText, transcriptCandidates: undefined, status: undefined }
                   : m,
               ),
             );
             messagesRef.current = messagesRef.current.map((m) =>
-              m.role === "student" && m.transcriptCandidates?.length
-                ? { ...m, content: primaryText, transcriptCandidates: undefined, status: undefined }
+              m.id === msgId
+                ? { ...m, content: resolvedText, transcriptCandidates: undefined, status: undefined }
                 : m,
             );
             void persistUtteranceAudio({
@@ -883,7 +887,7 @@ export function MultimodalInputArea({
               storageRole: "user",
               ordinal: userOrdinalRef.current,
               audioBlob,
-              content: primaryText,
+              content: resolvedText,
               chatMessageId: msgId,
             });
           }
@@ -1374,19 +1378,10 @@ export function MultimodalInputArea({
         messagesRef.current = nextHistory;
         userOrdinalRef.current += 1;
 
-        if (isDual) {
-          // Defer audio persistence until the user_transcript SSE event resolves.
-          deferredStudentAudioRef.current.set(pendingMessageId, wavBlob);
-        } else {
-          await persistUtteranceAudio({
-            dbRole: "student",
-            storageRole: "user",
-            ordinal: userOrdinalRef.current,
-            audioBlob: wavBlob,
-            content: text,
-            chatMessageId: pendingMessageId,
-          });
-        }
+        // Defer audio persistence until the turn's `user_transcript` SSE event
+        // confirms the chat_messages row exists — persisting eagerly here can
+        // race ahead of that insert and violate the audio row's FK.
+        deferredStudentAudioRef.current.set(pendingMessageId, wavBlob);
 
         setIsTranscribing(false);
         await runAssistantTurn(nextHistory);
