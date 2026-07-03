@@ -69,7 +69,7 @@ Then compose the feedback output in {{language}}, organized into titled sections
 
 IMPORTANT: All feedback text must be written in {{language}}.`;
 
-const LEARNING_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evaluator focused on learning progress. Your task is to review student responses against the rubric. Be fair, constructive, and encouraging. Highlight what the student understood well and offer guidance for deeper understanding. Evaluate based solely on the content of the student's answer.`;
+const LEARNING_EVALUATION_SYSTEM_PERSONA = `You are an expert educational evaluator focused on learning progress. Your task is to review student responses against the rubric and the questions asked by the bot. Be fair, constructive, and encouraging. Highlight what the student understood well and offer guidance for deeper understanding. Evaluate based solely on the content of the student's answer.`;
 
 export const LEARNING_DEFINITION: ActivityTypeDefinition = {
   kind: "learning",
@@ -86,46 +86,35 @@ export const LEARNING_DEFINITION: ActivityTypeDefinition = {
   labels: {},
   defaultFeedbackFocusAreas: [
     {
-      title: "Concept understanding",
+      title: "What worked well?",
       description:
-        "How well the student grasped the key ideas, and where their understanding can go deeper.",
+        "Highlight what the student did well.",
     },
     {
-      title: "Strengths",
-      description: "Highlight what the student did well.",
-    },
-    {
-      title: "Areas to improve",
+      title: "What could be improved?",
       description: "Point out gaps or misconceptions to work on.",
-    },
-    {
-      title: "Next steps",
-      description: "Concrete suggestions to keep learning.",
     },
   ],
   endConditionInstruction:
-    "the learner has thoroughly engaged with and reasonably covered the topic, or has explicitly " +
+    "The learner has thoroughly engaged with and reasonably covered the topic, or has explicitly " +
     "refused to engage.",
   generation: {
     rubricCoverage:
-      "the key concepts and understanding milestones the student should grasp while exploring " +
-      "the topic — the ideas a good tutoring conversation would help them arrive at",
+      "The key concepts and understanding milestones the student should grasp while exploring the topic",
     expectedAnswerCoverage:
-      "the core understanding and connections that show the student has grasped the topic, for " +
-      "the tutor's reference only",
+      "The core understanding and connections that show the student has grasped the topic, for the tutor's reference only",
     guidance:
       "This is a LEARNING activity: a guided tutoring conversation, not a graded test. Frame " +
       "rubric items as concepts or understanding milestones the tutor should help the student " +
       "reach through explanation and discussion, not facts to test recall of.",
-    dynamicGenerationGuidance: `
-- Frame each generated prompt as a topic to explore together, not a test question — phrasing like "Let's look at…" or "Today we'll explore…" rather than "What is…".
+    dynamicGenerationGuidance: `- Frame each generated prompt as a topic to explore together, not a test question — phrasing like "Let's look at…" or "Today we'll explore…" rather than "What is…".
 - Ground the topic in the student's submitted files where relevant, but the goal is understanding the underlying concept, not just describing the file.
 - Format the generated prompt using Markdown. Use fenced code blocks with a language identifier when quoting code from the submission, and inline backticks for terms the tutor should carry into the conversation.`,
   },
   actionGuidance: {
     mcq:
-      "Use sparingly, as a checkpoint after a substantial concept — not a trivia break. Base " +
-      "it on a rubric concept. WRONG: hint (don't reveal) and re-ask. CORRECT: acknowledge and " +
+      "Use as checkpoints to verify understanding based on the conversation context." +
+      "If the student answers incorrectly: hint (don't reveal the answer) and re-ask. If the student answers correctly: acknowledge and " +
       "move on. After repeated struggle: reveal and move on.",
     display_content:
       "Use only when presenting a diagram, worked example, or explanation that's clearer " +
