@@ -1,6 +1,10 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
+export const metadata = {
+  title: "Login",
+};
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">

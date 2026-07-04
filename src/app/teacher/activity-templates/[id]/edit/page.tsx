@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 
 import PageLayout from "@/components/PageLayout";
@@ -5,9 +6,21 @@ import { UserTemplateEditor } from "@/components/Teacher/Templates/UserTemplateE
 import { verifySession } from "@/lib/dal";
 import { getTemplateById } from "@/lib/queries/activityTemplates";
 
-export const metadata = {
-  title: "Edit Template",
-};
+const getTemplateData = cache(async (id: string) => {
+  const { user, supabase } = await verifySession();
+  const template = await getTemplateById(id, supabase);
+  return { template, userId: user.id };
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const { template } = await getTemplateData(id);
+  return { title: template ? `Edit: ${template.name}` : "Edit Template" };
+}
 
 /**
  * Edit a personal-library activity template. Only active `owner_scope='user'`
@@ -20,14 +33,12 @@ export default async function EditUserTemplatePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { user, supabase } = await verifySession();
-
-  const template = await getTemplateById(id, supabase);
+  const { template, userId } = await getTemplateData(id);
   if (
     !template ||
     template.status !== "active" ||
     template.owner_scope !== "user" ||
-    template.owner_user_id !== user.id
+    template.owner_user_id !== userId
   ) {
     notFound();
   }

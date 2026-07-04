@@ -1,5 +1,9 @@
 import PageLayout from "@/components/PageLayout";
 
+export const metadata = {
+  title: "Teacher Dashboard",
+};
+
 export default function TeacherPage() {
   return (
     <PageLayout>

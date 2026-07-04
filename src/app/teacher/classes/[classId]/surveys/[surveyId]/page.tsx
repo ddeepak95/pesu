@@ -1,9 +1,33 @@
+import { cache } from "react";
 import { verifySession } from "@/lib/dal";
 import { notFound } from "next/navigation";
 import SurveyDetailClient from "./SurveyDetailClient";
 
 const SURVEY_ALL_COLUMNS =
   "id, survey_id, class_id, class_group_id, title, description, questions, created_by, created_at, updated_at, status";
+
+const getSurveyData = cache(async (surveyId: string) => {
+  const { supabase } = await verifySession("/teacher/login");
+
+  const { data } = await supabase
+    .from("surveys")
+    .select(SURVEY_ALL_COLUMNS)
+    .eq("survey_id", surveyId)
+    .in("status", ["active", "draft"])
+    .single();
+
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ surveyId: string }>;
+}) {
+  const { surveyId } = await params;
+  const surveyData = await getSurveyData(surveyId);
+  return { title: surveyData?.title ?? "Survey" };
+}
 
 export default async function SurveyDetailPage({
   params,
@@ -12,13 +36,7 @@ export default async function SurveyDetailPage({
 }) {
   const { classId, surveyId } = await params;
   const { supabase } = await verifySession("/teacher/login");
-
-  const { data: surveyData } = await supabase
-    .from("surveys")
-    .select(SURVEY_ALL_COLUMNS)
-    .eq("survey_id", surveyId)
-    .in("status", ["active", "draft"])
-    .single();
+  const surveyData = await getSurveyData(surveyId);
 
   if (!surveyData) notFound();
 

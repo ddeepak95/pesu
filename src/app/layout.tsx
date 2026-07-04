@@ -7,6 +7,7 @@ import { SWRProvider } from "@/providers/SWRProvider";
 import { Toaster } from "@/components/ui/sonner";
 import GlobalDataLoadingOverlay from "@/components/GlobalDataLoadingOverlay";
 import en from "@/locales/en.json";
+import { getURL } from "@/lib/get-url";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,10 +26,27 @@ const rubik = Rubik({
 });
 
 export const metadata: Metadata = {
-  title: `${en.toolName} | Voice-based AI Assistant for Learning`,
-  description: "Voice-based AI Assistant for Learning",
+  metadataBase: new URL(getURL()),
+  title: {
+    template: `%s | ${en.toolName}`,
+    default: `${en.toolName} | ${en.tagline}`,
+  },
+  description: en.tagline,
   icons: {
     icon: "/convoed-symbol.svg",
+  },
+  openGraph: {
+    type: "website",
+    siteName: en.toolName,
+    title: `${en.toolName} | ${en.tagline}`,
+    description: en.tagline,
+    images: ["/home/hero.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${en.toolName} | ${en.tagline}`,
+    description: en.tagline,
+    images: ["/home/hero.png"],
   },
 };
 

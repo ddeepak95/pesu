@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { verifySession, getContentUnlockState, buildContentItemUrl } from "@/lib/dal";
 import { notFound } from "next/navigation";
 import QuizDetailClient from "./QuizDetailClient";
@@ -9,6 +10,29 @@ const QUIZ_ALL_COLUMNS =
 const QUIZ_SUBMISSION_ALL_COLUMNS =
   "id, quiz_id, class_id, student_id, answers, submitted_at, created_at";
 
+const getQuizData = cache(async (quizId: string) => {
+  const { supabase } = await verifySession("/student/login");
+
+  const { data } = await supabase
+    .from("quizzes")
+    .select(QUIZ_ALL_COLUMNS)
+    .eq("quiz_id", quizId)
+    .in("status", ["active", "draft"])
+    .single();
+
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ quizId: string }>;
+}) {
+  const { quizId } = await params;
+  const quizData = await getQuizData(quizId);
+  return { title: quizData?.title ?? "Quiz" };
+}
+
 export default async function StudentQuizPage({
   params,
 }: {
@@ -16,13 +40,7 @@ export default async function StudentQuizPage({
 }) {
   const { classId, quizId } = await params;
   const { user, supabase } = await verifySession("/student/login");
-
-  const { data: quizData } = await supabase
-    .from("quizzes")
-    .select(QUIZ_ALL_COLUMNS)
-    .eq("quiz_id", quizId)
-    .in("status", ["active", "draft"])
-    .single();
+  const quizData = await getQuizData(quizId);
 
   if (!quizData) notFound();
 

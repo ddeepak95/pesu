@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, cache } from "react";
 import { verifySession } from "@/lib/dal";
 import { notFound } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
@@ -10,9 +10,34 @@ const CLASS_COLUMNS =
 function ClassDetailFallback() {
   return (
     <PageLayout>
-      <div className="py-12 text-center text-muted-foreground">Loading class…</div>
+      <div className="py-12 text-center text-muted-foreground">
+        Loading class…
+      </div>
     </PageLayout>
   );
+}
+
+const getClassData = cache(async (classId: string) => {
+  const { supabase } = await verifySession("/teacher/login");
+
+  const { data } = await supabase
+    .from("classes")
+    .select(CLASS_COLUMNS)
+    .eq("class_id", classId)
+    .in("status", ["active", "archived"])
+    .single();
+
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ classId: string }>;
+}) {
+  const { classId } = await params;
+  const classData = await getClassData(classId);
+  return { title: classData?.name ?? "Class" };
 }
 
 export default async function ClassDetailPage({
@@ -21,14 +46,7 @@ export default async function ClassDetailPage({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
-  const { supabase } = await verifySession("/teacher/login");
-
-  const { data: classData } = await supabase
-    .from("classes")
-    .select(CLASS_COLUMNS)
-    .eq("class_id", classId)
-    .in("status", ["active", "archived"])
-    .single();
+  const classData = await getClassData(classId);
 
   if (!classData) notFound();
 

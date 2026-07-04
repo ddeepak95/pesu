@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions | ConvoEd",
+  title: "Terms & Conditions",
   description: "Terms and Conditions for ConvoEd - Research Project",
 };
 

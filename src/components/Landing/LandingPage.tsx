@@ -264,7 +264,7 @@ export default function LandingPage() {
             {/* Hero text content - appears second on mobile, first on desktop */}
             <div className="text-left lg:pl-20 order-2 lg:order-1 max-w-xl lg:max-w-none">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-foreground text-balance">
-                Improve Learning Through Conversations
+                Teacher&apos;s Assistant for Conversational Learning
               </h1>
 
               <p className="text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed text-pretty">
@@ -313,20 +313,14 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center space-y-5">
             <p className="text-xl sm:text-2xl font-semibold text-foreground leading-snug">
-              ConvoEd acts as your teaching assistant, conducting conversational
-              learning activities with students based on your instructions. You
-              define the activity and set the goals; ConvoEd runs each session
-              and brings back the insights.
+              ConvoEd acts as your teaching assistant. You define the activity
+              and learning goals; ConvoEd conducts each conversation and brings
+              back the insights.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              Multilingual learners can{" "}
-              <span
-                className="font-medium text-foreground/90"
-                style={wavyUnderlineStyle}
-              >
-                use their native-language strengths
-              </span>{" "}
-              instead of being limited to English-only explanations.
+              AI can improve learning, but great teachers remain at the heart of
+              education. We built ConvoEd to help teachers reach every student
+              and help them reach their full potential.
             </p>
           </div>
         </div>
