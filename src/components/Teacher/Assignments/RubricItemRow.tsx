@@ -11,6 +11,8 @@ interface RubricItemRowProps {
   onChange: (index: number, field: keyof RubricItem, value: string | number) => void;
   onRemove: (index: number) => void;
   disabled?: boolean;
+  /** Hides the remove button entirely (view mode) rather than just disabling it. */
+  hideRemove?: boolean;
   /** Placeholder for the item text input (varies by activity type). */
   itemPlaceholder?: string;
 }
@@ -21,6 +23,7 @@ export default function RubricItemRow({
   onChange,
   onRemove,
   disabled = false,
+  hideRemove = false,
   itemPlaceholder = "Rubric item description",
 }: RubricItemRowProps) {
   return (
@@ -43,16 +46,18 @@ export default function RubricItemRow({
           min={0}
         />
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={() => onRemove(index)}
-        disabled={disabled}
-        className="mt-0"
-      >
-        <X className="h-4 w-4" />
-      </Button>
+      {!hideRemove && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onRemove(index)}
+          disabled={disabled}
+          className="mt-0"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }

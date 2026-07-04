@@ -25,8 +25,7 @@ import { countContentItemPlacementsByRefTracked } from "@/lib/swr/imperativeRead
 import { resolveTeacherPlacementGroupId } from "@/lib/contentPlacements";
 import { removeTeacherMaterialPlacementOrEntity } from "@/lib/teacherMaterialRemove";
 import { Assignment } from "@/types/assignment";
-import QuestionView from "@/components/Shared/QuestionView";
-import { supportedLanguages } from "@/utils/supportedLanguages";
+import AssignmentForm from "@/components/Teacher/Assignments/AssignmentForm";
 import { SubmissionsListSection } from "@/components/Teacher/Assignments/SubmissionsListSection";
 import { AssignmentGradeReleaseBanner } from "@/components/Teacher/Assignments/AssignmentGradeReleaseBanner";
 import { SubmissionContentPanel } from "@/components/Teacher/Assignments/SubmissionContentPanel";
@@ -38,66 +37,61 @@ import {
 } from "@/components/Teacher/Assignments/submissionOverlayTheme";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
-import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
-import {
-  Share2,
-  Mic,
-  MessageSquare,
-  FileText,
-  Lock,
-  Globe,
-  Languages,
-  RotateCcw,
-  BookOpen,
-  Bot,
-  ClipboardCheck,
-  ChevronDown,
-  ChevronRight,
-  Sparkles,
-  Award,
-  CircleDot,
-} from "lucide-react";
+import { parseFeedbackFocusAreas } from "@/lib/feedbackFocus";
+import { DEFAULT_TAB_SWITCH_POLICY } from "@/lib/integrity/constants";
+import { Share2, Award, CircleDot } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 import {
   invalidateSubmissionsCache,
   useMaterialLinkedAcrossGroups,
-  useTemplateById,
 } from "@/hooks/swr";
 
-function CollapsibleSection({
-  icon: Icon,
-  title,
-  children,
-  defaultOpen = false,
-  className,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-  className?: string;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div
-      className={`rounded-md border bg-card text-card-foreground ${className ?? ""}`}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium hover:bg-muted/50 transition-colors rounded-md"
-      >
-        <Icon className="h-4 w-4 text-muted-foreground" />
-        <span className="flex-1">{title}</span>
-        {open ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        )}
-      </button>
-      {open && <div className="px-4 pb-4">{children}</div>}
-    </div>
-  );
+/** Maps a saved assignment onto the `initial*` props AssignmentForm needs to render itself read-only. */
+function buildAssignmentFormViewProps(assignmentData: Assignment) {
+  return {
+    initialQuestions: assignmentData.questions,
+    initialLanguage: assignmentData.preferred_language,
+    initialLockLanguage: assignmentData.lock_language ?? false,
+    initialIsPublic: assignmentData.is_public,
+    initialActivityType: assignmentData.activity_type ?? "learning",
+    initialActivityTemplateId: assignmentData.activity_template_id ?? null,
+    initialActivityDefinition:
+      assignmentData.activity_definition_snapshot ?? null,
+    initialTemplateSyncedAt: assignmentData.template_synced_at ?? null,
+    initialAssessmentMode: assignmentData.assessment_mode ?? "voice",
+    initialResponderFieldsConfig: assignmentData.responder_fields_config,
+    initialMaxAttempts: assignmentData.max_attempts ?? 1,
+    initialBotPromptConfig: assignmentData.bot_prompt_config,
+    initialShowRubric: assignmentData.show_rubric ?? true,
+    initialShowRubricPoints: assignmentData.show_rubric_points ?? true,
+    initialUseStarDisplay: assignmentData.use_star_display ?? false,
+    initialStarScale: assignmentData.star_scale ?? 5,
+    initialRequireAllAttempts: assignmentData.require_all_attempts ?? false,
+    initialSharedContextEnabled:
+      assignmentData.shared_context_enabled ?? false,
+    initialSharedContext: assignmentData.shared_context ?? "",
+    initialEvaluationPrompt: assignmentData.evaluation_prompt ?? "",
+    initialFeedbackFocus:
+      assignmentData.feedback_focus == null
+        ? undefined
+        : parseFeedbackFocusAreas(assignmentData.feedback_focus),
+    initialExperienceRatingEnabled:
+      assignmentData.experience_rating_enabled ?? false,
+    initialExperienceRatingRequired:
+      assignmentData.experience_rating_required ?? false,
+    initialFeedbackRequiresApproval:
+      assignmentData.feedback_requires_approval ?? false,
+    initialBatchGradeRelease: assignmentData.batch_grade_release ?? false,
+    initialAllowCopyPaste: assignmentData.allow_copy_paste ?? false,
+    initialTabSwitchPolicy:
+      assignmentData.tab_switch_policy ?? DEFAULT_TAB_SWITCH_POLICY,
+    initialTabSwitchMaxLeaves: assignmentData.tab_switch_max_leaves ?? 3,
+    initialFileSubmissionConfig:
+      assignmentData.file_submission_config ?? null,
+    initialDynamicGenerationPrompt:
+      assignmentData.dynamic_generation_prompt ?? "",
+    initialIsDraft: assignmentData.status === "draft",
+  };
 }
 
 interface AssignmentDetailClientProps {
@@ -131,14 +125,6 @@ export default function AssignmentDetailClient({
     "formative_assignment",
     assignmentData.id,
   );
-
-  const templateQuery = useTemplateById(
-    assignmentData.activity_template_id ?? null,
-  );
-  const activityTypeLabel =
-    templateQuery.data?.name ??
-    getActivityTypeDefinition(assignmentData.activity_type ?? "learning")
-      .label;
 
   const tabParam = searchParams.get("tab");
   const activeTab = useMemo(() => {
@@ -344,21 +330,6 @@ export default function AssignmentDetailClient({
     }
   };
 
-  const getAssessmentModeInfo = (mode: string | undefined) => {
-    switch (mode) {
-      case "voice":
-        return { label: "Voice", icon: Mic };
-      case "text_chat":
-        return { label: "Text Chat", icon: MessageSquare };
-      case "static_text":
-        return { label: "Static Text", icon: FileText };
-      case "multimodal":
-        return { label: "Multimodal", icon: Sparkles };
-      default:
-        return { label: "Voice", icon: Mic };
-    }
-  };
-
   return (
     <PageLayout>
       <div>
@@ -399,6 +370,13 @@ export default function AssignmentDetailClient({
             </DropdownMenu>
           </div>
 
+          {/* Instructions for Students */}
+          {assignmentData.student_instructions && (
+            <div className="mb-4">
+              <MarkdownContent content={assignmentData.student_instructions} />
+            </div>
+          )}
+
           {/* Assignment Configuration */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
             {/* Points */}
@@ -416,63 +394,6 @@ export default function AssignmentDetailClient({
                 {assignmentData.status}
               </span>
             </div>
-
-            {/* Activity Type */}
-            <div className="flex items-center gap-1.5">
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Activity type:</span>
-              <span className="font-medium">{activityTypeLabel}</span>
-            </div>
-
-            {/* Interaction Type */}
-            {(() => {
-              const modeInfo = getAssessmentModeInfo(
-                assignmentData.assessment_mode,
-              );
-              const ModeIcon = modeInfo.icon;
-              return (
-                <div className="flex items-center gap-1.5">
-                  <ModeIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Interaction:</span>
-                  <span className="font-medium">{modeInfo.label}</span>
-                </div>
-              );
-            })()}
-
-            {/* Language */}
-            <div className="flex items-center gap-1.5">
-              <Languages className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Language:</span>
-              <span className="font-medium">
-                {supportedLanguages.find(
-                  (lang) => lang.code === assignmentData.preferred_language,
-                )?.name || assignmentData.preferred_language}
-              </span>
-              {assignmentData.lock_language && (
-                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-            </div>
-
-            {/* Max Attempts */}
-            <div className="flex items-center gap-1.5">
-              <RotateCcw className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Attempts:</span>
-              <span className="font-medium">
-                {assignmentData.max_attempts ?? 1}{" "}
-                {(assignmentData.max_attempts ?? 1) === 1
-                  ? "attempt"
-                  : "attempts"}
-              </span>
-            </div>
-
-            {/* Public Access */}
-            {assignmentData.is_public && (
-              <div className="flex items-center gap-1.5">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Public access:</span>
-                <span className="font-medium">Yes</span>
-              </div>
-            )}
           </div>
 
           <Tabs value={activeTab} onValueChange={setTab} className="w-full">
@@ -481,7 +402,7 @@ export default function AssignmentDetailClient({
                 value="questions"
                 className="rounded-sm px-4 py-2"
               >
-                Questions
+                Content
               </MutedPrimaryTabsTrigger>
               <MutedPrimaryTabsTrigger
                 value="config"
@@ -498,216 +419,23 @@ export default function AssignmentDetailClient({
             </MutedPrimaryTabsList>
 
             <TabsContent value="questions" className="space-y-4">
-              {assignmentData.shared_context && (
-                <div className="rounded-md border bg-card text-card-foreground">
-                  <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium">
-                    <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    <span>Additional context</span>
-                    {!assignmentData.shared_context_enabled && (
-                      <span className="text-xs text-muted-foreground">
-                        (disabled)
-                      </span>
-                    )}
-                  </div>
-                  <div className="px-4 pb-4">
-                    <MarkdownContent content={assignmentData.shared_context} />
-                  </div>
-                </div>
-              )}
-
-              {assignmentData.questions
-                .sort((a, b) => a.order - b.order)
-                .map((question, index) => (
-                  <QuestionView
-                    key={index}
-                    question={question}
-                    index={index}
-                    showDynamicBadges
-                    showRubric
-                    activityType={assignmentData.activity_type}
-                  />
-                ))}
+              <AssignmentForm
+                mode="view"
+                viewSection="content"
+                classId={classId}
+                classDbId={assignmentData.class_id}
+                {...buildAssignmentFormViewProps(assignmentData)}
+              />
             </TabsContent>
 
             <TabsContent value="config" className="space-y-6">
-              {/* Display Settings */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Display Settings</h3>
-                <div className="grid gap-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium w-44 shrink-0">
-                      Rubric visibility:
-                    </span>
-                    <span className="text-muted-foreground">
-                      {(assignmentData.show_rubric ?? true)
-                        ? (assignmentData.show_rubric_points ?? true)
-                          ? "Shown with points"
-                          : "Shown without points"
-                        : "Hidden from students"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium w-44 shrink-0">
-                      Score display:
-                    </span>
-                    <span className="text-muted-foreground">
-                      {assignmentData.use_star_display
-                        ? `Stars (${assignmentData.star_scale ?? 5}-star scale)`
-                        : "Points"}
-                    </span>
-                  </div>
-                  {assignmentData.use_star_display && (
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium w-44 shrink-0">
-                        Teacher view:
-                      </span>
-                      <span className="text-muted-foreground">
-                        {assignmentData.teacher_view_stars ? "Stars" : "Points"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium w-44 shrink-0">
-                      Public access:
-                    </span>
-                    <span className="text-muted-foreground">
-                      {assignmentData.is_public ? "Yes" : "No"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium w-44 shrink-0">
-                      Require all questions:
-                    </span>
-                    <span className="text-muted-foreground">
-                      {assignmentData.require_all_attempts ? "Yes" : "No"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium w-44 shrink-0">
-                      Experience rating:
-                    </span>
-                    <span className="text-muted-foreground">
-                      {assignmentData.experience_rating_enabled
-                        ? assignmentData.experience_rating_required
-                          ? "Enabled (required)"
-                          : "Enabled (optional)"
-                        : "Disabled"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Student Instructions */}
-              {assignmentData.student_instructions && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">
-                    Instructions for Students
-                  </h3>
-                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                    {assignmentData.student_instructions}
-                  </p>
-                </div>
-              )}
-
-              {/* AI Prompt Configuration */}
-              {assignmentData.bot_prompt_config && (
-                <CollapsibleSection
-                  icon={Bot}
-                  title="AI Prompt Configuration"
-                  defaultOpen={false}
-                >
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">
-                        System Prompt
-                      </h4>
-                      <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
-                        {assignmentData.bot_prompt_config.system_prompt}
-                      </pre>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">
-                        Conversation Start (First Question)
-                      </h4>
-                      <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
-                        {
-                          assignmentData.bot_prompt_config.conversation_start
-                            .first_question
-                        }
-                      </pre>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">
-                        Conversation Start (Subsequent Questions)
-                      </h4>
-                      <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
-                        {
-                          assignmentData.bot_prompt_config.conversation_start
-                            .subsequent_questions
-                        }
-                      </pre>
-                    </div>
-                    {assignmentData.bot_prompt_config.question_overrides &&
-                      Object.keys(
-                        assignmentData.bot_prompt_config.question_overrides,
-                      ).length > 0 && (
-                        <div>
-                          <h4 className="font-medium text-sm mb-2">
-                            Per-Question Overrides
-                          </h4>
-                          <div className="space-y-3">
-                            {Object.entries(
-                              assignmentData.bot_prompt_config
-                                .question_overrides,
-                            ).map(([order, override]) => (
-                              <div
-                                key={order}
-                                className="bg-muted/50 rounded-md p-3"
-                              >
-                                <p className="text-sm font-medium mb-1">
-                                  Question {Number(order) + 1}
-                                </p>
-                                {override.system_prompt && (
-                                  <div className="mb-2">
-                                    <p className="text-xs text-muted-foreground mb-0.5">
-                                      System Prompt Override
-                                    </p>
-                                    <pre className="whitespace-pre-wrap text-sm text-muted-foreground">
-                                      {override.system_prompt}
-                                    </pre>
-                                  </div>
-                                )}
-                                {override.conversation_start && (
-                                  <div>
-                                    <p className="text-xs text-muted-foreground mb-0.5">
-                                      Conversation Start Override
-                                    </p>
-                                    <pre className="whitespace-pre-wrap text-sm text-muted-foreground">
-                                      {override.conversation_start}
-                                    </pre>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                  </div>
-                </CollapsibleSection>
-              )}
-
-              {/* Custom Evaluation Prompt */}
-              {assignmentData.evaluation_prompt && (
-                <CollapsibleSection
-                  icon={ClipboardCheck}
-                  title="Custom Evaluation Prompt"
-                  defaultOpen={false}
-                >
-                  <pre className="whitespace-pre-wrap text-sm bg-muted/50 rounded-md p-3 text-muted-foreground">
-                    {assignmentData.evaluation_prompt}
-                  </pre>
-                </CollapsibleSection>
-              )}
+              <AssignmentForm
+                mode="view"
+                viewSection="settings"
+                classId={classId}
+                classDbId={assignmentData.class_id}
+                {...buildAssignmentFormViewProps(assignmentData)}
+              />
             </TabsContent>
 
             <TabsContent value="submissions">

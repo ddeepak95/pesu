@@ -57,6 +57,8 @@ interface MoreOptionsGeneralProps {
   fileInstructions: string;
   setFileInstructions: (instructions: string) => void;
   loading: boolean;
+  /** Hides add/remove-field actions entirely (view mode) rather than just disabling them. */
+  readOnly?: boolean;
 }
 
 export function MoreOptionsGeneral({
@@ -95,7 +97,9 @@ export function MoreOptionsGeneral({
   fileInstructions,
   setFileInstructions,
   loading,
+  readOnly = false,
 }: MoreOptionsGeneralProps) {
+  const effectiveDisabled = loading || readOnly;
   return (
     <div className="space-y-4">
       {/* Require File Submission */}
@@ -108,7 +112,7 @@ export function MoreOptionsGeneral({
         onToggleAllowedFileType={onToggleAllowedFileType}
         fileInstructions={fileInstructions}
         setFileInstructions={setFileInstructions}
-        loading={loading}
+        loading={effectiveDisabled}
       />
 
       {/* Attempts & Completion */}
@@ -129,7 +133,7 @@ export function MoreOptionsGeneral({
                 setMaxAttempts(value);
               }
             }}
-            disabled={loading}
+            disabled={effectiveDisabled}
             placeholder="3"
           />
         </div>
@@ -141,7 +145,7 @@ export function MoreOptionsGeneral({
             onCheckedChange={(checked) =>
               setRequireAllAttempts(checked === true)
             }
-            disabled={loading}
+            disabled={effectiveDisabled}
           />
           <div className="flex items-center gap-1.5">
             <Label
@@ -172,7 +176,7 @@ export function MoreOptionsGeneral({
                   setShowRubricPoints(false);
                 }
               }}
-              disabled={loading}
+              disabled={effectiveDisabled}
             />
             <div className="flex items-center gap-1.5">
               <Label
@@ -193,7 +197,7 @@ export function MoreOptionsGeneral({
                 onCheckedChange={(checked) =>
                   setShowRubricPoints(checked === true)
                 }
-                disabled={loading}
+                disabled={effectiveDisabled}
               />
               <div className="flex items-center gap-1.5">
                 <Label
@@ -217,7 +221,7 @@ export function MoreOptionsGeneral({
               onCheckedChange={(checked) =>
                 setUseStarDisplay(checked === true)
               }
-              disabled={loading}
+              disabled={effectiveDisabled}
             />
             <div className="flex items-center gap-1.5">
               <Label
@@ -245,7 +249,7 @@ export function MoreOptionsGeneral({
                 max="20"
                 value={starScale}
                 onChange={(e) => setStarScale(parseInt(e.target.value) || 5)}
-                disabled={loading}
+                disabled={effectiveDisabled}
                 className="w-32"
               />
             </div>
@@ -269,7 +273,7 @@ export function MoreOptionsGeneral({
                 setExperienceRatingEnabled(checked === true);
                 if (!checked) setExperienceRatingRequired(false);
               }}
-              disabled={loading}
+              disabled={effectiveDisabled}
             />
             <div className="flex items-center gap-1.5">
               <Label
@@ -290,7 +294,7 @@ export function MoreOptionsGeneral({
                 onCheckedChange={(checked) =>
                   setExperienceRatingRequired(checked === true)
                 }
-                disabled={loading}
+                disabled={effectiveDisabled}
               />
               <div className="flex items-center gap-1.5">
                 <Label
@@ -314,7 +318,7 @@ export function MoreOptionsGeneral({
               onCheckedChange={(checked) =>
                 setFeedbackRequiresApproval(checked === true)
               }
-              disabled={loading}
+              disabled={effectiveDisabled}
             />
             <div className="flex items-center gap-1.5">
               <Label
@@ -338,7 +342,7 @@ export function MoreOptionsGeneral({
                 onValueChange={(value) =>
                   setBatchGradeRelease(value === "batch")
                 }
-                disabled={loading}
+                disabled={effectiveDisabled}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -362,7 +366,7 @@ export function MoreOptionsGeneral({
       <AssignmentIntegritySettings
         values={integritySettings}
         onChange={setIntegritySettings}
-        disabled={loading}
+        disabled={effectiveDisabled}
       />
 
       {/* Public Access Toggle */}
@@ -371,7 +375,7 @@ export function MoreOptionsGeneral({
           id="isPublic"
           checked={isPublic}
           onCheckedChange={(checked) => setIsPublic(checked === true)}
-          disabled={loading}
+          disabled={effectiveDisabled}
         />
         <div className="flex items-center gap-1.5">
           <Label
@@ -400,7 +404,7 @@ export function MoreOptionsGeneral({
                 <Label className="text-sm font-medium">
                   Field {index + 1}
                 </Label>
-                {responderFieldsConfig.length > 1 && (
+                {!readOnly && responderFieldsConfig.length > 1 && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -411,7 +415,7 @@ export function MoreOptionsGeneral({
                       );
                       setResponderFieldsConfig(newFields);
                     }}
-                    disabled={loading}
+                    disabled={effectiveDisabled}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -430,7 +434,7 @@ export function MoreOptionsGeneral({
                       setResponderFieldsConfig(newFields);
                     }}
                     placeholder="e.g., Full Name"
-                    disabled={loading}
+                    disabled={effectiveDisabled}
                   />
                 </div>
 
@@ -447,7 +451,7 @@ export function MoreOptionsGeneral({
                       }
                       setResponderFieldsConfig(newFields);
                     }}
-                    disabled={loading}
+                    disabled={effectiveDisabled}
                   >
                     <SelectTrigger id={`field-${index}-type`}>
                       <SelectValue />
@@ -477,7 +481,7 @@ export function MoreOptionsGeneral({
                     setResponderFieldsConfig(newFields);
                   }}
                   placeholder="e.g., name, email, organization"
-                  disabled={loading}
+                  disabled={effectiveDisabled}
                 />
                 <p className="text-xs text-muted-foreground">
                   Unique identifier for this field (used in data storage)
@@ -502,7 +506,7 @@ export function MoreOptionsGeneral({
                       setResponderFieldsConfig(newFields);
                     }}
                     placeholder="Option 1&#10;Option 2&#10;Option 3"
-                    disabled={loading}
+                    disabled={effectiveDisabled}
                   />
                 </div>
               )}
@@ -517,7 +521,7 @@ export function MoreOptionsGeneral({
                       newFields[index].required = checked === true;
                       setResponderFieldsConfig(newFields);
                     }}
-                    disabled={loading}
+                    disabled={effectiveDisabled}
                   />
                   <Label
                     htmlFor={`field-${index}-required`}
@@ -541,7 +545,7 @@ export function MoreOptionsGeneral({
                         setResponderFieldsConfig(newFields);
                       }}
                       placeholder="Optional placeholder text"
-                      disabled={loading}
+                      disabled={effectiveDisabled}
                     />
                   </div>
                 )}
@@ -549,24 +553,26 @@ export function MoreOptionsGeneral({
             </div>
           ))}
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              const newField: ResponderFieldConfig = {
-                field: `field_${responderFieldsConfig.length + 1}`,
-                type: "text",
-                label: "",
-                required: false,
-              };
-              setResponderFieldsConfig([...responderFieldsConfig, newField]);
-            }}
-            disabled={loading}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Field
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const newField: ResponderFieldConfig = {
+                  field: `field_${responderFieldsConfig.length + 1}`,
+                  type: "text",
+                  label: "",
+                  required: false,
+                };
+                setResponderFieldsConfig([...responderFieldsConfig, newField]);
+              }}
+              disabled={effectiveDisabled}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Field
+            </Button>
+          )}
         </SettingsCard>
       )}
     </div>

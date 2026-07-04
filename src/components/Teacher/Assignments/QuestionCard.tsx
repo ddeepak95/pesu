@@ -57,6 +57,8 @@ interface QuestionCardProps {
   onMoveDown: (index: number) => void;
   onDelete: (index: number) => void;
   disabled?: boolean;
+  /** Hides add/remove/reorder/generate/override actions entirely (view mode) rather than just disabling them. */
+  readOnly?: boolean;
   /** When true, per-question dynamic toggles are enabled. */
   fileSubmissionEnabled?: boolean;
   // Assignment-level context passed to AI generation
@@ -96,6 +98,7 @@ export default function QuestionCard({
   onMoveDown,
   onDelete,
   disabled = false,
+  readOnly = false,
   fileSubmissionEnabled = false,
   title,
   studentInstructions,
@@ -295,53 +298,55 @@ export default function QuestionCard({
         <h3 className="text-lg font-semibold">
           {labels.question} {index + 1}
         </h3>
-        <div className="flex gap-2">
-          {showBotOverride && onQuestionOverrideChange && (
+        {!readOnly && (
+          <div className="flex gap-2">
+            {showBotOverride && onQuestionOverrideChange && (
+              <Button
+                type="button"
+                variant={questionOverride ? "default" : "ghost"}
+                size="icon"
+                onClick={() => setIsBotOverrideOpen(true)}
+                disabled={disabled}
+                title="Configure bot behavior for this question"
+                className={
+                  questionOverride ? "bg-primary/90 hover:bg-primary" : ""
+                }
+              >
+                <Bot className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               type="button"
-              variant={questionOverride ? "default" : "ghost"}
+              variant="ghost"
               size="icon"
-              onClick={() => setIsBotOverrideOpen(true)}
-              disabled={disabled}
-              title="Configure bot behavior for this question"
-              className={
-                questionOverride ? "bg-primary/90 hover:bg-primary" : ""
-              }
+              onClick={() => onMoveUp(index)}
+              disabled={disabled || index === 0}
+              title="Move up"
             >
-              <Bot className="h-4 w-4" />
+              <ArrowUp className="h-4 w-4" />
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => onMoveUp(index)}
-            disabled={disabled || index === 0}
-            title="Move up"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => onMoveDown(index)}
-            disabled={disabled || index === totalQuestions - 1}
-            title="Move down"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => onDelete(index)}
-            disabled={disabled || totalQuestions === 1}
-            title="Delete question"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onMoveDown(index)}
+              disabled={disabled || index === totalQuestions - 1}
+              title="Move down"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(index)}
+              disabled={disabled || totalQuestions === 1}
+              title="Delete question"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -410,6 +415,8 @@ export default function QuestionCard({
         />
       </div>
 
+      {!readOnly && (
+        <>
       <div className="space-y-2">
         <Button
           type="button"
@@ -532,6 +539,8 @@ export default function QuestionCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
 
       {!dynamicRubric ? (
         <div className="space-y-2">
@@ -568,6 +577,7 @@ export default function QuestionCard({
                 }
                 onRemove={(rubricIdx) => onRemoveRubricItem(index, rubricIdx)}
                 disabled={disabled}
+                hideRemove={readOnly}
                 itemPlaceholder={labels.rubricItemPlaceholder}
               />
             ))}
@@ -577,15 +587,17 @@ export default function QuestionCard({
             <p className="text-sm text-destructive">{rubricValidationError}</p>
           )}
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onAddRubricItem(index)}
-            disabled={disabled}
-            size="sm"
-          >
-            Add {labels.rubricItemNoun}
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onAddRubricItem(index)}
+              disabled={disabled}
+              size="sm"
+            >
+              Add {labels.rubricItemNoun}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-2 rounded-md border border-dashed p-4 bg-muted/20">
@@ -630,7 +642,7 @@ export default function QuestionCard({
       )}
 
 
-      {showBotOverride && onQuestionOverrideChange && (
+      {!readOnly && showBotOverride && onQuestionOverrideChange && (
         <Dialog open={isBotOverrideOpen} onOpenChange={setIsBotOverrideOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>

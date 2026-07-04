@@ -147,7 +147,9 @@ function withActivityTypeMultimodalDefaults(
 }
 
 interface AssignmentFormProps {
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "view";
+  /** Which internal section to show when `mode === "view"` (ignored otherwise). */
+  viewSection?: "content" | "settings";
   classId: string;
   /**
    * Class database id (UUID). When provided, the assessment-mode dropdown is
@@ -195,7 +197,8 @@ interface AssignmentFormProps {
   initialFileSubmissionConfig?: FileSubmissionConfig | null;
   initialDynamicGenerationPrompt?: string;
   initialIsDraft?: boolean;
-  onSubmit: (data: AssignmentFormSubmitData) => Promise<void>;
+  /** Omitted in view mode, where no submit action is rendered. */
+  onSubmit?: (data: AssignmentFormSubmitData) => Promise<void>;
   /**
    * Save-without-navigating for "Save and Preview". Persists the current config
    * and returns the saved assignment row so the form can open the preview overlay.
@@ -251,6 +254,7 @@ export interface AssignmentFormSubmitData {
 
 export default function AssignmentForm({
   mode,
+  viewSection,
   classId,
   classDbId = null,
   classLanguageConfig = null,
@@ -582,6 +586,8 @@ export default function AssignmentForm({
   );
 
   const [loading, setLoading] = useState(false);
+  const readOnly = mode === "view";
+  const effectiveDisabled = loading || readOnly;
   const [error, setError] = useState<string | null>(null);
 
   // Save and Preview state. `previewAssignment` is the saved row driving the
@@ -1035,7 +1041,7 @@ export default function AssignmentForm({
     setLoading(true);
 
     try {
-      await onSubmit(buildSubmitData(draft));
+      await onSubmit?.(buildSubmitData(draft));
 
       // Navigate based on mode
       if (mode === "edit") {
@@ -1109,26 +1115,35 @@ export default function AssignmentForm({
     void doSaveAndPreview();
   };
 
+  const tabsControlProps =
+    mode === "view"
+      ? { value: viewSection ?? "content", onValueChange: () => {} }
+      : { defaultValue: "content" as const };
+
   return (
     <>
     <form onSubmit={handleSubmit} className="space-y-6 pb-28">
-      <Tabs defaultValue="content" className="w-full">
-        <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
-          <TabsTrigger
-            value="content"
-            className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
-          >
-            Content
-          </TabsTrigger>
-          <TabsTrigger
-            value="settings"
-            className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
-          >
-            Settings
-          </TabsTrigger>
-        </TabsList>
+      <Tabs {...tabsControlProps} className="w-full">
+        {mode !== "view" && (
+          <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
+            <TabsTrigger
+              value="content"
+              className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+            >
+              Content
+            </TabsTrigger>
+            <TabsTrigger
+              value="settings"
+              className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+            >
+              Settings
+            </TabsTrigger>
+          </TabsList>
+        )}
 
         <TabsContent value="content" className="space-y-6 pt-6">
+          {mode !== "view" && (
+            <>
           {/* Assignment Title */}
           <div className="space-y-2">
             <Label htmlFor="title">
@@ -1163,6 +1178,8 @@ export default function AssignmentForm({
               rows={4}
             />
           </div>
+            </>
+          )}
 
           {/* Activity Type & Interaction Type (side by side) */}
           <div className="grid grid-cols-2 gap-4">
@@ -1174,7 +1191,7 @@ export default function AssignmentForm({
                 <Select
                   value={activityTemplateId ?? ""}
                   onValueChange={handleTemplateChange}
-                  disabled={loading}
+                  disabled={effectiveDisabled}
                 >
                   <SelectTrigger id="activityType">
                     <SelectValue placeholder="Choose a template" />
@@ -1202,7 +1219,7 @@ export default function AssignmentForm({
                 <Select
                   value={activityType}
                   onValueChange={handleActivityTypeChange}
-                  disabled={loading}
+                  disabled={effectiveDisabled}
                 >
                   <SelectTrigger id="activityType">
                     <SelectValue />
@@ -1254,7 +1271,7 @@ export default function AssignmentForm({
                     : buildDefaultBotPromptConfig(activityType, newMode);
                   setBotPromptConfig(applyClassLang(baseConfig, newMode));
                 }}
-                disabled={loading}
+                disabled={effectiveDisabled}
               >
                 <SelectTrigger id="assessmentMode">
                   <SelectValue />
@@ -1317,7 +1334,7 @@ export default function AssignmentForm({
               botPromptConfig={botPromptConfig}
               setBotPromptConfig={setBotPromptConfig}
               supportedLocales={supportedLocales}
-              loading={loading}
+              loading={effectiveDisabled}
               activityType={activityType}
             />
           </CollapsibleSection>
@@ -1327,7 +1344,7 @@ export default function AssignmentForm({
             setSharedContextEnabled={setSharedContextEnabled}
             sharedContext={sharedContext}
             setSharedContext={setSharedContext}
-            loading={loading}
+            loading={effectiveDisabled}
           />
 
           <div className="space-y-4">
@@ -1344,7 +1361,8 @@ export default function AssignmentForm({
                 onMoveUp={handleMoveQuestionUp}
                 onMoveDown={handleMoveQuestionDown}
                 onDelete={handleDeleteQuestion}
-                disabled={loading}
+                disabled={effectiveDisabled}
+                readOnly={readOnly}
                 fileSubmissionEnabled={fileSubmissionEnabled}
                 title={title}
                 studentInstructions={studentInstructions}
@@ -1367,16 +1385,18 @@ export default function AssignmentForm({
             ))}
           </div>
 
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleAddQuestion}
-              disabled={loading}
-            >
-              + Add {getActivityTypeLabels(activityType).question}
-            </Button>
-          </div>
+          {!readOnly && (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddQuestion}
+                disabled={loading}
+              >
+                + Add {getActivityTypeLabels(activityType).question}
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="settings" className="pt-6">
@@ -1427,20 +1447,23 @@ export default function AssignmentForm({
             onToggleAllowedFileType={handleToggleAllowedFileType}
             fileInstructions={fileInstructions}
             setFileInstructions={setFileInstructions}
-            loading={loading}
+            loading={effectiveDisabled}
+            readOnly={readOnly}
           />
         </TabsContent>
       </Tabs>
 
-      <AssignmentFormFooter
-        mode={mode}
-        initialIsDraft={initialIsDraft}
-        loading={loading}
-        error={error}
-        onCancel={onCancel}
-        onSaveDraft={(e) => handleSubmit(e, true)}
-        onSaveAndPreview={onSaveForPreview ? handleSaveAndPreview : undefined}
-      />
+      {mode !== "view" && (
+        <AssignmentFormFooter
+          mode={mode}
+          initialIsDraft={initialIsDraft}
+          loading={loading}
+          error={error}
+          onCancel={onCancel}
+          onSaveDraft={(e) => handleSubmit(e, true)}
+          onSaveAndPreview={onSaveForPreview ? handleSaveAndPreview : undefined}
+        />
+      )}
     </form>
 
       {/* Preview overlay — renders the student experience over the builder. */}
