@@ -109,8 +109,7 @@ function rowsToSettingsState(
     const row = providerRows.find((r) => r.provider_id === id);
     providers[id] = rowToProviderState(row, scope);
   }
-  const functions: Record<string, FunctionBindingState> =
-    scope === "platform" ? { ...base.functions } : {};
+  const functions: Record<string, FunctionBindingState> = {};
   for (const row of bindingRows) {
     functions[row.binding_key] = normalizeFunctionBinding({
       providerId: row.provider_id,

@@ -124,8 +124,12 @@ export {
 export {
   invalidateActivityTemplatesCache,
   useAvailableTemplatesForClass,
+  useAvailableTemplatesForInstitution,
+  useManageableTemplatesForInstitution,
   useClassTemplates,
   useClassTemplateEnablement,
+  useInstitutionTemplateEnablement,
   useSystemTemplates,
+  useInstitutionTemplates,
   useMyTemplates,
 } from "./useActivityTemplates";

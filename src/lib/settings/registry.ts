@@ -153,7 +153,10 @@ const allowedAssessmentModes: SettingDefinition<AssessmentMode[]> = {
     "Modes that assignments created in this scope may use. Existing assignments using a disallowed mode keep working but cannot be created.",
   category: "Assessment",
   order: 10,
-  scopes: ["institution", "class"],
+  // Institution-level control is superseded by Activity Templates (a
+  // template's defaults.interactionType already governs this more richly);
+  // kept editable at class scope only.
+  scopes: ["class"],
   type: "string_array",
   default: ASSESSMENT_MODE_OPTIONS.map((o) => o.value) as AssessmentMode[],
   options: ASSESSMENT_MODE_OPTIONS,

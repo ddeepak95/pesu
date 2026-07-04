@@ -70,6 +70,7 @@ export default async function InstitutionDetailPage({
         institutionPolicy={institutionPolicy}
         classOverrideHrefBase={`/platform/institutions/${id}/classes`}
         notice={{ ok, error }}
+        activityTemplatesManageHref={`/platform/institutions/${id}/activity-templates`}
       />
     </PageLayout>
   );

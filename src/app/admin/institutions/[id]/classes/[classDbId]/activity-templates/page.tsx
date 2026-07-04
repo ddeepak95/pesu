@@ -35,6 +35,7 @@ export default async function AdminManageActivityTemplatesPage({
       classShortId={classData.class_id}
       classDisplayName={classData.name}
       userId={user.id}
+      institutionId={classData.institution_id}
       basePath={basePath}
       backHref={`/admin/institutions/${id}/classes/${classDbId}`}
       backLabel="Class settings"

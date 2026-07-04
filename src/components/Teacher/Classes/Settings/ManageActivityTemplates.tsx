@@ -27,7 +27,7 @@ import {
 import {
   archiveTemplate,
   removeTemplateFromClass,
-  setSystemTemplateAvailability,
+  setTemplateAvailability,
 } from "@/lib/templates/actions";
 import { TemplateViewDialog } from "@/components/Teacher/Templates/TemplateViewDialog";
 
@@ -38,6 +38,8 @@ interface ManageActivityTemplatesProps {
   classShortId: string;
   classDisplayName: string;
   userId: string;
+  /** This class's institution, if any — powers the "Institution library" Add-from-Library source. */
+  institutionId: string | null;
   /** Route prefix for the create/edit subpages. Defaults to the teacher route. */
   basePath?: string;
   /** Back-link target + label above the header. Defaults to the teacher class settings page. */
@@ -57,6 +59,7 @@ export default function ManageActivityTemplates({
   classShortId,
   classDisplayName,
   userId,
+  institutionId,
   basePath = `/teacher/classes/${classShortId}/settings/activity-templates`,
   backHref = `/teacher/classes/${classShortId}/settings`,
   backLabel = "Class settings",
@@ -92,7 +95,8 @@ export default function ManageActivityTemplates({
     if (t.owner_scope === "system") {
       void act(
         t.id,
-        () => setSystemTemplateAvailability(classDbId, t.id, false),
+        () =>
+          setTemplateAvailability({ kind: "class", classId: classDbId }, t.id, false),
         `"${t.name}" is hidden from this class.`,
       );
       return;
@@ -203,8 +207,7 @@ export default function ManageActivityTemplates({
       />
 
       <AddFromLibraryDialog
-        classDbId={classDbId}
-        userId={userId}
+        scope={{ kind: "class", classId: classDbId, userId, institutionId }}
         open={addOpen}
         onOpenChange={setAddOpen}
       />

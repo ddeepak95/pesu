@@ -28,6 +28,7 @@ import type { ContentItem } from "@/types/contentItem";
 import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import {
   listClassTemplates,
+  listInstitutionTemplates,
   listMyTemplates,
   listSystemTemplates,
 } from "@/lib/queries/activityTemplates";
@@ -92,6 +93,11 @@ export function fetchClassTemplatesTracked(classDbId: string) {
 /** Refresh the platform system template library after a mutation. */
 export function fetchSystemTemplatesTracked() {
   return runTracked(() => listSystemTemplates());
+}
+
+/** Refresh an institution's template library after a mutation. */
+export function fetchInstitutionTemplatesTracked(institutionId: string) {
+  return runTracked(() => listInstitutionTemplates(institutionId));
 }
 
 /** Imperative read for delete/unlink confirm flows (teacher detail & content list). */

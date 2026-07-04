@@ -34,6 +34,7 @@ export default async function PlatformManageActivityTemplatesPage({
       classShortId={classData.class_id}
       classDisplayName={classData.name}
       userId={user.id}
+      institutionId={classData.institution_id}
       basePath={basePath}
       backHref={`/platform/institutions/${id}/classes/${classDbId}`}
       backLabel="Class settings"

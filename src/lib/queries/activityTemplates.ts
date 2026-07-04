@@ -1,15 +1,18 @@
 /**
- * Activity-template reads — Phase 2 of dev-docs/activity-templates-plan.md.
+ * Activity-template reads — Phase 2 of dev-docs/activity-templates-plan.md,
+ * plus institution-level curation of system templates (added later).
  *
- * RLS-enforced reads for the personal + class libraries and the class palette.
- * Mutations live in `src/lib/templates/actions.ts` (gated server actions); this
- * module is the read side, usable from client components (default browser
- * client) or server components (inject the request-scoped server client).
+ * RLS-enforced reads for the personal + class + institution libraries and the
+ * class/institution palettes. Mutations live in `src/lib/templates/actions.ts`
+ * (gated server actions); this module is the read side, usable from client
+ * components (default browser client) or server components (inject the
+ * request-scoped server client).
  *
- * The class palette here is the Phase 2 **simple, uncurated** union: system
- * templates (all) + the class's own class-owned templates. Institution curation
- * and the "add a personal template to this class" link are Phase 3 / a later
- * Phase 2 slice (they need a membership table), so they are intentionally absent.
+ * A system template's availability resolves through a 3-tier chain:
+ *   platform `default_listed` -> institution override (`template_scope_enablement`,
+ *   scope='institution') -> class override (scope='class'). Institution-owned
+ * templates only need the class tier on top of their own `default_listed`
+ * column (which the institution edits directly).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -80,6 +83,113 @@ export async function listSystemTemplates(
   return (data ?? []) as ActivityTemplateRow[];
 }
 
+/** All active templates owned by one institution. */
+export async function listInstitutionTemplates(
+  institutionId: string,
+  client?: SupabaseClient,
+): Promise<ActivityTemplateRow[]> {
+  const supabase = client ?? createClient();
+  const { data, error } = await supabase
+    .from("activity_templates")
+    .select(TEMPLATE_COLUMNS)
+    .eq("owner_scope", "institution")
+    .eq("institution_id", institutionId)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as ActivityTemplateRow[];
+}
+
+const OWNER_SCOPE_RANK: Record<TemplateOwnerScope, number> = {
+  system: 0,
+  institution: 1,
+  class: 2,
+  user: 2,
+};
+
+function sortByScopeThenRecency(rows: ActivityTemplateRow[]): ActivityTemplateRow[] {
+  return rows.sort((a, b) => {
+    const rankDiff = OWNER_SCOPE_RANK[a.owner_scope] - OWNER_SCOPE_RANK[b.owner_scope];
+    if (rankDiff !== 0) return rankDiff;
+    return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
+  });
+}
+
+/**
+ * All active system templates, with `default_listed` overwritten to this
+ * institution's resolved value (its own override if one exists, else the
+ * platform baseline) — so consumers reflect what this institution has
+ * actually decided, not the raw platform-wide flag.
+ */
+async function listInstitutionResolvedSystemTemplates(
+  institutionId: string,
+  supabase: SupabaseClient,
+): Promise<ActivityTemplateRow[]> {
+  const [systemRes, enablement] = await Promise.all([
+    supabase
+      .from("activity_templates")
+      .select(TEMPLATE_COLUMNS)
+      .eq("owner_scope", "system")
+      .eq("status", "active"),
+    listInstitutionTemplateEnablement(institutionId, supabase),
+  ]);
+  if (systemRes.error) throw systemRes.error;
+
+  const overrides = new Map(enablement.map((r) => [r.template_id, r.enabled]));
+  return ((systemRes.data ?? []) as ActivityTemplateRow[]).map((t) => ({
+    ...t,
+    default_listed: overrides.get(t.id) ?? t.default_listed,
+  }));
+}
+
+/**
+ * The institution's resolved availability set (for its own settings summary):
+ * system templates whose institution-resolved `default_listed` is true, plus
+ * ALL of this institution's own authored templates unconditionally — an
+ * institution's own content always shows to itself; `default_listed` on an
+ * institution-owned row only governs propagation down to classes, not
+ * visibility to the institution admin.
+ */
+export async function listAvailableTemplatesForInstitution(
+  institutionId: string,
+  client?: SupabaseClient,
+): Promise<ActivityTemplateRow[]> {
+  const supabase = client ?? createClient();
+
+  const [resolvedSystem, institutionOwned] = await Promise.all([
+    listInstitutionResolvedSystemTemplates(institutionId, supabase),
+    listInstitutionTemplates(institutionId, supabase),
+  ]);
+
+  const rows = [
+    ...resolvedSystem.filter((t) => t.default_listed),
+    ...institutionOwned,
+  ];
+  return sortByScopeThenRecency(rows);
+}
+
+/**
+ * Every template this institution can manage (for the "Manage Activity
+ * Templates" page): ALL active system templates (regardless of their
+ * resolved default-listed state — toggling one off shouldn't make it vanish
+ * from the page you'd toggle it back on from), plus all of this institution's
+ * own authored templates.
+ */
+export async function listManageableTemplatesForInstitution(
+  institutionId: string,
+  client?: SupabaseClient,
+): Promise<ActivityTemplateRow[]> {
+  const supabase = client ?? createClient();
+
+  const [resolvedSystem, institutionOwned] = await Promise.all([
+    listInstitutionResolvedSystemTemplates(institutionId, supabase),
+    listInstitutionTemplates(institutionId, supabase),
+  ]);
+
+  return sortByScopeThenRecency([...resolvedSystem, ...institutionOwned]);
+}
+
 export interface ClassTemplateEnablementRow {
   template_id: string;
   /** true = a personal template added to the palette; false = a pruned system template. */
@@ -99,6 +209,27 @@ export async function listClassTemplateEnablement(
     .eq("scope_id", classDbId);
   if (error) throw error;
   return (data ?? []) as ClassTemplateEnablementRow[];
+}
+
+export interface InstitutionTemplateEnablementRow {
+  template_id: string;
+  /** Institution-level override of a system template's default_listed baseline. */
+  enabled: boolean;
+}
+
+/** Every institution-level system-template override row for one institution. */
+export async function listInstitutionTemplateEnablement(
+  institutionId: string,
+  client?: SupabaseClient,
+): Promise<InstitutionTemplateEnablementRow[]> {
+  const supabase = client ?? createClient();
+  const { data, error } = await supabase
+    .from("template_scope_enablement")
+    .select("template_id, enabled")
+    .eq("scope", "institution")
+    .eq("scope_id", institutionId);
+  if (error) throw error;
+  return (data ?? []) as InstitutionTemplateEnablementRow[];
 }
 
 /** The class-owned ("Class Templates") library — active rows for one class. */
@@ -140,13 +271,16 @@ export async function getTemplateById(
 }
 
 /**
- * The Phase 2 class palette (selectable activity types), a curated union of:
- *   - system templates the teacher hasn't pruned (default on; a `scope='class',
- *     enabled=false` row removes one from this class's dropdown),
- *   - the class's own class-owned templates (auto), and
+ * The class palette (selectable activity types), a curated union of:
+ *   - system templates resolved available for this class (platform
+ *     `default_listed` baseline, overridable by the class's institution,
+ *     overridable again by the class itself),
+ *   - this class's own institution's templates resolved available (their own
+ *     `default_listed` baseline, overridable by the class),
+ *   - the class's own class-owned templates (always in, no chain), and
  *   - personal templates a teacher explicitly added (`enabled=true` row).
- * No institution precedence / `allow_child_override` — that curation is Phase 3
- * (§8). System rows sort first, then everything else, each newest-first.
+ * System rows sort first, then institution, then the rest, newest-first
+ * within each group.
  */
 export async function listAvailableTemplatesForClass(
   classDbId: string,
@@ -154,38 +288,71 @@ export async function listAvailableTemplatesForClass(
 ): Promise<ActivityTemplateRow[]> {
   const supabase = client ?? createClient();
 
-  // default-listed system + class-owned (need no enablement link). A system
-  // template with default_listed=false is opt-in only — it flows through the
-  // "explicitly-added" block below via an enablement row, same as personal.
-  const autoQuery = supabase
+  const { data: classRow, error: classErr } = await supabase
+    .from("classes")
+    .select("institution_id")
+    .eq("id", classDbId)
+    .maybeSingle();
+  if (classErr) throw classErr;
+  const institutionId = classRow?.institution_id as string | null | undefined;
+
+  // System + this class's institution's templates + class-owned, fetched
+  // unconditionally (no default_listed filter) — availability is resolved in
+  // JS below via the platform -> institution -> class override chain.
+  const baseFilters = [
+    "owner_scope.eq.system",
+    `and(owner_scope.eq.class,owner_class_id.eq.${classDbId})`,
+  ];
+  if (institutionId) {
+    baseFilters.push(
+      `and(owner_scope.eq.institution,institution_id.eq.${institutionId})`,
+    );
+  }
+  const baseQuery = supabase
     .from("activity_templates")
     .select(TEMPLATE_COLUMNS)
     .eq("status", "active")
-    .or(
-      `and(owner_scope.eq.system,default_listed.eq.true),and(owner_scope.eq.class,owner_class_id.eq.${classDbId})`,
-    );
+    .or(baseFilters.join(","));
 
-  const [autoRes, enablement] = await Promise.all([
-    autoQuery,
+  const [baseRes, classEnablement, institutionEnablement] = await Promise.all([
+    baseQuery,
     listClassTemplateEnablement(classDbId, supabase),
+    institutionId
+      ? listInstitutionTemplateEnablement(institutionId, supabase)
+      : Promise.resolve([]),
   ]);
-  if (autoRes.error) throw autoRes.error;
+  if (baseRes.error) throw baseRes.error;
 
-  const prunedSystem = new Set(
-    enablement.filter((r) => !r.enabled).map((r) => r.template_id),
+  const institutionOverride = new Map(
+    institutionEnablement.map((r) => [r.template_id, r.enabled]),
   );
-  const addedPersonal = enablement
-    .filter((r) => r.enabled)
-    .map((r) => r.template_id);
+  const classOverride = new Map(
+    classEnablement.map((r) => [r.template_id, r.enabled]),
+  );
 
-  // Drop system templates the teacher pruned from this class.
-  const rows = ((autoRes.data ?? []) as ActivityTemplateRow[]).filter(
-    (r) => !(r.owner_scope === "system" && prunedSystem.has(r.id)),
+  function isResolvedAvailable(row: ActivityTemplateRow): boolean {
+    if (row.owner_scope === "class") return true;
+    let value = row.default_listed;
+    if (row.owner_scope === "system" && institutionOverride.has(row.id)) {
+      value = institutionOverride.get(row.id)!;
+    }
+    if (classOverride.has(row.id)) {
+      value = classOverride.get(row.id)!;
+    }
+    return value;
+  }
+
+  const rows = ((baseRes.data ?? []) as ActivityTemplateRow[]).filter(
+    isResolvedAvailable,
   );
   const seen = new Set(rows.map((r) => r.id));
 
-  // Fetch the explicitly-added (personal) templates the union above didn't cover.
-  const addedIds = addedPersonal.filter((id) => !seen.has(id));
+  // Fetch any explicitly-added (class-scope enabled=true) template the base
+  // query didn't cover — in practice, personal templates, plus the rare case
+  // of a class adding a system/institution template outside its own institution.
+  const addedIds = [...classOverride.entries()]
+    .filter(([id, enabled]) => enabled && !seen.has(id))
+    .map(([id]) => id);
   if (addedIds.length > 0) {
     const { data: added, error } = await supabase
       .from("activity_templates")
@@ -201,12 +368,16 @@ export async function listAvailableTemplatesForClass(
     }
   }
 
-  // System first, then the rest, newest-first within each group.
+  // Broadest scope first (system, then institution), then the rest, newest-first within each group.
+  const scopeRank: Record<TemplateOwnerScope, number> = {
+    system: 0,
+    institution: 1,
+    class: 2,
+    user: 2,
+  };
   return rows.sort((a, b) => {
-    if (a.owner_scope !== b.owner_scope) {
-      if (a.owner_scope === "system") return -1;
-      if (b.owner_scope === "system") return 1;
-    }
+    const rankDiff = scopeRank[a.owner_scope] - scopeRank[b.owner_scope];
+    if (rankDiff !== 0) return rankDiff;
     return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
   });
 }

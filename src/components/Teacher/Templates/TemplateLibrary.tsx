@@ -41,6 +41,7 @@ import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import type { ActivityTemplateRow } from "@/lib/queries/activityTemplates";
 import {
   fetchClassTemplatesTracked,
+  fetchInstitutionTemplatesTracked,
   fetchMyTemplatesTracked,
   fetchSystemTemplatesTracked,
 } from "@/lib/swr/imperativeReads";
@@ -58,7 +59,8 @@ import { invalidateActivityTemplatesCache } from "@/hooks/swr";
 export type LibraryOwner =
   | { scope: "user"; userId: string }
   | { scope: "class"; classId: string }
-  | { scope: "system" };
+  | { scope: "system" }
+  | { scope: "institution"; institutionId: string };
 
 export function TemplateLibrary({
   owner,
@@ -91,7 +93,9 @@ export function TemplateLibrary({
         ? await fetchMyTemplatesTracked(owner.userId)
         : owner.scope === "class"
           ? await fetchClassTemplatesTracked(owner.classId)
-          : await fetchSystemTemplatesTracked(),
+          : owner.scope === "institution"
+            ? await fetchInstitutionTemplatesTracked(owner.institutionId)
+            : await fetchSystemTemplatesTracked(),
     );
   }
 
@@ -151,7 +155,7 @@ export function TemplateLibrary({
                       <DropdownMenuItem onClick={openEdit}>
                         <Pencil className="mr-2 h-4 w-4" /> Edit
                       </DropdownMenuItem>
-                      {owner.scope !== "system" && (
+                      {(owner.scope === "user" || owner.scope === "class") && (
                         <DropdownMenuItem
                           onClick={() =>
                             void run(
@@ -237,7 +241,7 @@ export function TemplateLibrary({
                         : "Cloned"}
                     </span>
                   )}
-                  {owner.scope === "system" && (
+                  {(owner.scope === "system" || owner.scope === "institution") && (
                     <TooltipProvider delayDuration={300}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -246,7 +250,14 @@ export function TemplateLibrary({
                               checked={t.default_listed}
                               onCheckedChange={(checked) =>
                                 void run(
-                                  () => setTemplateDefaultListed(t.id, checked),
+                                  () =>
+                                    setTemplateDefaultListed(
+                                      t.id,
+                                      checked,
+                                      owner.scope === "institution"
+                                        ? { institutionId: owner.institutionId }
+                                        : undefined,
+                                    ),
                                   checked
                                     ? `"${t.name}" is now default-listed in every class.`
                                     : `"${t.name}" is now opt-in only.`,
@@ -258,9 +269,13 @@ export function TemplateLibrary({
                         </TooltipTrigger>
                         <TooltipContent className="max-w-[240px]">
                           Default-listed templates are automatically available
-                          in every class&apos;s activity-type picker. Turn this
-                          off to make it opt-in — teachers can still find and
-                          add it via &quot;Add from Library&quot;.
+                          in every class&apos;s activity-type picker
+                          {owner.scope === "institution"
+                            ? " within this institution"
+                            : ""}
+                          . Turn this off to make it opt-in — teachers can
+                          still find and add it via &quot;Add from
+                          Library&quot;.
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

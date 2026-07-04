@@ -4,43 +4,60 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 
-import { verifySession, requireSuperAdmin } from "@/lib/dal";
+import { verifySession, requireSuperAdmin, requireInstitutionAdminOrSuper } from "@/lib/dal";
 import { templateDefinitionSchema } from "@/lib/activityTypes/templates";
 
 /**
  * Activity-template mutations — Phase 2 of dev-docs/activity-templates-plan.md.
  *
- * The gated write side of the personal + class + system libraries. Ownership
- * is set by create/clone-in-context (§7.2); edit rights come from ownership
- * only (§4). RLS (`activity_templates_write`) is the real enforcement — a
- * class write requires co-teaching `owner_class_id`, a user write requires
- * owning the row, a system write requires `is_platform_super_admin()` — so
- * these actions add validation, the flat-clone invariant, and clear errors on
- * top, rather than re-deriving the authorization. `definition` is validated
- * with the same zod schema used on read, so a malformed template can never be
- * persisted.
+ * The gated write side of the personal + class + system + institution
+ * libraries. Ownership is set by create/clone-in-context (§7.2); edit rights
+ * come from ownership only (§4). RLS (`activity_templates_write`) is the real
+ * enforcement — a class write requires co-teaching `owner_class_id`, a user
+ * write requires owning the row, a system write requires
+ * `is_platform_super_admin()`, an institution write requires
+ * `is_institution_admin(institution_id)` — so these actions add validation,
+ * the flat-clone invariant, and clear errors on top, rather than re-deriving
+ * the authorization. `definition` is validated with the same zod schema used
+ * on read, so a malformed template can never be persisted.
  *
- * System-owned creation additionally calls `requireSuperAdmin()` explicitly
- * (RLS already blocks non-admins, this just gives a clean error instead of a
- * DB rejection). Institution-owned authoring has no admin surface yet
- * (Phase 3); this layer mints `user`-, `class`-, and `system`-owned rows.
+ * System- and institution-owned creation additionally call
+ * `requireSuperAdmin()` / `requireInstitutionAdminOrSuper()` explicitly (RLS
+ * already blocks unauthorized writes, this just gives a clean error instead
+ * of a DB rejection).
  */
 
 const TEMPLATES_PATH = "/teacher/activity-templates";
 const SYSTEM_TEMPLATES_PATH = "/platform/activity-templates";
 
-type CreateScope = "user" | "class" | "system";
+function institutionTemplatesPaths(institutionId: string): string[] {
+  return [
+    `/platform/institutions/${institutionId}`,
+    `/admin/institutions/${institutionId}`,
+  ];
+}
+
+type CreateScope = "user" | "class" | "system" | "institution";
 
 export async function createTemplate(input: {
   scope: CreateScope;
   classId?: string;
+  institutionId?: string;
   name: string;
   description?: string | null;
   visibility?: "private" | "public";
   definition: unknown;
 }): Promise<{ id: string }> {
+  if (input.scope === "institution" && !input.institutionId) {
+    throw new Error("An institution is required to create an institution-owned template.");
+  }
+
   const { user, supabase } =
-    input.scope === "system" ? await requireSuperAdmin() : await verifySession();
+    input.scope === "system"
+      ? await requireSuperAdmin()
+      : input.scope === "institution"
+        ? await requireInstitutionAdminOrSuper(input.institutionId!)
+        : await verifySession();
 
   const definition = templateDefinitionSchema.parse(input.definition);
   const name = input.name.trim();
@@ -60,6 +77,9 @@ export async function createTemplate(input: {
     row.owner_user_id = user.id;
   } else if (input.scope === "system") {
     row.owner_scope = "system";
+  } else if (input.scope === "institution") {
+    row.owner_scope = "institution";
+    row.institution_id = input.institutionId;
   } else {
     if (!input.classId) {
       throw new Error("A class is required to create a class-owned template.");
@@ -75,7 +95,15 @@ export async function createTemplate(input: {
     .single();
   if (error) throw error;
 
-  revalidatePath(input.scope === "system" ? SYSTEM_TEMPLATES_PATH : TEMPLATES_PATH);
+  if (input.scope === "system") {
+    revalidatePath(SYSTEM_TEMPLATES_PATH);
+  } else if (input.scope === "institution") {
+    for (const path of institutionTemplatesPaths(input.institutionId!)) {
+      revalidatePath(path);
+    }
+  } else {
+    revalidatePath(TEMPLATES_PATH);
+  }
   return { id: data.id as string };
 }
 
@@ -312,41 +340,83 @@ export async function removeTemplateFromClass(
   if (error) throw error;
 }
 
+export type AvailabilityScope =
+  | { kind: "class"; classId: string }
+  | { kind: "institution"; institutionId: string };
+
 /**
- * Curate which system activity types appear in a class's picker (§8). A
- * system template's `default_listed` column is its baseline (on or off); this
- * writes an override row only when `available` diverges from that baseline,
- * and deletes any existing row when it matches (back to the plain baseline).
+ * Curate which default-listed (system or institution) activity types appear
+ * in a class's or institution's picker (§8). A template's `default_listed`
+ * column is its platform/institution-authored baseline; this writes an
+ * override row only when `available` diverges from the *resolved* baseline
+ * for `scope`, and deletes any existing row when it matches (back to the
+ * inherited baseline).
+ *
+ * For a class-scope toggle on a `system` template, the resolved baseline
+ * additionally accounts for the class's own institution's override (if any)
+ * — so a class's toggle diffs against what the institution has already
+ * decided, not the raw platform-wide flag. Institution-scope toggles (and
+ * class-scope toggles on institution-owned templates) diff directly against
+ * the template's own `default_listed` column — there's no tier above them.
  */
-export async function setSystemTemplateAvailability(
-  classId: string,
+export async function setTemplateAvailability(
+  scope: AvailabilityScope,
   templateId: string,
   available: boolean,
 ): Promise<void> {
-  const { user, supabase } = await verifySession();
+  const { user, supabase } =
+    scope.kind === "institution"
+      ? await requireInstitutionAdminOrSuper(scope.institutionId)
+      : await verifySession();
 
   const { data: template, error: templateErr } = await supabase
     .from("activity_templates")
-    .select("default_listed")
+    .select("owner_scope, default_listed")
     .eq("id", templateId)
     .maybeSingle();
   if (templateErr) throw templateErr;
   if (!template) throw new Error("Template not found or not readable.");
 
-  if (available === template.default_listed) {
+  let baseline = template.default_listed;
+
+  if (scope.kind === "class" && template.owner_scope === "system") {
+    const { data: classRow, error: classErr } = await supabase
+      .from("classes")
+      .select("institution_id")
+      .eq("id", scope.classId)
+      .maybeSingle();
+    if (classErr) throw classErr;
+    const institutionId = classRow?.institution_id as string | null | undefined;
+    if (institutionId) {
+      const { data: instRow, error: instErr } = await supabase
+        .from("template_scope_enablement")
+        .select("enabled")
+        .eq("scope", "institution")
+        .eq("scope_id", institutionId)
+        .eq("template_id", templateId)
+        .maybeSingle();
+      if (instErr) throw instErr;
+      baseline = instRow?.enabled ?? template.default_listed;
+    }
+  }
+
+  const scopeCol = scope.kind;
+  const scopeId = scope.kind === "class" ? scope.classId : scope.institutionId;
+
+  if (available === baseline) {
     const { error } = await supabase
       .from("template_scope_enablement")
       .delete()
-      .eq("scope", "class")
-      .eq("scope_id", classId)
+      .eq("scope", scopeCol)
+      .eq("scope_id", scopeId)
       .eq("template_id", templateId);
     if (error) throw error;
     return;
   }
   const { error } = await supabase.from("template_scope_enablement").upsert(
     {
-      scope: "class",
-      scope_id: classId,
+      scope: scopeCol,
+      scope_id: scopeId,
       template_id: templateId,
       enabled: available,
       added_by: user.id,
@@ -358,21 +428,33 @@ export async function setSystemTemplateAvailability(
 }
 
 /**
- * Platform-only control (§ default listing): whether a system template is
- * automatically in every class's palette, or opt-in (available in "Add from
- * Library" but requires an explicit per-class add). RLS already restricts
- * writes to super admins; `requireSuperAdmin()` gives a clean error instead.
+ * Whether a system or institution template is automatically in every class's
+ * palette (platform-wide for system, institution-wide for institution), or
+ * opt-in (available in "Add from Library" but requires an explicit per-class
+ * add). Pass `institutionId` when toggling an institution-owned template so
+ * an institution admin can be gated in instead of requiring a super admin —
+ * RLS (`activity_templates_write`) is the real enforcement either way, this
+ * just gives a clean error instead of a DB rejection.
  */
 export async function setTemplateDefaultListed(
   templateId: string,
   defaultListed: boolean,
+  opts?: { institutionId?: string },
 ): Promise<void> {
-  const { supabase } = await requireSuperAdmin();
+  const { supabase } = opts?.institutionId
+    ? await requireInstitutionAdminOrSuper(opts.institutionId)
+    : await requireSuperAdmin();
   const { error } = await supabase
     .from("activity_templates")
     .update({ default_listed: defaultListed, updated_at: new Date().toISOString() })
     .eq("id", templateId);
   if (error) throw error;
 
-  revalidatePath(SYSTEM_TEMPLATES_PATH);
+  if (opts?.institutionId) {
+    for (const path of institutionTemplatesPaths(opts.institutionId)) {
+      revalidatePath(path);
+    }
+  } else {
+    revalidatePath(SYSTEM_TEMPLATES_PATH);
+  }
 }

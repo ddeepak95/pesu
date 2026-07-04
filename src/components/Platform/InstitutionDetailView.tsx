@@ -71,6 +71,8 @@ export interface InstitutionDetailViewProps {
   classOverrideHrefBase: string;
   /** Optional success/error banner copy. */
   notice?: { ok?: string; error?: string };
+  /** "Manage Activity Templates" link target for this institution's template library. */
+  activityTemplatesManageHref: string;
 }
 
 type ActiveTab = "settings" | "classes";
@@ -104,6 +106,7 @@ export default function InstitutionDetailView({
   institutionPolicy,
   classOverrideHrefBase,
   notice,
+  activityTemplatesManageHref,
 }: InstitutionDetailViewProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -213,6 +216,7 @@ export default function InstitutionDetailView({
             viewerRole={viewerRole}
             effectiveSettings={effectiveSettings}
             institutionPolicy={institutionPolicy}
+            activityTemplatesManageHref={activityTemplatesManageHref}
             adminsSection={
               <AdminsCard
                 institutionId={institution.id}

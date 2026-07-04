@@ -31,6 +31,8 @@ import type { ActivityTemplateRow } from "@/lib/queries/activityTemplates";
 import {
   invalidateActivityTemplatesCache,
   useClassTemplateEnablement,
+  useInstitutionTemplateEnablement,
+  useInstitutionTemplates,
   useMyTemplates,
   useSystemTemplates,
 } from "@/hooks/swr";
@@ -38,27 +40,47 @@ import {
   addTemplateToClass,
   cloneTemplate,
   removeTemplateFromClass,
-  setSystemTemplateAvailability,
+  setTemplateAvailability,
 } from "@/lib/templates/actions";
 
 type Source = "platform" | "institution" | "personal";
 
+export type DialogScope =
+  | {
+      kind: "class";
+      classId: string;
+      userId: string;
+      /** This class's institution, if any — powers the "Institution library" source. */
+      institutionId: string | null;
+    }
+  | { kind: "institution"; institutionId: string };
+
 interface AddFromLibraryDialogProps {
-  classDbId: string;
-  userId: string;
+  scope: DialogScope;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 /**
- * Browse a source library (Platform / Institution / Personal) and bring a
- * template into this class. "Add" is a membership link (stays owned by the
- * source, read-only here); "Clone" makes an editable class-owned copy.
- * Institution is scaffolded but deferred (no backend yet).
+ * Browse a source library and bring a template into a class (or, in
+ * institution mode, into an institution's default list). "Add" is a
+ * membership link/override (stays owned by the source, read-only here);
+ * "Clone" (class mode only) makes an editable class-owned copy.
+ *
+ * Class mode offers Platform / Institution / Personal sources, matching the
+ * class's own palette. Institution mode only has a Platform source (an
+ * institution admin curates system templates for their institution, not a
+ * nested library of its own) — the source selector is hidden in that case.
+ *
+ * Platform/Institution-owned-template availability is a baseline (a
+ * template's own `default_listed`) that each tier can override: institution
+ * overrides the platform baseline for system templates, and a class overrides
+ * whatever it inherits (the institution-resolved value for system templates,
+ * or the raw baseline for institution-owned/personal templates never having
+ * an institution tier above them).
  */
 export default function AddFromLibraryDialog({
-  classDbId,
-  userId,
+  scope,
   open,
   onOpenChange,
 }: AddFromLibraryDialogProps) {
@@ -66,42 +88,67 @@ export default function AddFromLibraryDialog({
   const [query, setQuery] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const systemQuery = useSystemTemplates();
-  const myQuery = useMyTemplates(userId);
-  const enablementQuery = useClassTemplateEnablement(classDbId);
+  const isInstitutionMode = scope.kind === "institution";
+  // The institution whose system-template overrides are relevant here: itself
+  // in institution mode, or the class's own institution (if any) in class mode.
+  const institutionId = scope.institutionId;
+  const effectiveSource: Source = isInstitutionMode ? "platform" : source;
 
-  const enablementOverrides = useMemo(
+  const systemQuery = useSystemTemplates();
+  const institutionTemplatesQuery = useInstitutionTemplates(
+    !isInstitutionMode ? institutionId : null,
+  );
+  const myQuery = useMyTemplates(scope.kind === "class" ? scope.userId : null);
+  const classEnablementQuery = useClassTemplateEnablement(
+    scope.kind === "class" ? scope.classId : null,
+  );
+  const institutionEnablementQuery = useInstitutionTemplateEnablement(institutionId);
+
+  const classOverrides = useMemo(
     () =>
       new Map(
-        (enablementQuery.data ?? []).map((r) => [r.template_id, r.enabled]),
+        (classEnablementQuery.data ?? []).map((r) => [r.template_id, r.enabled]),
       ),
-    [enablementQuery.data],
+    [classEnablementQuery.data],
+  );
+  const institutionOverrides = useMemo(
+    () =>
+      new Map(
+        (institutionEnablementQuery.data ?? []).map((r) => [
+          r.template_id,
+          r.enabled,
+        ]),
+      ),
+    [institutionEnablementQuery.data],
   );
   const addedPersonal = useMemo(
     () =>
       new Set(
-        (enablementQuery.data ?? [])
+        (classEnablementQuery.data ?? [])
           .filter((r) => r.enabled)
           .map((r) => r.template_id),
       ),
-    [enablementQuery.data],
+    [classEnablementQuery.data],
   );
 
   const sourceRows = useMemo<ActivityTemplateRow[]>(
     () =>
-      source === "platform"
+      effectiveSource === "platform"
         ? (systemQuery.data ?? [])
-        : source === "personal"
-          ? (myQuery.data ?? [])
-          : [],
-    [source, systemQuery.data, myQuery.data],
+        : effectiveSource === "institution"
+          ? (institutionTemplatesQuery.data ?? [])
+          : (myQuery.data ?? []),
+    [effectiveSource, systemQuery.data, institutionTemplatesQuery.data, myQuery.data],
   );
   const loading =
-    source === "platform"
-      ? systemQuery.isLoading || enablementQuery.isLoading
-      : source === "personal"
-        ? myQuery.isLoading || enablementQuery.isLoading
-        : false;
+    effectiveSource === "platform"
+      ? systemQuery.isLoading ||
+        (isInstitutionMode
+          ? institutionEnablementQuery.isLoading
+          : classEnablementQuery.isLoading)
+      : effectiveSource === "institution"
+        ? institutionTemplatesQuery.isLoading || classEnablementQuery.isLoading
+        : myQuery.isLoading || classEnablementQuery.isLoading;
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -114,8 +161,15 @@ export default function AddFromLibraryDialog({
   }, [sourceRows, query]);
 
   function isAdded(t: ActivityTemplateRow) {
-    if (source === "platform") {
-      return enablementOverrides.get(t.id) ?? t.default_listed;
+    if (isInstitutionMode) {
+      return institutionOverrides.get(t.id) ?? t.default_listed;
+    }
+    if (effectiveSource === "platform") {
+      const institutionResolved = institutionOverrides.get(t.id) ?? t.default_listed;
+      return classOverrides.get(t.id) ?? institutionResolved;
+    }
+    if (effectiveSource === "institution") {
+      return classOverrides.get(t.id) ?? t.default_listed;
     }
     return addedPersonal.has(t.id);
   }
@@ -135,11 +189,26 @@ export default function AddFromLibraryDialog({
 
   function toggleAdd(t: ActivityTemplateRow) {
     const added = isAdded(t);
-    if (source === "platform") {
+    if (scope.kind === "institution") {
       void act(
         t.id,
         () =>
-          setSystemTemplateAvailability(classDbId, t.id, added ? false : true),
+          setTemplateAvailability(
+            { kind: "institution", institutionId: scope.institutionId },
+            t.id,
+            !added,
+          ),
+        added
+          ? `"${t.name}" is no longer default-listed for this institution.`
+          : `"${t.name}" is now default-listed for this institution.`,
+      );
+      return;
+    }
+    if (effectiveSource === "platform" || effectiveSource === "institution") {
+      void act(
+        t.id,
+        () =>
+          setTemplateAvailability({ kind: "class", classId: scope.classId }, t.id, !added),
         added
           ? `"${t.name}" hidden from this class.`
           : `"${t.name}" added to this class.`,
@@ -150,20 +219,21 @@ export default function AddFromLibraryDialog({
       t.id,
       () =>
         added
-          ? removeTemplateFromClass(classDbId, t.id)
-          : addTemplateToClass(classDbId, t.id),
+          ? removeTemplateFromClass(scope.classId, t.id)
+          : addTemplateToClass(scope.classId, t.id),
       added ? `Removed "${t.name}".` : `Added "${t.name}".`,
     );
   }
 
   function clone(t: ActivityTemplateRow) {
+    if (scope.kind !== "class") return;
     void act(
       t.id,
       () =>
         cloneTemplate({
           sourceId: t.id,
           destScope: "class",
-          classId: classDbId,
+          classId: scope.classId,
         }),
       `Cloned "${t.name}" into this class.`,
     );
@@ -175,23 +245,36 @@ export default function AddFromLibraryDialog({
         <DialogHeader>
           <DialogTitle>Add from Library</DialogTitle>
           <DialogDescription>
-            Add an activity type to this class. <strong>Add</strong> makes it
-            selectable here (still owned by the source, read-only).{" "}
-            <strong>Clone</strong> makes an editable copy owned by this class.
+            {isInstitutionMode ? (
+              <>
+                Choose which platform activity types are default-listed for
+                every class in this institution. Everything else stays
+                findable via each class&apos;s own Add from Library.
+              </>
+            ) : (
+              <>
+                Add an activity type to this class. <strong>Add</strong> makes
+                it selectable here (still owned by the source, read-only).{" "}
+                <strong>Clone</strong> makes an editable copy owned by this
+                class.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center gap-2">
-          <Select value={source} onValueChange={(v) => setSource(v as Source)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="platform">Platform library</SelectItem>
-              <SelectItem value="institution">Institution library</SelectItem>
-              <SelectItem value="personal">Personal library</SelectItem>
-            </SelectContent>
-          </Select>
+          {!isInstitutionMode && (
+            <Select value={source} onValueChange={(v) => setSource(v as Source)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="platform">Platform library</SelectItem>
+                <SelectItem value="institution">Institution library</SelectItem>
+                <SelectItem value="personal">Personal library</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -205,9 +288,9 @@ export default function AddFromLibraryDialog({
 
         <TooltipProvider delayDuration={300}>
           <div className="max-h-[55vh] space-y-2 overflow-y-auto">
-            {source === "institution" ? (
+            {effectiveSource === "institution" && !isInstitutionMode && !institutionId ? (
               <p className="rounded-md border border-dashed bg-muted/30 px-4 py-8 text-center text-xs text-muted-foreground">
-                Institution templates aren&apos;t available yet.
+                This class isn&apos;t part of an institution.
               </p>
             ) : loading ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
@@ -215,7 +298,7 @@ export default function AddFromLibraryDialog({
               </p>
             ) : sourceRows.length === 0 ? (
               <p className="rounded-md border border-dashed bg-muted/30 px-4 py-8 text-center text-xs text-muted-foreground">
-                {source === "personal" ? (
+                {effectiveSource === "personal" ? (
                   <>
                     You have no personal templates yet.{" "}
                     <Link
@@ -283,26 +366,29 @@ export default function AddFromLibraryDialog({
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-[240px]">
-                          Makes it selectable in this class. It stays owned by
-                          the source and can&apos;t be edited here.
+                          {isInstitutionMode
+                            ? "Makes it default-listed for every class in this institution. It stays owned by the platform and can't be edited here."
+                            : "Makes it selectable in this class. It stays owned by the source and can't be edited here."}
                         </TooltipContent>
                       </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={busyId === t.id}
-                            onClick={() => clone(t)}
-                          >
-                            <Copy className="mr-1.5 h-3.5 w-3.5" /> Clone
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-[240px]">
-                          Makes an editable copy owned by this class. Changes
-                          won&apos;t affect the original.
-                        </TooltipContent>
-                      </Tooltip>
+                      {scope.kind === "class" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={busyId === t.id}
+                              onClick={() => clone(t)}
+                            >
+                              <Copy className="mr-1.5 h-3.5 w-3.5" /> Clone
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[240px]">
+                            Makes an editable copy owned by this class.
+                            Changes won&apos;t affect the original.
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   </div>
                 );

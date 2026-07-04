@@ -23,7 +23,7 @@ export default async function ManageActivityTemplatesPage({
 
   const { data: classData } = await supabase
     .from("classes")
-    .select("id, name")
+    .select("id, name, institution_id")
     .eq("class_id", classId)
     .in("status", ["active", "archived"])
     .single();
@@ -43,6 +43,7 @@ export default async function ManageActivityTemplatesPage({
       classShortId={classId}
       classDisplayName={classData.name}
       userId={user.id}
+      institutionId={classData.institution_id}
     />
   );
 }

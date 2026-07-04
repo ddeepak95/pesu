@@ -15,6 +15,7 @@ import type { AiInstitutionPolicy } from "@/types/aiSettings";
 
 import InstitutionAiManagementTab from "./InstitutionAiManagementTab";
 import InstitutionSettingsForm from "./InstitutionSettingsForm";
+import InstitutionActivityTemplatesSection from "./InstitutionActivityTemplatesSection";
 
 const SETTINGS_TAB_PARAM = "settingsTab";
 
@@ -30,6 +31,8 @@ interface InstitutionSettingsTabsProps {
   effectiveSettings: EffectiveSettings;
   institutionPolicy: AiInstitutionPolicy;
   adminsSection?: ReactNode;
+  /** "Manage Activity Templates" link target for this institution's template library. */
+  activityTemplatesManageHref: string;
 }
 
 export default function InstitutionSettingsTabs({
@@ -38,6 +41,7 @@ export default function InstitutionSettingsTabs({
   effectiveSettings,
   institutionPolicy,
   adminsSection,
+  activityTemplatesManageHref,
 }: InstitutionSettingsTabsProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -74,6 +78,10 @@ export default function InstitutionSettingsTabs({
           institutionId={institutionId}
           viewerRole={viewerRole}
           initialEffective={effectiveSettings}
+        />
+        <InstitutionActivityTemplatesSection
+          institutionId={institutionId}
+          manageHref={activityTemplatesManageHref}
         />
         {adminsSection}
       </TabsContent>
