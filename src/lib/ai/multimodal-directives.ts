@@ -183,8 +183,9 @@ export function buildMultimodalDirectives(input: {
       `DUAL TRANSCRIPT: The learner's audio was transcribed in two languages simultaneously ` +
         `(${primaryLabel} and ${supportLabel}). The message you receive contains both readings. ` +
         `Exactly one is coherent and correct — the other is garbled output from the wrong language ` +
-        `model. Identify the coherent reading, copy it verbatim into \`userTranscript\` (fixing ` +
-        `only obvious mis-recognitions), and respond to it. Ignore the garbled reading entirely.`,
+        `model. Identify the coherent reading and copy it verbatim into \`userTranscript\`, with ` +
+        `zero edits — do not fix, correct, normalize, or otherwise alter it in any way, even if it ` +
+        `looks like an obvious mistake. Then respond to it. Ignore the garbled reading entirely.`,
     );
   }
 

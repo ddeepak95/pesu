@@ -11,6 +11,11 @@ export interface ChatMessageAiMetadata {
   aiModelId: string;
 }
 
+export interface ChatMessageTranscriptCandidate {
+  language: string;
+  text: string;
+}
+
 export interface InsertChatMessageInput {
   /**
    * Optional explicit primary key. The client mints stable UUIDs for each
@@ -27,6 +32,13 @@ export interface InsertChatMessageInput {
   attempt_number: number | null;
   aiMetadata?: ChatMessageAiMetadata;
   aiInvocationId?: string | null;
+  /**
+   * Audit copy of the raw dual-transcript STT candidates ([primary, support]
+   * language readings) for this student message. Only set for dual-transcript
+   * (language-support) turns; omitted for regular single-transcript inserts
+   * and assistant messages.
+   */
+  transcriptCandidates?: ChatMessageTranscriptCandidate[];
 }
 
 export async function insertChatMessage(
@@ -54,6 +66,10 @@ export async function insertChatMessage(
 
   if (row.aiInvocationId) {
     payload.ai_invocation_id = row.aiInvocationId;
+  }
+
+  if (row.transcriptCandidates) {
+    payload.transcript_candidates = row.transcriptCandidates;
   }
 
   const { data, error } = await supabase

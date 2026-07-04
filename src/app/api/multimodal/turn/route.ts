@@ -296,8 +296,9 @@ export async function POST(request: NextRequest) {
         const dualContent =
           `[Your audio was transcribed two ways because two languages are active. ` +
           `Exactly one reading is coherent — pick it, ignore the other. ` +
-          `Set \`userTranscript\` to the reading you chose (verbatim; fix only obvious mis-recognitions), ` +
-          `then reply to it.]\n` +
+          `Set \`userTranscript\` to the reading you chose, copied verbatim with zero edits — ` +
+          `do not fix, correct, normalize, or otherwise alter it in any way, even if it looks like ` +
+          `an obvious mistake. Then reply to it.]\n` +
           `- As ${primaryLabel}: ${primaryText}\n` +
           `- As ${supportLabel}: ${supportText}`;
         return { role: "user" as const, content: dualContent };
@@ -604,6 +605,7 @@ export async function POST(request: NextRequest) {
                           role: "student",
                           content: chosen,
                           attempt_number: attemptNumber ?? null,
+                          transcriptCandidates: candidates?.slice(0, 2),
                         });
                       } catch (dbErr) {
                         console.error(
@@ -661,6 +663,7 @@ export async function POST(request: NextRequest) {
                         role: "student",
                         content: chosen,
                         attempt_number: attemptNumber ?? null,
+                        transcriptCandidates: candidates?.slice(0, 2),
                       });
                     } catch (dbErr) {
                       console.error(
@@ -735,6 +738,7 @@ export async function POST(request: NextRequest) {
                   role: "student",
                   content: fallbackText,
                   attempt_number: attemptNumber ?? null,
+                  transcriptCandidates: candidates?.slice(0, 2),
                 });
               } catch (dbErr) {
                 console.error(

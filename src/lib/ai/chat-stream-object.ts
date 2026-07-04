@@ -64,8 +64,10 @@ export function buildTurnSchema(
       userTranscript: z
         .string()
         .describe(
-          "The learner's utterance as you understood it. Copy the coherent " +
-            "reading verbatim (fixing only obvious STT mis-recognitions). " +
+          "The learner's utterance as you understood it. Identify which of the two " +
+            "STT readings you were given is coherent, then copy that reading verbatim " +
+            "into this field — with zero edits. Do not fix, correct, normalize, or " +
+            "otherwise alter it in any way, even if it looks like an obvious mistake. " +
             "This field MUST be the transcript you respond to.",
         ),
       ...base,
