@@ -29,6 +29,7 @@ import { getSubmissionFiles } from "@/lib/queries/submissionFiles";
 import {
   listClassTemplates,
   listMyTemplates,
+  listSystemTemplates,
 } from "@/lib/queries/activityTemplates";
 import { increment, decrement } from "./busyStore";
 
@@ -86,6 +87,11 @@ export function fetchMyTemplatesTracked(userId: string) {
 /** Refresh a class's class-owned template library after a mutation. */
 export function fetchClassTemplatesTracked(classDbId: string) {
   return runTracked(() => listClassTemplates(classDbId));
+}
+
+/** Refresh the platform system template library after a mutation. */
+export function fetchSystemTemplatesTracked() {
+  return runTracked(() => listSystemTemplates());
 }
 
 /** Imperative read for delete/unlink confirm flows (teacher detail & content list). */

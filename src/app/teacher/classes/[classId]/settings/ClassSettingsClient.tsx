@@ -37,6 +37,13 @@ interface ClassSettingsClientProps {
    */
   backHref?: string;
   backLabel?: string;
+  /**
+   * Route prefix for "Manage Activity Templates" and its create/edit
+   * subpages. Defaults to the teacher route; the institution/super-admin
+   * drill-down routes pass their own so the link doesn't 404 for a viewer
+   * who isn't a class_teachers member.
+   */
+  activityTemplatesBasePath?: string;
 }
 
 export default function ClassSettingsClient({
@@ -47,6 +54,7 @@ export default function ClassSettingsClient({
   backHref,
   backLabel,
   institutionPolicy,
+  activityTemplatesBasePath,
 }: ClassSettingsClientProps) {
   const router = useTrackedRouter();
 
@@ -142,6 +150,7 @@ export default function ClassSettingsClient({
                 classData={initialClassData}
                 classShortId={classId}
                 userId={userId}
+                manageHref={activityTemplatesBasePath}
               />
 
               <ProgressiveUnlockSection

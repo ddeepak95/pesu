@@ -45,6 +45,7 @@ export default async function AdminClassSettingsPage({
       backHref={`/admin/institutions/${id}?tab=classes`}
       backLabel={`Back to ${institution.name}`}
       institutionPolicy={institutionPolicy}
+      activityTemplatesBasePath={`/admin/institutions/${id}/classes/${classDbId}/activity-templates`}
     />
   );
 }

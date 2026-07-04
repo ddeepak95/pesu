@@ -70,12 +70,10 @@ export default function AddFromLibraryDialog({
   const myQuery = useMyTemplates(userId);
   const enablementQuery = useClassTemplateEnablement(classDbId);
 
-  const prunedSystem = useMemo(
+  const enablementOverrides = useMemo(
     () =>
-      new Set(
-        (enablementQuery.data ?? [])
-          .filter((r) => !r.enabled)
-          .map((r) => r.template_id),
+      new Map(
+        (enablementQuery.data ?? []).map((r) => [r.template_id, r.enabled]),
       ),
     [enablementQuery.data],
   );
@@ -116,9 +114,10 @@ export default function AddFromLibraryDialog({
   }, [sourceRows, query]);
 
   function isAdded(t: ActivityTemplateRow) {
-    return source === "platform"
-      ? !prunedSystem.has(t.id)
-      : addedPersonal.has(t.id);
+    if (source === "platform") {
+      return enablementOverrides.get(t.id) ?? t.default_listed;
+    }
+    return addedPersonal.has(t.id);
   }
 
   async function act(id: string, fn: () => Promise<unknown>, msg: string) {

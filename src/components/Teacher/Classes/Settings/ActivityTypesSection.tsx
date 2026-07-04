@@ -19,6 +19,8 @@ interface ActivityTypesSectionProps {
   classData: Class;
   classShortId: string;
   userId: string;
+  /** "Manage Activity Templates" link target. Defaults to the teacher route. */
+  manageHref?: string;
 }
 
 const SCOPE_LABEL: Record<TemplateOwnerScope, string> = {
@@ -31,6 +33,7 @@ const SCOPE_LABEL: Record<TemplateOwnerScope, string> = {
 export default function ActivityTypesSection({
   classData,
   classShortId,
+  manageHref = `/teacher/classes/${classShortId}/settings/activity-templates`,
 }: ActivityTypesSectionProps) {
   const availableQuery = useAvailableTemplatesForClass(classData.id);
   const available = availableQuery.data ?? [];
@@ -71,9 +74,7 @@ export default function ActivityTypesSection({
         )}
 
         <Button asChild variant="outline">
-          <Link
-            href={`/teacher/classes/${classShortId}/settings/activity-templates`}
-          >
+          <Link href={manageHref}>
             Manage Activity Templates
             <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
           </Link>

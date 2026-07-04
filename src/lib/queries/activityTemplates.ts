@@ -32,6 +32,8 @@ export interface ActivityTemplateRow {
   institution_id: string | null;
   visibility: TemplateVisibility;
   status: TemplateStatus;
+  /** Only meaningful for owner_scope='system': auto-in-every-class-palette vs opt-in. */
+  default_listed: boolean;
   forked_from: string | null;
   upstream_synced_at: string | null;
   origin_author_id: string | null;
@@ -42,7 +44,7 @@ export interface ActivityTemplateRow {
 }
 
 const TEMPLATE_COLUMNS =
-  "id, name, description, definition, owner_scope, owner_user_id, owner_class_id, institution_id, visibility, status, forked_from, upstream_synced_at, origin_author_id, origin_author_name, created_by, created_at, updated_at";
+  "id, name, description, definition, owner_scope, owner_user_id, owner_class_id, institution_id, visibility, status, default_listed, forked_from, upstream_synced_at, origin_author_id, origin_author_name, created_by, created_at, updated_at";
 
 /** The teacher's personal ("My Activity Templates") library — active user-owned rows. */
 export async function listMyTemplates(
@@ -152,13 +154,15 @@ export async function listAvailableTemplatesForClass(
 ): Promise<ActivityTemplateRow[]> {
   const supabase = client ?? createClient();
 
-  // system + class-owned (need no enablement link).
+  // default-listed system + class-owned (need no enablement link). A system
+  // template with default_listed=false is opt-in only — it flows through the
+  // "explicitly-added" block below via an enablement row, same as personal.
   const autoQuery = supabase
     .from("activity_templates")
     .select(TEMPLATE_COLUMNS)
     .eq("status", "active")
     .or(
-      `owner_scope.eq.system,and(owner_scope.eq.class,owner_class_id.eq.${classDbId})`,
+      `and(owner_scope.eq.system,default_listed.eq.true),and(owner_scope.eq.class,owner_class_id.eq.${classDbId})`,
     );
 
   const [autoRes, enablement] = await Promise.all([

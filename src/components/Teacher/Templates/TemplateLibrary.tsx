@@ -29,18 +29,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import type { ActivityTemplateRow } from "@/lib/queries/activityTemplates";
 import {
   fetchClassTemplatesTracked,
   fetchMyTemplatesTracked,
+  fetchSystemTemplatesTracked,
 } from "@/lib/swr/imperativeReads";
 import {
   archiveTemplate,
   cloneTemplate,
   publishAsNewTemplate,
   pullUpstream,
+  setTemplateDefaultListed,
   setTemplateVisibility,
 } from "@/lib/templates/actions";
 import { invalidateActivityTemplatesCache } from "@/hooks/swr";
@@ -48,7 +57,8 @@ import { invalidateActivityTemplatesCache } from "@/hooks/swr";
 /** Which library this is — drives create ownership and the refresh source. */
 export type LibraryOwner =
   | { scope: "user"; userId: string }
-  | { scope: "class"; classId: string };
+  | { scope: "class"; classId: string }
+  | { scope: "system" };
 
 export function TemplateLibrary({
   owner,
@@ -79,7 +89,9 @@ export function TemplateLibrary({
     setTemplates(
       owner.scope === "user"
         ? await fetchMyTemplatesTracked(owner.userId)
-        : await fetchClassTemplatesTracked(owner.classId),
+        : owner.scope === "class"
+          ? await fetchClassTemplatesTracked(owner.classId)
+          : await fetchSystemTemplatesTracked(),
     );
   }
 
@@ -139,24 +151,26 @@ export function TemplateLibrary({
                       <DropdownMenuItem onClick={openEdit}>
                         <Pencil className="mr-2 h-4 w-4" /> Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          void run(
-                            () =>
-                              cloneTemplate({
-                                sourceId: t.id,
-                                destScope: owner.scope,
-                                classId:
-                                  owner.scope === "class"
-                                    ? owner.classId
-                                    : undefined,
-                              }),
-                            "Cloned into this library.",
-                          )
-                        }
-                      >
-                        <Copy className="mr-2 h-4 w-4" /> Clone
-                      </DropdownMenuItem>
+                      {owner.scope !== "system" && (
+                        <DropdownMenuItem
+                          onClick={() =>
+                            void run(
+                              () =>
+                                cloneTemplate({
+                                  sourceId: t.id,
+                                  destScope: owner.scope,
+                                  classId:
+                                    owner.scope === "class"
+                                      ? owner.classId
+                                      : undefined,
+                                }),
+                              "Cloned into this library.",
+                            )
+                          }
+                        >
+                          <Copy className="mr-2 h-4 w-4" /> Clone
+                        </DropdownMenuItem>
+                      )}
                       {t.visibility === "private" ? (
                         <DropdownMenuItem
                           onClick={() =>
@@ -222,6 +236,34 @@ export function TemplateLibrary({
                         ? `Based on ${t.origin_author_name}`
                         : "Cloned"}
                     </span>
+                  )}
+                  {owner.scope === "system" && (
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                            <Switch
+                              checked={t.default_listed}
+                              onCheckedChange={(checked) =>
+                                void run(
+                                  () => setTemplateDefaultListed(t.id, checked),
+                                  checked
+                                    ? `"${t.name}" is now default-listed in every class.`
+                                    : `"${t.name}" is now opt-in only.`,
+                                )
+                              }
+                            />
+                            Default listed
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[240px]">
+                          Default-listed templates are automatically available
+                          in every class&apos;s activity-type picker. Turn this
+                          off to make it opt-in — teachers can still find and
+                          add it via &quot;Add from Library&quot;.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </div>
               </div>

@@ -38,6 +38,11 @@ interface ManageActivityTemplatesProps {
   classShortId: string;
   classDisplayName: string;
   userId: string;
+  /** Route prefix for the create/edit subpages. Defaults to the teacher route. */
+  basePath?: string;
+  /** Back-link target + label above the header. Defaults to the teacher class settings page. */
+  backHref?: string;
+  backLabel?: string;
 }
 
 const SCOPE_LABEL: Record<TemplateOwnerScope, string> = {
@@ -52,6 +57,9 @@ export default function ManageActivityTemplates({
   classShortId,
   classDisplayName,
   userId,
+  basePath = `/teacher/classes/${classShortId}/settings/activity-templates`,
+  backHref = `/teacher/classes/${classShortId}/settings`,
+  backLabel = "Class settings",
 }: ManageActivityTemplatesProps) {
   const router = useTrackedRouter();
   const availableQuery = useAvailableTemplatesForClass(classDbId);
@@ -62,8 +70,6 @@ export default function ManageActivityTemplates({
   const [viewTarget, setViewTarget] = useState<ActivityTemplateRow | null>(null);
   const [pendingArchive, setPendingArchive] =
     useState<ActivityTemplateRow | null>(null);
-
-  const basePath = `/teacher/classes/${classShortId}/settings/activity-templates`;
 
   async function act(id: string, fn: () => Promise<unknown>, msg: string) {
     setBusyId(id);
@@ -103,10 +109,10 @@ export default function ManageActivityTemplates({
     <PageLayout>
       <div className="space-y-6">
         <Link
-          href={`/teacher/classes/${classShortId}/settings`}
+          href={backHref}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Class settings
+          <ArrowLeft className="h-4 w-4" /> {backLabel}
         </Link>
 
         <div className="flex flex-wrap items-start justify-between gap-4">

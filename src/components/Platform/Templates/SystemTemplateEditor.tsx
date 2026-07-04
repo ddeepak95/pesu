@@ -9,30 +9,22 @@ import { TemplateEditor } from "@/components/Platform/Templates/TemplateEditor";
 import { cloneSeedDefinition } from "@/components/Platform/Templates/mockData";
 import type { MockTemplate } from "@/components/Platform/Templates/types";
 import type { ActivityTemplateRow } from "@/lib/queries/activityTemplates";
-import { invalidateActivityTemplatesCache } from "@/hooks/swr";
 import {
   createTemplate,
   setTemplateVisibility,
   updateTemplate,
 } from "@/lib/templates/actions";
-import {
-  fromEditorDefinition,
-  rowToMockTemplate,
-} from "@/components/Teacher/Templates/adapters";
+import { invalidateActivityTemplatesCache } from "@/hooks/swr";
 
-const CLASS_BADGE = (
-  <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-400">
-    Class library · co-editable
-  </span>
-);
+import { fromEditorDefinition, rowToMockTemplate } from "@/components/Teacher/Templates/adapters";
 
-function blankClassTemplate(): MockTemplate {
+function blankSystemTemplate(): MockTemplate {
   return {
     id: `new-${Date.now()}`,
     name: "",
     description: "",
-    ownerScope: "class",
-    visibility: "private",
+    ownerScope: "system",
+    visibility: "public",
     status: "active",
     definition: cloneSeedDefinition("learning"),
     updatedAt: new Date().toISOString(),
@@ -40,30 +32,22 @@ function blankClassTemplate(): MockTemplate {
 }
 
 /**
- * Full-page create/edit surface for a class-owned activity template. Only
- * class-owned templates are editable in place (Platform/Institution/Personal
- * are cloned into the class first), so this component always writes with
- * `scope: "class"`. Save/cancel navigate back to the class Manage page.
+ * Full-page create/edit surface for a system (platform) activity template —
+ * the platform-admin counterpart to `Teacher/Templates/UserTemplateEditor`.
+ * Save/cancel navigate back to the platform template library.
  */
-export function ClassTemplateEditor({
-  classDbId,
-  classShortId,
+export function SystemTemplateEditor({
   template,
-  basePath = `/teacher/classes/${classShortId}/settings/activity-templates`,
 }: {
-  classDbId: string;
-  classShortId: string;
   template?: ActivityTemplateRow;
-  /** Route prefix to return to after save/cancel. Defaults to the teacher route. */
-  basePath?: string;
 }) {
   const router = useTrackedRouter();
   const isNew = !template;
   const [saving, setSaving] = useState(false);
   const original = template?.definition ?? null;
-  const initial = template ? rowToMockTemplate(template) : blankClassTemplate();
+  const initial = template ? rowToMockTemplate(template) : blankSystemTemplate();
 
-  const backHref = basePath;
+  const backHref = "/platform/activity-templates";
 
   async function handleSave(next: MockTemplate) {
     setSaving(true);
@@ -71,8 +55,7 @@ export function ClassTemplateEditor({
       const definition = fromEditorDefinition(next.definition, original);
       if (isNew) {
         await createTemplate({
-          scope: "class",
-          classId: classDbId,
+          scope: "system",
           name: next.name,
           description: next.description || null,
           visibility: next.visibility,
@@ -89,7 +72,7 @@ export function ClassTemplateEditor({
         }
       }
       await invalidateActivityTemplatesCache();
-      showSuccessToast(isNew ? "Activity type created." : "Changes saved.");
+      showSuccessToast(isNew ? "Template created." : "Template saved.");
       router.push(backHref);
     } catch (e) {
       showErrorToast(e instanceof Error ? e.message : "Could not save.");
@@ -99,24 +82,16 @@ export function ClassTemplateEditor({
 
   const header = (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <button
-          onClick={() => router.push(backHref)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to activity templates
-        </button>
-        {CLASS_BADGE}
-      </div>
+      <button
+        onClick={() => router.push(backHref)}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to System template library
+      </button>
       <div>
         <h1 className="text-2xl font-semibold">
-          {isNew ? "Create class activity type" : `Edit · ${template!.name}`}
+          {isNew ? "New system template" : `Edit · ${template!.name}`}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Everything this activity type configures for the AI conversation,
-          evaluation, and question-generation behavior. Owned by this class and
-          co-editable by all co-teachers.
-        </p>
       </div>
     </div>
   );
@@ -129,8 +104,8 @@ export function ClassTemplateEditor({
       onSave={handleSave}
       onCancel={() => router.push(backHref)}
       header={header}
-      ownerLabel="This class (co-editable by co-teachers)"
-      newTitle="Create class activity type"
+      ownerLabel="Platform (system library)"
+      newTitle="New system template"
       footerNote={null}
     />
   );

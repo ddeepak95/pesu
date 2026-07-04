@@ -4,28 +4,32 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 
-import { verifySession } from "@/lib/dal";
+import { verifySession, requireSuperAdmin } from "@/lib/dal";
 import { templateDefinitionSchema } from "@/lib/activityTypes/templates";
 
 /**
  * Activity-template mutations — Phase 2 of dev-docs/activity-templates-plan.md.
  *
- * The gated write side of the personal + class libraries. Ownership is set by
- * create/clone-in-context (§7.2); edit rights come from ownership only (§4).
- * RLS (`activity_templates_write`) is the real enforcement — a class write
- * requires co-teaching `owner_class_id`, a user write requires owning the row —
- * so these actions add validation, the flat-clone invariant, and clear errors
- * on top, rather than re-deriving the authorization. `definition` is validated
+ * The gated write side of the personal + class + system libraries. Ownership
+ * is set by create/clone-in-context (§7.2); edit rights come from ownership
+ * only (§4). RLS (`activity_templates_write`) is the real enforcement — a
+ * class write requires co-teaching `owner_class_id`, a user write requires
+ * owning the row, a system write requires `is_platform_super_admin()` — so
+ * these actions add validation, the flat-clone invariant, and clear errors on
+ * top, rather than re-deriving the authorization. `definition` is validated
  * with the same zod schema used on read, so a malformed template can never be
  * persisted.
  *
- * Institution- and system-owned authoring live on their own admin surfaces
- * (Phase 3 / Platform); this layer only mints `user`- and `class`-owned rows.
+ * System-owned creation additionally calls `requireSuperAdmin()` explicitly
+ * (RLS already blocks non-admins, this just gives a clean error instead of a
+ * DB rejection). Institution-owned authoring has no admin surface yet
+ * (Phase 3); this layer mints `user`-, `class`-, and `system`-owned rows.
  */
 
 const TEMPLATES_PATH = "/teacher/activity-templates";
+const SYSTEM_TEMPLATES_PATH = "/platform/activity-templates";
 
-type CreateScope = "user" | "class";
+type CreateScope = "user" | "class" | "system";
 
 export async function createTemplate(input: {
   scope: CreateScope;
@@ -35,7 +39,8 @@ export async function createTemplate(input: {
   visibility?: "private" | "public";
   definition: unknown;
 }): Promise<{ id: string }> {
-  const { user, supabase } = await verifySession();
+  const { user, supabase } =
+    input.scope === "system" ? await requireSuperAdmin() : await verifySession();
 
   const definition = templateDefinitionSchema.parse(input.definition);
   const name = input.name.trim();
@@ -53,6 +58,8 @@ export async function createTemplate(input: {
   if (input.scope === "user") {
     row.owner_scope = "user";
     row.owner_user_id = user.id;
+  } else if (input.scope === "system") {
+    row.owner_scope = "system";
   } else {
     if (!input.classId) {
       throw new Error("A class is required to create a class-owned template.");
@@ -68,7 +75,7 @@ export async function createTemplate(input: {
     .single();
   if (error) throw error;
 
-  revalidatePath(TEMPLATES_PATH);
+  revalidatePath(input.scope === "system" ? SYSTEM_TEMPLATES_PATH : TEMPLATES_PATH);
   return { id: data.id as string };
 }
 
@@ -163,6 +170,7 @@ export async function updateTemplate(
   if (error) throw error;
 
   revalidatePath(TEMPLATES_PATH);
+  revalidatePath(SYSTEM_TEMPLATES_PATH);
 }
 
 /**
@@ -237,6 +245,7 @@ export async function setTemplateVisibility(
   if (error) throw error;
 
   revalidatePath(TEMPLATES_PATH);
+  revalidatePath(SYSTEM_TEMPLATES_PATH);
 }
 
 export async function archiveTemplate(id: string): Promise<void> {
@@ -248,6 +257,7 @@ export async function archiveTemplate(id: string): Promise<void> {
   if (error) throw error;
 
   revalidatePath(TEMPLATES_PATH);
+  revalidatePath(SYSTEM_TEMPLATES_PATH);
 }
 
 export async function restoreTemplate(id: string): Promise<void> {
@@ -259,6 +269,7 @@ export async function restoreTemplate(id: string): Promise<void> {
   if (error) throw error;
 
   revalidatePath(TEMPLATES_PATH);
+  revalidatePath(SYSTEM_TEMPLATES_PATH);
 }
 
 // ---------------------------------------------------------------------------
@@ -302,9 +313,10 @@ export async function removeTemplateFromClass(
 }
 
 /**
- * Curate which system activity types appear in a class's picker (§8). System
- * templates are ON by default; pruning one writes an `enabled=false` deny row,
- * restoring it deletes that row (back to the default-on baseline).
+ * Curate which system activity types appear in a class's picker (§8). A
+ * system template's `default_listed` column is its baseline (on or off); this
+ * writes an override row only when `available` diverges from that baseline,
+ * and deletes any existing row when it matches (back to the plain baseline).
  */
 export async function setSystemTemplateAvailability(
   classId: string,
@@ -312,7 +324,16 @@ export async function setSystemTemplateAvailability(
   available: boolean,
 ): Promise<void> {
   const { user, supabase } = await verifySession();
-  if (available) {
+
+  const { data: template, error: templateErr } = await supabase
+    .from("activity_templates")
+    .select("default_listed")
+    .eq("id", templateId)
+    .maybeSingle();
+  if (templateErr) throw templateErr;
+  if (!template) throw new Error("Template not found or not readable.");
+
+  if (available === template.default_listed) {
     const { error } = await supabase
       .from("template_scope_enablement")
       .delete()
@@ -327,11 +348,31 @@ export async function setSystemTemplateAvailability(
       scope: "class",
       scope_id: classId,
       template_id: templateId,
-      enabled: false,
+      enabled: available,
       added_by: user.id,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "scope,scope_id,template_id" },
   );
   if (error) throw error;
+}
+
+/**
+ * Platform-only control (§ default listing): whether a system template is
+ * automatically in every class's palette, or opt-in (available in "Add from
+ * Library" but requires an explicit per-class add). RLS already restricts
+ * writes to super admins; `requireSuperAdmin()` gives a clean error instead.
+ */
+export async function setTemplateDefaultListed(
+  templateId: string,
+  defaultListed: boolean,
+): Promise<void> {
+  const { supabase } = await requireSuperAdmin();
+  const { error } = await supabase
+    .from("activity_templates")
+    .update({ default_listed: defaultListed, updated_at: new Date().toISOString() })
+    .eq("id", templateId);
+  if (error) throw error;
+
+  revalidatePath(SYSTEM_TEMPLATES_PATH);
 }
