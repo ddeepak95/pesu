@@ -1,6 +1,7 @@
 import useSWR, { mutate } from "swr";
 
 import {
+  getTemplateById,
   listAvailableTemplatesForClass,
   listAvailableTemplatesForInstitution,
   listClassTemplateEnablement,
@@ -38,6 +39,14 @@ export function useAvailableTemplatesForClass(classDbId: string | null) {
   return useSWR<ActivityTemplateRow[]>(
     classDbId ? ["availableTemplatesForClass", classDbId] : null,
     () => listAvailableTemplatesForClass(classDbId!),
+  );
+}
+
+/** A single template row by id, regardless of class-palette membership (e.g. an assignment's provenance template). */
+export function useTemplateById(templateId: string | null) {
+  return useSWR<ActivityTemplateRow | null>(
+    templateId ? ["templateById", templateId] : null,
+    () => getTemplateById(templateId!),
   );
 }
 

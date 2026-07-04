@@ -37,8 +37,8 @@ import {
   submissionOverlayGrainStyle,
 } from "@/components/Teacher/Assignments/submissionOverlayTheme";
 import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
-import { Pill } from "@/components/ui/pill";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
+import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
 import {
   Share2,
   Mic,
@@ -46,6 +46,7 @@ import {
   FileText,
   Lock,
   Globe,
+  Languages,
   RotateCcw,
   BookOpen,
   Bot,
@@ -53,11 +54,14 @@ import {
   ChevronDown,
   ChevronRight,
   Sparkles,
+  Award,
+  CircleDot,
 } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 import {
   invalidateSubmissionsCache,
   useMaterialLinkedAcrossGroups,
+  useTemplateById,
 } from "@/hooks/swr";
 
 function CollapsibleSection({
@@ -127,6 +131,14 @@ export default function AssignmentDetailClient({
     "formative_assignment",
     assignmentData.id,
   );
+
+  const templateQuery = useTemplateById(
+    assignmentData.activity_template_id ?? null,
+  );
+  const activityTypeLabel =
+    templateQuery.data?.name ??
+    getActivityTypeDefinition(assignmentData.activity_type ?? "learning")
+      .label;
 
   const tabParam = searchParams.get("tab");
   const activeTab = useMemo(() => {
@@ -361,11 +373,6 @@ export default function AssignmentDetailClient({
                 isLinked={isLinkedAcrossGroups}
                 variant="hero"
               />
-              <div className="flex items-center gap-4 mt-1 text-muted-foreground">
-                <p>{assignmentData.total_points} points total</p>
-                <span>&bull;</span>
-                <p className="capitalize">Status: {assignmentData.status}</p>
-              </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -393,18 +400,29 @@ export default function AssignmentDetailClient({
           </div>
 
           {/* Assignment Configuration */}
-          <div className="flex flex-wrap items-center gap-3 mb-6">
-            {/* Activity Type */}
-            <Pill purpose="assignmentActivityType" size="lg">
-              <BookOpen className="h-4 w-4" />
-              <span>
-                {assignmentData.activity_type === "assessment"
-                  ? "Assessment"
-                  : assignmentData.activity_type === "speaking_practice"
-                    ? "Speaking Practice"
-                    : "Learning"}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
+            {/* Points */}
+            <div className="flex items-center gap-1.5">
+              <Award className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Points:</span>
+              <span className="font-medium">{assignmentData.total_points}</span>
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-1.5">
+              <CircleDot className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Status:</span>
+              <span className="font-medium capitalize">
+                {assignmentData.status}
               </span>
-            </Pill>
+            </div>
+
+            {/* Activity Type */}
+            <div className="flex items-center gap-1.5">
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Activity type:</span>
+              <span className="font-medium">{activityTypeLabel}</span>
+            </div>
 
             {/* Interaction Type */}
             {(() => {
@@ -413,16 +431,19 @@ export default function AssignmentDetailClient({
               );
               const ModeIcon = modeInfo.icon;
               return (
-                <Pill purpose="assessmentMode" size="lg">
-                  <ModeIcon className="h-4 w-4" />
-                  <span>{modeInfo.label}</span>
-                </Pill>
+                <div className="flex items-center gap-1.5">
+                  <ModeIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Interaction:</span>
+                  <span className="font-medium">{modeInfo.label}</span>
+                </div>
               );
             })()}
 
             {/* Language */}
-            <Pill purpose="assignmentMeta" size="lg">
-              <span>
+            <div className="flex items-center gap-1.5">
+              <Languages className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Language:</span>
+              <span className="font-medium">
                 {supportedLanguages.find(
                   (lang) => lang.code === assignmentData.preferred_language,
                 )?.name || assignmentData.preferred_language}
@@ -430,25 +451,27 @@ export default function AssignmentDetailClient({
               {assignmentData.lock_language && (
                 <Lock className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-            </Pill>
+            </div>
 
             {/* Max Attempts */}
-            <Pill purpose="assignmentMeta" size="lg">
-              <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>
+            <div className="flex items-center gap-1.5">
+              <RotateCcw className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Attempts:</span>
+              <span className="font-medium">
                 {assignmentData.max_attempts ?? 1}{" "}
                 {(assignmentData.max_attempts ?? 1) === 1
                   ? "attempt"
                   : "attempts"}
               </span>
-            </Pill>
+            </div>
 
             {/* Public Access */}
             {assignmentData.is_public && (
-              <Pill purpose="assignmentPublicAccess" size="lg">
-                <Globe className="h-3.5 w-3.5" />
-                <span>Public</span>
-              </Pill>
+              <div className="flex items-center gap-1.5">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Public access:</span>
+                <span className="font-medium">Yes</span>
+              </div>
             )}
           </div>
 

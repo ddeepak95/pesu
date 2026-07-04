@@ -132,4 +132,5 @@ export {
   useSystemTemplates,
   useInstitutionTemplates,
   useMyTemplates,
+  useTemplateById,
 } from "./useActivityTemplates";

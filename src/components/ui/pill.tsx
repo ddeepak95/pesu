@@ -24,9 +24,6 @@ export const pillPurposes = [
   "dynamicRubric",
   "contentCompleted",
   "contentLocked",
-  "assignmentActivityType",
-  "assignmentMeta",
-  "assignmentPublicAccess",
 ] as const;
 
 export type PillPurpose = (typeof pillPurposes)[number];
@@ -51,9 +48,6 @@ const PURPOSE_CSS_PREFIX: Record<PillPurpose, string> = {
   dynamicRubric: "dynamic-rubric",
   contentCompleted: "content-completed",
   contentLocked: "content-locked",
-  assignmentActivityType: "assignment-activity-type",
-  assignmentMeta: "assignment-meta",
-  assignmentPublicAccess: "assignment-public-access",
 };
 
 export function pillPurposeStyle(purpose: PillPurpose): React.CSSProperties {

@@ -292,19 +292,6 @@ body {
   --pill-content-locked-bg: color-mix(in srgb, var(--muted-foreground) 10%, transparent);
   --pill-content-locked-fg: var(--muted-foreground);
   --pill-content-locked-border: color-mix(in srgb, var(--muted-foreground) 28%, transparent);
-
-  /* Teacher assignment detail — configuration row */
-  --pill-assignment-activity-type-bg: color-mix(in srgb, var(--color-glaucous-300) 18%, transparent);
-  --pill-assignment-activity-type-fg: var(--color-glaucous-800);
-  --pill-assignment-activity-type-border: color-mix(in srgb, var(--color-glaucous-500) 32%, transparent);
-
-  --pill-assignment-meta-bg: var(--muted);
-  --pill-assignment-meta-fg: var(--foreground);
-  --pill-assignment-meta-border: var(--border);
-
-  --pill-assignment-public-access-bg: color-mix(in srgb, var(--color-electric-aqua-500) 14%, transparent);
-  --pill-assignment-public-access-fg: var(--color-electric-aqua-900);
-  --pill-assignment-public-access-border: color-mix(in srgb, var(--color-electric-aqua-600) 35%, transparent);
 }
 
 /* Routes can opt out of the dark scheme entirely by setting
@@ -436,18 +423,6 @@ body {
     --pill-content-locked-bg: oklch(1 0 0 / 0.08);
     --pill-content-locked-fg: var(--muted-foreground);
     --pill-content-locked-border: oklch(1 0 0 / 0.18);
-
-    --pill-assignment-activity-type-bg: color-mix(in srgb, var(--color-glaucous-400) 28%, transparent);
-    --pill-assignment-activity-type-fg: var(--color-glaucous-100);
-    --pill-assignment-activity-type-border: color-mix(in srgb, var(--primary) 42%, transparent);
-
-    --pill-assignment-meta-bg: oklch(1 0 0 / 0.08);
-    --pill-assignment-meta-fg: var(--foreground);
-    --pill-assignment-meta-border: oklch(1 0 0 / 0.14);
-
-    --pill-assignment-public-access-bg: color-mix(in srgb, var(--color-electric-aqua-500) 22%, transparent);
-    --pill-assignment-public-access-fg: var(--color-electric-aqua-100);
-    --pill-assignment-public-access-border: color-mix(in srgb, var(--color-electric-aqua-400) 46%, transparent);
   }
 }
 
