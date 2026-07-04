@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,37 +46,6 @@ function clampScore(value: string, max: number): number {
   return Math.min(Math.max(parsed, 0), max);
 }
 
-function CompareToAI({ attempt }: { attempt: TeacherGradingAttempt }) {
-  const [open, setOpen] = useState(false);
-  if (attempt.ai_feedback == null && attempt.ai_score == null) return null;
-  return (
-    <div className="rounded-md border bg-muted/30 text-xs">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left text-muted-foreground"
-      >
-        <span>Compare to original AI evaluation</span>
-        <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <div className="space-y-2 px-3 pb-3">
-          {attempt.ai_score != null && (
-            <p className="font-medium">AI score: {attempt.ai_score}</p>
-          )}
-          {attempt.ai_feedback && (
-            <p className="whitespace-pre-wrap text-muted-foreground">
-              {attempt.ai_feedback}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function EditableAttemptGradingForm({
   attempt,
   value,
@@ -108,8 +76,6 @@ export function EditableAttemptGradingForm({
 
   return (
     <div className="space-y-5">
-      <CompareToAI attempt={attempt} />
-
       {hasRubric && (
         <section className="space-y-4">
           <div className="flex items-center justify-between gap-3">
