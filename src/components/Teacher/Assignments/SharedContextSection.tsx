@@ -61,12 +61,6 @@ export function SharedContextSection({
             rows={6}
             className="resize-y"
           />
-          <p className="text-xs text-muted-foreground">
-            In prompt templates use{" "}
-            <code className="text-xs bg-muted px-1 rounded">
-              {"{{context_for_ai}}"}
-            </code>
-          </p>
         </div>
       )}
     </SettingsCard>
