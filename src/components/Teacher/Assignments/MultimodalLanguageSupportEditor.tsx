@@ -23,6 +23,8 @@ interface MultimodalLanguageSupportEditorProps {
    */
   supportedLocales?: string[];
   disabled?: boolean;
+  /** View-mode display: the language dropdown skips the dimmed/disabled look. */
+  readOnly?: boolean;
 }
 
 const DEFAULT_SUPPORT_LANGUAGE = "hi";
@@ -32,6 +34,7 @@ export function MultimodalLanguageSupportEditor({
   onChange,
   supportedLocales,
   disabled,
+  readOnly = false,
 }: MultimodalLanguageSupportEditorProps) {
   const actions: MultimodalActionsConfig = config.multimodal_actions ?? {};
   const languageSupport: LanguageSupportConfig = actions.languageSupport ?? {};
@@ -87,6 +90,7 @@ export function MultimodalLanguageSupportEditor({
               options={languageOptions}
               placeholder="Select a language"
               disabled={disabled}
+              readOnly={readOnly}
               className="w-[220px]"
             />
           </div>

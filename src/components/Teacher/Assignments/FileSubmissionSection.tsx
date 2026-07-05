@@ -20,6 +20,8 @@ interface FileSubmissionSectionProps {
   fileInstructions: string;
   setFileInstructions: (instructions: string) => void;
   loading: boolean;
+  /** View-mode display: the instructions textarea skips the dimmed/disabled look. */
+  readOnly?: boolean;
 }
 
 export function FileSubmissionSection({
@@ -32,6 +34,7 @@ export function FileSubmissionSection({
   fileInstructions,
   setFileInstructions,
   loading,
+  readOnly = false,
 }: FileSubmissionSectionProps) {
   const isOnlySelectedPdf =
     fileAllowedTypes.length === 1 && fileAllowedTypes[0] === ".pdf";
@@ -117,6 +120,7 @@ export function FileSubmissionSection({
               value={fileInstructions}
               onChange={(e) => setFileInstructions(e.target.value)}
               disabled={loading}
+              readOnly={readOnly}
               placeholder="e.g., Upload your report as PDF, or your solution as a .py file..."
               rows={2}
             />

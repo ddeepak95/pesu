@@ -24,12 +24,15 @@ interface AssignmentIntegritySettingsProps {
   values: AssignmentIntegritySettingsValues;
   onChange: (next: AssignmentIntegritySettingsValues) => void;
   disabled?: boolean;
+  /** View-mode display: the dropdown/number field skip the dimmed/disabled look. */
+  readOnly?: boolean;
 }
 
 export function AssignmentIntegritySettings({
   values,
   onChange,
   disabled = false,
+  readOnly = false,
 }: AssignmentIntegritySettingsProps) {
   const setPolicy = (tabSwitchPolicy: TabSwitchPolicy) => {
     onChange({
@@ -79,7 +82,7 @@ export function AssignmentIntegritySettings({
             onValueChange={(v) => setPolicy(v as TabSwitchPolicy)}
             disabled={disabled}
           >
-            <SelectTrigger id="tabSwitchPolicy">
+            <SelectTrigger id="tabSwitchPolicy" readOnly={readOnly}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -107,6 +110,7 @@ export function AssignmentIntegritySettings({
                 }
               }}
               disabled={disabled}
+              readOnly={readOnly}
             />
           </div>
         )}

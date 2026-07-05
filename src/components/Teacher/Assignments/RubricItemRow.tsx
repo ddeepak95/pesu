@@ -36,7 +36,7 @@ export default function RubricItemRow({
           placeholder={itemPlaceholder}
           value={item.item}
           onChange={(e) => onChange(index, "item", e.target.value)}
-          disabled={disabled && !readOnly}
+          disabled={disabled}
           readOnly={readOnly}
         />
       </div>
@@ -46,7 +46,7 @@ export default function RubricItemRow({
           placeholder="Points"
           value={item.points || ""}
           onChange={(e) => onChange(index, "points", parseInt(e.target.value) || 0)}
-          disabled={disabled && !readOnly}
+          disabled={disabled}
           readOnly={readOnly}
           min={0}
         />

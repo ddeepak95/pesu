@@ -1292,7 +1292,7 @@ export default function AssignmentForm({
                 }}
                 disabled={effectiveDisabled}
               >
-                <SelectTrigger id="assessmentMode">
+                <SelectTrigger id="assessmentMode" readOnly={readOnly}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1354,6 +1354,7 @@ export default function AssignmentForm({
               setBotPromptConfig={setBotPromptConfig}
               supportedLocales={supportedLocales}
               loading={effectiveDisabled}
+              readOnly={readOnly}
               activityType={activityType}
             />
           </CollapsibleSection>
@@ -1363,6 +1364,7 @@ export default function AssignmentForm({
             setSharedContextEnabled={setSharedContextEnabled}
             sharedContext={sharedContext}
             setSharedContext={setSharedContext}
+            readOnly={readOnly}
             loading={effectiveDisabled}
           />
 

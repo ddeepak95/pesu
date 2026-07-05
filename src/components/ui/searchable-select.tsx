@@ -23,6 +23,8 @@ export interface SearchableSelectProps {
   options: string[] | { value: string; label: string }[]
   placeholder?: string
   disabled?: boolean
+  /** View-mode display: kept `disabled` but skips the dimmed/greyed-out look so the selected value stays legible. */
+  readOnly?: boolean
   id?: string
   className?: string
 }
@@ -33,6 +35,7 @@ export function SearchableSelect({
   options,
   placeholder = "Select...",
   disabled = false,
+  readOnly = false,
   id,
   className,
 }: SearchableSelectProps) {
@@ -59,9 +62,10 @@ export function SearchableSelect({
           aria-expanded={open}
           aria-controls={listboxId}
           aria-haspopup="listbox"
-          disabled={disabled}
+          disabled={disabled || readOnly}
           className={cn(
             "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+            readOnly && "disabled:cursor-default disabled:opacity-100",
             !value && "text-muted-foreground",
             className
           )}

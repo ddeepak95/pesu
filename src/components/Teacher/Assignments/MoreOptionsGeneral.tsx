@@ -6,6 +6,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/ui/settings-card";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -113,6 +114,7 @@ export function MoreOptionsGeneral({
         fileInstructions={fileInstructions}
         setFileInstructions={setFileInstructions}
         loading={effectiveDisabled}
+        readOnly={readOnly}
       />
 
       {/* Attempts & Completion */}
@@ -134,6 +136,7 @@ export function MoreOptionsGeneral({
               }
             }}
             disabled={effectiveDisabled}
+            readOnly={readOnly}
             placeholder="3"
           />
         </div>
@@ -250,6 +253,7 @@ export function MoreOptionsGeneral({
                 value={starScale}
                 onChange={(e) => setStarScale(parseInt(e.target.value) || 5)}
                 disabled={effectiveDisabled}
+                readOnly={readOnly}
                 className="w-32"
               />
             </div>
@@ -325,9 +329,9 @@ export function MoreOptionsGeneral({
                 htmlFor="feedbackRequiresApproval"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
-                Require teacher approval before showing feedback
+                Require teacher review before releasing final grades
               </Label>
-              <InfoTooltip text="When enabled, AI-generated feedback is held for your review. You can edit and approve it before students can see it." />
+              <InfoTooltip text="When enabled, grades stay tentative — students see the AI score and feedback right away, but it isn't final until you review and release it." />
             </div>
           </div>
 
@@ -344,7 +348,7 @@ export function MoreOptionsGeneral({
                 }
                 disabled={effectiveDisabled}
               >
-                <SelectTrigger>
+                <SelectTrigger readOnly={readOnly}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -367,38 +371,40 @@ export function MoreOptionsGeneral({
         values={integritySettings}
         onChange={setIntegritySettings}
         disabled={effectiveDisabled}
+        readOnly={readOnly}
       />
 
       {/* Public Access Toggle */}
-      <SettingsCard className="flex items-center space-x-2">
-        <Checkbox
-          id="isPublic"
-          checked={isPublic}
-          onCheckedChange={(checked) => setIsPublic(checked === true)}
-          disabled={effectiveDisabled}
-        />
-        <div className="flex items-center gap-1.5">
-          <Label
-            htmlFor="isPublic"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-          >
-            Make this assignment publicly accessible
-          </Label>
-          <InfoTooltip text="Anyone with the link can view and complete this assignment without logging in." />
-        </div>
-      </SettingsCard>
-
-      {/* Responder Fields Configuration (only for public assignments) */}
-      {isPublic && (
-        <SettingsCard className="space-y-4">
-          <div className="space-y-2">
-            <Label>Responder Information Fields</Label>
-            <p className="text-sm text-muted-foreground">
-              Configure what information to collect from public responders
-            </p>
+      <SettingsCard className="space-y-4">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="isPublic"
+            checked={isPublic}
+            onCheckedChange={(checked) => setIsPublic(checked === true)}
+            disabled={effectiveDisabled}
+          />
+          <div className="flex items-center gap-1.5">
+            <Label
+              htmlFor="isPublic"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Make this assignment publicly accessible
+            </Label>
+            <InfoTooltip text="Anyone with the link can view and complete this assignment without logging in." />
           </div>
+        </div>
 
-          {responderFieldsConfig.map((field, index) => (
+        {/* Responder Fields Configuration (only for public assignments) */}
+        {isPublic && (
+          <div className="space-y-4 pt-4 border-t">
+            <div className="space-y-2">
+              <Label>Responder Information Fields</Label>
+              <p className="text-sm text-muted-foreground">
+                Configure what information to collect from public responders
+              </p>
+            </div>
+
+            {responderFieldsConfig.map((field, index) => (
             <div key={index} className="p-4 border rounded-md space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">
@@ -435,6 +441,7 @@ export function MoreOptionsGeneral({
                     }}
                     placeholder="e.g., Full Name"
                     disabled={effectiveDisabled}
+                    readOnly={readOnly}
                   />
                 </div>
 
@@ -453,7 +460,7 @@ export function MoreOptionsGeneral({
                     }}
                     disabled={effectiveDisabled}
                   >
-                    <SelectTrigger id={`field-${index}-type`}>
+                    <SelectTrigger id={`field-${index}-type`} readOnly={readOnly}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -468,71 +475,9 @@ export function MoreOptionsGeneral({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor={`field-${index}-field`}>
-                  Field Identifier
-                </Label>
-                <Input
-                  id={`field-${index}-field`}
-                  value={field.field}
-                  onChange={(e) => {
-                    const newFields = [...responderFieldsConfig];
-                    newFields[index].field = e.target.value;
-                    setResponderFieldsConfig(newFields);
-                  }}
-                  placeholder="e.g., name, email, organization"
-                  disabled={effectiveDisabled}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Unique identifier for this field (used in data storage)
-                </p>
-              </div>
-
-              {field.type === "select" && (
-                <div className="space-y-2">
-                  <Label htmlFor={`field-${index}-options`}>
-                    Options (one per line)
-                  </Label>
-                  <textarea
-                    id={`field-${index}-options`}
-                    className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md"
-                    value={field.options?.join("\n") || ""}
-                    onChange={(e) => {
-                      const newFields = [...responderFieldsConfig];
-                      newFields[index].options = e.target.value
-                        .split("\n")
-                        .map((line) => line.trim())
-                        .filter((line) => line.length > 0);
-                      setResponderFieldsConfig(newFields);
-                    }}
-                    placeholder="Option 1&#10;Option 2&#10;Option 3"
-                    disabled={effectiveDisabled}
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`field-${index}-required`}
-                    checked={field.required}
-                    onCheckedChange={(checked) => {
-                      const newFields = [...responderFieldsConfig];
-                      newFields[index].required = checked === true;
-                      setResponderFieldsConfig(newFields);
-                    }}
-                    disabled={effectiveDisabled}
-                  />
-                  <Label
-                    htmlFor={`field-${index}-required`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    Required field
-                  </Label>
-                </div>
-
+              <div className="grid grid-cols-2 gap-4">
                 {field.type !== "select" && (
-                  <div className="flex-1 space-y-2">
+                  <div className="space-y-2">
                     <Label htmlFor={`field-${index}-placeholder`}>
                       Placeholder
                     </Label>
@@ -546,9 +491,73 @@ export function MoreOptionsGeneral({
                       }}
                       placeholder="Optional placeholder text"
                       disabled={effectiveDisabled}
+                      readOnly={readOnly}
                     />
                   </div>
                 )}
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor={`field-${index}-field`}>
+                      Field Identifier
+                    </Label>
+                    <InfoTooltip text="Unique identifier for this field (used in data storage)." />
+                  </div>
+                  <Input
+                    id={`field-${index}-field`}
+                    value={field.field}
+                    onChange={(e) => {
+                      const newFields = [...responderFieldsConfig];
+                      newFields[index].field = e.target.value;
+                      setResponderFieldsConfig(newFields);
+                    }}
+                    placeholder="e.g., name, email, organization"
+                    disabled={effectiveDisabled}
+                    readOnly={readOnly}
+                  />
+                </div>
+              </div>
+
+              {field.type === "select" && (
+                <div className="space-y-2">
+                  <Label htmlFor={`field-${index}-options`}>
+                    Options (one per line)
+                  </Label>
+                  <Textarea
+                    id={`field-${index}-options`}
+                    value={field.options?.join("\n") || ""}
+                    onChange={(e) => {
+                      const newFields = [...responderFieldsConfig];
+                      newFields[index].options = e.target.value
+                        .split("\n")
+                        .map((line) => line.trim())
+                        .filter((line) => line.length > 0);
+                      setResponderFieldsConfig(newFields);
+                    }}
+                    placeholder="Option 1&#10;Option 2&#10;Option 3"
+                    disabled={effectiveDisabled}
+                    readOnly={readOnly}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id={`field-${index}-required`}
+                  checked={field.required}
+                  onCheckedChange={(checked) => {
+                    const newFields = [...responderFieldsConfig];
+                    newFields[index].required = checked === true;
+                    setResponderFieldsConfig(newFields);
+                  }}
+                  disabled={effectiveDisabled}
+                />
+                <Label
+                  htmlFor={`field-${index}-required`}
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Required field
+                </Label>
               </div>
             </div>
           ))}
@@ -573,8 +582,9 @@ export function MoreOptionsGeneral({
               Add Field
             </Button>
           )}
-        </SettingsCard>
-      )}
+          </div>
+        )}
+      </SettingsCard>
     </div>
   );
 }

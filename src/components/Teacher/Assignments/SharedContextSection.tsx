@@ -12,6 +12,8 @@ interface SharedContextSectionProps {
   sharedContext: string;
   setSharedContext: (context: string) => void;
   loading: boolean;
+  /** View-mode display: the context textarea skips the dimmed/disabled look. */
+  readOnly?: boolean;
 }
 
 export function SharedContextSection({
@@ -20,6 +22,7 @@ export function SharedContextSection({
   sharedContext,
   setSharedContext,
   loading,
+  readOnly = false,
 }: SharedContextSectionProps) {
   return (
     <SettingsCard className="space-y-3">
@@ -53,6 +56,7 @@ export function SharedContextSection({
             value={sharedContext}
             onChange={(e) => setSharedContext(e.target.value)}
             disabled={loading}
+            readOnly={readOnly}
             placeholder="Enter additional context, case study, passage, or scenario..."
             rows={6}
             className="resize-y"

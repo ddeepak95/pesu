@@ -25,6 +25,8 @@ interface AssignmentLanguageSectionProps {
   setBotPromptConfig: (config: BotPromptConfig) => void;
   supportedLocales?: string[];
   loading: boolean;
+  /** View-mode display: dropdowns skip the dimmed/disabled look (still non-interactive). */
+  readOnly?: boolean;
   activityType?: ActivityTypeKind;
 }
 
@@ -43,6 +45,7 @@ export function AssignmentLanguageSection({
   setBotPromptConfig,
   supportedLocales,
   loading,
+  readOnly = false,
   activityType,
 }: AssignmentLanguageSectionProps) {
   const isSpeakingPractice = activityType === "speaking_practice";
@@ -71,7 +74,11 @@ export function AssignmentLanguageSection({
             onValueChange={setPreferredLanguage}
             disabled={loading}
           >
-            <SelectTrigger id="preferredLanguage" className="w-[220px]">
+            <SelectTrigger
+              id="preferredLanguage"
+              className="w-[220px]"
+              readOnly={readOnly}
+            >
               <SelectValue placeholder="Select a language" />
             </SelectTrigger>
             <SelectContent>
@@ -110,6 +117,7 @@ export function AssignmentLanguageSection({
           onChange={setBotPromptConfig}
           supportedLocales={supportedLocales}
           disabled={loading}
+          readOnly={readOnly}
         />
       </SettingsCard>
     </div>
