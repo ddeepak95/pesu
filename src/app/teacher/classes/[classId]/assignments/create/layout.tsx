@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Create Assignment",
+  title: "Create Activity",
 };
 
 export default function CreateAssignmentLayout({

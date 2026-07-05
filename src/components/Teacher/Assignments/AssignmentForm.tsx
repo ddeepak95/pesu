@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
+import SelectActivityTemplateDialog, {
+  type TemplatePickerItem,
+} from "@/components/Teacher/Assignments/SelectActivityTemplateDialog";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
 import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
 import { AssignmentLanguageSection } from "@/components/Teacher/Assignments/AssignmentLanguageSection";
@@ -361,15 +364,43 @@ export default function AssignmentForm({
     !!classDbId && templatesLoaded && availableTemplates.length > 0;
   const showNoActivityTypes =
     !!classDbId && templatesLoaded && availableTemplates.length === 0;
-  // Ensure the current selection is always an option, even if it's been removed
-  // from the palette or archived since this assignment was created.
-  const templateOptions = useMemo(() => {
-    const opts = availableTemplates.map((t) => ({ id: t.id, name: t.name }));
-    if (activityTemplateId && !opts.some((o) => o.id === activityTemplateId)) {
-      opts.unshift({ id: activityTemplateId, name: "Current template" });
+  // Items rendered in the template picker dialog. When the class palette is
+  // available, these are the class's templates (with descriptions); otherwise
+  // fall back to the built-in activity-type kinds. Ensures the current
+  // selection is always present, even if it's been removed from the palette
+  // or archived since this assignment was created.
+  const templateDialogItems = useMemo<TemplatePickerItem[]>(() => {
+    if (useTemplatePicker) {
+      const opts = availableTemplates.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        isCurrent: t.id === activityTemplateId,
+      }));
+      if (activityTemplateId && !opts.some((o) => o.id === activityTemplateId)) {
+        opts.unshift({
+          id: activityTemplateId,
+          name: "Current template",
+          description: null,
+          isCurrent: true,
+        });
+      }
+      return opts;
     }
-    return opts;
-  }, [availableTemplates, activityTemplateId]);
+    return listActivityTypes().map((def) => ({
+      id: def.kind,
+      name: def.label,
+      description: null,
+      isCurrent: def.kind === activityType,
+    }));
+  }, [useTemplatePicker, availableTemplates, activityTemplateId, activityType]);
+
+  const currentTemplateItem = useMemo(
+    () => templateDialogItems.find((i) => i.isCurrent) ?? null,
+    [templateDialogItems],
+  );
+
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
 
   // In create mode, seed multimodal bot configs from the class language defaults
   // (support enabled/default/lock). No-op in edit mode — the saved assignment
@@ -904,6 +935,15 @@ export default function AssignmentForm({
     }
   };
 
+  /** Route a picker-dialog selection to the template or built-in-kind path. */
+  const handleSelectTemplateItem = (id: string) => {
+    if (useTemplatePicker) {
+      handleTemplateChange(id);
+    } else {
+      handleActivityTypeChange(id);
+    }
+  };
+
   /**
    * Run full client-side validation. Returns an error message (also stored in
    * `error`) when invalid, or null when the form is good to save. Shared by
@@ -1187,24 +1227,7 @@ export default function AssignmentForm({
               <Label htmlFor="activityType">
                 Activity Type <span className="text-destructive">*</span>
               </Label>
-              {useTemplatePicker ? (
-                <Select
-                  value={activityTemplateId ?? ""}
-                  onValueChange={handleTemplateChange}
-                  disabled={effectiveDisabled}
-                >
-                  <SelectTrigger id="activityType">
-                    <SelectValue placeholder="Choose a template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templateOptions.map((opt) => (
-                      <SelectItem key={opt.id} value={opt.id}>
-                        {opt.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : showNoActivityTypes ? (
+              {showNoActivityTypes ? (
                 <div className="rounded-md border border-dashed bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
                   No activity types are enabled for this class.{" "}
                   <Link
@@ -1216,36 +1239,26 @@ export default function AssignmentForm({
                   .
                 </div>
               ) : (
-                <Select
-                  value={activityType}
-                  onValueChange={handleActivityTypeChange}
-                  disabled={effectiveDisabled}
-                >
-                  <SelectTrigger id="activityType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {listActivityTypes().map((def) => (
-                      <SelectItem key={def.kind} value={def.kind}>
-                        {def.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {mode === "edit" && isUpdateAvailable && (
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                    Update available
-                  </span>
-                  <button
+                <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      {currentTemplateItem?.name ?? "Select a template"}
+                    </div>
+                    {currentTemplateItem?.description && (
+                      <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                        {currentTemplateItem.description}
+                      </p>
+                    )}
+                  </div>
+                  <Button
                     type="button"
-                    onClick={handleUpdateFromTemplate}
-                    disabled={loading}
-                    className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTemplateDialogOpen(true)}
+                    disabled={effectiveDisabled}
                   >
-                    Apply Updates Now
-                  </button>
+                    Select
+                  </Button>
                 </div>
               )}
             </div>
@@ -1475,6 +1488,16 @@ export default function AssignmentForm({
           onExit={() => setPreviewOpen(false)}
         />
       )}
+
+      <SelectActivityTemplateDialog
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+        items={templateDialogItems}
+        onSelect={handleSelectTemplateItem}
+        updateAvailable={mode === "edit" && isUpdateAvailable}
+        onApplyUpdate={handleUpdateFromTemplate}
+        createHref={`/teacher/classes/${classId}/settings/activity-templates/new`}
+      />
     </>
   );
 }

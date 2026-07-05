@@ -251,7 +251,7 @@ export default function CreateAssignmentPage() {
         <div className="mb-4">
           <BackButton />
         </div>
-        <h1 className="text-3xl font-bold mb-8">Create Learning Assignment</h1>
+        <h1 className="text-3xl font-bold mb-8">Create Activity</h1>
         <AssignmentForm
           mode="create"
           classId={classId}

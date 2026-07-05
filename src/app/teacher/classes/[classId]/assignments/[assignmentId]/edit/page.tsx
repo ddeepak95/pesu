@@ -257,7 +257,7 @@ export default function EditAssignmentPage() {
         <div className="mb-4">
           <BackButton />
         </div>
-        <h1 className="text-3xl font-bold mb-8">Edit Assignment</h1>
+        <h1 className="text-3xl font-bold mb-8">Edit Activity</h1>
         <AssignmentForm
           mode="edit"
           classId={classId}
