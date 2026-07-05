@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SettingsCard } from "@/components/ui/settings-card";
 import {
   Select,
   SelectContent,
@@ -1181,7 +1182,10 @@ export default function AssignmentForm({
           </TabsList>
         )}
 
-        <TabsContent value="content" className="space-y-6 pt-6">
+        <TabsContent
+          value="content"
+          className={`space-y-6 ${mode === "view" ? "" : "pt-6"}`}
+        >
           {mode !== "view" && (
             <>
           {/* Assignment Title */}
@@ -1222,7 +1226,7 @@ export default function AssignmentForm({
           )}
 
           {/* Activity Type & Interaction Type (side by side) */}
-          <div className="grid grid-cols-2 gap-4">
+          <SettingsCard className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="activityType">
                 Activity Type <span className="text-destructive">*</span>
@@ -1239,7 +1243,7 @@ export default function AssignmentForm({
                   .
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">
                       {currentTemplateItem?.name ?? "Select a template"}
@@ -1250,15 +1254,17 @@ export default function AssignmentForm({
                       </p>
                     )}
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setTemplateDialogOpen(true)}
-                    disabled={effectiveDisabled}
-                  >
-                    Select
-                  </Button>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTemplateDialogOpen(true)}
+                      disabled={effectiveDisabled}
+                    >
+                      Select
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -1335,7 +1341,7 @@ export default function AssignmentForm({
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </SettingsCard>
 
           {/* Language (primary + support) */}
           <CollapsibleSection title="Language" disabled={loading}>
@@ -1412,7 +1418,10 @@ export default function AssignmentForm({
           )}
         </TabsContent>
 
-        <TabsContent value="settings" className="pt-6">
+        <TabsContent
+          value="settings"
+          className={mode === "view" ? "" : "pt-6"}
+        >
           <MoreOptionsGeneral
             maxAttempts={maxAttempts}
             setMaxAttempts={setMaxAttempts}

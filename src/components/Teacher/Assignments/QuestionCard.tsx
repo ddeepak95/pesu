@@ -365,7 +365,8 @@ export default function QuestionCard({
               isNaN(value) ? 0 : Math.max(0, value),
             );
           }}
-          disabled={disabled}
+          disabled={disabled && !readOnly}
+          readOnly={readOnly}
           min={0}
           className="w-32"
         />
@@ -405,7 +406,8 @@ export default function QuestionCard({
               ? onChange(index, "question_focus", e.target.value)
               : onChange(index, "prompt", e.target.value)
           }
-          disabled={disabled}
+          disabled={disabled && !readOnly}
+          readOnly={readOnly}
           placeholder={
             dynamicPrompt
               ? "Describe what the generated question should cover (guidelines for the AI)"
@@ -578,6 +580,7 @@ export default function QuestionCard({
                 onRemove={(rubricIdx) => onRemoveRubricItem(index, rubricIdx)}
                 disabled={disabled}
                 hideRemove={readOnly}
+                readOnly={readOnly}
                 itemPlaceholder={labels.rubricItemPlaceholder}
               />
             ))}
@@ -631,7 +634,8 @@ export default function QuestionCard({
             id={`expectedAnswer-${index}`}
             value={question.expected_answer || ""}
             onChange={(e) => onChange(index, "expected_answer", e.target.value)}
-            disabled={disabled}
+            disabled={disabled && !readOnly}
+            readOnly={readOnly}
             placeholder={labels.expectedAnswerPlaceholder}
             rows={4}
           />

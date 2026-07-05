@@ -7,6 +7,8 @@ import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { SettingsCard } from "@/components/ui/settings-card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -370,13 +372,6 @@ export default function AssignmentDetailClient({
             </DropdownMenu>
           </div>
 
-          {/* Instructions for Students */}
-          {assignmentData.student_instructions && (
-            <div className="mb-4">
-              <MarkdownContent content={assignmentData.student_instructions} />
-            </div>
-          )}
-
           {/* Assignment Configuration */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
             {/* Points */}
@@ -418,7 +413,14 @@ export default function AssignmentDetailClient({
               </MutedPrimaryTabsTrigger>
             </MutedPrimaryTabsList>
 
-            <TabsContent value="questions" className="space-y-4">
+            <TabsContent value="questions" className="space-y-6">
+              {/* Instructions for Students */}
+              {assignmentData.student_instructions && (
+                <SettingsCard className="space-y-2">
+                  <Label>Instructions</Label>
+                  <MarkdownContent content={assignmentData.student_instructions} />
+                </SettingsCard>
+              )}
               <AssignmentForm
                 mode="view"
                 viewSection="content"

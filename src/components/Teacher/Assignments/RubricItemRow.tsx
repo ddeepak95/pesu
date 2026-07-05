@@ -13,6 +13,8 @@ interface RubricItemRowProps {
   disabled?: boolean;
   /** Hides the remove button entirely (view mode) rather than just disabling it. */
   hideRemove?: boolean;
+  /** View mode: fields render read-only (full-contrast text) instead of disabled/greyed. */
+  readOnly?: boolean;
   /** Placeholder for the item text input (varies by activity type). */
   itemPlaceholder?: string;
 }
@@ -24,6 +26,7 @@ export default function RubricItemRow({
   onRemove,
   disabled = false,
   hideRemove = false,
+  readOnly = false,
   itemPlaceholder = "Rubric item description",
 }: RubricItemRowProps) {
   return (
@@ -33,7 +36,8 @@ export default function RubricItemRow({
           placeholder={itemPlaceholder}
           value={item.item}
           onChange={(e) => onChange(index, "item", e.target.value)}
-          disabled={disabled}
+          disabled={disabled && !readOnly}
+          readOnly={readOnly}
         />
       </div>
       <div className="w-32">
@@ -42,7 +46,8 @@ export default function RubricItemRow({
           placeholder="Points"
           value={item.points || ""}
           onChange={(e) => onChange(index, "points", parseInt(e.target.value) || 0)}
-          disabled={disabled}
+          disabled={disabled && !readOnly}
+          readOnly={readOnly}
           min={0}
         />
       </div>
