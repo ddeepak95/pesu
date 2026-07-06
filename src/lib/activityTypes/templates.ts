@@ -93,6 +93,16 @@ const defaultsSchema = z.object({
     .object({
       languageSupportEnabled: z.boolean().optional(),
       availableActions: z.array(actionKindSchema).optional(),
+      interactionConfig: z
+        .object({
+          input: z
+            .object({
+              audioDelivery: z.enum(["transcribe", "direct"]).optional(),
+            })
+            .optional(),
+          output: z.object({}).optional(),
+        })
+        .optional(),
     })
     .optional(),
 });

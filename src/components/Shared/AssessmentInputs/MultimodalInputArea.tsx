@@ -36,6 +36,8 @@ import { useEndConversationFinish } from "./useEndConversationFinish";
 import type { AssessmentInputProps } from "./types";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 import { AI_NOT_CONFIGURED_ERROR_CODE } from "@/lib/ai/credentials/constants";
+import { MULTIMODAL_ERROR_CODES } from "@/lib/multimodal/errorCodes";
+import { DIRECT_AUDIO_INPUT_MAX_BYTES } from "@/lib/multimodal/turnConfig";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -75,6 +77,7 @@ type MultimodalTurnEvent =
   | { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
   | { type: "action_error"; id: string; kind: ActionKind; error?: string }
   | { type: "user_transcript"; text: string }
+  | { type: "user_transcript_empty" }
   | { type: "done" }
   | { type: "error"; error?: string; message?: string };
 
@@ -114,6 +117,16 @@ function decodeBase64ToBytes(base64: string): Uint8Array {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary);
 }
 
 async function* parseMultimodalTurnStream(
@@ -228,6 +241,13 @@ export function MultimodalInputArea({
     supportLanguage !== language;
 
   const transliterationEnabled = supportEnabled;
+
+  // Direct audio input: send the learner's raw utterance straight to the chat
+  // model, bypassing the /transcribe round trip. See
+  // dev-docs/multimodal-interaction-config-plan.md.
+  const directAudioInputEnabled =
+    (botPromptConfig?.multimodal_interaction?.input?.audioDelivery ?? "transcribe") ===
+    "direct";
 
   const recorder = useAudioRecorder();
   const playback = useStreamingSpeechPlayback();
@@ -568,7 +588,12 @@ export function MultimodalInputArea({
   const runAssistantTurn = React.useCallback(
     async (
       history: ChatMessage[],
-      opts?: { availableActionsOverride?: ActionKind[]; noSpeech?: boolean },
+      opts?: {
+        availableActionsOverride?: ActionKind[];
+        noSpeech?: boolean;
+        /** Direct-audio-input mode: the learner's raw utterance, sent inline instead of transcribed text. */
+        latestUserAudio?: { base64: string; mimeType: string };
+      },
     ) => {
       const turnId = ++assistantTurnSeqRef.current;
       setIsAssistantTurnActive(true);
@@ -653,6 +678,7 @@ export function MultimodalInputArea({
             ...(latestTranscriptCandidates
               ? { latestTranscriptCandidates }
               : {}),
+            ...(opts?.latestUserAudio ? { latestUserAudio: opts.latestUserAudio } : {}),
             availableActions: (() => {
               if (opts?.availableActionsOverride) return opts.availableActionsOverride;
               const auto = resolveAutoActions(activityDefinitionSnapshot, activityType);
@@ -684,6 +710,15 @@ export function MultimodalInputArea({
             throw new Error(
               errorData.error ||
                 "AI capabilities are disabled for this class. Please contact your instructor.",
+            );
+          }
+          if (
+            response.status === 409 &&
+            errorData.code === MULTIMODAL_ERROR_CODES.AUDIO_INPUT_CAPABILITY_MISMATCH
+          ) {
+            throw new Error(
+              errorData.error ||
+                "This activity's AI configuration no longer supports direct audio input to the model. Please contact your administrator.",
             );
           }
           throw new Error(errorData.error || "Failed to stream assistant turn");
@@ -742,27 +777,21 @@ export function MultimodalInputArea({
               return next;
             });
           } else if (event.type === "user_transcript") {
-            // The LLM chose the coherent transcript. Update the pending student
+            // The LLM resolved the canonical transcript — either its pick
+            // between two dual-STT readings, or (direct-audio mode) its own
+            // transcription of the raw audio. Update the pending student
             // bubble and persist the deferred audio.
             const chosenText = event.text;
             setMessages((prev) =>
               prev.map((m) => {
-                if (
-                  m.role === "student" &&
-                  m.transcriptCandidates?.length &&
-                  m.status === "transcribing"
-                ) {
+                if (m.role === "student" && m.status === "transcribing") {
                   return { ...m, content: chosenText, transcriptCandidates: undefined, status: undefined };
                 }
                 return m;
               }),
             );
             messagesRef.current = messagesRef.current.map((m) => {
-              if (
-                m.role === "student" &&
-                m.transcriptCandidates?.length &&
-                m.status === "transcribing"
-              ) {
+              if (m.role === "student" && m.status === "transcribing") {
                 return { ...m, content: chosenText, transcriptCandidates: undefined, status: undefined };
               }
               return m;
@@ -779,6 +808,22 @@ export function MultimodalInputArea({
               });
               deferredStudentAudioRef.current.delete(msgId);
             }
+          } else if (event.type === "user_transcript_empty") {
+            // Direct-audio mode: the model detected no speech in the audio.
+            // Discard the pending bubble and any queued audio upload —
+            // mirrors the pre-flight "No speech detected" 422 the /transcribe
+            // path already handles before ever calling this route.
+            setMessages((prev) => {
+              const next = prev.filter(
+                (m) => !(m.role === "student" && m.status === "transcribing"),
+              );
+              messagesRef.current = next;
+              return next;
+            });
+            deferredStudentAudioRef.current.clear();
+            showWarningToast(
+              "No speech detected. Try speaking louder and closer to the mic.",
+            );
           } else if (event.type === "speech_start") {
             if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
               sampleRate = event.sampleRate;
@@ -1300,6 +1345,74 @@ export function MultimodalInputArea({
         );
         return;
       }
+
+      if (directAudioInputEnabled) {
+        setIsTranscribing(true);
+        try {
+          // Send the browser's native compressed recording straight to the model
+          // — no WAV conversion for this path. A spike confirmed Gemini accepts
+          // the recorder's real output (webm/opus, ogg/opus, mp4/aac, with their
+          // exact codec parameters) with 100% transcript accuracy, at roughly
+          // 6-9% of uncompressed WAV's size — a much bigger win than downsampling
+          // WAV would have been, and it needs no new client-side conversion step.
+          // (Archival persistence below still uses a separate WAV conversion —
+          // that's an unrelated, already-working pipeline this doesn't touch.)
+          const audioMimeType = recorded.type || "audio/webm";
+
+          // Client-side pre-flight cap (dev-docs/multimodal-interaction-config-plan.md
+          // §7.2) — reject oversized recordings before sending rather than let the
+          // provider's inline-request size limit fail the turn. Compressed audio
+          // makes this cap extremely unlikely to trigger in practice; it's a
+          // defensive backstop, not a normal-case limiter.
+          if (recorded.size > DIRECT_AUDIO_INPUT_MAX_BYTES) {
+            showWarningToast(
+              "Recording too long for direct audio input. Please record a shorter message.",
+            );
+            return;
+          }
+
+          const pendingMessageId = crypto.randomUUID();
+          const pendingStudentMessage: ChatMessage = {
+            id: pendingMessageId,
+            role: "student",
+            content: "Processing...",
+            status: "transcribing",
+          };
+          setMessages((prev) => [...prev, pendingStudentMessage]);
+          const historyWithPending = [
+            ...messagesRef.current,
+            pendingStudentMessage,
+          ];
+          messagesRef.current = historyWithPending;
+
+          const base64Audio = await blobToBase64(recorded);
+          userOrdinalRef.current += 1;
+
+          // Defer audio persistence until the turn's `user_transcript` SSE event
+          // confirms the chat_messages row exists — same FK-ordering rule the
+          // transcribe path below follows. Persistence still converts to WAV
+          // (unrelated to what's sent to the model, see persistUtteranceAudio).
+          const wavBlobForArchive = await tryConvertToWavBlob(recorded);
+          deferredStudentAudioRef.current.set(pendingMessageId, wavBlobForArchive);
+
+          setIsTranscribing(false);
+          await runAssistantTurn(historyWithPending, {
+            latestUserAudio: { base64: base64Audio, mimeType: audioMimeType },
+          });
+        } catch (sendError) {
+          setMessages((prev) => prev.filter((m) => m.status !== "transcribing"));
+          const message =
+            sendError instanceof Error
+              ? sendError.message
+              : "Failed to process audio";
+          setError(message);
+          showErrorToast(message);
+        } finally {
+          setIsTranscribing(false);
+        }
+        return;
+      }
+
       setIsTranscribing(true);
       try {
         const wavBlob = await tryConvertToWavBlob(recorded);
@@ -1424,6 +1537,7 @@ export function MultimodalInputArea({
     language,
     supportEnabled,
     supportLanguage,
+    directAudioInputEnabled,
   ]);
 
   return (

@@ -64,10 +64,28 @@ export interface ActivityTypeGeneration {
 export interface ActivityTypeDefaults {
   /** Interaction type to switch to (applied only if the class allows it). */
   interactionType?: ActivityInteractionType;
-  /** Multimodal-only preselection merged into bot_prompt_config.multimodal_actions. */
+  /**
+   * Multimodal-only preselection merged into bot_prompt_config.multimodal_actions
+   * (languageSupportEnabled/availableActions) and bot_prompt_config.multimodal_interaction
+   * (interactionConfig).
+   */
   multimodal?: {
     languageSupportEnabled?: boolean;
     availableActions?: ActionKind[];
+    /**
+     * Mirrors MultimodalInteractionConfig's own input/output shape (see
+     * lib/multimodal/turnConfig.ts) so this preselection stays structurally
+     * parallel to the runtime config it seeds — future interaction-level
+     * defaults (e.g. a speech-output mode) slot into `output` without another
+     * reshape.
+     */
+    interactionConfig?: {
+      input?: {
+        /** Preselects "direct audio input" (bypasses transcription) when the class's model supports it. */
+        audioDelivery?: "transcribe" | "direct";
+      };
+      output?: Record<string, never>;
+    };
   };
   /** Display-setting presets applied when this activity type is chosen. */
   display?: {

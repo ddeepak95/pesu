@@ -122,8 +122,11 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
     providerId: "google",
     label: "Gemini 3 Flash Preview",
     modelClass: "foundation",
-    tasks: ["text_generation"],
-    io: { inputs: ["text"], outputs: ["text"] },
+    // audio_input: accepts an inline audio file part on the same
+    // chat_completions/streamObject surface as text.chat_tutoring — distinct
+    // from realtime_dialogue (gemini-live-preview's separate Live API surface).
+    tasks: ["text_generation", "audio_input"],
+    io: { inputs: ["text", "audio"], outputs: ["text"] },
     status: "available",
     apiSurface: "chat_completions",
     reasoningCapabilities: {

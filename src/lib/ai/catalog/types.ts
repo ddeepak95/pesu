@@ -6,7 +6,8 @@ export type ModelTask =
   | "text_generation"
   | "speech_to_text"
   | "text_to_speech"
-  | "realtime_dialogue";
+  | "realtime_dialogue"
+  | "audio_input";
 
 export type Modality = "text" | "image" | "video" | "audio";
 

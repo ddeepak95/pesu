@@ -1,5 +1,8 @@
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
-import type { MultimodalActionsConfig } from "@/lib/multimodal/turnConfig";
+import type {
+  MultimodalActionsConfig,
+  MultimodalInteractionConfig,
+} from "@/lib/multimodal/turnConfig";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import type { TemplateDefinition } from "@/lib/activityTypes/templates";
 import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
@@ -205,6 +208,11 @@ export interface BotPromptConfig {
    * to end the conversation. Only consulted in multimodal assessment mode.
    */
   multimodal_actions?: MultimodalActionsConfig;
+  /**
+   * Multimodal-only: how audio flows in/out of the conversation (e.g. direct
+   * audio input vs. transcribe-first). Only consulted in multimodal mode.
+   */
+  multimodal_interaction?: MultimodalInteractionConfig;
 }
 
 export interface Assignment {

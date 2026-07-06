@@ -9,6 +9,7 @@ import {
   IdCard,
   Lightbulb,
   MessageSquare,
+  Settings,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { FeedbackFocusEditor } from "@/components/Teacher/Assignments/FeedbackFocusEditor";
 import { PromptPreview } from "@/components/Teacher/Assignments/PromptPreview";
+import { InteractionSettingDialog } from "@/components/Teacher/Assignments/InteractionSettingDialog";
 import { fromEditorDefinition } from "@/components/Teacher/Templates/adapters";
 import { listImplementedActions } from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
@@ -360,6 +362,8 @@ export function TemplateEditor({
   );
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [showPromptPreview, setShowPromptPreview] = useState(false);
+  const [showInteractionSettingDialog, setShowInteractionSettingDialog] =
+    useState(false);
 
   const patch = (next: Partial<MockTemplate>) =>
     setDraft((d) => ({ ...d, ...next }));
@@ -541,34 +545,49 @@ export function TemplateEditor({
               Interaction type
               <InfoTooltip text="Preselected interaction mode (applied only if the class allows it)." />
             </span>
-            <Select
-              value={def.defaults.interactionType}
-              onValueChange={(v) =>
-                patchDef({
-                  defaults: {
-                    ...def.defaults,
-                    interactionType:
-                      v as TemplateDefinition["defaults"]["interactionType"],
-                  },
-                })
-              }
-              disabled={readOnly}
-            >
-              <SelectTrigger className={`sm:w-96 ${readOnlyControl ?? ""}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ASSESSMENT_MODE_OPTIONS.filter(
-                  (opt) =>
-                    !RETIRED_ASSESSMENT_MODES.has(opt.value) ||
-                    opt.value === def.defaults.interactionType,
-                ).map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select
+                value={def.defaults.interactionType}
+                onValueChange={(v) =>
+                  patchDef({
+                    defaults: {
+                      ...def.defaults,
+                      interactionType:
+                        v as TemplateDefinition["defaults"]["interactionType"],
+                    },
+                  })
+                }
+                disabled={readOnly}
+              >
+                <SelectTrigger className={`sm:w-96 ${readOnlyControl ?? ""}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSESSMENT_MODE_OPTIONS.filter(
+                    (opt) =>
+                      !RETIRED_ASSESSMENT_MODES.has(opt.value) ||
+                      opt.value === def.defaults.interactionType,
+                  ).map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {def.defaults.interactionType === "multimodal" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowInteractionSettingDialog(true)}
+                  disabled={readOnly}
+                  aria-label="Multimodal Setting"
+                  title="Multimodal Setting"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
           <label className="flex items-center justify-between gap-4">
             <span className="flex items-center gap-1.5 text-sm">
@@ -1020,6 +1039,32 @@ export function TemplateEditor({
           </DialogContent>
         </Dialog>
         )}
+
+        {/* Multimodal (interaction) setting dialog */}
+        <InteractionSettingDialog
+          open={showInteractionSettingDialog}
+          onOpenChange={setShowInteractionSettingDialog}
+          audioDelivery={def.defaults.multimodal.interactionConfig.input.audioDelivery}
+          onAudioDeliveryChange={(audioDelivery) =>
+            patchDef({
+              defaults: {
+                ...def.defaults,
+                multimodal: {
+                  ...def.defaults.multimodal,
+                  interactionConfig: {
+                    ...def.defaults.multimodal.interactionConfig,
+                    input: {
+                      ...def.defaults.multimodal.interactionConfig.input,
+                      audioDelivery,
+                    },
+                  },
+                },
+              },
+            })
+          }
+          audioInputSupported
+          disabled={readOnly}
+        />
 
         {/* Sticky footer */}
         {!readOnly && (

@@ -60,6 +60,10 @@ export interface TemplateDefinition {
     multimodal: {
       languageSupportEnabled: boolean;
       availableActions: ActionKind[];
+      interactionConfig: {
+        input: { audioDelivery: "transcribe" | "direct" };
+        output: Record<string, never>;
+      };
     };
   };
 

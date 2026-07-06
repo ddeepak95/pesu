@@ -65,6 +65,14 @@ function toMockDefinition(def: ActivityTypeDefinition): TemplateDefinition {
         languageSupportEnabled:
           def.defaults?.multimodal?.languageSupportEnabled ?? false,
         availableActions: def.defaults?.multimodal?.availableActions ?? [],
+        interactionConfig: {
+          input: {
+            audioDelivery:
+              def.defaults?.multimodal?.interactionConfig?.input?.audioDelivery ??
+              "transcribe",
+          },
+          output: {},
+        },
       },
     },
     bulbAction: PER_TYPE_BULB[def.kind] ?? "none",
@@ -106,6 +114,10 @@ export function cloneSeedDefinition(kind: string = "learning"): TemplateDefiniti
       multimodal: {
         ...definition.defaults.multimodal,
         availableActions: [...definition.defaults.multimodal.availableActions],
+        interactionConfig: {
+          input: { ...definition.defaults.multimodal.interactionConfig.input },
+          output: { ...definition.defaults.multimodal.interactionConfig.output },
+        },
       },
     },
     generation: { ...definition.generation },
@@ -141,7 +153,14 @@ export function emptyDefinition(): TemplateDefinition {
       interactionType: "multimodal",
       display: { useStarDisplay: false },
       fileSubmission: { required: false },
-      multimodal: { languageSupportEnabled: false, availableActions: [] },
+      multimodal: {
+        languageSupportEnabled: false,
+        availableActions: [],
+        interactionConfig: {
+          input: { audioDelivery: "transcribe" },
+          output: {},
+        },
+      },
     },
     bulbAction: "none",
     generation: {

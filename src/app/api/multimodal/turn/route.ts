@@ -19,7 +19,13 @@ import { dispatchAction } from "@/lib/multimodal/actions/dispatcher";
 import { getActionDefinition } from "@/lib/multimodal/actions/registry";
 import type { ActionInput } from "@/lib/multimodal/actions/schema";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
-import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
+import type {
+  EndConversationConfig,
+  MultimodalSdkMessage,
+  TranscriptResolutionMode,
+} from "@/lib/multimodal/turnConfig";
+import { MULTIMODAL_ERROR_CODES } from "@/lib/multimodal/errorCodes";
+import { getModelEntry, modelSupportsTasks } from "@/lib/ai/catalog/helpers";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
@@ -125,6 +131,13 @@ interface MultimodalTurnRequestBody {
    * Must have exactly 2 entries; first entry corresponds to the primary language.
    */
   latestTranscriptCandidates?: TranscriptCandidate[];
+  /**
+   * Present when audio delivery is "direct" (dev-docs/multimodal-interaction-
+   * config-plan.md §3d) — the learner's raw utterance, sent inline instead of
+   * being transcribed client-side first. Mutually exclusive with
+   * latestTranscriptCandidates (direct delivery subsumes dual-STT disambiguation).
+   */
+  latestUserAudio?: { base64: string; mimeType: string };
 }
 
 function shouldFlushFallbackTtsChunk(buffer: string): boolean {
@@ -175,6 +188,22 @@ export async function POST(request: NextRequest) {
             supportLabel: localeLabel(candidates[1]!.language),
           }
         : undefined;
+
+    // Direct-audio-input mode: the learner's raw audio was sent inline instead
+    // of being transcribed client-side. Mutually exclusive with dual-transcript
+    // mode — direct audio subsumes its disambiguation job (the model hears the
+    // actual audio and can identify the spoken language itself).
+    const latestUserAudio = body.latestUserAudio;
+    const directAudioAttached =
+      !dualTranscriptDescriptor &&
+      Boolean(latestUserAudio?.base64 && latestUserAudio?.mimeType);
+
+    const transcriptResolution: TranscriptResolutionMode | undefined =
+      dualTranscriptDescriptor
+        ? { kind: "dual_stt", ...dualTranscriptDescriptor }
+        : directAudioAttached
+          ? { kind: "direct_audio" }
+          : undefined;
 
     if (
       !assignmentId ||
@@ -253,6 +282,26 @@ export async function POST(request: NextRequest) {
       ttsProvider: ttsEntry.providerId,
     });
 
+    // Request-time capability re-check (dev-docs/multimodal-interaction-config-
+    // plan.md §3h). The teacher toggle is gated at authoring time, but the
+    // class's bound model can change after that — so this is a hard-error
+    // safety net, not a fallback. Unlike an action-model mismatch (which just
+    // degrades output quality), handing this model an audio file part it
+    // doesn't support would error the whole generation.
+    if (directAudioAttached) {
+      const chatModelEntry = getModelEntry(config.modelId);
+      if (!chatModelEntry || !modelSupportsTasks(chatModelEntry, ["audio_input"])) {
+        return NextResponse.json(
+          {
+            error:
+              "This activity's AI configuration no longer supports direct audio input to the model. Please contact your administrator.",
+            code: MULTIMODAL_ERROR_CODES.AUDIO_INPUT_CAPABILITY_MISMATCH,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const model = getLanguageModel(config);
     const providerOptions = providerOptionsForConfig(config);
     const aiMetadata = {
@@ -268,7 +317,7 @@ export async function POST(request: NextRequest) {
     // via `latestStudentContent` — this keeps the "insert row, then tell the
     // client it's safe to upload audio" ordering consistent across both modes.
     const latestStudentContent = (() => {
-      if (dualTranscriptDescriptor) return null;
+      if (transcriptResolution) return null;
       const latestMessage = messages[messages.length - 1];
       return latestMessage?.role === "student" &&
         latestMessage.content?.trim() &&
@@ -278,8 +327,9 @@ export async function POST(request: NextRequest) {
     })();
 
     // Build SDK messages. In dual mode, replace the last user message with the
-    // both-candidates payload so the model can choose the coherent reading.
-    const sdkMessages = messages.map((msg, idx) => {
+    // both-candidates payload so the model can choose the coherent reading. In
+    // direct-audio mode, replace it with an inline audio file part instead.
+    const sdkMessages: MultimodalSdkMessage[] = messages.map((msg, idx) => {
       const isLast = idx === messages.length - 1;
       const isDualUserMessage =
         isLast &&
@@ -302,6 +352,22 @@ export async function POST(request: NextRequest) {
           `- As ${primaryLabel}: ${primaryText}\n` +
           `- As ${supportLabel}: ${supportText}`;
         return { role: "user" as const, content: dualContent };
+      }
+
+      const isDirectAudioUserMessage =
+        isLast && msg.role === "student" && directAudioAttached && latestUserAudio;
+
+      if (isDirectAudioUserMessage) {
+        return {
+          role: "user" as const,
+          content: [
+            {
+              type: "file" as const,
+              data: latestUserAudio.base64,
+              mediaType: latestUserAudio.mimeType,
+            },
+          ],
+        };
       }
 
       return {
@@ -356,6 +422,10 @@ export async function POST(request: NextRequest) {
         // meaning the field is complete.
         let userTranscriptEmitted = false;
         let lastPartialUserTranscript = "";
+        // Direct-audio mode only: true once the model resolved an empty
+        // userTranscript (silence) — the rest of the turn (speech, TTS,
+        // assistant persistence) is skipped entirely for that case.
+        let silenceDetected = false;
         let winningInvocationId: string | null = null;
         let winningStartedAtMs: number | undefined;
         let lastStreamResult: ReturnType<
@@ -528,7 +598,7 @@ export async function POST(request: NextRequest) {
             primaryLanguageLabel: localeLabel(language),
             activityType: body.activityType,
             activityDefinitionSnapshot: body.activityDefinitionSnapshot,
-            dualTranscript: dualTranscriptDescriptor,
+            transcriptResolution,
           };
 
           attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
@@ -546,7 +616,14 @@ export async function POST(request: NextRequest) {
               model: invocationModel,
               sdkRequest: buildLoggedStreamObjectRequest({
                 system: resolvedCall.system,
-                messages: resolvedCall.messages,
+                // Audio parts aren't loggable text — and shouldn't be persisted
+                // into the invocation log anyway (bloats storage, and it's the
+                // learner's recorded voice). Redact to a short placeholder.
+                messages: resolvedCall.messages.map((m) => ({
+                  role: m.role,
+                  content:
+                    typeof m.content === "string" ? m.content : "[audio attached]",
+                })),
                 providerOptions: resolvedCall.providerOptions,
                 schemaName: TURN_SCHEMA_NAME,
               }),
@@ -575,7 +652,7 @@ export async function POST(request: NextRequest) {
                 // Track the growing userTranscript value across partials.
                 // We do NOT emit yet — we wait until speech starts (see below),
                 // which guarantees userTranscript is fully output in the JSON.
-                if (dualTranscriptDescriptor && !userTranscriptEmitted) {
+                if (transcriptResolution && !userTranscriptEmitted) {
                   const ut = (partial as { userTranscript?: string }).userTranscript;
                   if (typeof ut === "string" && ut.length > lastPartialUserTranscript.length) {
                     lastPartialUserTranscript = ut;
@@ -588,7 +665,7 @@ export async function POST(request: NextRequest) {
                 ) {
                   // speech is now streaming → userTranscript is fully resolved.
                   // Emit user_transcript BEFORE pushing any speech delta.
-                  if (dualTranscriptDescriptor && !userTranscriptEmitted) {
+                  if (transcriptResolution && !userTranscriptEmitted) {
                     const chosen = lastPartialUserTranscript.trim();
                     if (chosen) {
                       userTranscriptEmitted = true;
@@ -609,11 +686,22 @@ export async function POST(request: NextRequest) {
                         });
                       } catch (dbErr) {
                         console.error(
-                          "[multimodal/turn] Failed to log dual-transcript student message:",
+                          "[multimodal/turn] Failed to log transcript-resolution student message:",
                           dbErr,
                         );
                       }
                       enqueue({ type: "user_transcript", text: chosen });
+                    } else if (transcriptResolution.kind === "direct_audio") {
+                      // Silence is itself a valid, final resolution for direct
+                      // audio input — there's no STT candidate to fall back to
+                      // (unlike dual_stt, where an empty pick here is treated as
+                      // "not yet resolved" and the post-loop fallback below
+                      // reuses the primary candidate instead). Skip the rest of
+                      // the turn entirely — no speech has been pushed yet.
+                      userTranscriptEmitted = true;
+                      silenceDetected = true;
+                      enqueue({ type: "user_transcript_empty" });
+                      break attemptLoop;
                     }
                   }
 
@@ -647,7 +735,7 @@ export async function POST(request: NextRequest) {
               if (finalObject) {
                 // Final-object fallback for userTranscript (in case speech never
                 // triggered the partial-stream path, e.g. short replies or edge cases).
-                if (dualTranscriptDescriptor && !userTranscriptEmitted) {
+                if (transcriptResolution && !userTranscriptEmitted) {
                   const fromFinal = (finalObject as { userTranscript?: string }).userTranscript;
                   const chosen = (
                     typeof fromFinal === "string" ? fromFinal : lastPartialUserTranscript
@@ -667,15 +755,20 @@ export async function POST(request: NextRequest) {
                       });
                     } catch (dbErr) {
                       console.error(
-                        "[multimodal/turn] Failed to log dual-transcript student message (final):",
+                        "[multimodal/turn] Failed to log transcript-resolution student message (final):",
                         dbErr,
                       );
                     }
                     enqueue({ type: "user_transcript", text: chosen });
+                  } else if (transcriptResolution.kind === "direct_audio") {
+                    userTranscriptEmitted = true;
+                    silenceDetected = true;
+                    enqueue({ type: "user_transcript_empty" });
                   }
                 }
 
                 if (
+                  !silenceDetected &&
                   typeof finalObject.speech === "string" &&
                   finalObject.speech.length > lastSpeechLength
                 ) {
@@ -684,11 +777,11 @@ export async function POST(request: NextRequest) {
                   deliveredToClient = true;
                   await pushSpeechDelta(delta);
                 }
-                if (finalObject.endConversation && !endConversationTriggered) {
+                if (!silenceDetected && finalObject.endConversation && !endConversationTriggered) {
                   endConversationTriggered = true;
                   enqueue({ type: "end_conversation" });
                 }
-                if (finalObject.action) {
+                if (!silenceDetected && finalObject.action) {
                   resolvedAction = finalObject.action as ActionInput;
                 }
               }
@@ -748,6 +841,16 @@ export async function POST(request: NextRequest) {
               }
               enqueue({ type: "user_transcript", text: fallbackText });
             }
+          } else if (transcriptResolution?.kind === "direct_audio" && !userTranscriptEmitted) {
+            // The model never produced a userTranscript at all (e.g. the whole
+            // generation errored before yielding anything) — there's no STT
+            // candidate to fall back to, so treat it the same as silence rather
+            // than leaving the client's pending bubble stuck indefinitely.
+            console.warn(
+              "[multimodal/turn] userTranscript never resolved in direct-audio mode; treating as silence.",
+            );
+            silenceDetected = true;
+            enqueue({ type: "user_transcript_empty" });
           }
 
           // Persist the assistant message now (before TTS finalize) so any

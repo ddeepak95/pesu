@@ -20,7 +20,11 @@ import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider"
 
 import { buildActionSchemaField } from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
-import type { EndConversationConfig } from "@/lib/multimodal/turnConfig";
+import type {
+  EndConversationConfig,
+  MultimodalSdkMessage,
+  TranscriptResolutionMode,
+} from "@/lib/multimodal/turnConfig";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { buildMultimodalDirectives } from "./multimodal-directives";
 
@@ -45,13 +49,14 @@ const speechField = z
  * enabled + implemented action kinds (from the action registry); otherwise it
  * is forced to null so the model never invents an action.
  *
- * When `dualTranscript` is true, a `userTranscript` field is prepended as the
- * FIRST field so it resolves early in the stream — the model writes the chosen
- * reading before generating speech. When false/absent, the field is omitted.
+ * When `transcriptResolution` is set, a `userTranscript` field is prepended as
+ * the FIRST field so it resolves early in the stream — the model writes the
+ * canonical transcript before generating speech. When absent, the field is
+ * omitted entirely.
  */
 export function buildTurnSchema(
   availableActions: ActionKind[],
-  dualTranscript?: boolean,
+  transcriptResolution?: TranscriptResolutionMode,
 ) {
   const base = {
     speech: speechField,
@@ -59,17 +64,28 @@ export function buildTurnSchema(
     endConversation: endConversationField,
   };
 
-  if (dualTranscript) {
+  if (transcriptResolution) {
+    const userTranscriptField =
+      transcriptResolution.kind === "dual_stt"
+        ? z
+            .string()
+            .describe(
+              "The learner's utterance as you understood it. Identify which of the two " +
+                "STT readings you were given is coherent, then copy that reading verbatim " +
+                "into this field — with zero edits. Do not fix, correct, normalize, or " +
+                "otherwise alter it in any way, even if it looks like an obvious mistake. " +
+                "This field MUST be the transcript you respond to.",
+            )
+        : z
+            .string()
+            .describe(
+              "Transcribe exactly what the learner said in the attached audio, in the " +
+                "language they actually spoke. If the audio is silent, unintelligible, or " +
+                "contains no speech, set this to an empty string.",
+            );
+
     return z.object({
-      userTranscript: z
-        .string()
-        .describe(
-          "The learner's utterance as you understood it. Identify which of the two " +
-            "STT readings you were given is coherent, then copy that reading verbatim " +
-            "into this field — with zero edits. Do not fix, correct, normalize, or " +
-            "otherwise alter it in any way, even if it looks like an obvious mistake. " +
-            "This field MUST be the transcript you respond to.",
-        ),
+      userTranscript: userTranscriptField,
       ...base,
     });
   }
@@ -82,7 +98,7 @@ export interface MultimodalTurnStreamOptions {
   model: LanguageModelV3;
   systemPrompt: string;
   greeting?: string;
-  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  messages: MultimodalSdkMessage[];
   providerOptions?: SharedV3ProviderOptions;
   availableActions: ActionKind[];
   endConversation?: EndConversationConfig;
@@ -97,13 +113,13 @@ export interface MultimodalTurnStreamOptions {
    * See `resolveActivityDefinitionForRuntime`.
    */
   activityDefinitionSnapshot?: unknown | null;
-  /** Present when the latest user message contains two transcript candidates. */
-  dualTranscript?: { primaryLabel: string; supportLabel: string };
+  /** Present when the model must resolve a canonical `userTranscript` this turn. */
+  transcriptResolution?: TranscriptResolutionMode;
 }
 
 export interface ResolvedMultimodalTurnCall {
   system: string;
-  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  messages: MultimodalSdkMessage[];
   schema: TurnSchema;
   providerOptions?: SharedV3ProviderOptions;
 }
@@ -123,7 +139,7 @@ export function resolveMultimodalTurnCall(
       primaryLanguageLabel: options.primaryLanguageLabel,
       activityType: options.activityType,
       activityDefinitionSnapshot: options.activityDefinitionSnapshot,
-      dualTranscript: options.dualTranscript,
+      transcriptResolution: options.transcriptResolution,
     });
 
   if (greeting && messages.length === 0) {
@@ -138,7 +154,7 @@ export function resolveMultimodalTurnCall(
   return {
     system,
     messages: sdkMessages,
-    schema: buildTurnSchema(availableActions, Boolean(options.dualTranscript)),
+    schema: buildTurnSchema(availableActions, options.transcriptResolution),
     providerOptions,
   };
 }

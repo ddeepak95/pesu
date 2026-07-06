@@ -15,6 +15,7 @@ import {
   getActionDefinition,
 } from "@/lib/multimodal/actions/registry";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
+import type { TranscriptResolutionMode } from "@/lib/multimodal/turnConfig";
 import { resolveActivityDefinitionForRuntime } from "@/lib/activityTypes/templateResolver";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { SAFETY_DIRECTIVE } from "./safetyDirective";
@@ -147,11 +148,8 @@ export function buildMultimodalDirectives(input: {
    * malformed snapshots. See `resolveActivityDefinitionForRuntime`.
    */
   activityDefinitionSnapshot?: unknown | null;
-  /**
-   * When set, the learner's audio was transcribed in two languages simultaneously.
-   * The model must pick the coherent reading and write it to `userTranscript`.
-   */
-  dualTranscript?: { primaryLabel: string; supportLabel: string };
+  /** Present when the model must resolve a canonical `userTranscript` this turn. */
+  transcriptResolution?: TranscriptResolutionMode;
 }): string {
   const resolvedDefinition = input.activityType
     ? resolveActivityDefinitionForRuntime(input.activityType, input.activityDefinitionSnapshot)
@@ -177,8 +175,8 @@ export function buildMultimodalDirectives(input: {
   });
   if (languageDirective) lines.push(languageDirective);
 
-  if (input.dualTranscript) {
-    const { primaryLabel, supportLabel } = input.dualTranscript;
+  if (input.transcriptResolution?.kind === "dual_stt") {
+    const { primaryLabel, supportLabel } = input.transcriptResolution;
     lines.push(
       `DUAL TRANSCRIPT: The learner's audio was transcribed in two languages simultaneously ` +
         `(${primaryLabel} and ${supportLabel}). The message you receive contains both readings. ` +
@@ -186,6 +184,13 @@ export function buildMultimodalDirectives(input: {
         `model. Identify the coherent reading and copy it verbatim into \`userTranscript\`, with ` +
         `zero edits — do not fix, correct, normalize, or otherwise alter it in any way, even if it ` +
         `looks like an obvious mistake. Then respond to it. Ignore the garbled reading entirely.`,
+    );
+  } else if (input.transcriptResolution?.kind === "direct_audio") {
+    lines.push(
+      `DIRECT AUDIO INPUT: The learner's utterance is attached as raw audio — no speech-to-text ` +
+        `ran on it. Transcribe exactly what you hear into \`userTranscript\`, in the language the ` +
+        `learner actually spoke, before writing your \`speech\` reply. If the audio is silent or ` +
+        `unintelligible, set \`userTranscript\` to an empty string.`,
     );
   }
 

@@ -53,6 +53,14 @@ export function toEditorDefinition(real: RealDefinition): EditorDefinition {
           real.defaults?.multimodal?.languageSupportEnabled ?? false,
         availableActions: (real.defaults?.multimodal?.availableActions ??
           []) as ActionKind[],
+        interactionConfig: {
+          input: {
+            audioDelivery:
+              real.defaults?.multimodal?.interactionConfig?.input?.audioDelivery ??
+              "transcribe",
+          },
+          output: {},
+        },
       },
     },
     bulbAction: real.bulbAction ?? "none",
@@ -86,6 +94,13 @@ export function fromEditorDefinition(
         languageSupportEnabled:
           editor.defaults.multimodal.languageSupportEnabled,
         availableActions: [...editor.defaults.multimodal.availableActions],
+        interactionConfig: {
+          input: {
+            audioDelivery:
+              editor.defaults.multimodal.interactionConfig.input.audioDelivery,
+          },
+          output: {},
+        },
       },
     },
     generation: { ...editor.generation },
