@@ -29,6 +29,7 @@ import type {
 } from "@/lib/multimodal/actions/types";
 import {
   type ActionDefinition,
+  getActionDefinition,
   resolveAutoActions,
   resolveBulbAction,
 } from "@/lib/multimodal/actions/registry";
@@ -83,31 +84,35 @@ type MultimodalTurnEvent =
   | { type: "done" }
   | { type: "error"; error?: string; message?: string };
 
-function formatFullStudentTranscript(messages: ChatMessage[]): string {
+// Resolves what a message "truthfully" contributed to the conversation. Action
+// cards are stored with content:"" (the real content lives in action.payload,
+// rendered only as a UI card) — without this, they're invisible everywhere
+// text is needed: the history sent back to the model, and the eval transcript.
+function resolveMessageContent(m: ChatMessage): string {
+  if (m.content.trim()) return m.content;
+  if (m.action?.payload) {
+    return (
+      getActionDefinition(m.action.kind).serializeForTranscript?.(
+        m.action.payload,
+        m.action.answeredIndex,
+      ) ?? ""
+    );
+  }
+  return "";
+}
+
+// Full bidirectional conversation transcript sent to the evaluator — mirrors
+// ChatInputArea's formatFullConversation (Student:/Bot: per turn), extended to
+// resolve action cards via resolveMessageContent so all action kinds appear
+// truthfully, answered or not.
+function formatFullConversationTranscript(messages: ChatMessage[]): string {
   const parts: string[] = [];
   for (const m of messages) {
     if (m.hidden) continue;
-    if (m.role === "student" && m.content.trim()) {
-      parts.push(m.content.trim());
-      continue;
-    }
-    // Answered MCQs are part of the learner's contribution — include the
-    // question, their selection, and whether it was correct for the evaluator.
-    const action = m.action;
-    if (
-      action?.payload?.kind === "mcq" &&
-      action.answeredIndex !== undefined
-    ) {
-      const mcq = action.payload;
-      const selected = mcq.choices[action.answeredIndex] ?? "";
-      const correct = action.answeredIndex === mcq.correctIndex;
-      const correctText = mcq.choices[mcq.correctIndex] ?? "";
-      parts.push(
-        `[Multiple choice question] ${mcq.question}\n` +
-          `Selected: ${selected} (${correct ? "correct" : "incorrect"})` +
-          (correct ? "" : `\nCorrect answer: ${correctText}`),
-      );
-    }
+    const content = resolveMessageContent(m).trim();
+    if (!content) continue;
+    const label = m.role === "student" ? "Student" : "Tutor";
+    parts.push(`${label}: ${content}`);
   }
   return parts.join("\n\n");
 }
@@ -456,7 +461,7 @@ export function MultimodalInputArea({
   );
 
   const finishSubmission = React.useCallback(async () => {
-    const answerText = formatFullStudentTranscript(messagesRef.current).trim();
+    const answerText = formatFullConversationTranscript(messagesRef.current).trim();
     await onSubmitForEvaluation(answerText);
   }, [onSubmitForEvaluation]);
 
@@ -662,6 +667,7 @@ export function MultimodalInputArea({
             questionOrder: question.order,
             attemptNumber,
             messages: history
+              .map((m) => ({ ...m, content: resolveMessageContent(m) }))
               .filter((m) => m.content.trim().length > 0)
               .map((m) => ({
                 id: m.id,
@@ -1099,28 +1105,17 @@ export function MultimodalInputArea({
         console.error("Failed to persist MCQ answer", err);
       });
 
-      // Inject a HIDDEN result note so the tutor can respond verbally and decide
-      // whether to re-ask. Not rendered to the learner (no answer/explanation
-      // shown on screen) and not logged to chat_messages.
-      const optionsList = mcq.choices
-        .map((c, i) => `${String.fromCharCode(65 + i)}) ${c}`)
-        .join("\n");
-      const correctText = mcq.choices[mcq.correctIndex] ?? "";
-      const resultNote = [
-        "[MCQ result — hidden from the learner]",
-        `Question: ${mcq.question}`,
-        `Options:\n${optionsList}`,
-        `The learner selected: ${choiceText} — ${isCorrect ? "CORRECT" : "INCORRECT"}.`,
-        `Correct answer: ${correctText}.`,
-        mcq.explanation ? `Explanation: ${mcq.explanation}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-
+      // Inject a minimal HIDDEN nudge so the tutor generates a new turn (the
+      // preceding message is assistant-role, so a trailing student-role
+      // message is needed to prompt a reply). The full question/options/
+      // correctness/explanation no longer need restating here — the action
+      // card itself (now carrying `answeredIndex`) already resolves to that
+      // full text via `resolveMessageContent`, so it's part of the history
+      // this very turn sends to the model.
       const hiddenMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "student",
-        content: resultNote,
+        content: `[The learner just answered the question above: ${choiceText} — ${isCorrect ? "correct" : "incorrect"}.]`,
         hidden: true,
       };
       const nextHistory = [...lockedMessages, hiddenMessage];

@@ -23,7 +23,50 @@ import {
   mcqActionInputSchema,
   suggestedResponseActionInputSchema,
 } from "./schema";
-import type { ActionKind } from "./types";
+import type {
+  ActionKind,
+  ActionPayload,
+  DisplayContentActionPayload,
+  McqActionPayload,
+  SuggestedResponseActionPayload,
+} from "./types";
+
+function serializeMcqForTranscript(
+  payload: McqActionPayload,
+  answeredIndex?: number,
+): string {
+  const optionsList = payload.choices
+    .map((c, i) => `${String.fromCharCode(65 + i)}) ${c}`)
+    .join("\n");
+  const lines = [`[Multiple choice question] ${payload.question}`, optionsList];
+  if (answeredIndex === undefined) {
+    lines.push("(Not answered)");
+  } else {
+    const selected = payload.choices[answeredIndex] ?? "";
+    const correct = answeredIndex === payload.correctIndex;
+    lines.push(`Selected: ${selected} (${correct ? "correct" : "incorrect"})`);
+    if (!correct) {
+      lines.push(`Correct answer: ${payload.choices[payload.correctIndex] ?? ""}`);
+    }
+    if (payload.explanation) {
+      lines.push(`Explanation: ${payload.explanation}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function serializeDisplayContentForTranscript(
+  payload: DisplayContentActionPayload,
+): string {
+  const titleSuffix = payload.title ? ` (${payload.title})` : "";
+  return `[Content shown to the learner${titleSuffix}]\n${payload.content}`;
+}
+
+function serializeSuggestedResponseForTranscript(
+  payload: SuggestedResponseActionPayload,
+): string {
+  return `[Suggested response shown]: ${payload.responseText}`;
+}
 
 /**
  * Client-side trigger metadata for actions that can be activated directly by
@@ -59,6 +102,14 @@ export interface ActionDefinition {
   inputSchema: z.ZodTypeAny;
   /** System-prompt guidance describing when/how the model should use this action. */
   buildDirective: () => string;
+  /**
+   * Renders this action's payload (+ the learner's response, if any) into the
+   * plain-text line that represents this turn everywhere text is needed — the
+   * history sent back to the model on subsequent turns and the conversation
+   * transcript sent to the evaluator. Without this, an action-only chat message
+   * (content: "") is invisible everywhere except the UI card.
+   */
+  serializeForTranscript?: (payload: ActionPayload, answeredIndex?: number) => string;
   /** Optional metadata for actions the learner can trigger directly from the UI. */
   clientTrigger?: ActionClientTrigger;
 }
@@ -101,6 +152,8 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     appFunctionKey: "text.suggested_response_generation",
     inputSchema: suggestedResponseActionInputSchema,
     buildDirective: () => "",
+    serializeForTranscript: (payload) =>
+      serializeSuggestedResponseForTranscript(payload as SuggestedResponseActionPayload),
     clientTrigger: {
       hiddenMessage:
         '[System] Provide a suggested response for your last spoken message. Set action.kind to "suggested_response", ' +
@@ -120,6 +173,8 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
     appFunctionKey: "text.mcq_generation",
     inputSchema: mcqActionInputSchema,
     buildDirective: () => MCQ_DIRECTIVE,
+    serializeForTranscript: (payload, answeredIndex) =>
+      serializeMcqForTranscript(payload as McqActionPayload, answeredIndex),
   },
   display_content: {
     kind: "display_content",
@@ -138,6 +193,8 @@ export const ACTION_REGISTRY: Partial<Record<ActionKind, ActionDefinition>> = {
       "code block) and optionally `action.title`. In `speech`, refer to it as 'the code on " +
       "screen' — never read code syntax or markdown aloud. Set `action` to null when closing " +
       "the conversation.",
+    serializeForTranscript: (payload) =>
+      serializeDisplayContentForTranscript(payload as DisplayContentActionPayload),
     clientTrigger: {
       hiddenMessage: "",
       autoAvailableForActivityTypes: ["code_review"],
