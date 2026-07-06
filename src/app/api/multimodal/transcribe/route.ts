@@ -11,6 +11,7 @@ import {
   SARVAM_STT_MAX_DURATION_MS,
 } from "@/lib/konvo-voice/speech/constants";
 import { resolveProviderApiKeyForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
+import { withRetry } from "@/lib/ai/retry";
 
 function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   if (!raw) return null;
@@ -148,14 +149,16 @@ export async function POST(request: NextRequest) {
               ? segment.name
               : "recording.webm";
           const mimeType = segment.type || "audio/webm";
-          const result = await stt.transcribe({
-            audio: buffer,
-            filename,
-            mimeType,
-            language,
-            apiModelId,
-            providerApiKey: sttProviderApiKey ?? undefined,
-          });
+          const result = await withRetry(() =>
+            stt.transcribe({
+              audio: buffer,
+              filename,
+              mimeType,
+              language,
+              apiModelId,
+              providerApiKey: sttProviderApiKey ?? undefined,
+            }),
+          3);
           const part = (result.text ?? "").trim();
           if (part) parts.push(part);
         }
@@ -168,14 +171,16 @@ export async function POST(request: NextRequest) {
       const filename =
         audio instanceof File && audio.name ? audio.name : "recording.webm";
       const mimeType = audio.type || "audio/webm";
-      const result = await stt.transcribe({
-        audio: buffer,
-        filename,
-        mimeType,
-        language,
-        apiModelId,
-        providerApiKey: sttProviderApiKey ?? undefined,
-      });
+      const result = await withRetry(() =>
+        stt.transcribe({
+          audio: buffer,
+          filename,
+          mimeType,
+          language,
+          apiModelId,
+          providerApiKey: sttProviderApiKey ?? undefined,
+        }),
+      3);
       return (result.text ?? "").trim();
     };
 
@@ -250,14 +255,16 @@ export async function POST(request: NextRequest) {
             ? segment.name
             : "recording.webm";
         const mimeType = segment.type || "audio/webm";
-        const result = await stt.transcribe({
-          audio: buffer,
-          filename,
-          mimeType,
-          language: sessionConfig.language,
-          apiModelId,
-          providerApiKey: sttProviderApiKey ?? undefined,
-        });
+        const result = await withRetry(() =>
+          stt.transcribe({
+            audio: buffer,
+            filename,
+            mimeType,
+            language: sessionConfig.language,
+            apiModelId,
+            providerApiKey: sttProviderApiKey ?? undefined,
+          }),
+        3);
         const part = (result.text ?? "").trim();
         if (part) parts.push(part);
       }

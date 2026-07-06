@@ -24,11 +24,14 @@ export const openaiSttProvider: SttProvider = {
       `[konvo-voice/stt] provider=openai model=${model} locale=${input.language ?? ""} language=${language ?? ""} audioBytes=${input.audio.length}`,
     );
 
-    const result = await openai.audio.transcriptions.create({
-      file,
-      model,
-      ...(language ? { language } : {}),
-    });
+    const result = await openai.audio.transcriptions.create(
+      {
+        file,
+        model,
+        ...(language ? { language } : {}),
+      },
+      { timeout: 20_000, maxRetries: 0 },
+    );
 
     const text = result.text ?? "";
     console.log(

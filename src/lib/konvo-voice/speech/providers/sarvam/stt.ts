@@ -37,6 +37,7 @@ export const sarvamSttProvider: SttProvider = {
       method: "POST",
       headers: sarvamHeaders(undefined, input.providerApiKey),
       body: form,
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!response.ok) {
@@ -44,8 +45,11 @@ export const sarvamSttProvider: SttProvider = {
       console.error(
         `[konvo-voice/stt] provider=sarvam status=${response.status} detail=${detail}`,
       );
-      throw new Error(
-        `Sarvam transcription failed (${response.status})${detail ? `: ${detail}` : ""}`,
+      throw Object.assign(
+        new Error(
+          `Sarvam transcription failed (${response.status})${detail ? `: ${detail}` : ""}`,
+        ),
+        { statusCode: response.status },
       );
     }
 

@@ -39,6 +39,7 @@ export const cartesiaSttProvider: SttProvider = {
         "Cartesia-Version": CARTESIA_API_VERSION,
       },
       body: form,
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!response.ok) {
@@ -46,8 +47,11 @@ export const cartesiaSttProvider: SttProvider = {
       console.error(
         `[konvo-voice/stt] provider=cartesia status=${response.status} detail=${detail}`,
       );
-      throw new Error(
-        `Cartesia transcription failed (${response.status})${detail ? `: ${detail}` : ""}`,
+      throw Object.assign(
+        new Error(
+          `Cartesia transcription failed (${response.status})${detail ? `: ${detail}` : ""}`,
+        ),
+        { statusCode: response.status },
       );
     }
 

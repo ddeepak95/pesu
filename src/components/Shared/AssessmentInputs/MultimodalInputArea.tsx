@@ -38,6 +38,8 @@ import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 import { AI_NOT_CONFIGURED_ERROR_CODE } from "@/lib/ai/credentials/constants";
 import { MULTIMODAL_ERROR_CODES } from "@/lib/multimodal/errorCodes";
 import { DIRECT_AUDIO_INPUT_MAX_BYTES } from "@/lib/multimodal/turnConfig";
+import { isSarvamSttCatalogModel } from "@/lib/konvo-voice/speech/constants";
+import { splitAudioForSarvam } from "@/lib/konvo-voice/speech/splitAudioForSarvam";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -1448,14 +1450,28 @@ export function MultimodalInputArea({
             llmModelId: DEFAULT_KONVO_SESSION_CONFIG.llmModelId,
           }),
         );
-        formData.append(
-          "audio",
-          new File([wavBlob], "recording.wav", { type: "audio/wav" }),
-        );
+        const audioSegments = isSarvamSttCatalogModel(sttModelId)
+          ? await splitAudioForSarvam(wavBlob)
+          : [wavBlob];
+        if (audioSegments.length > 1) {
+          formData.append("segmentCount", String(audioSegments.length));
+          audioSegments.forEach((segment, i) => {
+            formData.append(
+              `audio_${i}`,
+              new File([segment], `recording_${i}.wav`, { type: "audio/wav" }),
+            );
+          });
+        } else {
+          formData.append(
+            "audio",
+            new File([wavBlob], "recording.wav", { type: "audio/wav" }),
+          );
+        }
         formData.append("assignmentId", assignmentId);
         const response = await fetch("/api/multimodal/transcribe", {
           method: "POST",
           body: formData,
+          signal: AbortSignal.timeout(45_000),
         });
         const body = (await response.json().catch(() => ({}))) as {
           text?: string;
@@ -1502,9 +1518,11 @@ export function MultimodalInputArea({
       } catch (sendError) {
         setMessages((prev) => prev.filter((m) => m.status !== "transcribing"));
         const message =
-          sendError instanceof Error
-            ? sendError.message
-            : "Failed to process audio";
+          sendError instanceof Error && sendError.name === "TimeoutError"
+            ? "Transcription is taking too long. Please try again."
+            : sendError instanceof Error
+              ? sendError.message
+              : "Failed to process audio";
         setError(message);
         showErrorToast(message);
       } finally {
