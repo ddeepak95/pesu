@@ -11,6 +11,7 @@ import AiProviderCard from "./AiProviderCard";
 interface AiProvidersPanelProps {
   scope: AiSettingsScope;
   state: LocalAiSettingsState;
+  allowUsePlatformDefaults?: boolean;
   onActivate: (providerId: ProviderId, apiKey: string) => void;
   onDeactivate: (providerId: ProviderId) => void;
   onUsePlatformChange: (providerId: ProviderId, usePlatform: boolean) => void;
@@ -20,6 +21,7 @@ interface AiProvidersPanelProps {
 export default function AiProvidersPanel({
   scope,
   state,
+  allowUsePlatformDefaults = true,
   onActivate,
   onDeactivate,
   onUsePlatformChange,
@@ -57,6 +59,7 @@ export default function AiProvidersPanel({
               provider={provider}
               scope={scope}
               activation={activation}
+              allowUsePlatformDefaults={allowUsePlatformDefaults}
               onActivate={(key) => onActivate(provider.id, key)}
               onDeactivate={() => onDeactivate(provider.id)}
               onUsePlatformChange={(usePlatform) =>

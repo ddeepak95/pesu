@@ -22,6 +22,7 @@ import {
 import {
   assertCanEditClassAiConfig,
   assertCanEditInstitutionAiConfig,
+  assertCanUsePlatformDefault,
 } from "@/lib/ai/credentials/enforce";
 import {
   clearModelConfigCache,
@@ -46,6 +47,7 @@ import {
 } from "@/lib/queries/aiCatalog";
 import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 import type { ViewerRole } from "@/lib/settings/capabilities";
+import type { AiInstitutionPolicy } from "@/types/aiSettings";
 
 export interface CatalogActionResult {
   ok: boolean;
@@ -121,7 +123,11 @@ async function assertCatalogEditAccess(input: {
   userId: string;
   scope: AiSettingsScope;
   scopeId: string;
-}): Promise<{ institutionId?: string; classShortId?: string }> {
+}): Promise<{
+  institutionId?: string;
+  classShortId?: string;
+  institutionPolicy?: AiInstitutionPolicy;
+}> {
   const scopeId = normalizeCatalogScopeId(input.scope, input.scopeId);
 
   if (input.scope === "platform") {
@@ -140,7 +146,7 @@ async function assertCatalogEditAccess(input: {
       scopeId,
     );
     assertCanEditInstitutionAiConfig({ viewerRole, institutionPolicy });
-    return { institutionId: scopeId };
+    return { institutionId: scopeId, institutionPolicy };
   }
 
   const classMeta = await loadInstitutionIdForClass(input.supabase, scopeId);
@@ -160,6 +166,7 @@ async function assertCatalogEditAccess(input: {
   return {
     institutionId: classMeta.institutionId,
     classShortId: classMeta.classShortId,
+    institutionPolicy,
   };
 }
 
@@ -297,6 +304,14 @@ export async function setCatalogUsePlatformProviderAction(input: {
       scope: input.scope,
       scopeId,
     });
+
+    if (ctx.institutionPolicy) {
+      assertCanUsePlatformDefault({
+        scope: input.scope as "institution" | "class",
+        usePlatform: input.usePlatform,
+        institutionPolicy: ctx.institutionPolicy,
+      });
+    }
 
     await upsertProviderActivation(supabase, {
       scope: input.scope,

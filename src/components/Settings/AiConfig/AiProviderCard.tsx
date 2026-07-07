@@ -16,6 +16,8 @@ interface AiProviderCardProps {
   provider: ProviderCatalogEntry;
   scope: AiSettingsScope;
   activation: ProviderActivationState;
+  /** Whether this institution may fall back to the platform's key. Class scope is unaffected. */
+  allowUsePlatformDefaults?: boolean;
   onActivate: (apiKey: string) => void;
   onDeactivate: () => void;
   onUsePlatformChange: (usePlatform: boolean) => void;
@@ -25,15 +27,16 @@ export default function AiProviderCard({
   provider,
   scope,
   activation,
+  allowUsePlatformDefaults = true,
   onActivate,
   onDeactivate,
   onUsePlatformChange,
 }: AiProviderCardProps) {
   const [draftKey, setDraftKey] = useState("");
 
-  const usingParent =
-    (scope === "institution" || scope === "class") &&
-    activation.usePlatformDefault;
+  const showUsePlatformToggle =
+    scope === "class" || (scope === "institution" && allowUsePlatformDefaults);
+  const usingParent = showUsePlatformToggle && activation.usePlatformDefault;
   const isActive = activation.isActive && !usingParent;
   const parentLabel = scope === "class" ? "institution" : "platform";
 
@@ -61,7 +64,7 @@ export default function AiProviderCard({
         </span>
       </div>
 
-      {(scope === "institution" || scope === "class") && (
+      {showUsePlatformToggle && (
         <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 px-3 py-2">
           <Label
             htmlFor={`use-platform-${provider.id}`}

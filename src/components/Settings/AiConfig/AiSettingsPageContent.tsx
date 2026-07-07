@@ -177,6 +177,9 @@ export default function AiSettingsPageContent({
         <AiProvidersPanel
           scope={scope}
           state={state}
+          allowUsePlatformDefaults={
+            institutionPolicy?.allowUsePlatformDefaults ?? true
+          }
           onActivate={activateProvider}
           onDeactivate={deactivateProvider}
           onUsePlatformChange={setUsePlatformProvider}

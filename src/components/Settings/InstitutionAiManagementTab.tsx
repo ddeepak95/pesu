@@ -4,10 +4,6 @@ import {
   canViewInstitutionOverrideSections,
   type ViewerRole,
 } from "@/lib/settings/capabilities";
-import {
-  institutionAllowsInstitutionAdminSettingsEdit,
-  type EffectiveSettings,
-} from "@/lib/settings/resolve";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
 
 import AiSettingsPageContent from "./AiConfig/AiSettingsPageContent";
@@ -15,21 +11,20 @@ import AiSettingsPageContent from "./AiConfig/AiSettingsPageContent";
 interface InstitutionAiManagementTabProps {
   institutionId: string;
   viewerRole: ViewerRole;
-  effectiveSettings: EffectiveSettings;
   institutionPolicy: AiInstitutionPolicy;
 }
 
 export default function InstitutionAiManagementTab({
   institutionId,
   viewerRole,
-  effectiveSettings,
   institutionPolicy,
 }: InstitutionAiManagementTabProps) {
-  const allowAdminEdit = institutionAllowsInstitutionAdminSettingsEdit(
-    effectiveSettings,
-  );
-
-  if (!canViewInstitutionOverrideSections(viewerRole, allowAdminEdit)) {
+  if (
+    !canViewInstitutionOverrideSections(
+      viewerRole,
+      institutionPolicy.allowAdminEdit,
+    )
+  ) {
     return (
       <p className="text-sm text-muted-foreground">
         AI management is not available for your role or institution policy.

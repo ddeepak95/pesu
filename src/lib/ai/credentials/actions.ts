@@ -18,6 +18,7 @@ import {
   getInstitutionAiPolicy,
   setInstitutionAiPolicyLock,
 } from "@/lib/queries/aiInstitutionSettings";
+import { forceProvidersOffPlatformDefault } from "@/lib/queries/aiCatalog";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 
 export interface AiConfigActionResult {
@@ -95,6 +96,14 @@ export async function setInstitutionAiConfigLocksAction(input: {
       user.id,
       institutionPolicy,
     );
+    if (input.lock === "allow_use_platform_defaults" && !input.enabled) {
+      await forceProvidersOffPlatformDefault(
+        supabase,
+        "institution",
+        input.institutionId,
+        user.id,
+      );
+    }
     clearModelConfigCache();
     clearSpeechProviderKeyCache();
     await invalidateModelConfigCacheForInstitution(input.institutionId);

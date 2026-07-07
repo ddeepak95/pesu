@@ -234,6 +234,54 @@ export async function deleteFunctionBindings(
   if (error) throw error;
 }
 
+/**
+ * Force every provider at this scope off its parent's default key. Used when
+ * a platform super admin revokes `allow_use_platform_defaults` for an
+ * institution — providers previously relying on the implicit "no row means
+ * inherit" default must be pinned to `false` so the policy takes effect
+ * immediately, not just for future toggles.
+ */
+export async function forceProvidersOffPlatformDefault(
+  supabase: SupabaseClient,
+  scope: AiSettingsScope,
+  scopeId: string,
+  updatedBy: string,
+): Promise<void> {
+  const normalizedId = normalizeCatalogScopeId(scope, scopeId);
+  const existingRows = await listProviderActivationsForScope(
+    supabase,
+    scope,
+    normalizedId,
+  );
+  const existingById = new Map(
+    existingRows.map((row) => [row.provider_id, row] as const),
+  );
+
+  const rows = CATALOG_PROVIDER_IDS.filter((id) => {
+    const existing = existingById.get(id);
+    return !existing || existing.use_platform_default;
+  }).map((id) => {
+    const existing = existingById.get(id);
+    return {
+      scope: catalogScopeToDbScope(scope),
+      scope_id: normalizedId,
+      provider_id: id,
+      use_platform_default: false,
+      is_active: existing?.is_active ?? false,
+      encrypted_api_key: existing?.encrypted_api_key ?? null,
+      key_hint: existing?.key_hint ?? null,
+      updated_by: updatedBy,
+      updated_at: new Date().toISOString(),
+    };
+  });
+  if (rows.length === 0) return;
+
+  const { error } = await supabase
+    .from("ai_provider_activations")
+    .upsert(rows, { onConflict: "scope,scope_id,provider_id" });
+  if (error) throw error;
+}
+
 export async function resetCatalogScope(
   supabase: SupabaseClient,
   scope: AiSettingsScope,

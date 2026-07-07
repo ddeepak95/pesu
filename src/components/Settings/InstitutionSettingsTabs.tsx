@@ -90,7 +90,6 @@ export default function InstitutionSettingsTabs({
         <InstitutionAiManagementTab
           institutionId={institutionId}
           viewerRole={viewerRole}
-          effectiveSettings={effectiveSettings}
           institutionPolicy={institutionPolicy}
         />
       </TabsContent>

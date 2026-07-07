@@ -39,6 +39,25 @@ export function assertCanEditClassAiConfig(input: {
   }
 }
 
+/**
+ * Institution-scope providers may only fall back to the platform key when the
+ * platform has granted `allow_use_platform_defaults`. Class scope is exempt —
+ * a class inheriting its *institution's* key is governed by
+ * `allow_child_override`, not this lock.
+ */
+export function assertCanUsePlatformDefault(input: {
+  scope: "institution" | "class";
+  usePlatform: boolean;
+  institutionPolicy: AiInstitutionPolicy;
+}): void {
+  if (input.scope !== "institution" || !input.usePlatform) return;
+  if (!input.institutionPolicy.allowUsePlatformDefaults) {
+    throw new Error(
+      "This institution is not allowed to use platform default keys",
+    );
+  }
+}
+
 export function assertCanToggleAiLock(input: {
   viewerRole: ViewerRole;
   lock: InstitutionAiPolicyLockKey;
