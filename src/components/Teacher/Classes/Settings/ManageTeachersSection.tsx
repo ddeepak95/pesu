@@ -37,6 +37,7 @@ import {
 import {
   createTeacherInvite,
   revokeTeacherInvite,
+  type ClassTeacherInvite,
 } from "@/lib/queries/teacherInvites";
 import {
   logPostgrestError,
@@ -74,6 +75,163 @@ function roleOptionsForRow(
   return Array.from(s);
 }
 
+interface InviteLinkBlockProps {
+  classDbId: string;
+  role: "owner" | "co-teacher";
+  title: string;
+  invites: ClassTeacherInvite[];
+  canManageRoster: boolean;
+  emptyHint: string;
+}
+
+/**
+ * One invite link, bound server-side to a single role (`owner` or
+ * `co-teacher`) — the role can never be changed by whoever accepts it.
+ * Rendered twice by `ManageTeachersSection`, once per role, each managing
+ * its own generate/copy/revoke state independently.
+ */
+function InviteLinkBlock({
+  classDbId,
+  role,
+  title,
+  invites,
+  canManageRoster,
+  emptyHint,
+}: InviteLinkBlockProps) {
+  const [busy, setBusy] = useState(false);
+  const [newInviteLink, setNewInviteLink] = useState<string>("");
+
+  const activeInvite = useMemo(() => {
+    const now = Date.now();
+    return (
+      invites.find(
+        (i) =>
+          i.intended_role === role &&
+          !i.revoked_at &&
+          new Date(i.expires_at).getTime() > now,
+      ) ?? null
+    );
+  }, [invites, role]);
+
+  const inviteUrl = useMemo(() => {
+    const token = activeInvite?.token || newInviteLink;
+    if (!token) return "";
+    return `${window.location.origin}/teacher/invites/${token}`;
+  }, [activeInvite, newInviteLink]);
+
+  const generateLabel = activeInvite
+    ? role === "owner"
+      ? "Regenerate primary teacher invite"
+      : "Regenerate invite"
+    : role === "owner"
+      ? "Invite primary teacher"
+      : "Generate invite";
+
+  const handleGenerateInvite = async () => {
+    if (!canManageRoster) return;
+    setBusy(true);
+    try {
+      const token = await createTeacherInvite({ classDbId, role });
+      setNewInviteLink(token);
+      await invalidateTeacherInvitesCache();
+    } catch (err) {
+      logPostgrestError("Error creating invite", err);
+      showErrorToast(
+        userFacingPostgrestMessage(err, "Failed to create invite."),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    if (!inviteUrl) return;
+    await navigator.clipboard.writeText(inviteUrl);
+    showSuccessToast("Invite link copied to clipboard.");
+  };
+
+  const handleRevokeInvite = async () => {
+    if (!canManageRoster || !activeInvite) return;
+    const confirmed = window.confirm("Revoke this invite link?");
+    if (!confirmed) return;
+
+    setBusy(true);
+    try {
+      await revokeTeacherInvite(activeInvite.id);
+      setNewInviteLink("");
+      await invalidateTeacherInvitesCache();
+    } catch (err) {
+      logPostgrestError("Error revoking invite", err);
+      showErrorToast(
+        userFacingPostgrestMessage(err, "Failed to revoke invite."),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium">{title}</h3>
+      <div className="flex items-end gap-2">
+        <div className="flex-1 space-y-2">
+          <Label htmlFor={`inviteUrl-${role}`}>Invite link</Label>
+          <Input
+            id={`inviteUrl-${role}`}
+            value={inviteUrl}
+            readOnly
+            placeholder={
+              activeInvite && !inviteUrl
+                ? "Invite exists but token not available. Regenerate to get a new link."
+                : "Generate an invite link..."
+            }
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleCopyInvite}
+          disabled={!inviteUrl}
+        >
+          Copy
+        </Button>
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          onClick={handleGenerateInvite}
+          disabled={!canManageRoster || busy}
+        >
+          {generateLabel}
+        </Button>
+        {activeInvite && (
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleRevokeInvite}
+            disabled={!canManageRoster || busy}
+          >
+            Revoke
+          </Button>
+        )}
+      </div>
+
+      {activeInvite ? (
+        <div className="rounded-md border p-3 text-sm text-muted-foreground">
+          Expires: {new Date(activeInvite.expires_at).toLocaleString()} •
+          Uses: {activeInvite.uses}
+          {activeInvite.max_uses === null ? "" : `/${activeInvite.max_uses}`}
+        </div>
+      ) : (
+        <div className="rounded-md border p-3 text-sm text-muted-foreground">
+          {emptyHint}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ManageTeachersSectionProps {
   classData: Class;
   canManageRoster: boolean;
@@ -99,14 +257,18 @@ export default function ManageTeachersSection({
   );
   const invites = useMemo(() => invitesQuery.data ?? [], [invitesQuery.data]);
 
-  const [busy, setBusy] = useState(false);
-  const [newInviteLink, setNewInviteLink] = useState<string>("");
+  const [rosterBusy, setRosterBusy] = useState(false);
   const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
   const [transferBusyId, setTransferBusyId] = useState<string | null>(null);
   const [pendingPrimaryTransfer, setPendingPrimaryTransfer] = useState<{
     teacherId: string;
     displayLabel: string;
   } | null>(null);
+
+  const hasOwner = useMemo(
+    () => teachers.some((t) => t.role === "owner"),
+    [teachers],
+  );
 
   const assignableRoles = useMemo((): ClassTeacherRole[] => {
     const r: ClassTeacherRole[] = ["co-teacher", "admin"];
@@ -132,72 +294,12 @@ export default function ManageTeachersSection({
     return "Failed to load teacher management data.";
   }, [teachersQuery.error, invitesQuery.error]);
 
-  const activeInvite = useMemo(() => {
-    const now = Date.now();
-    return (
-      invites.find(
-        (i) => !i.revoked_at && new Date(i.expires_at).getTime() > now,
-      ) ?? null
-    );
-  }, [invites]);
-
-  const inviteUrl = useMemo(() => {
-    const token = activeInvite?.token || newInviteLink;
-    if (!token) return "";
-    return `${window.location.origin}/teacher/invites/${token}`;
-  }, [activeInvite, newInviteLink]);
-
-  const handleGenerateInvite = async () => {
-    if (!canManageRoster) return;
-    setBusy(true);
-    try {
-      const token = await createTeacherInvite({
-        classDbId: classData.id,
-      });
-      setNewInviteLink(token);
-      await invalidateTeacherInvitesCache();
-    } catch (err) {
-      logPostgrestError("Error creating invite", err);
-      showErrorToast(
-        userFacingPostgrestMessage(err, "Failed to create invite."),
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleCopyInvite = async () => {
-    if (!inviteUrl) return;
-    await navigator.clipboard.writeText(inviteUrl);
-    showSuccessToast("Invite link copied to clipboard.");
-  };
-
-  const handleRevokeInvite = async (inviteId: string) => {
-    if (!canManageRoster) return;
-    const confirmed = window.confirm("Revoke this invite link?");
-    if (!confirmed) return;
-
-    setBusy(true);
-    try {
-      await revokeTeacherInvite(inviteId);
-      setNewInviteLink("");
-      await invalidateTeacherInvitesCache();
-    } catch (err) {
-      logPostgrestError("Error revoking invite", err);
-      showErrorToast(
-        userFacingPostgrestMessage(err, "Failed to revoke invite."),
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleRemoveTeacher = async (teacherId: string) => {
     if (!canManageRoster) return;
     const confirmed = window.confirm("Remove this teacher from the class?");
     if (!confirmed) return;
 
-    setBusy(true);
+    setRosterBusy(true);
     try {
       await removeCoTeacher({ classDbId: classData.id, teacherId });
       await invalidateClassTeachersCache();
@@ -205,7 +307,7 @@ export default function ManageTeachersSection({
       console.error("Error removing teacher:", err);
       showErrorToast("Failed to remove teacher.");
     } finally {
-      setBusy(false);
+      setRosterBusy(false);
     }
   };
 
@@ -294,80 +396,48 @@ export default function ManageTeachersSection({
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <div className="space-y-3">
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="inviteUrl">Invite link</Label>
-              <Input
-                id="inviteUrl"
-                value={inviteUrl}
-                readOnly
-                placeholder={
-                  activeInvite && !inviteUrl
-                    ? "Invite exists but token not available. Regenerate to get a new link."
-                    : "Generate an invite link..."
-                }
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCopyInvite}
-              disabled={!inviteUrl}
-            >
-              Copy
-            </Button>
+        {!hasOwner && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            This class doesn&apos;t have a primary teacher yet. The first
+            person to accept the primary teacher invite becomes the primary
+            teacher — share it with them first (or alone) before forwarding
+            the co-teacher invite to anyone else.
           </div>
+        )}
 
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={handleGenerateInvite}
-              disabled={!canManageRoster || busy}
-            >
-              {activeInvite ? "Regenerate invite" : "Generate invite"}
-            </Button>
+        {!hasOwner && (
+          <InviteLinkBlock
+            classDbId={classData.id}
+            role="owner"
+            title="Primary teacher invite"
+            invites={invites}
+            canManageRoster={canManageRoster}
+            emptyHint="Generate a link and share it with the person who should be the primary teacher."
+          />
+        )}
+
+        <InviteLinkBlock
+          classDbId={classData.id}
+          role="co-teacher"
+          title="Co-teacher invite"
+          invites={invites}
+          canManageRoster={canManageRoster}
+          emptyHint="No active invite. Generate one to invite co-teachers (they join as co-teachers; you can promote them afterward)."
+        />
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <h3 className="text-sm font-medium">Teachers</h3>
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={refresh}
-              disabled={busy}
+              disabled={rosterBusy}
             >
               Refresh
             </Button>
-            {activeInvite && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => handleRevokeInvite(activeInvite.id)}
-                disabled={!canManageRoster || busy}
-              >
-                Revoke
-              </Button>
-            )}
           </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">Invite status</h3>
-          {activeInvite ? (
-            <div className="rounded-md border p-3 text-sm text-muted-foreground">
-              Expires: {new Date(activeInvite.expires_at).toLocaleString()} •
-              Uses: {activeInvite.uses}
-              {activeInvite.max_uses === null
-                ? ""
-                : `/${activeInvite.max_uses}`}
-            </div>
-          ) : (
-            <div className="rounded-md border p-3 text-sm text-muted-foreground">
-              No active invite. Generate one to invite co-teachers (they join as
-              co-teachers; you can promote them afterward).
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">Teachers</h3>
           <List
             items={teachers}
             emptyMessage="No teachers found."
@@ -408,7 +478,7 @@ export default function ManageTeachersSection({
                           openPrimaryTransferDialog(t.teacher_id, displayName)
                         }
                         disabled={
-                          busy ||
+                          rosterBusy ||
                           transferBusyId !== null ||
                           roleBusyId === t.teacher_id
                         }
@@ -429,7 +499,7 @@ export default function ManageTeachersSection({
                           )
                         }
                         disabled={
-                          busy ||
+                          rosterBusy ||
                           roleBusyId === t.teacher_id ||
                           (!canPromoteCoOwner && t.role === "co-owner")
                         }
@@ -452,7 +522,7 @@ export default function ManageTeachersSection({
                         variant="destructive"
                         size="sm"
                         onClick={() => handleRemoveTeacher(t.teacher_id)}
-                        disabled={!canManageRoster || busy}
+                        disabled={!canManageRoster || rosterBusy}
                       >
                         Remove
                       </Button>

@@ -7,6 +7,7 @@ import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
 import GeneralSettingsSection from "@/components/Teacher/Classes/Settings/GeneralSettingsSection";
 import ManageTeachersSection from "@/components/Teacher/Classes/Settings/ManageTeachersSection";
+import ManageStudentsSection from "@/components/Teacher/Classes/Settings/ManageStudentsSection";
 import GroupSettingsSection from "@/components/Teacher/Classes/Settings/GroupSettingsSection";
 import ActivityTypesSection from "@/components/Teacher/Classes/Settings/ActivityTypesSection";
 import ProfileFieldsSection from "@/components/Teacher/Classes/Settings/ProfileFieldsSection";
@@ -133,6 +134,11 @@ export default function ClassSettingsClient({
                 canPromoteCoOwner={canPromoteCoOwner}
                 canTransferPrimaryOwnership={canTransferPrimaryOwnership}
                 onTeachersChanged={handleUpdated}
+              />
+
+              <ManageStudentsSection
+                classData={initialClassData}
+                canManageRoster={sectionMayEdit}
               />
 
               <GroupSettingsSection

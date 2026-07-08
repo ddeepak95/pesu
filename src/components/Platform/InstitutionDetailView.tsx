@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import InstitutionSettingsTabs from "@/components/Settings/InstitutionSettingsTabs";
 import InstitutionClassCard from "@/components/Platform/InstitutionClassCard";
+import CreateInstitutionClass from "@/components/Platform/CreateInstitutionClass";
 import ManageInstitutionAdminInvite from "@/components/Platform/ManageInstitutionAdminInvite";
 import { Button } from "@/components/ui/button";
 import {
@@ -234,10 +235,18 @@ export default function InstitutionDetailView({
               <h2 className="text-lg font-medium">
                 Classes ({classes.length})
               </h2>
+              <CreateInstitutionClass
+                institutionId={institution.id}
+                classSettingsHrefBase={classOverrideHrefBase}
+              />
             </div>
             {classes.length === 0 ? (
-              <div className="rounded border border-dashed px-6 py-12 text-center text-sm text-muted-foreground">
-                No classes under this institution.
+              <div className="rounded border border-dashed px-6 py-12 text-center text-sm text-muted-foreground space-y-3">
+                <p>No classes under this institution.</p>
+                <CreateInstitutionClass
+                  institutionId={institution.id}
+                  classSettingsHrefBase={classOverrideHrefBase}
+                />
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

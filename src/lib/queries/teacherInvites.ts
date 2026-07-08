@@ -11,11 +11,13 @@ export interface ClassTeacherInvite {
   created_at: string;
   updated_at: string;
   token: string | null; // Token is only visible to the owner
+  intended_role: "owner" | "co-teacher";
 }
 
 export async function createTeacherInvite(params: {
   classDbId: string;
   expiresAtIso?: string;
+  role?: "owner" | "co-teacher";
 }): Promise<string> {
   const supabase = createClient();
 
@@ -23,6 +25,7 @@ export async function createTeacherInvite(params: {
     p_class_id: params.classDbId,
     // unlimited uses
     p_max_uses: null,
+    p_role: params.role ?? "co-teacher",
   };
   if (params.expiresAtIso) {
     args.p_expires_at = params.expiresAtIso;
@@ -49,7 +52,7 @@ export async function listTeacherInvites(classDbId: string): Promise<ClassTeache
 
   const { data, error } = await supabase
     .from("class_teacher_invites")
-    .select("id, class_id, created_by, expires_at, revoked_at, max_uses, uses, created_at, updated_at, token")
+    .select("id, class_id, created_by, expires_at, revoked_at, max_uses, uses, created_at, updated_at, token, intended_role")
     .eq("class_id", classDbId)
     .order("created_at", { ascending: false });
 

@@ -141,6 +141,46 @@ export async function createClass(
   return data;
 }
 
+export interface CreatedInstitutionClass {
+  classData: Class;
+  primaryInviteToken: string;
+}
+
+/**
+ * Create a class on behalf of an institution (institution admin / super
+ * admin only, enforced in DB). Unlike `createClass`, the caller is NOT
+ * added to `class_teachers` — the class starts with no teacher so it does
+ * not show up on the creator's own /teacher/classes page. A primary-teacher
+ * invite is auto-generated in the same call so it's ready to share
+ * immediately.
+ */
+export async function createClassForInstitution(
+  institutionId: string,
+  name: string,
+  preferredLanguage: string = "en"
+): Promise<CreatedInstitutionClass> {
+  const supabase = createClient();
+  const classId = generateClassId();
+
+  const { data, error } = await supabase.rpc("create_class_for_institution", {
+    p_institution_id: institutionId,
+    p_name: name,
+    p_class_id: classId,
+    p_preferred_language: preferredLanguage,
+  });
+
+  if (error) {
+    console.error("Error creating class for institution:", error);
+    throw error;
+  }
+
+  const result = data as { class: Class; primary_invite_token: string };
+  return {
+    classData: result.class,
+    primaryInviteToken: result.primary_invite_token,
+  };
+}
+
 /**
  * Update a class name and/or preferred language
  * @deprecated Use the overload that accepts an updates object instead
