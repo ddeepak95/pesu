@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useEffectiveClassSettings } from "@/hooks/swr/useSettings";
 import {
   canViewClassOverrideSections,
@@ -32,10 +26,7 @@ export default function ClassInheritedSettingsSection({
   if (!effective) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Inherited settings</CardTitle>
-          <CardDescription>Loading institution settings...</CardDescription>
-        </CardHeader>
+        <CardContent className="pt-6">Loading institution settings...</CardContent>
       </Card>
     );
   }
@@ -47,14 +38,7 @@ export default function ClassInheritedSettingsSection({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Inherited settings</CardTitle>
-        <CardDescription>
-          Values inherited from this class&apos;s institution. Where the
-          institution allows it, you can override the value for just this class.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <SettingsList
           scope="class"
           effective={effective}

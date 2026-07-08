@@ -91,32 +91,6 @@ export interface SettingDefinition<TValue = unknown> {
 // Built-in `validate` helpers — small, reusable, fully typed.
 // ---------------------------------------------------------------------------
 
-/** Coerce to an array of unique strings from a known option set. */
-function validateStringArrayFromOptions(
-  raw: unknown,
-  options: readonly SettingOption[],
-  { allowEmpty = false }: { allowEmpty?: boolean } = {}
-): string[] {
-  if (!Array.isArray(raw)) {
-    throw new Error("Expected an array of strings");
-  }
-  const known = new Set(options.map((o) => o.value));
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const item of raw) {
-    if (typeof item !== "string") continue;
-    if (!known.has(item)) continue;
-    if (seen.has(item)) continue;
-    seen.add(item);
-    out.push(item);
-  }
-  if (!allowEmpty && out.length === 0) {
-    throw new Error("At least one option must be selected");
-  }
-  // Preserve registry option order so two equivalent selections serialize identically.
-  return options.map((o) => o.value).filter((v) => seen.has(v));
-}
-
 function validateBoolean(raw: unknown): boolean {
   if (typeof raw !== "boolean") {
     throw new Error("Expected a boolean");
@@ -145,25 +119,6 @@ export const RETIRED_ASSESSMENT_MODES = new Set<AssessmentMode>([
   "voice",
   "text_chat",
 ]);
-
-const allowedAssessmentModes: SettingDefinition<AssessmentMode[]> = {
-  key: "allowed_assessment_modes",
-  label: "Allowed assessment modes",
-  description:
-    "Modes that assignments created in this scope may use. Existing assignments using a disallowed mode keep working but cannot be created.",
-  category: "Assessment",
-  order: 10,
-  // Institution-level control is superseded by Activity Templates (a
-  // template's defaults.interactionType already governs this more richly);
-  // kept editable at class scope only.
-  scopes: ["class"],
-  type: "string_array",
-  default: ASSESSMENT_MODE_OPTIONS.map((o) => o.value) as AssessmentMode[],
-  options: ASSESSMENT_MODE_OPTIONS,
-  validate: (raw) =>
-    validateStringArrayFromOptions(raw, ASSESSMENT_MODE_OPTIONS) as AssessmentMode[],
-  clamp: (child, parent) => child.filter((mode) => parent.includes(mode)),
-};
 
 const enableBulkFeedbackApproval: SettingDefinition<boolean> = {
   key: "enable_bulk_feedback_approval",
@@ -196,7 +151,6 @@ export type AnySettingDefinition = SettingDefinition<any>;
  * enforcing the `SettingDefinition` contract on every entry.
  */
 export const SETTINGS_REGISTRY = {
-  allowed_assessment_modes: allowedAssessmentModes,
   enable_bulk_feedback_approval: enableBulkFeedbackApproval,
 } as const satisfies Record<string, AnySettingDefinition>;
 

@@ -72,15 +72,8 @@ import {
   normalizeFeedbackFocusAreas,
   type FeedbackFocusArea,
 } from "@/lib/feedbackFocus";
-import { Lock, Settings } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Settings } from "lucide-react";
 import { showSuccessToast } from "@/lib/toast";
-import { useEffectiveClassSettings } from "@/hooks/swr/useSettings";
 import {
   ASSESSMENT_MODE_OPTIONS,
   RETIRED_ASSESSMENT_MODES,
@@ -170,10 +163,7 @@ interface AssignmentFormProps {
   /** Which internal section to show when `mode === "view"` (ignored otherwise). */
   viewSection?: "content" | "settings";
   classId: string;
-  /**
-   * Class database id (UUID). When provided, the assessment-mode dropdown is
-   * filtered to the institution/class's effective `allowed_assessment_modes`.
-   */
+  /** Class database id (UUID). Used for template availability and multimodal locale lookups. */
   classDbId?: string | null;
   /**
    * Class-level language defaults (primary/support locks + default support
@@ -356,8 +346,7 @@ export default function AssignmentForm({
   );
   // In create mode, honor the activity type's preselected interaction type
   // (e.g. Learning → multimodal) instead of the generic "voice" fallback; edit
-  // mode always uses the saved value. Restricted by allowedAssessmentModes via
-  // the currentAssessmentMode/useEffect pair below if the class disallows it.
+  // mode always uses the saved value.
   const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>(
     mode === "create"
       ? (getActivityTypeDefinition(initialActivityType).defaults
@@ -443,32 +432,17 @@ export default function AssignmentForm({
     [mode, classLanguageConfig],
   );
 
-  // Pull the class's effective allowed assessment modes (institution → class).
-  // Modes outside the allow list are disabled in the dropdown but the current
-  // value remains visible so existing assignments stay editable.
-  const { data: effectiveClassSettings } = useEffectiveClassSettings(
-    classDbId ?? null,
-  );
-  const allowedAssessmentModes = useMemo<Set<AssessmentMode>>(() => {
-    const setting = effectiveClassSettings?.allowed_assessment_modes;
-    if (!setting) {
-      return new Set(ASSESSMENT_MODE_OPTIONS.map((o) => o.value));
-    }
-    return new Set((setting.value as AssessmentMode[]) ?? []);
-  }, [effectiveClassSettings]);
-
   // What the dropdown actually renders. In create mode we project the
-  // user-/default-state to the first allowed mode when the raw state is
-  // restricted, so the trigger never shows a blank value. Edit mode keeps the
+  // user-/default-state to the first non-retired mode when the raw state is
+  // retired, so the trigger never shows a blank value. Edit mode keeps the
   // existing value visible so historic assignments stay editable.
   const currentAssessmentMode = useMemo<AssessmentMode>(() => {
     if (mode === "edit") return assessmentMode;
-    const creatable = (m: AssessmentMode) =>
-      allowedAssessmentModes.has(m) && !RETIRED_ASSESSMENT_MODES.has(m);
+    const creatable = (m: AssessmentMode) => !RETIRED_ASSESSMENT_MODES.has(m);
     if (creatable(assessmentMode)) return assessmentMode;
     const first = ASSESSMENT_MODE_OPTIONS.find((o) => creatable(o.value));
     return (first?.value ?? assessmentMode) as AssessmentMode;
-  }, [mode, assessmentMode, allowedAssessmentModes]);
+  }, [mode, assessmentMode]);
 
   // Keep the underlying state aligned with what the dropdown is showing so
   // form submission and downstream reads (bot prompt, AI panel) all agree.
@@ -848,7 +822,7 @@ export default function AssignmentForm({
   const seedFromDefinition = (def: TemplateDefinition) => {
     let targetMode = currentAssessmentMode;
     const desired = def.defaults?.interactionType;
-    if (desired && allowedAssessmentModes.has(desired)) {
+    if (desired) {
       targetMode = desired;
       setAssessmentMode(desired);
     }
@@ -941,7 +915,7 @@ export default function AssignmentForm({
     // Switch interaction type when the type asks for one and the class allows it.
     let targetMode = currentAssessmentMode;
     const desired = def.defaults?.interactionType;
-    if (desired && allowedAssessmentModes.has(desired)) {
+    if (desired) {
       targetMode = desired;
       setAssessmentMode(desired);
     }
@@ -1339,7 +1313,6 @@ export default function AssignmentForm({
                     </SelectTrigger>
                     <SelectContent>
                       {ASSESSMENT_MODE_OPTIONS.map((opt) => {
-                        const isAllowed = allowedAssessmentModes.has(opt.value);
                         const isCurrent = opt.value === currentAssessmentMode;
                         // Retired modes (voice, text chat) are no longer creatable.
                         // Hide them unless this is the current value, so existing
@@ -1349,37 +1322,6 @@ export default function AssignmentForm({
                           !isCurrent
                         ) {
                           return null;
-                        }
-                        // Disabled if the institution restricts it, unless this is the
-                        // current value (so existing assignments remain editable).
-                        if (!isAllowed && !isCurrent) {
-                          return (
-                            <SelectItem
-                              key={opt.value}
-                              value={opt.value}
-                              disabled
-                            >
-                              <span className="flex w-full items-center justify-between gap-3">
-                                <span>{opt.label}</span>
-                                <TooltipProvider delayDuration={200}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="pointer-events-auto inline-flex">
-                                        <Lock
-                                          className="h-3.5 w-3.5 text-muted-foreground"
-                                          aria-label="Restricted"
-                                        />
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="left">
-                                      This interaction type isn&apos;t allowed for
-                                      this class. Contact your admin to enable it.
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </span>
-                            </SelectItem>
-                          );
                         }
                         return (
                           <SelectItem key={opt.value} value={opt.value}>

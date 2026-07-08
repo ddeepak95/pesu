@@ -147,7 +147,33 @@ BEGIN
 END;
 $$;
 
--- 4. New institution-admin class creation entry point: creates the class
+-- 4. trg_classes_after_insert_owner: skip the automatic owner assignment
+--    when create_class_for_institution asks it to. A separate BEFORE DELETE
+--    trigger (class_teachers_prevent_owner_delete) unconditionally forbids
+--    deleting a class's owner row, so "insert then delete the owner row"
+--    is not an option — the insert has to not happen in the first place.
+--    Guarded by a transaction-local GUC (set with is_local = true, so it
+--    never leaks to other concurrent transactions/sessions) rather than a
+--    new column, to leave every other class-creation path byte-for-byte
+--    unchanged.
+CREATE OR REPLACE FUNCTION "public"."trg_classes_after_insert_owner"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  IF current_setting('app.skip_owner_trigger', true) = 'true' THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.class_teachers (class_id, teacher_id, role)
+  VALUES (NEW.id, NEW.created_by, 'owner')
+  ON CONFLICT (class_id, teacher_id)
+  DO UPDATE SET role = 'owner';
+  RETURN NEW;
+END;
+$$;
+
+-- 5. New institution-admin class creation entry point: creates the class
 --    without granting the creator a teaching role, then auto-generates the
 --    primary-teacher invite so it's ready to share immediately.
 CREATE OR REPLACE FUNCTION "public"."create_class_for_institution"(
@@ -175,18 +201,17 @@ BEGIN
     RAISE EXCEPTION 'Only a platform super admin or institution admin may create a class for this institution';
   END IF;
 
+  -- This is an administrative creation, not a teaching assignment — skip
+  -- trg_classes_after_insert_owner's usual "creator becomes owner" so the
+  -- class starts with no teacher until the primary-teacher invite (below)
+  -- is accepted. Local to this transaction only.
+  PERFORM set_config('app.skip_owner_trigger', 'true', true);
+
   INSERT INTO public.classes
     (name, class_id, created_by, status, preferred_language, institution_id)
   VALUES
     (p_name, p_class_id, v_caller, 'active', p_preferred_language, p_institution_id)
   RETURNING * INTO v_class;
-
-  -- trg_classes_after_insert_owner just made the caller `owner`; this is an
-  -- administrative creation, not a teaching assignment, so undo that — the
-  -- class starts with no teacher until the primary-teacher invite (below)
-  -- is accepted.
-  DELETE FROM public.class_teachers
-    WHERE class_id = v_class.id AND teacher_id = v_caller;
 
   -- Auto-generate the primary-teacher invite so it's ready to share the
   -- moment the admin sees the "class created" confirmation.
