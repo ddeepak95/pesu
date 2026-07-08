@@ -35,6 +35,7 @@ import {
   invalidateSpeechProviderKeyCacheForInstitution,
 } from "@/lib/konvo-voice/speech/resolveProviderKey";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
+import { getClassAiOverride } from "@/lib/queries/aiClassSettings";
 import { PLATFORM_SCOPE_ID } from "@/lib/ai/credentials/constants";
 import {
   deleteFunctionBinding,
@@ -153,16 +154,12 @@ async function assertCatalogEditAccess(input: {
   if (!classMeta?.institutionId) {
     throw new Error("Class not found");
   }
-  const { viewerRole } = await resolveClassSettingsViewer(
-    input.supabase,
-    input.userId,
-    scopeId,
-  );
-  const institutionPolicy = await getInstitutionAiPolicy(
-    input.supabase,
-    classMeta.institutionId,
-  );
-  assertCanEditClassAiConfig({ viewerRole, institutionPolicy });
+  const [{ viewerRole }, institutionPolicy, classOverridePolicy] = await Promise.all([
+    resolveClassSettingsViewer(input.supabase, input.userId, scopeId),
+    getInstitutionAiPolicy(input.supabase, classMeta.institutionId),
+    getClassAiOverride(input.supabase, scopeId),
+  ]);
+  assertCanEditClassAiConfig({ viewerRole, institutionPolicy, classOverridePolicy });
   return {
     institutionId: classMeta.institutionId,
     classShortId: classMeta.classShortId,

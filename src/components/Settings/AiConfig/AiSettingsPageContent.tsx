@@ -22,12 +22,13 @@ import type {
   ProviderId,
 } from "@/lib/ai/catalog/types";
 import type { ViewerRole } from "@/lib/settings/capabilities";
-import type { AiInstitutionPolicy } from "@/types/aiSettings";
+import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
 
 import AiConfigLocksRow from "./AiConfigLocksRow";
 import AiFunctionsPanel from "./AiFunctionsPanel";
 import AiModelCatalogDialog from "./AiModelCatalogDialog";
 import AiProvidersPanel from "./AiProvidersPanel";
+import ClassAiOverrideRow from "./ClassAiOverrideRow";
 
 interface AiSettingsPageContentProps {
   scope: AiSettingsScope;
@@ -37,6 +38,8 @@ interface AiSettingsPageContentProps {
   description: string;
   viewerRole?: ViewerRole;
   institutionPolicy?: AiInstitutionPolicy;
+  classOverridePolicy?: AiClassOverridePolicy;
+  classShortId?: string | null;
   showLocks?: boolean;
 }
 
@@ -48,6 +51,8 @@ export default function AiSettingsPageContent({
   description,
   viewerRole = "super_admin",
   institutionPolicy,
+  classOverridePolicy,
+  classShortId,
   showLocks = false,
 }: AiSettingsPageContentProps) {
   const {
@@ -155,7 +160,7 @@ export default function AiSettingsPageContent({
             disabled={isPending}
             onClick={resetToDefaults}
           >
-            Reset scope
+            Reset to default
           </Button>
         </div>
         {summary && (
@@ -171,6 +176,16 @@ export default function AiSettingsPageContent({
             institutionId={scopeId}
             viewerRole={viewerRole}
             institutionPolicy={institutionPolicy}
+          />
+        )}
+
+        {scope === "class" && institutionPolicy && classOverridePolicy && (
+          <ClassAiOverrideRow
+            classDbId={scopeId}
+            classShortId={classShortId}
+            viewerRole={viewerRole}
+            institutionPolicy={institutionPolicy}
+            classOverridePolicy={classOverridePolicy}
           />
         )}
 

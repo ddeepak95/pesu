@@ -4,12 +4,11 @@ import type { AiInstitutionPolicy } from "@/types/aiSettings";
 import { DEFAULT_AI_INSTITUTION_POLICY } from "@/types/aiSettings";
 
 const POLICY_COLUMNS =
-  "institution_id, allow_admin_edit, allow_child_override, allow_use_platform_defaults, updated_by, updated_at";
+  "institution_id, allow_admin_edit, allow_use_platform_defaults, updated_by, updated_at";
 
 interface AiInstitutionSettingsRow {
   institution_id: string;
   allow_admin_edit: boolean;
-  allow_child_override: boolean;
   allow_use_platform_defaults: boolean;
 }
 
@@ -17,7 +16,6 @@ function rowToPolicy(row: AiInstitutionSettingsRow | null): AiInstitutionPolicy 
   if (!row) return { ...DEFAULT_AI_INSTITUTION_POLICY };
   return {
     allowAdminEdit: row.allow_admin_edit,
-    allowChildOverride: row.allow_child_override,
     allowUsePlatformDefaults: row.allow_use_platform_defaults ?? true,
   };
 }
@@ -46,7 +44,6 @@ export async function setInstitutionAiPolicy(
     {
       institution_id: institutionId,
       allow_admin_edit: policy.allowAdminEdit,
-      allow_child_override: policy.allowChildOverride,
       allow_use_platform_defaults: policy.allowUsePlatformDefaults,
       updated_by: updatedBy,
       updated_at: nowIso,
@@ -58,7 +55,6 @@ export async function setInstitutionAiPolicy(
 
 export type InstitutionAiPolicyLockKey =
   | "allow_admin_edit"
-  | "allow_child_override"
   | "allow_use_platform_defaults";
 
 export async function setInstitutionAiPolicyLock(
@@ -69,19 +65,8 @@ export async function setInstitutionAiPolicyLock(
   updatedBy: string,
   currentPolicy: AiInstitutionPolicy,
 ): Promise<void> {
-  const allowAdminEdit =
-    lock === "allow_admin_edit" ? enabled : currentPolicy.allowAdminEdit;
   const next: AiInstitutionPolicy = {
-    allowAdminEdit,
-    // "Allow class teachers to edit" is a sub-permission of the admin-edit
-    // master lock — revoking admin edit cascades to revoke it too, so the
-    // two never drift out of hierarchy.
-    allowChildOverride:
-      lock === "allow_child_override"
-        ? enabled
-        : allowAdminEdit
-          ? currentPolicy.allowChildOverride
-          : false,
+    allowAdminEdit: lock === "allow_admin_edit" ? enabled : currentPolicy.allowAdminEdit,
     allowUsePlatformDefaults:
       lock === "allow_use_platform_defaults"
         ? enabled

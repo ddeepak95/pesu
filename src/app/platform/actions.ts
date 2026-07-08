@@ -7,6 +7,11 @@ import {
   createInstitution,
   addInstitutionAdminByEmail,
   removeInstitutionAdmin,
+  getInstitution,
+  countClassesByInstitution,
+  archiveInstitution,
+  restoreInstitution,
+  deleteInstitution,
 } from "@/lib/queries/institutions";
 
 function formString(formData: FormData, key: string): string {
@@ -117,6 +122,93 @@ export async function removeInstitutionAdminAction(
 
   revalidatePath(detailPath);
   redirect(buildNoticeUrl(detailPath, { ok: "Admin removed" }));
+}
+
+/**
+ * Delete an institution if it has no classes (of any status) under it;
+ * otherwise archive it instead, since a hard delete would fail on the
+ * `classes.institution_id` FK anyway. The default institution can never be
+ * deleted or archived.
+ */
+export async function deleteOrArchiveInstitutionAction(
+  formData: FormData
+): Promise<void> {
+  const { supabase } = await requireSuperAdmin();
+
+  const institutionId = formString(formData, "institutionId");
+  const detailPath = institutionId
+    ? `/platform/institutions/${institutionId}`
+    : "/platform";
+
+  if (!institutionId) {
+    redirect(buildNoticeUrl("/platform", { error: "Missing institution id" }));
+  }
+
+  let errorMessage: string | null = null;
+  let deleted = false;
+  try {
+    const institution = await getInstitution(supabase, institutionId);
+    if (!institution) {
+      throw new Error("Institution not found");
+    }
+    if (institution.is_default) {
+      throw new Error("The default institution can't be deleted or archived");
+    }
+
+    const classCount = await countClassesByInstitution(supabase, institutionId);
+    if (classCount === 0) {
+      await deleteInstitution(supabase, institutionId);
+      deleted = true;
+    } else {
+      await archiveInstitution(supabase, institutionId);
+    }
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : String(err);
+  }
+
+  if (errorMessage) {
+    redirect(buildNoticeUrl(detailPath, { error: errorMessage }));
+  }
+
+  revalidatePath("/platform");
+  if (deleted) {
+    redirect(buildNoticeUrl("/platform", { ok: "Institution deleted" }));
+  }
+  revalidatePath(detailPath);
+  redirect(
+    buildNoticeUrl(detailPath, {
+      ok: "Institution archived (it still has classes)",
+    })
+  );
+}
+
+export async function restoreInstitutionAction(
+  formData: FormData
+): Promise<void> {
+  const { supabase } = await requireSuperAdmin();
+
+  const institutionId = formString(formData, "institutionId");
+  const detailPath = institutionId
+    ? `/platform/institutions/${institutionId}`
+    : "/platform";
+
+  if (!institutionId) {
+    redirect(buildNoticeUrl("/platform", { error: "Missing institution id" }));
+  }
+
+  let errorMessage: string | null = null;
+  try {
+    await restoreInstitution(supabase, institutionId);
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : String(err);
+  }
+  if (errorMessage) {
+    redirect(buildNoticeUrl(detailPath, { error: errorMessage }));
+  }
+
+  revalidatePath("/platform");
+  revalidatePath(detailPath);
+  redirect(buildNoticeUrl(detailPath, { ok: "Institution restored" }));
 }
 
 export interface MoveClassResult {

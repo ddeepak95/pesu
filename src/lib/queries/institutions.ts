@@ -109,6 +109,67 @@ export async function listInstitutionMembers(
   return (data ?? []) as InstitutionMember[];
 }
 
+/**
+ * Count classes under an institution across all statuses (active, archived,
+ * deleted). This intentionally does not filter by status: `classes
+ * .institution_id` has no `ON DELETE` action, so *any* class row — regardless
+ * of status — blocks a hard delete at the FK level. The emptiness check has
+ * to match that or callers would see a false "empty" signal followed by a
+ * raw FK-violation error.
+ */
+export async function countClassesByInstitution(
+  supabase: SupabaseClient,
+  institutionId: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("classes")
+    .select("id", { count: "exact", head: true })
+    .eq("institution_id", institutionId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function archiveInstitution(
+  supabase: SupabaseClient,
+  institutionId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("institutions")
+    .update({ status: "archived" })
+    .eq("id", institutionId);
+  if (error) throw error;
+}
+
+export async function restoreInstitution(
+  supabase: SupabaseClient,
+  institutionId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("institutions")
+    .update({ status: "active" })
+    .eq("id", institutionId);
+  if (error) throw error;
+}
+
+/**
+ * Hard-delete an institution. Relies on existing cascades
+ * (`ai_institution_settings`, `institution_admin_invites`,
+ * `institution_members`, `class_institution_moves`) — callers must ensure
+ * no classes reference this institution first (see
+ * `countClassesByInstitution`), since `classes.institution_id` has no
+ * cascade and will raise an FK violation otherwise.
+ */
+export async function deleteInstitution(
+  supabase: SupabaseClient,
+  institutionId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("institutions")
+    .delete()
+    .eq("id", institutionId);
+  if (error) throw error;
+}
+
 export async function listClassesInInstitution(
   supabase: SupabaseClient,
   institutionId: string

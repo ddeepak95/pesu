@@ -20,7 +20,7 @@ import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneS
 import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
 import ClassAiManagementTab from "@/components/Settings/ClassAiManagementTab";
 import ClassInheritedSettingsSection from "@/components/Settings/ClassInheritedSettingsSection";
-import type { AiInstitutionPolicy } from "@/types/aiSettings";
+import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import { Class } from "@/types/class";
 
@@ -30,6 +30,7 @@ interface ClassSettingsClientProps {
   userId: string;
   viewerRole: ViewerRole;
   institutionPolicy?: AiInstitutionPolicy;
+  classOverridePolicy?: AiClassOverridePolicy;
   /**
    * Optional explicit back-link target. When provided, replaces the default
    * history-based `<BackButton />`. Used by the institution/super-admin
@@ -55,6 +56,7 @@ export default function ClassSettingsClient({
   backHref,
   backLabel,
   institutionPolicy,
+  classOverridePolicy,
   activityTemplatesBasePath,
 }: ClassSettingsClientProps) {
   const router = useTrackedRouter();
@@ -173,14 +175,18 @@ export default function ClassSettingsClient({
             viewerRole={viewerRole}
           />
 
-          {initialClassData.institution_id && institutionPolicy && (
-            <ClassAiManagementTab
-              classDbId={initialClassData.id}
-              institutionId={initialClassData.institution_id}
-              viewerRole={viewerRole}
-              institutionPolicy={institutionPolicy}
-            />
-          )}
+          {initialClassData.institution_id &&
+            institutionPolicy &&
+            classOverridePolicy && (
+              <ClassAiManagementTab
+                classDbId={initialClassData.id}
+                classShortId={classId}
+                institutionId={initialClassData.institution_id}
+                viewerRole={viewerRole}
+                institutionPolicy={institutionPolicy}
+                classOverridePolicy={classOverridePolicy}
+              />
+            )}
 
           {canConfigureSettings && (
             <>

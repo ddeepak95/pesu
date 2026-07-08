@@ -13,13 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 
 interface ClassFormProps {
@@ -114,22 +108,17 @@ export default function ClassForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="preferredLanguage">Preferred Language</Label>
-            <Select
+            <SearchableSelect
+              id="preferredLanguage"
               value={preferredLanguage}
               onValueChange={setPreferredLanguage}
+              options={supportedLanguages.map((lang) => ({
+                value: lang.code,
+                label: lang.name,
+              }))}
+              placeholder="Select a language"
               disabled={loading}
-            >
-              <SelectTrigger id="preferredLanguage">
-                <SelectValue placeholder="Select a language" />
-              </SelectTrigger>
-              <SelectContent>
-                {supportedLanguages.map((lang) => (
-                  <SelectItem key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>

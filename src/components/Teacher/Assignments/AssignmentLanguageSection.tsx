@@ -4,13 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/ui/settings-card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { MultimodalLanguageSupportEditor } from "@/components/Teacher/Assignments/MultimodalLanguageSupportEditor";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
@@ -69,26 +63,19 @@ export function AssignmentLanguageSection({
             <Label htmlFor="preferredLanguage">{primaryLanguageLabel}</Label>
             <InfoTooltip text={primaryLanguageTooltip} />
           </div>
-          <Select
+          <SearchableSelect
+            id="preferredLanguage"
+            className="w-[220px]"
             value={preferredLanguage}
             onValueChange={setPreferredLanguage}
+            options={supportedLanguages.map((lang) => ({
+              value: lang.code,
+              label: lang.name,
+            }))}
+            placeholder="Select a language"
             disabled={loading}
-          >
-            <SelectTrigger
-              id="preferredLanguage"
-              className="w-[220px]"
-              readOnly={readOnly}
-            >
-              <SelectValue placeholder="Select a language" />
-            </SelectTrigger>
-            <SelectContent>
-              {supportedLanguages.map((lang) => (
-                <SelectItem key={lang.code} value={lang.code}>
-                  {lang.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            readOnly={readOnly}
+          />
         </div>
 
         <div className="flex items-center space-x-2">

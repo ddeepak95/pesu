@@ -33,6 +33,8 @@ interface InstitutionSettingsTabsProps {
   adminsSection?: ReactNode;
   /** "Manage Activity Templates" link target for this institution's template library. */
   activityTemplatesManageHref: string;
+  /** Super-admin-only Danger Zone (delete/archive/restore institution). */
+  dangerZoneSection?: ReactNode;
 }
 
 export default function InstitutionSettingsTabs({
@@ -42,6 +44,7 @@ export default function InstitutionSettingsTabs({
   institutionPolicy,
   adminsSection,
   activityTemplatesManageHref,
+  dangerZoneSection,
 }: InstitutionSettingsTabsProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -84,6 +87,7 @@ export default function InstitutionSettingsTabs({
           manageHref={activityTemplatesManageHref}
         />
         {adminsSection}
+        {dangerZoneSection}
       </TabsContent>
 
       <TabsContent value="ai" className="mt-0">

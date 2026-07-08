@@ -5,20 +5,30 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 
 import { verifySession } from "@/lib/dal";
-import { assertCanToggleAiLock } from "@/lib/ai/credentials/enforce";
+import {
+  assertCanToggleAiLock,
+  assertCanToggleClassAiOverride,
+} from "@/lib/ai/credentials/enforce";
 import {
   clearModelConfigCache,
+  invalidateModelConfigCache,
   invalidateModelConfigCacheForInstitution,
 } from "@/lib/ai/credentials/modelConfigCache";
 import {
   clearSpeechProviderKeyCache,
+  invalidateSpeechProviderKeyCacheForClass,
   invalidateSpeechProviderKeyCacheForInstitution,
 } from "@/lib/konvo-voice/speech/resolveProviderKey";
 import {
   getInstitutionAiPolicy,
   setInstitutionAiPolicyLock,
 } from "@/lib/queries/aiInstitutionSettings";
-import { forceProvidersOffPlatformDefault } from "@/lib/queries/aiCatalog";
+import { setClassAiOverride } from "@/lib/queries/aiClassSettings";
+import {
+  forceProvidersOffPlatformDefault,
+  resetCatalogScope,
+} from "@/lib/queries/aiCatalog";
+import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 
 export interface AiConfigActionResult {
@@ -66,10 +76,7 @@ function revalidateInstitution(institutionId: string) {
 
 export async function setInstitutionAiConfigLocksAction(input: {
   institutionId: string;
-  lock:
-    | "allow_admin_edit"
-    | "allow_child_override"
-    | "allow_use_platform_defaults";
+  lock: "allow_admin_edit" | "allow_use_platform_defaults";
   enabled: boolean;
 }): Promise<AiConfigActionResult> {
   try {
@@ -86,8 +93,6 @@ export async function setInstitutionAiConfigLocksAction(input: {
     assertCanToggleAiLock({
       viewerRole,
       lock: input.lock,
-      enabled: input.enabled,
-      institutionPolicy,
     });
     await setInstitutionAiPolicyLock(
       supabase,
@@ -110,6 +115,53 @@ export async function setInstitutionAiConfigLocksAction(input: {
     await invalidateModelConfigCacheForInstitution(input.institutionId);
     await invalidateSpeechProviderKeyCacheForInstitution(input.institutionId);
     revalidateInstitution(input.institutionId);
+    return ok();
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function setClassAiOverrideAction(input: {
+  classDbId: string;
+  classShortId?: string | null;
+  enabled: boolean;
+}): Promise<AiConfigActionResult> {
+  try {
+    const { user, supabase } = await verifySession();
+    const { viewerRole, institutionId } = await resolveClassSettingsViewer(
+      supabase,
+      user.id,
+      input.classDbId,
+    );
+    const institutionPolicy = await getInstitutionAiPolicy(
+      supabase,
+      institutionId,
+    );
+    assertCanToggleClassAiOverride({
+      viewerRole,
+      enabled: input.enabled,
+      institutionPolicy,
+    });
+    await setClassAiOverride(supabase, input.classDbId, input.enabled, user.id);
+
+    // Revoking override permission also resets the class back to inheriting
+    // institution/platform defaults — otherwise a teacher's prior edits would
+    // silently keep taking effect even after they lost the ability to change
+    // them further.
+    if (!input.enabled) {
+      await resetCatalogScope(supabase, "class", input.classDbId);
+    }
+
+    clearModelConfigCache();
+    clearSpeechProviderKeyCache();
+    invalidateModelConfigCache(input.classDbId);
+    await invalidateSpeechProviderKeyCacheForClass(input.classDbId);
+
+    revalidatePath(`/admin/institutions/${institutionId}/classes/${input.classDbId}`);
+    revalidatePath(`/platform/institutions/${institutionId}/classes/${input.classDbId}`);
+    if (input.classShortId) {
+      revalidatePath(`/teacher/classes/${input.classShortId}/settings`);
+    }
     return ok();
   } catch (err) {
     return fail((err as Error).message);

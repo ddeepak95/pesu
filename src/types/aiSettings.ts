@@ -7,13 +7,19 @@ export type AiConfigSource =
 
 export interface AiInstitutionPolicy {
   allowAdminEdit: boolean;
-  allowChildOverride: boolean;
   /** When false, institution cannot use platform defaults; must set custom API keys. */
   allowUsePlatformDefaults: boolean;
 }
 
 export const DEFAULT_AI_INSTITUTION_POLICY: AiInstitutionPolicy = {
   allowAdminEdit: false,
-  allowChildOverride: false,
   allowUsePlatformDefaults: true,
+};
+
+export interface AiClassOverridePolicy {
+  allowChildOverride: boolean;
+}
+
+export const DEFAULT_AI_CLASS_OVERRIDE_POLICY: AiClassOverridePolicy = {
+  allowChildOverride: false,
 };

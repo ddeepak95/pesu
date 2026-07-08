@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ClassSettingsClient from "@/app/teacher/classes/[classId]/settings/ClassSettingsClient";
 import { requireSuperAdmin } from "@/lib/dal";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
+import { getClassAiOverride } from "@/lib/queries/aiClassSettings";
 import { getInstitution } from "@/lib/queries/institutions";
 import type { Class } from "@/types/class";
 
@@ -21,15 +22,17 @@ export default async function PlatformClassSettingsPage({
   const { id, classDbId } = await params;
   const { user, supabase } = await requireSuperAdmin();
 
-  const [institution, classRes, institutionPolicy] = await Promise.all([
-    getInstitution(supabase, id),
-    supabase
-      .from("classes")
-      .select(CLASS_COLUMNS)
-      .eq("id", classDbId)
-      .maybeSingle(),
-    getInstitutionAiPolicy(supabase, id),
-  ]);
+  const [institution, classRes, institutionPolicy, classOverridePolicy] =
+    await Promise.all([
+      getInstitution(supabase, id),
+      supabase
+        .from("classes")
+        .select(CLASS_COLUMNS)
+        .eq("id", classDbId)
+        .maybeSingle(),
+      getInstitutionAiPolicy(supabase, id),
+      getClassAiOverride(supabase, classDbId),
+    ]);
 
   if (!institution) notFound();
   const cls = classRes.data as Class | null;
@@ -44,6 +47,7 @@ export default async function PlatformClassSettingsPage({
       backHref={`/platform/institutions/${id}?tab=classes`}
       backLabel={`Back to ${institution.name}`}
       institutionPolicy={institutionPolicy}
+      classOverridePolicy={classOverridePolicy}
       activityTemplatesBasePath={`/platform/institutions/${id}/classes/${classDbId}/activity-templates`}
     />
   );

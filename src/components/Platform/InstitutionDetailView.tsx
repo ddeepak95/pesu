@@ -10,6 +10,7 @@ import InstitutionSettingsTabs from "@/components/Settings/InstitutionSettingsTa
 import InstitutionClassCard from "@/components/Platform/InstitutionClassCard";
 import CreateInstitutionClass from "@/components/Platform/CreateInstitutionClass";
 import ManageInstitutionAdminInvite from "@/components/Platform/ManageInstitutionAdminInvite";
+import InstitutionDangerZoneSection from "@/components/Platform/InstitutionDangerZoneSection";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -225,6 +226,11 @@ export default function InstitutionDetailView({
                 userEmails={userEmails}
                 isSuper={isSuper}
               />
+            }
+            dangerZoneSection={
+              isSuper ? (
+                <InstitutionDangerZoneSection institution={institution} />
+              ) : undefined
             }
           />
         </TabsContent>

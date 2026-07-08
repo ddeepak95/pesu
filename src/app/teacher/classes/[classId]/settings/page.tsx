@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { verifySession } from "@/lib/dal";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
+import { getClassAiOverride } from "@/lib/queries/aiClassSettings";
 import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 
 import ClassSettingsClient from "./ClassSettingsClient";
@@ -48,9 +49,12 @@ export default async function ClassSettingsPage({
   }
 
   const institutionId = classData.institution_id as string | undefined;
-  const institutionPolicy = institutionId
-    ? await getInstitutionAiPolicy(supabase, institutionId)
-    : undefined;
+  const [institutionPolicy, classOverridePolicy] = institutionId
+    ? await Promise.all([
+        getInstitutionAiPolicy(supabase, institutionId),
+        getClassAiOverride(supabase, classData.id),
+      ])
+    : [undefined, undefined];
 
   return (
     <ClassSettingsClient
@@ -59,6 +63,7 @@ export default async function ClassSettingsPage({
       userId={user.id}
       viewerRole={viewerRole}
       institutionPolicy={institutionPolicy}
+      classOverridePolicy={classOverridePolicy}
       backHref={`/teacher/classes/${classId}`}
       backLabel={`Back to class`}
     />

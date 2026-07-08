@@ -32,9 +32,6 @@ export default function AiConfigLocksRow({
   const [allowAdminEdit, setAllowAdminEdit] = useState(
     institutionPolicy.allowAdminEdit,
   );
-  const [allowChildOverride, setAllowChildOverride] = useState(
-    institutionPolicy.allowChildOverride,
-  );
   const [allowUsePlatformDefaults, setAllowUsePlatformDefaults] = useState(
     institutionPolicy.allowUsePlatformDefaults,
   );
@@ -42,16 +39,12 @@ export default function AiConfigLocksRow({
   const [error, setError] = useState<string | null>(null);
 
   const adminChanged = allowAdminEdit !== institutionPolicy.allowAdminEdit;
-  const childChanged =
-    allowChildOverride !== institutionPolicy.allowChildOverride;
   const platformChanged =
     allowUsePlatformDefaults !== institutionPolicy.allowUsePlatformDefaults;
-  const hasChanges = adminChanged || childChanged || platformChanged;
+  const hasChanges = adminChanged || platformChanged;
 
   const canSave =
-    caps.canToggleAllowAdminEdit ||
-    caps.canToggleAllowChildOverride ||
-    caps.canToggleAllowPlatformDefaults;
+    caps.canToggleAllowAdminEdit || caps.canToggleAllowPlatformDefaults;
 
   if (!canSave && viewerRole !== "super_admin") {
     return null;
@@ -82,25 +75,9 @@ export default function AiConfigLocksRow({
           return;
         }
       }
-      if (childChanged) {
-        const res = await setInstitutionAiConfigLocksAction({
-          institutionId,
-          lock: "allow_child_override",
-          enabled: allowChildOverride,
-        });
-        if (!res.ok) {
-          setError(res.error ?? "Failed to save");
-          return;
-        }
-      }
       invalidateInstitutionAiPolicy(institutionId);
     });
   };
-
-  // The class-teacher toggle is a sub-permission of admin-edit — it follows
-  // the in-progress (unsaved) master switch so it unlocks immediately as
-  // soon as admin edit is turned on, without waiting for a save round-trip.
-  const childOverrideLocked = !allowAdminEdit;
 
   return (
     <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -112,31 +89,9 @@ export default function AiConfigLocksRow({
           </Label>
           <Switch
             checked={allowAdminEdit}
-            onCheckedChange={(checked) => {
-              setAllowAdminEdit(checked);
-              if (!checked) setAllowChildOverride(false);
-            }}
+            onCheckedChange={setAllowAdminEdit}
             disabled={pending}
           />
-        </div>
-      )}
-      {(caps.canToggleAllowChildOverride || viewerRole === "super_admin") && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between gap-4">
-            <Label className="text-sm font-normal">
-              Allow class teachers to edit
-            </Label>
-            <Switch
-              checked={allowChildOverride}
-              onCheckedChange={setAllowChildOverride}
-              disabled={childOverrideLocked || pending}
-            />
-          </div>
-          {childOverrideLocked && (
-            <p className="text-xs text-muted-foreground">
-              Enable &ldquo;Allow institution admin to edit&rdquo; first.
-            </p>
-          )}
         </div>
       )}
       {caps.canToggleAllowPlatformDefaults && (
