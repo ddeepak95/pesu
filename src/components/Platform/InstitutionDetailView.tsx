@@ -215,6 +215,7 @@ export default function InstitutionDetailView({
         <TabsContent value="settings" className="space-y-6 pt-6">
           <InstitutionSettingsTabs
             institutionId={institution.id}
+            institution={institution}
             viewerRole={viewerRole}
             effectiveSettings={effectiveSettings}
             institutionPolicy={institutionPolicy}
@@ -244,6 +245,7 @@ export default function InstitutionDetailView({
               <CreateInstitutionClass
                 institutionId={institution.id}
                 classSettingsHrefBase={classOverrideHrefBase}
+                defaultLanguage={institution.preferred_language}
               />
             </div>
             {classes.length === 0 ? (
@@ -252,6 +254,7 @@ export default function InstitutionDetailView({
                 <CreateInstitutionClass
                   institutionId={institution.id}
                   classSettingsHrefBase={classOverrideHrefBase}
+                  defaultLanguage={institution.preferred_language}
                 />
               </div>
             ) : (

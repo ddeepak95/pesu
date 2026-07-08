@@ -20,6 +20,8 @@ interface CreateInstitutionClassProps {
   institutionId: string;
   /** Base path for the class settings drill-down; `/{classDbId}` is appended. */
   classSettingsHrefBase: string;
+  /** Institution's default preferred language, used to seed the form. */
+  defaultLanguage: string;
 }
 
 interface JustCreatedClass {
@@ -31,6 +33,7 @@ interface JustCreatedClass {
 export default function CreateInstitutionClass({
   institutionId,
   classSettingsHrefBase,
+  defaultLanguage,
 }: CreateInstitutionClassProps) {
   const [open, setOpen] = useState(false);
   const [justCreated, setJustCreated] = useState<JustCreatedClass | null>(
@@ -76,6 +79,7 @@ export default function CreateInstitutionClass({
         open={open}
         onOpenChange={setOpen}
         onSubmit={handleSubmit}
+        initialLanguage={defaultLanguage}
         triggerButton={<Button>Create Class</Button>}
       />
 

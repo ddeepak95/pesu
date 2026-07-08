@@ -16,6 +16,8 @@ import type { AiInstitutionPolicy } from "@/types/aiSettings";
 import InstitutionAiManagementTab from "./InstitutionAiManagementTab";
 import InstitutionSettingsForm from "./InstitutionSettingsForm";
 import InstitutionActivityTemplatesSection from "./InstitutionActivityTemplatesSection";
+import InstitutionPreferredLanguageCard from "@/components/Platform/InstitutionPreferredLanguageCard";
+import type { Institution } from "@/lib/queries/institutions";
 
 const SETTINGS_TAB_PARAM = "settingsTab";
 
@@ -27,6 +29,7 @@ function parseSettingsSubTab(raw: string | null): SettingsSubTab {
 
 interface InstitutionSettingsTabsProps {
   institutionId: string;
+  institution: Institution;
   viewerRole: ViewerRole;
   effectiveSettings: EffectiveSettings;
   institutionPolicy: AiInstitutionPolicy;
@@ -39,6 +42,7 @@ interface InstitutionSettingsTabsProps {
 
 export default function InstitutionSettingsTabs({
   institutionId,
+  institution,
   viewerRole,
   effectiveSettings,
   institutionPolicy,
@@ -77,6 +81,10 @@ export default function InstitutionSettingsTabs({
       </MutedPrimaryTabsList>
 
       <TabsContent value="general" className="mt-0 space-y-6">
+        <InstitutionPreferredLanguageCard
+          institution={institution}
+          isSuper={viewerRole === "super_admin"}
+        />
         <InstitutionSettingsForm
           institutionId={institutionId}
           viewerRole={viewerRole}

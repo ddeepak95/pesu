@@ -12,6 +12,7 @@ import {
   archiveInstitution,
   restoreInstitution,
   deleteInstitution,
+  updateInstitutionPreferredLanguage,
 } from "@/lib/queries/institutions";
 
 function formString(formData: FormData, key: string): string {
@@ -209,6 +210,46 @@ export async function restoreInstitutionAction(
   revalidatePath("/platform");
   revalidatePath(detailPath);
   redirect(buildNoticeUrl(detailPath, { ok: "Institution restored" }));
+}
+
+export interface UpdatePreferredLanguageResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Update an institution's default preferred language, used to seed
+ * `preferredLanguage` when an admin creates a class under this institution.
+ * Super-admin-only, matching the existing "Super admins manage institutions"
+ * RLS policy (institution admins can read but not write this row).
+ */
+export async function updateInstitutionPreferredLanguageAction(input: {
+  institutionId: string;
+  preferredLanguage: string;
+}): Promise<UpdatePreferredLanguageResult> {
+  const { supabase } = await requireSuperAdmin();
+
+  const institutionId = input.institutionId?.trim() ?? "";
+  const preferredLanguage = input.preferredLanguage?.trim() ?? "";
+  if (!institutionId) return { ok: false, error: "Missing institution id" };
+  if (!preferredLanguage)
+    return { ok: false, error: "Preferred language is required" };
+
+  try {
+    await updateInstitutionPreferredLanguage(
+      supabase,
+      institutionId,
+      preferredLanguage
+    );
+    revalidatePath(`/platform/institutions/${institutionId}`);
+    revalidatePath(`/admin/institutions/${institutionId}`);
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 export interface MoveClassResult {

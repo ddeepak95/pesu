@@ -12,6 +12,7 @@ export interface Institution {
   slug: string | null;
   status: string;
   is_default: boolean;
+  preferred_language: string;
   created_at: string;
   updated_at: string;
 }
@@ -35,7 +36,7 @@ export interface ClassInstitutionMove {
 }
 
 const INSTITUTION_COLUMNS =
-  "id, name, slug, status, is_default, created_at, updated_at";
+  "id, name, slug, status, is_default, preferred_language, created_at, updated_at";
 
 const MEMBER_COLUMNS =
   "id, institution_id, user_id, role, created_at";
@@ -147,6 +148,18 @@ export async function restoreInstitution(
   const { error } = await supabase
     .from("institutions")
     .update({ status: "active" })
+    .eq("id", institutionId);
+  if (error) throw error;
+}
+
+export async function updateInstitutionPreferredLanguage(
+  supabase: SupabaseClient,
+  institutionId: string,
+  preferredLanguage: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("institutions")
+    .update({ preferred_language: preferredLanguage })
     .eq("id", institutionId);
   if (error) throw error;
 }

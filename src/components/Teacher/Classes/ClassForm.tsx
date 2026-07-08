@@ -72,7 +72,7 @@ export default function ClassForm({
       // Reset form only on create mode
       if (mode === "create") {
         setClassName("");
-        setPreferredLanguage("en");
+        setPreferredLanguage(initialLanguage);
       }
       
       onOpenChange(false);
