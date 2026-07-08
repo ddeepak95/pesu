@@ -61,15 +61,22 @@ export function assertCanUsePlatformDefault(input: {
 export function assertCanToggleAiLock(input: {
   viewerRole: ViewerRole;
   lock: InstitutionAiPolicyLockKey;
+  enabled: boolean;
   institutionPolicy: AiInstitutionPolicy;
 }): void {
-  if (input.viewerRole === "super_admin") return;
   if (
     input.lock === "allow_admin_edit" ||
     input.lock === "allow_use_platform_defaults"
   ) {
-    throw new Error("Only platform super admins may change this lock");
+    if (input.viewerRole !== "super_admin") {
+      throw new Error("Only platform super admins may change this lock");
+    }
+    return;
   }
+  // allow_child_override ("allow class teachers to edit"): role authority
+  // first, then the hierarchy rule. Turning it OFF is always permitted for
+  // an authorized role; turning it ON requires the admin-edit master lock —
+  // this applies to super admins too, not just institution admins.
   const caps = aiConfigCapabilities({
     viewerRole: input.viewerRole,
     mode: "institution",
@@ -77,5 +84,10 @@ export function assertCanToggleAiLock(input: {
   });
   if (!caps.canToggleAllowChildOverride) {
     throw new Error("You may not change class override permission");
+  }
+  if (input.enabled && !input.institutionPolicy.allowAdminEdit) {
+    throw new Error(
+      'Enable "Allow institution admin to edit" before granting class teacher overrides',
+    );
   }
 }

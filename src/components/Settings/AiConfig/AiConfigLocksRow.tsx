@@ -97,9 +97,48 @@ export default function AiConfigLocksRow({
     });
   };
 
+  // The class-teacher toggle is a sub-permission of admin-edit — it follows
+  // the in-progress (unsaved) master switch so it unlocks immediately as
+  // soon as admin edit is turned on, without waiting for a save round-trip.
+  const childOverrideLocked = !allowAdminEdit;
+
   return (
     <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
       <p className="text-sm font-medium">AI configuration permissions</p>
+      {caps.canToggleAllowAdminEdit && (
+        <div className="flex items-center justify-between gap-4">
+          <Label className="text-sm font-normal">
+            Allow institution admin to edit
+          </Label>
+          <Switch
+            checked={allowAdminEdit}
+            onCheckedChange={(checked) => {
+              setAllowAdminEdit(checked);
+              if (!checked) setAllowChildOverride(false);
+            }}
+            disabled={pending}
+          />
+        </div>
+      )}
+      {(caps.canToggleAllowChildOverride || viewerRole === "super_admin") && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-4">
+            <Label className="text-sm font-normal">
+              Allow class teachers to edit
+            </Label>
+            <Switch
+              checked={allowChildOverride}
+              onCheckedChange={setAllowChildOverride}
+              disabled={childOverrideLocked || pending}
+            />
+          </div>
+          {childOverrideLocked && (
+            <p className="text-xs text-muted-foreground">
+              Enable &ldquo;Allow institution admin to edit&rdquo; first.
+            </p>
+          )}
+        </div>
+      )}
       {caps.canToggleAllowPlatformDefaults && (
         <div className="flex items-center justify-between gap-4">
           <Label className="text-sm font-normal">
@@ -109,30 +148,6 @@ export default function AiConfigLocksRow({
             checked={allowUsePlatformDefaults}
             onCheckedChange={setAllowUsePlatformDefaults}
             disabled={pending}
-          />
-        </div>
-      )}
-      {caps.canToggleAllowAdminEdit && (
-        <div className="flex items-center justify-between gap-4">
-          <Label className="text-sm font-normal">
-            Allow institution admin to edit
-          </Label>
-          <Switch
-            checked={allowAdminEdit}
-            onCheckedChange={setAllowAdminEdit}
-            disabled={pending}
-          />
-        </div>
-      )}
-      {(caps.canToggleAllowChildOverride || viewerRole === "super_admin") && (
-        <div className="flex items-center justify-between gap-4">
-          <Label className="text-sm font-normal">
-            Allow classes to override
-          </Label>
-          <Switch
-            checked={allowChildOverride}
-            onCheckedChange={setAllowChildOverride}
-            disabled={!caps.canToggleAllowChildOverride || pending}
           />
         </div>
       )}

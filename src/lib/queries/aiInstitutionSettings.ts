@@ -69,13 +69,19 @@ export async function setInstitutionAiPolicyLock(
   updatedBy: string,
   currentPolicy: AiInstitutionPolicy,
 ): Promise<void> {
+  const allowAdminEdit =
+    lock === "allow_admin_edit" ? enabled : currentPolicy.allowAdminEdit;
   const next: AiInstitutionPolicy = {
-    allowAdminEdit:
-      lock === "allow_admin_edit" ? enabled : currentPolicy.allowAdminEdit,
+    allowAdminEdit,
+    // "Allow class teachers to edit" is a sub-permission of the admin-edit
+    // master lock — revoking admin edit cascades to revoke it too, so the
+    // two never drift out of hierarchy.
     allowChildOverride:
       lock === "allow_child_override"
         ? enabled
-        : currentPolicy.allowChildOverride,
+        : allowAdminEdit
+          ? currentPolicy.allowChildOverride
+          : false,
     allowUsePlatformDefaults:
       lock === "allow_use_platform_defaults"
         ? enabled

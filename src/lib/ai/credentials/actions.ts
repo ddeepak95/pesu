@@ -86,6 +86,7 @@ export async function setInstitutionAiConfigLocksAction(input: {
     assertCanToggleAiLock({
       viewerRole,
       lock: input.lock,
+      enabled: input.enabled,
       institutionPolicy,
     });
     await setInstitutionAiPolicyLock(

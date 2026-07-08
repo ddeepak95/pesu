@@ -30,10 +30,10 @@ export function aiConfigCapabilities(input: {
       canToggleAllowAdminEdit: false,
       canToggleAllowChildOverride:
         mode === "institution" && institutionPolicy.allowAdminEdit,
-      canEditClassOverride:
-        mode === "class" && institutionPolicy.allowChildOverride,
-      canClearClassOverride:
-        mode === "class" && institutionPolicy.allowChildOverride,
+      // Institution admins manage `allowChildOverride` itself, so the lock
+      // can't gate their own access — only class-level roles need it.
+      canEditClassOverride: mode === "class",
+      canClearClassOverride: mode === "class",
       canEditPlatform: false,
       canToggleAllowPlatformDefaults: false,
     };
@@ -44,14 +44,18 @@ export function aiConfigCapabilities(input: {
     viewerRole === "class_teacher_co_owner" ||
     viewerRole === "class_teacher_admin"
   ) {
+    // Class teachers need both: the institution's admin-edit master lock on,
+    // and the class-teacher sub-permission granted.
+    const classTeacherEditable =
+      mode === "class" &&
+      institutionPolicy.allowAdminEdit &&
+      institutionPolicy.allowChildOverride;
     return {
       canEditInstitutionValue: false,
       canToggleAllowAdminEdit: false,
       canToggleAllowChildOverride: false,
-      canEditClassOverride:
-        mode === "class" && institutionPolicy.allowChildOverride,
-      canClearClassOverride:
-        mode === "class" && institutionPolicy.allowChildOverride,
+      canEditClassOverride: classTeacherEditable,
+      canClearClassOverride: classTeacherEditable,
       canEditPlatform: false,
       canToggleAllowPlatformDefaults: false,
     };
