@@ -32,6 +32,16 @@ export interface ResolvedModelConfig {
  * Google (Gemini 3): thinkingLevel "minimal" — near-zero latency, model may
  *   still think for complex coding tasks.
  * OpenAI: reasoning.effort (e.g. gpt-5.4: none, low, medium, high, xhigh).
+ *
+ * `strictJsonSchema: false` (OpenAI): the SDK defaults structured outputs to
+ * OpenAI's strict JSON-schema mode, which requires EVERY property to appear in
+ * `required` and rejects any Zod `.optional()`/`.default()` field (e.g. the MCQ
+ * action's `difficulty`/`guidance`, or eval schemas) with a hard 400
+ * `invalid_json_schema`. Gemini is lax about this, so schemas authored against
+ * it break only on OpenAI. Disabling strict mode makes OpenAI best-effort like
+ * Gemini; the AI SDK still validates output against the Zod schema and retries,
+ * so conformance is preserved without contorting every schema to be
+ * strict-compatible.
  */
 export function getDefaultProviderOptions(
   provider: AIProvider,
@@ -49,6 +59,7 @@ export function getDefaultProviderOptions(
     return {
       openai: {
         reasoningEffort: "low",
+        strictJsonSchema: false,
       } satisfies OpenAILanguageModelResponsesOptions,
     };
   }

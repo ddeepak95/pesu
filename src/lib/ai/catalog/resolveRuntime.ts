@@ -51,6 +51,10 @@ function reasoningToProviderOptions(
     return {
       openai: {
         reasoningEffort: reasoning.reasoningEffort,
+        // See getDefaultProviderOptions: OpenAI's strict structured-output mode
+        // 400s on any optional/defaulted Zod field. This catalog path sets its
+        // own providerOptions (bypassing the default), so disable strict here too.
+        strictJsonSchema: false,
       } satisfies OpenAILanguageModelResponsesOptions,
     };
   }
