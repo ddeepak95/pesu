@@ -67,11 +67,20 @@ function toMockDefinition(def: ActivityTypeDefinition): TemplateDefinition {
         availableActions: def.defaults?.multimodal?.availableActions ?? [],
         interactionConfig: {
           input: {
+            modes: [
+              ...(def.defaults?.multimodal?.interactionConfig?.input?.modes ?? [
+                "audio",
+              ]),
+            ] as ("text" | "audio")[],
             audioDelivery:
               def.defaults?.multimodal?.interactionConfig?.input?.audioDelivery ??
               "transcribe",
           },
-          output: {},
+          output: {
+            speechMode:
+              def.defaults?.multimodal?.interactionConfig?.output?.speechMode ??
+              "automatic",
+          },
         },
       },
     },
@@ -115,7 +124,12 @@ export function cloneSeedDefinition(kind: string = "learning"): TemplateDefiniti
         ...definition.defaults.multimodal,
         availableActions: [...definition.defaults.multimodal.availableActions],
         interactionConfig: {
-          input: { ...definition.defaults.multimodal.interactionConfig.input },
+          input: {
+            ...definition.defaults.multimodal.interactionConfig.input,
+            modes: [
+              ...definition.defaults.multimodal.interactionConfig.input.modes,
+            ],
+          },
           output: { ...definition.defaults.multimodal.interactionConfig.output },
         },
       },
@@ -157,8 +171,8 @@ export function emptyDefinition(): TemplateDefinition {
         languageSupportEnabled: false,
         availableActions: [],
         interactionConfig: {
-          input: { audioDelivery: "transcribe" },
-          output: {},
+          input: { modes: ["audio"], audioDelivery: "transcribe" },
+          output: { speechMode: "automatic" },
         },
       },
     },

@@ -109,9 +109,18 @@ interface MultimodalTurnRequestBody {
   endConversationConfig?: EndConversationConfig;
   /**
    * When true, the turn produces no spoken speech (e.g. a silent action-only
-   * turn like suggested_response). Skips opening the TTS session entirely.
+   * turn like suggested_response). Skips opening the TTS session entirely AND
+   * suppresses the reply text (the action card is the whole response).
    */
   noSpeech?: boolean;
+  /**
+   * How the tutor's reply is delivered this activity. Only "automatic" streams
+   * live TTS; "on_demand"/"none" stream the reply *text* but skip live speech
+   * synthesis (on_demand synthesizes lazily client-side on tap). Distinct from
+   * `noSpeech`, which also suppresses text. See
+   * dev-docs/multimodal-interaction-config-plan.md §4b.
+   */
+  speechMode?: "automatic" | "on_demand" | "none";
   /**
    * Client-minted id for the assistant turn's bubble. Used as the chat_messages
    * primary key for the assistant message so the bot audio links back by FK.
@@ -378,8 +387,13 @@ export async function POST(request: NextRequest) {
 
     const tts = getTtsProvider(ttsModelId);
     const noSpeech = body.noSpeech === true;
-    const useCartesiaWs = !noSpeech && tts.id === "cartesia";
-    const useSarvamWs = !noSpeech && tts.id === "sarvam";
+    // Live TTS is skipped for silent action turns (noSpeech, also suppresses
+    // text) AND for non-automatic speech modes (text still streams; audio is
+    // either never produced or synthesized on demand). See plan §4b.
+    const suppressAutoTts =
+      noSpeech || (body.speechMode ? body.speechMode !== "automatic" : false);
+    const useCartesiaWs = !suppressAutoTts && tts.id === "cartesia";
+    const useSarvamWs = !suppressAutoTts && tts.id === "sarvam";
     const useStreamingWs = useCartesiaWs || useSarvamWs;
     const { mimeType, sampleRate } = tts.streamFormat;
     const abortSignal = request.signal;
@@ -511,7 +525,7 @@ export async function POST(request: NextRequest) {
         };
 
         const finalizeFallbackTts = async () => {
-          if (noSpeech) return;
+          if (suppressAutoTts) return;
           if (pendingFallbackTts.trim()) {
             await flushFallbackTts(pendingFallbackTts, false);
             pendingFallbackTts = "";
@@ -530,6 +544,8 @@ export async function POST(request: NextRequest) {
           // text-delta nor any audio — the action card is the entire response.
           if (noSpeech) return;
           enqueue({ type: "text-delta", content: delta });
+          // Non-automatic speech modes stream text but no live audio.
+          if (suppressAutoTts) return;
           if (useCartesiaWs && cartesiaSession) {
             cartesiaSession.pushTranscript(delta, true);
           } else if (useSarvamWs && sarvamSession) {

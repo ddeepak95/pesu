@@ -55,11 +55,20 @@ export function toEditorDefinition(real: RealDefinition): EditorDefinition {
           []) as ActionKind[],
         interactionConfig: {
           input: {
+            modes: [
+              ...(real.defaults?.multimodal?.interactionConfig?.input?.modes ?? [
+                "audio",
+              ]),
+            ] as ("text" | "audio")[],
             audioDelivery:
               real.defaults?.multimodal?.interactionConfig?.input?.audioDelivery ??
               "transcribe",
           },
-          output: {},
+          output: {
+            speechMode:
+              real.defaults?.multimodal?.interactionConfig?.output?.speechMode ??
+              "automatic",
+          },
         },
       },
     },
@@ -96,10 +105,14 @@ export function fromEditorDefinition(
         availableActions: [...editor.defaults.multimodal.availableActions],
         interactionConfig: {
           input: {
+            modes: [...editor.defaults.multimodal.interactionConfig.input.modes],
             audioDelivery:
               editor.defaults.multimodal.interactionConfig.input.audioDelivery,
           },
-          output: {},
+          output: {
+            speechMode:
+              editor.defaults.multimodal.interactionConfig.output.speechMode,
+          },
         },
       },
     },

@@ -6,6 +6,7 @@ import type { TransliterationResult } from "@/lib/ai/schemas/transliteration";
 import { useInterpolatedPrompts } from "@/hooks/useInterpolatedPrompts";
 import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
+import { useInteractionSupportByAssignment } from "@/hooks/swr/useAudioInputSupport";
 import { Button } from "@/components/ui/button";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
@@ -54,6 +55,8 @@ interface ChatMessage {
   action?: PendingAction;
   /** Hidden context sent to the LLM but not rendered (e.g. MCQ result note). */
   hidden?: boolean;
+  /** True for a text-typed student message (no audio — show text, not a waveform). */
+  typed?: boolean;
   /**
    * Both transcript candidates when dual-language transcription was used.
    * Present only on the latest student message while the LLM is resolving
@@ -201,6 +204,7 @@ export function MultimodalInputArea({
   sharedContext,
   botPromptConfig,
   supportLanguage,
+  allowCopyPaste,
 }: AssessmentInputProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [expandedMessageIds, setExpandedMessageIds] = React.useState<
@@ -221,6 +225,13 @@ export function MultimodalInputArea({
   const [error, setError] = React.useState<string | null>(null);
   const [micRequestPending, setMicRequestPending] = React.useState(false);
   const [sessionChunkIndex, setSessionChunkIndex] = React.useState(0);
+  const [textDraft, setTextDraft] = React.useState("");
+  // True while the learner is focused on / holding a text draft — expands the
+  // user panel over the bot panel even while the tutor is still speaking.
+  const [textComposing, setTextComposing] = React.useState(false);
+  // Learner input (text + mic) stays disabled until the tutor's first message
+  // has started (spoken, or its text has begun streaming).
+  const [hasBotStarted, setHasBotStarted] = React.useState(false);
 
   const { systemPrompt, greeting } = useInterpolatedPrompts({
     question,
@@ -256,6 +267,27 @@ export function MultimodalInputArea({
     (botPromptConfig?.multimodal_interaction?.input?.audioDelivery ?? "transcribe") ===
     "direct";
 
+  // Which input methods the learner may use, and how the tutor's reply is
+  // delivered. Unset ⇒ audio-only + automatic speech (today's behavior).
+  const configuredModes =
+    botPromptConfig?.multimodal_interaction?.input?.modes?.length
+      ? botPromptConfig.multimodal_interaction.input.modes
+      : (["audio"] as ("text" | "audio")[]);
+  const speechMode =
+    botPromptConfig?.multimodal_interaction?.output?.speechMode ?? "automatic";
+
+  // Live capability check: audio input is only usable when STT or direct-audio
+  // is genuinely available for this class, even if the teacher selected it.
+  const { data: interactionSupport } =
+    useInteractionSupportByAssignment(assignmentId);
+  const audioInputAvailable = interactionSupport?.audioInputAvailable;
+
+  const audioInputEnabled =
+    configuredModes.includes("audio") && audioInputAvailable !== false;
+  // Recovery: never leave the activity with no usable input method.
+  const textInputEnabled =
+    configuredModes.includes("text") || !audioInputEnabled;
+
   const recorder = useAudioRecorder();
   const playback = useStreamingSpeechPlayback();
   const { state: micPermission, requestAccess } = useMicrophonePermission();
@@ -286,6 +318,16 @@ export function MultimodalInputArea({
   React.useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  React.useEffect(() => {
+    if (hasBotStarted) return;
+    const botStarted =
+      isSpeaking ||
+      messages.some(
+        (m) => m.role === "assistant" && m.content.trim().length > 0,
+      );
+    if (botStarted) setHasBotStarted(true);
+  }, [hasBotStarted, isSpeaking, messages]);
 
   React.useEffect(() => {
     setExpandedMessageIds((prev) => {
@@ -541,7 +583,9 @@ export function MultimodalInputArea({
           return next;
         }
         const assistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
+          // Reuse the turn's live id so persisted bot audio (linked by this id)
+          // matches the bubble and its replay/play button resolves.
+          id: liveId ?? crypto.randomUUID(),
           role: "assistant",
           content: content || "...",
         };
@@ -696,6 +740,7 @@ export function MultimodalInputArea({
             endConversationConfig:
               botPromptConfig?.multimodal_actions?.endConversation,
             ...(opts?.noSpeech ? { noSpeech: true } : {}),
+            speechMode,
           }),
           signal: controller.signal,
         });
@@ -813,6 +858,13 @@ export function MultimodalInputArea({
                 audioBlob,
                 content: chosenText,
                 chatMessageId: msgId,
+              }).then((result) => {
+                // Mark the student's own audio replayable so the bubble shows a
+                // play button (mirrors the assistant persist path below).
+                if (result?.audioFileUrl) {
+                  messageAudioUrlsRef.current.set(msgId, result.audioFileUrl);
+                  setMessageAudioAvailableIds((prev) => new Set([...prev, msgId]));
+                }
               });
               deferredStudentAudioRef.current.delete(msgId);
             }
@@ -870,7 +922,6 @@ export function MultimodalInputArea({
           await playback.drainScheduledPlayback();
         }
 
-        const committedMsgId = liveAssistantMessageIdRef.current;
         if (!botInterruptionRequestedRef.current) {
           commitAssistantTurnToMessages({ turnId });
         }
@@ -903,9 +954,12 @@ export function MultimodalInputArea({
             interrupted,
             chatMessageId: assistantMessageId,
           }).then((result) => {
-            if (result?.audioFileUrl && committedMsgId && !botInterruptionRequestedRef.current) {
-              messageAudioUrlsRef.current.set(committedMsgId, result.audioFileUrl);
-              setMessageAudioAvailableIds((prev) => new Set([...prev, committedMsgId]));
+            // `assistantMessageId` is the finalized bubble's id (set at turn
+            // start). Mark the audio replayable even when interrupted, so a
+            // cut-off reply still gets a play button.
+            if (result?.audioFileUrl) {
+              messageAudioUrlsRef.current.set(assistantMessageId, result.audioFileUrl);
+              setMessageAudioAvailableIds((prev) => new Set([...prev, assistantMessageId]));
             }
           });
         }
@@ -943,6 +997,11 @@ export function MultimodalInputArea({
               audioBlob,
               content: resolvedText,
               chatMessageId: msgId,
+            }).then((result) => {
+              if (result?.audioFileUrl) {
+                messageAudioUrlsRef.current.set(msgId, result.audioFileUrl);
+                setMessageAudioAvailableIds((prev) => new Set([...prev, msgId]));
+              }
             });
           }
           deferredStudentAudioRef.current.delete(msgId);
@@ -996,6 +1055,7 @@ export function MultimodalInputArea({
       supportEnabled,
       supportLanguage,
       systemPrompt,
+      speechMode,
     ],
   );
 
@@ -1010,6 +1070,7 @@ export function MultimodalInputArea({
     sessionStartedAtRef.current = new Date().toISOString();
     setIsStarting(true);
     setExpandedMessageIds({});
+    setHasBotStarted(false);
     userOrdinalRef.current = 0;
     botOrdinalRef.current = 0;
     setSessionChunkIndex(0);
@@ -1553,15 +1614,89 @@ export function MultimodalInputArea({
     directAudioInputEnabled,
   ]);
 
+  // Text input: build a student message from typed text and run the turn —
+  // mirrors the post-transcribe path minus audio/transcription. Typed input can
+  // interject a spoken reply (same interrupt as tapping the mic while speaking).
+  const canSubmitText =
+    !maxAttemptsReached && !isTranscribing && !(isThinking && !isSpeaking);
+
+  const handleTextSubmit = React.useCallback(async () => {
+    const content = textDraft.trim();
+    if (!content) return;
+    if (maxAttemptsReached || isTranscribing || (isThinking && !isSpeaking)) {
+      return;
+    }
+
+    // Interrupt an in-progress spoken reply so the typed message can interject.
+    // When speaking, the SSE stream is already done, so aborting won't throw —
+    // runAssistantTurn deliberately skips its own commit while interruption is
+    // requested, so (like the mic path) we finalize the bubble here.
+    if (isSpeaking) {
+      botInterruptionRequestedRef.current = true;
+      activeAbortRef.current?.abort();
+      playback.reset();
+      commitAssistantTurnToMessages({
+        force: true,
+        turnId: assistantTurnSeqRef.current,
+      });
+      releaseAssistantTurnUi(assistantTurnSeqRef.current);
+    }
+
+    const studentMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "student",
+      content,
+      typed: true,
+    };
+    // Build the next turn's history from the *finalized* messages: the commit
+    // above finalizes the interrupted bubble via a functional setMessages, so a
+    // plain-value setMessages built from the stale (still "streaming") ref would
+    // clobber it. Mirror the finalization here and drop loading action cards.
+    const finalized = messagesRef.current
+      .filter((m) => m.action?.state !== "loading")
+      .map((m) =>
+        m.role === "assistant" && m.streaming
+          ? { ...m, streaming: false, content: m.content.trim() || "..." }
+          : m,
+      );
+    const nextHistory = [...finalized, studentMessage];
+    setMessages(nextHistory);
+    messagesRef.current = nextHistory;
+    userOrdinalRef.current += 1;
+    setTextDraft("");
+    await runAssistantTurn(nextHistory);
+  }, [
+    textDraft,
+    maxAttemptsReached,
+    isTranscribing,
+    isThinking,
+    isSpeaking,
+    playback,
+    commitAssistantTurnToMessages,
+    releaseAssistantTurnUi,
+    runAssistantTurn,
+  ]);
+
   return (
     <div className="relative space-y-4">
       {!hasStarted ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/20 p-6">
           <p className="text-sm text-muted-foreground text-center">
-            Begin the activity by clicking the button below and talk to the AI
-            assistant.
-            <br /> Wait for the assistant to start speaking. You can speak by
-            clicking the microphone icon.
+            {audioInputEnabled ? (
+              <>
+                Begin the activity by clicking the button below and talk to the
+                AI assistant.
+                <br /> Wait for the assistant to start speaking.
+                {textInputEnabled
+                  ? " You can speak by clicking the microphone icon, or type your message."
+                  : " You can speak by clicking the microphone icon."}
+              </>
+            ) : (
+              <>
+                Begin the activity by clicking the button below.
+                <br /> Type your messages to the AI assistant to respond.
+              </>
+            )}
           </p>
           <Button type="button" className="gap-2" onClick={handleStart}>
             <Play className="h-4 w-4" />
@@ -1584,7 +1719,7 @@ export function MultimodalInputArea({
             </div>
           ) : null}
 
-          {micPermission !== "granted" ? (
+          {audioInputEnabled && micPermission !== "granted" ? (
             <div className="mb-2 flex flex-col items-center gap-2">
               {micPermission === "denied" ? (
                 <>
@@ -1637,6 +1772,7 @@ export function MultimodalInputArea({
                 assignmentId,
                 language,
               }}
+              speechMode={speechMode}
             />
             {(() => {
               const bulbDef = resolveBulbAction(
@@ -1687,12 +1823,12 @@ export function MultimodalInputArea({
             <div
               className={cn(
                 "min-w-0 transition-[flex] duration-300 ease-out",
-                ui.botExpanded ? "flex-[2]" : "flex-1",
+                ui.botExpanded && !textComposing ? "flex-[2]" : "flex-1",
               )}
             >
               <BotStatusPanel
                 uiState={ui.uiState}
-                focused={ui.botExpanded}
+                focused={ui.botExpanded && !textComposing}
                 showBotWave={ui.showBotWave}
                 botWaveMode={ui.botWaveMode}
                 playbackAnalyser={playback.playbackAnalyser}
@@ -1701,7 +1837,7 @@ export function MultimodalInputArea({
             <div
               className={cn(
                 "min-w-0 transition-[flex] duration-300 ease-out",
-                ui.userExpanded ? "flex-[2]" : "flex-1",
+                ui.userExpanded || textComposing ? "flex-[2]" : "flex-1",
               )}
             >
               <UserInputPanel
@@ -1710,6 +1846,17 @@ export function MultimodalInputArea({
                 recorder={recorder}
                 onMicPress={() => void handleMicPress()}
                 onSend={() => void handleMicPress()}
+                audioEnabled={audioInputEnabled}
+                textEnabled={textInputEnabled}
+                textValue={textDraft}
+                onTextChange={setTextDraft}
+                onTextSubmit={() => void handleTextSubmit()}
+                canSubmitText={canSubmitText}
+                inputsDisabled={!hasBotStarted}
+                expanded={ui.userExpanded || textComposing}
+                onComposingChange={setTextComposing}
+                allowCopyPaste={allowCopyPaste}
+                submissionId={submissionId}
                 micAccessory={null}
               />
             </div>

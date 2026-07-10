@@ -97,10 +97,15 @@ const defaultsSchema = z.object({
         .object({
           input: z
             .object({
+              modes: z.array(z.enum(["text", "audio"])).optional(),
               audioDelivery: z.enum(["transcribe", "direct"]).optional(),
             })
             .optional(),
-          output: z.object({}).optional(),
+          output: z
+            .object({
+              speechMode: z.enum(["automatic", "on_demand", "none"]).optional(),
+            })
+            .optional(),
         })
         .optional(),
     })

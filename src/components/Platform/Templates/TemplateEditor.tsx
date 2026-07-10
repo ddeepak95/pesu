@@ -1044,6 +1044,42 @@ export function TemplateEditor({
         <InteractionSettingDialog
           open={showInteractionSettingDialog}
           onOpenChange={setShowInteractionSettingDialog}
+          inputModes={def.defaults.multimodal.interactionConfig.input.modes}
+          onInputModesChange={(modes) =>
+            patchDef({
+              defaults: {
+                ...def.defaults,
+                multimodal: {
+                  ...def.defaults.multimodal,
+                  interactionConfig: {
+                    ...def.defaults.multimodal.interactionConfig,
+                    input: {
+                      ...def.defaults.multimodal.interactionConfig.input,
+                      modes,
+                    },
+                  },
+                },
+              },
+            })
+          }
+          speechMode={def.defaults.multimodal.interactionConfig.output.speechMode}
+          onSpeechModeChange={(speechMode) =>
+            patchDef({
+              defaults: {
+                ...def.defaults,
+                multimodal: {
+                  ...def.defaults.multimodal,
+                  interactionConfig: {
+                    ...def.defaults.multimodal.interactionConfig,
+                    output: {
+                      ...def.defaults.multimodal.interactionConfig.output,
+                      speechMode,
+                    },
+                  },
+                },
+              },
+            })
+          }
           audioDelivery={def.defaults.multimodal.interactionConfig.input.audioDelivery}
           onAudioDeliveryChange={(audioDelivery) =>
             patchDef({
@@ -1062,6 +1098,7 @@ export function TemplateEditor({
               },
             })
           }
+          audioInputAvailable
           audioInputSupported
           disabled={readOnly}
         />

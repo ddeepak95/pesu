@@ -41,8 +41,22 @@ function pcm16ToFloat32(bytes: Uint8Array): Float32Array {
   return out;
 }
 
-function sleepMs(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
 }
 
 export function useStreamingSpeechPlayback() {
@@ -217,9 +231,15 @@ export function useStreamingSpeechPlayback() {
   const waitForScheduleEnd = useCallback(async () => {
     const ctx = audioContextRef.current;
     if (!ctx) return;
+    // Capture the current turn's abort signal so an interruption (reset() aborts
+    // it and stops the sources) also cancels this wait — otherwise the turn loop
+    // stays blocked here for the full remaining audio duration, deferring the
+    // post-playback bot-audio persist (and its replay button) until the timer
+    // finally elapses, i.e. around the next tutor turn.
+    const signal = abortRef.current?.signal;
     const waitSec = nextScheduleTimeRef.current - ctx.currentTime;
     if (waitSec > 0) {
-      await sleepMs(waitSec * 1000 + 30);
+      await sleepMs(waitSec * 1000 + 30, signal);
     }
   }, []);
 

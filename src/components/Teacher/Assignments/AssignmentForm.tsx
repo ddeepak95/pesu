@@ -143,18 +143,37 @@ function withActivityTypeMultimodalDefaults(
           }
         : {}),
     },
-    ...(multimodalDefaults.interactionConfig?.input?.audioDelivery !== undefined
-      ? {
-          multimodal_interaction: {
-            ...config.multimodal_interaction,
-            input: {
-              ...config.multimodal_interaction?.input,
-              audioDelivery:
-                multimodalDefaults.interactionConfig.input.audioDelivery,
-            },
-          },
-        }
-      : {}),
+    ...(() => {
+      const ic = multimodalDefaults.interactionConfig;
+      const hasModes = ic?.input?.modes !== undefined;
+      const hasAudioDelivery = ic?.input?.audioDelivery !== undefined;
+      const hasSpeechMode = ic?.output?.speechMode !== undefined;
+      if (!hasModes && !hasAudioDelivery && !hasSpeechMode) return {};
+      return {
+        multimodal_interaction: {
+          ...config.multimodal_interaction,
+          ...(hasModes || hasAudioDelivery
+            ? {
+                input: {
+                  ...config.multimodal_interaction?.input,
+                  ...(hasModes ? { modes: ic!.input!.modes } : {}),
+                  ...(hasAudioDelivery
+                    ? { audioDelivery: ic!.input!.audioDelivery }
+                    : {}),
+                },
+              }
+            : {}),
+          ...(hasSpeechMode
+            ? {
+                output: {
+                  ...config.multimodal_interaction?.output,
+                  speechMode: ic!.output!.speechMode,
+                },
+              }
+            : {}),
+        },
+      };
+    })(),
   };
 }
 
@@ -1517,6 +1536,34 @@ export default function AssignmentForm({
       <InteractionSettingDialog
         open={interactionSettingDialogOpen}
         onOpenChange={setInteractionSettingDialogOpen}
+        inputModes={botPromptConfig.multimodal_interaction?.input?.modes ?? ["audio"]}
+        onInputModesChange={(modes) =>
+          setBotPromptConfig({
+            ...botPromptConfig,
+            multimodal_interaction: {
+              ...botPromptConfig.multimodal_interaction,
+              input: {
+                ...botPromptConfig.multimodal_interaction?.input,
+                modes,
+              },
+            },
+          })
+        }
+        speechMode={
+          botPromptConfig.multimodal_interaction?.output?.speechMode ?? "automatic"
+        }
+        onSpeechModeChange={(speechMode) =>
+          setBotPromptConfig({
+            ...botPromptConfig,
+            multimodal_interaction: {
+              ...botPromptConfig.multimodal_interaction,
+              output: {
+                ...botPromptConfig.multimodal_interaction?.output,
+                speechMode,
+              },
+            },
+          })
+        }
         audioDelivery={botPromptConfig.multimodal_interaction?.input?.audioDelivery ?? "transcribe"}
         onAudioDeliveryChange={(audioDelivery) =>
           setBotPromptConfig({
@@ -1530,6 +1577,7 @@ export default function AssignmentForm({
             },
           })
         }
+        audioInputAvailable={audioInputSupportQuery.data?.audioInputAvailable}
         audioInputSupported={audioInputSupportQuery.data?.audioInputSupported}
         disabled={effectiveDisabled}
       />

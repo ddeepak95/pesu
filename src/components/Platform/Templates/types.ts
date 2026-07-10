@@ -61,8 +61,11 @@ export interface TemplateDefinition {
       languageSupportEnabled: boolean;
       availableActions: ActionKind[];
       interactionConfig: {
-        input: { audioDelivery: "transcribe" | "direct" };
-        output: Record<string, never>;
+        input: {
+          modes: ("text" | "audio")[];
+          audioDelivery: "transcribe" | "direct";
+        };
+        output: { speechMode: "automatic" | "on_demand" | "none" };
       };
     };
   };

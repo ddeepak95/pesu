@@ -81,10 +81,15 @@ export interface ActivityTypeDefaults {
      */
     interactionConfig?: {
       input?: {
+        /** Preselects which input methods the learner can use. Unset ⇒ audio-only. */
+        modes?: ("text" | "audio")[];
         /** Preselects "direct audio input" (bypasses transcription) when the class's model supports it. */
         audioDelivery?: "transcribe" | "direct";
       };
-      output?: Record<string, never>;
+      output?: {
+        /** Preselects whether/when the tutor's reply is spoken. Unset ⇒ "automatic". */
+        speechMode?: "automatic" | "on_demand" | "none";
+      };
     };
   };
   /** Display-setting presets applied when this activity type is chosen. */

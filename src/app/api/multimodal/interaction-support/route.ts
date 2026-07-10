@@ -1,20 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { resolveAudioInputSupportForClass } from "@/lib/multimodal/resolveAudioInputSupport";
+import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import { resolveInteractionSupportForClass } from "@/lib/multimodal/resolveInteractionSupport";
+import { createServiceRoleClient } from "@/lib/supabase-server";
 
 export async function GET(request: NextRequest) {
   try {
-    const classDbId = request.nextUrl.searchParams.get("classDbId");
+    // Teacher surfaces pass classDbId directly; the student runtime only has an
+    // assignmentId, so resolve its class server-side.
+    let classDbId = request.nextUrl.searchParams.get("classDbId");
+    const assignmentId = request.nextUrl.searchParams.get("assignmentId");
+    if (!classDbId && assignmentId) {
+      classDbId = await getClassDbIdForAssignment(
+        createServiceRoleClient(),
+        assignmentId,
+      );
+    }
     if (!classDbId) {
       return NextResponse.json(
-        { error: "Missing required query param: classDbId" },
+        { error: "Missing required query param: classDbId or assignmentId" },
         { status: 400 },
       );
     }
 
-    const audioInputSupported = await resolveAudioInputSupportForClass(classDbId);
+    const support = await resolveInteractionSupportForClass(classDbId);
 
-    return NextResponse.json({ audioInputSupported });
+    return NextResponse.json(support);
   } catch (error) {
     console.error("[multimodal/interaction-support]", error);
     return NextResponse.json(
