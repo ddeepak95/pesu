@@ -1356,9 +1356,9 @@ export default function AssignmentForm({
                       variant="outline"
                       size="icon"
                       onClick={() => setInteractionSettingDialogOpen(true)}
-                      disabled={effectiveDisabled}
+                      disabled={loading}
                       aria-label="Multimodal Setting"
-                      title="Multimodal Setting"
+                      title={readOnly ? "View multimodal settings" : "Multimodal Setting"}
                     >
                       <Settings className="h-4 w-4" />
                     </Button>
@@ -1579,7 +1579,8 @@ export default function AssignmentForm({
         }
         audioInputAvailable={audioInputSupportQuery.data?.audioInputAvailable}
         audioInputSupported={audioInputSupportQuery.data?.audioInputSupported}
-        disabled={effectiveDisabled}
+        disabled={loading}
+        readOnly={readOnly}
       />
     </>
   );

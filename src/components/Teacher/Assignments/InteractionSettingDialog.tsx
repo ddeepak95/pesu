@@ -26,6 +26,8 @@ interface InteractionSettingDialogProps {
   /** Whether direct audio input is usable (gates the direct-audio toggle). */
   audioInputSupported?: boolean;
   disabled?: boolean;
+  /** View mode: keep controls legible (not greyed) but reject edits. */
+  readOnly?: boolean;
 }
 
 /**
@@ -49,6 +51,7 @@ export function InteractionSettingDialog({
   audioInputAvailable,
   audioInputSupported,
   disabled,
+  readOnly,
 }: InteractionSettingDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,6 +69,7 @@ export function InteractionSettingDialog({
           audioInputAvailable={audioInputAvailable}
           audioInputSupported={audioInputSupported}
           disabled={disabled}
+          readOnly={readOnly}
         />
       </DialogContent>
     </Dialog>

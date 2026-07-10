@@ -37,7 +37,13 @@ interface MultimodalInteractionEditorProps {
    * check is still loading. Gates the "Send audio directly" toggle.
    */
   audioInputSupported?: boolean;
+  /** Controls are greyed out and non-interactive (e.g. while loading). */
   disabled?: boolean;
+  /**
+   * View mode: controls stay at full contrast and readable but reject edits.
+   * Distinct from `disabled` so the saved config is legible, not greyed out.
+   */
+  readOnly?: boolean;
 }
 
 const SPEECH_MODE_OPTIONS: { value: SpeechMode; label: string; hint: string }[] =
@@ -69,7 +75,12 @@ export function MultimodalAudioInputEditor({
   audioInputAvailable,
   audioInputSupported,
   disabled,
+  readOnly,
 }: MultimodalInteractionEditorProps) {
+  // No edits allowed either while loading (`disabled`) or in view mode
+  // (`readOnly`) — but only `disabled` greys things out; `readOnly` stays
+  // legible so a teacher can actually read the saved configuration.
+  const locked = disabled || readOnly;
   const audioUnavailable = audioInputAvailable !== true;
   const textSelected = inputModes.includes("text");
   // Reflect the saved/selected state regardless of capability, so edit mode
@@ -84,6 +95,7 @@ export function MultimodalAudioInputEditor({
   const audioIsOnlySelected = audioSelected && !textSelected;
 
   const setMode = (mode: InputMode, on: boolean) => {
+    if (locked) return;
     const next = new Set(inputModes);
     if (on) next.add(mode);
     else next.delete(mode);
@@ -111,7 +123,7 @@ export function MultimodalAudioInputEditor({
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={textSelected}
-              disabled={disabled || textIsOnlySelected}
+              disabled={disabled || (!readOnly && textIsOnlySelected)}
               onCheckedChange={(on) => setMode("text", on === true)}
             />
             <span>Text</span>
@@ -120,7 +132,10 @@ export function MultimodalAudioInputEditor({
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={audioSelected}
-                disabled={disabled || audioUnavailable || audioIsOnlySelected}
+                disabled={
+                  disabled ||
+                  (!readOnly && (audioUnavailable || audioIsOnlySelected))
+                }
                 onCheckedChange={(on) => setMode("audio", on === true)}
               />
               <span>Voice</span>
@@ -156,8 +171,10 @@ export function MultimodalAudioInputEditor({
             <label
               key={opt.value}
               className={cn(
-                "flex cursor-pointer items-start gap-2.5 text-sm",
+                "flex items-start gap-2.5 text-sm",
                 disabled && "cursor-not-allowed opacity-50",
+                readOnly && "cursor-default",
+                !locked && "cursor-pointer",
               )}
             >
               <input
@@ -165,9 +182,14 @@ export function MultimodalAudioInputEditor({
                 name="tutor-speech-mode"
                 value={opt.value}
                 checked={speechMode === opt.value}
-                onChange={() => onSpeechModeChange(opt.value)}
+                onChange={() => {
+                  if (!locked) onSpeechModeChange(opt.value);
+                }}
                 disabled={disabled}
-                className="mt-0.5 h-4 w-4 accent-primary cursor-pointer disabled:cursor-not-allowed"
+                className={cn(
+                  "mt-0.5 h-4 w-4 accent-primary disabled:cursor-not-allowed",
+                  locked ? "cursor-default" : "cursor-pointer",
+                )}
               />
               <span>
                 <span className="block font-medium text-foreground">
@@ -192,7 +214,7 @@ export function MultimodalAudioInputEditor({
               </Label>
               <InfoTooltip text="Skips transcription and lets the tutor model hear the learner's actual voice, instead of reading a transcript. Voice-recognition quality may vary by language." />
             </div>
-            {directCapabilityUnavailable ? (
+            {directCapabilityUnavailable && !readOnly ? (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -219,9 +241,9 @@ export function MultimodalAudioInputEditor({
               <Switch
                 id="direct-audio-input-toggle"
                 checked={directEnabled}
-                onCheckedChange={(on) =>
-                  onAudioDeliveryChange(on ? "direct" : "transcribe")
-                }
+                onCheckedChange={(on) => {
+                  if (!locked) onAudioDeliveryChange(on ? "direct" : "transcribe");
+                }}
                 disabled={disabled}
               />
             )}
