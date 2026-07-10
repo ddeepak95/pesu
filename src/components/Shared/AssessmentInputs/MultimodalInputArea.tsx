@@ -1167,11 +1167,21 @@ export function MultimodalInputArea({
       const isCorrect = choiceIndex === mcq.correctIndex;
 
       // Lock the card into its answered state (marks only the picked option).
-      const lockedMessages = messagesRef.current.map((m) =>
-        m.id === messageId && m.action
-          ? { ...m, action: { ...m.action, answeredIndex: choiceIndex } }
-          : m,
-      );
+      // Also finalize any still-streaming assistant bubble: the interrupt above
+      // commits it via a functional setMessages, but messagesRef.current can
+      // still hold the streaming version, so this plain-value setMessages would
+      // clobber the commit and leave the interrupted bubble stuck as
+      // `streaming: true` — which suppresses its replay (play) button and
+      // done-speaking status. Mirror the finalization handleTextSubmit does.
+      const lockedMessages = messagesRef.current.map((m) => {
+        if (m.id === messageId && m.action) {
+          return { ...m, action: { ...m.action, answeredIndex: choiceIndex } };
+        }
+        if (m.role === "assistant" && m.streaming) {
+          return { ...m, streaming: false, content: m.content.trim() || "..." };
+        }
+        return m;
+      });
       setMessages(lockedMessages);
       messagesRef.current = lockedMessages;
 
@@ -1255,7 +1265,17 @@ export function MultimodalInputArea({
       content: `Please explain that in ${label}.`,
       hidden: true,
     };
-    const nextHistory = [...messagesRef.current, hiddenMessage];
+    // Finalize any still-streaming assistant bubble (see handleMcqAnswer): a
+    // plain-value setMessages from the ref would otherwise re-clobber the
+    // interrupt's commit and hide the interrupted bubble's play button.
+    const finalized = messagesRef.current
+      .filter((m) => m.action?.state !== "loading")
+      .map((m) =>
+        m.role === "assistant" && m.streaming
+          ? { ...m, streaming: false, content: m.content.trim() || "..." }
+          : m,
+      );
+    const nextHistory = [...finalized, hiddenMessage];
     setMessages(nextHistory);
     messagesRef.current = nextHistory;
 
@@ -1300,7 +1320,17 @@ export function MultimodalInputArea({
         content: trigger.hiddenMessage,
         hidden: true,
       };
-      const nextHistory = [...messagesRef.current, hiddenMessage];
+      // Finalize any still-streaming assistant bubble (see handleMcqAnswer) so
+      // the plain-value setMessages doesn't re-clobber the interrupt's commit
+      // and hide the interrupted bubble's play button.
+      const finalized = messagesRef.current
+        .filter((m) => m.action?.state !== "loading")
+        .map((m) =>
+          m.role === "assistant" && m.streaming
+            ? { ...m, streaming: false, content: m.content.trim() || "..." }
+            : m,
+        );
+      const nextHistory = [...finalized, hiddenMessage];
       setMessages(nextHistory);
       messagesRef.current = nextHistory;
 
