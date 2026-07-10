@@ -72,7 +72,12 @@ export function MultimodalAudioInputEditor({
 }: MultimodalInteractionEditorProps) {
   const audioUnavailable = audioInputAvailable !== true;
   const textSelected = inputModes.includes("text");
-  const audioSelected = inputModes.includes("audio") && !audioUnavailable;
+  // Reflect the saved/selected state regardless of capability, so edit mode
+  // shows what's actually configured. Capability gates *interaction* (the
+  // checkbox is disabled + locked when unavailable), not display — otherwise a
+  // still-loading or unavailable capability check makes saved audio settings
+  // look like they were reset.
+  const audioSelected = inputModes.includes("audio");
 
   // Never allow unchecking the last remaining method.
   const textIsOnlySelected = textSelected && !audioSelected;
@@ -101,7 +106,8 @@ export function MultimodalAudioInputEditor({
           <Label className="text-sm font-medium">Input methods</Label>
           <InfoTooltip text="Which ways the learner can respond. At least one must be enabled." />
         </div>
-        <div className="space-y-2">
+
+        <div className="flex space-x-6">
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={textSelected}
@@ -117,7 +123,7 @@ export function MultimodalAudioInputEditor({
                 disabled={disabled || audioUnavailable || audioIsOnlySelected}
                 onCheckedChange={(on) => setMode("audio", on === true)}
               />
-              <span>Voice (audio)</span>
+              <span>Voice</span>
             </label>
             {audioUnavailable ? (
               <TooltipProvider delayDuration={200}>
@@ -145,24 +151,33 @@ export function MultimodalAudioInputEditor({
           <Label className="text-sm font-medium">Tutor speech</Label>
           <InfoTooltip text="Whether and when the tutor's replies are spoken aloud." />
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="space-y-2" role="radiogroup" aria-label="Tutor speech">
           {SPEECH_MODE_OPTIONS.map((opt) => (
-            <button
+            <label
               key={opt.value}
-              type="button"
-              disabled={disabled}
-              onClick={() => onSpeechModeChange(opt.value)}
-              title={opt.hint}
-              aria-pressed={speechMode === opt.value}
               className={cn(
-                "rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-                speechMode === opt.value
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted",
+                "flex cursor-pointer items-start gap-2.5 text-sm",
+                disabled && "cursor-not-allowed opacity-50",
               )}
             >
-              {opt.label}
-            </button>
+              <input
+                type="radio"
+                name="tutor-speech-mode"
+                value={opt.value}
+                checked={speechMode === opt.value}
+                onChange={() => onSpeechModeChange(opt.value)}
+                disabled={disabled}
+                className="mt-0.5 h-4 w-4 accent-primary cursor-pointer disabled:cursor-not-allowed"
+              />
+              <span>
+                <span className="block font-medium text-foreground">
+                  {opt.label}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {opt.hint}
+                </span>
+              </span>
+            </label>
           ))}
         </div>
       </div>
