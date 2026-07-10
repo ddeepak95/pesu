@@ -691,6 +691,45 @@ export function MultimodalInputArea({
       const assistantMessageId = crypto.randomUUID();
       liveAssistantMessageIdRef.current = assistantMessageId;
 
+      // Persist whatever bot audio has been collected so far and mark the bubble
+      // replayable. Runs on normal completion AND on the interrupt/abort path so a
+      // cut-off reply still gets a play button — a text interruption typically
+      // aborts mid-stream (no recording delay), which throws into the catch below
+      // before the normal post-stream persist; without this the interrupted bubble
+      // would never register its audio. Idempotent so the two call sites can't
+      // double-persist.
+      let botAudioPersisted = false;
+      const persistBotAudioIfAny = () => {
+        if (botAudioPersisted) return;
+        const totalBytes = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        if (totalBytes === 0) return;
+        botAudioPersisted = true;
+        const pcmBytes = new Uint8Array(totalBytes);
+        let offset = 0;
+        for (const chunk of pcmChunks) {
+          pcmBytes.set(chunk, offset);
+          offset += chunk.length;
+        }
+        const wav = pcmToWavArrayBuffer(pcmBytes, sampleRate);
+        const wavBlob = new Blob([wav], { type: "audio/wav" });
+        botOrdinalRef.current += 1;
+        void persistUtteranceAudio({
+          dbRole: "assistant",
+          storageRole: "bot",
+          ordinal: botOrdinalRef.current,
+          audioBlob: wavBlob,
+          content: assistantText.trim(),
+          generatedContent: assistantText.trim(),
+          interrupted,
+          chatMessageId: assistantMessageId,
+        }).then((result) => {
+          if (result?.audioFileUrl) {
+            messageAudioUrlsRef.current.set(assistantMessageId, result.audioFileUrl);
+            setMessageAudioAvailableIds((prev) => new Set([...prev, assistantMessageId]));
+          }
+        });
+      };
+
       // If the latest history message has dual candidates, pass them to the turn
       // route so the LLM can pick the coherent reading.
       const latestMsg = history[history.length - 1];
@@ -906,63 +945,38 @@ export function MultimodalInputArea({
           }
         }
 
-        if (botInterruptionRequestedRef.current) {
+        // An interruption sets botInterruptionRequestedRef, but the *next* turn's
+        // runAssistantTurn resets it to false at its start. Once the stream's own
+        // waits are unblocked by the interrupt (playback.reset aborts them), this
+        // loop can resume *after* the next turn already began — so also treat the
+        // turn as interrupted when a newer turn has superseded it. Otherwise the
+        // stale loop would run waitForAll/drain/commit against the next turn's
+        // shared playback queue and break its first reply.
+        const turnInterrupted = () =>
+          botInterruptionRequestedRef.current ||
+          assistantTurnSeqRef.current !== turnId;
+
+        if (turnInterrupted()) {
           interrupted = true;
         }
-        if (
-          speechSegmentPrepared &&
-          !speechSegmentEnded &&
-          !botInterruptionRequestedRef.current
-        ) {
+        if (speechSegmentPrepared && !speechSegmentEnded && !turnInterrupted()) {
           speechSegmentEnded = true;
           await playback.endSegment(0);
         }
-        if (ttsStarted && !botInterruptionRequestedRef.current) {
+        if (ttsStarted && !turnInterrupted()) {
           await playback.waitForAll();
           await playback.drainScheduledPlayback();
         }
 
-        if (!botInterruptionRequestedRef.current) {
+        if (!turnInterrupted()) {
           commitAssistantTurnToMessages({ turnId });
         }
 
-        if (!botInterruptionRequestedRef.current) {
+        if (!turnInterrupted()) {
           releaseAssistantTurnUi(turnId);
         }
 
-        const totalBytes = pcmChunks.reduce(
-          (sum, chunk) => sum + chunk.length,
-          0,
-        );
-        if (totalBytes > 0) {
-          const pcmBytes = new Uint8Array(totalBytes);
-          let offset = 0;
-          for (const chunk of pcmChunks) {
-            pcmBytes.set(chunk, offset);
-            offset += chunk.length;
-          }
-          const wav = pcmToWavArrayBuffer(pcmBytes, sampleRate);
-          const wavBlob = new Blob([wav], { type: "audio/wav" });
-          botOrdinalRef.current += 1;
-          void persistUtteranceAudio({
-            dbRole: "assistant",
-            storageRole: "bot",
-            ordinal: botOrdinalRef.current,
-            audioBlob: wavBlob,
-            content: assistantText.trim(),
-            generatedContent: assistantText.trim(),
-            interrupted,
-            chatMessageId: assistantMessageId,
-          }).then((result) => {
-            // `assistantMessageId` is the finalized bubble's id (set at turn
-            // start). Mark the audio replayable even when interrupted, so a
-            // cut-off reply still gets a play button.
-            if (result?.audioFileUrl) {
-              messageAudioUrlsRef.current.set(assistantMessageId, result.audioFileUrl);
-              setMessageAudioAvailableIds((prev) => new Set([...prev, assistantMessageId]));
-            }
-          });
-        }
+        persistBotAudioIfAny();
         if (didEndConversation) {
           scheduleAutoFinish();
         }
@@ -1018,6 +1032,10 @@ export function MultimodalInputArea({
               activeAssistantTurnRef.current.ttsStarted || ttsStarted;
           }
           commitAssistantTurnToMessages({ force: true, turnId });
+          // Aborted mid-stream (e.g. a typed interruption): persist whatever bot
+          // audio arrived so the cut-off bubble still gets its replay button.
+          interrupted = true;
+          persistBotAudioIfAny();
           releaseAssistantTurnUi(turnId);
           return;
         }
