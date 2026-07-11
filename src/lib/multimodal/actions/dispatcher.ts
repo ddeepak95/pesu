@@ -14,6 +14,9 @@ import type { ActionInput } from "./schema";
 import { handleDisplayContentAction } from "./display-content";
 import { handleMcqAction } from "./mcq";
 import { handleSuggestedResponseAction } from "./suggested-response";
+import { INTERACTIVE_MAX_ATTEMPTS, withRetry } from "@/lib/ai/retry";
+import { classifyAiError } from "@/lib/ai/errors";
+import { logAppEvent } from "@/lib/logging/appLog";
 
 export type EnqueueFn = (data: Record<string, unknown>) => void;
 
@@ -49,9 +52,20 @@ export interface DispatchActionArgs {
    * understand the conversational context and roles without the full history.
    */
   recentMessages?: Array<{ role: "student" | "assistant"; content: string }>;
+  /**
+   * Optional scoping context for admin logging (app_logs). Not used by handlers;
+   * only for the silent-retry / terminal-failure log rows below.
+   */
+  classId?: string | null;
+  assignmentId?: string | null;
+  questionOrder?: number | null;
 }
 
-export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
+/** Cap on each silent-retry backoff — actions run in parallel with TTS, so a
+ *  long Retry-After should not hold the turn's finalize hostage. */
+const ACTION_RETRY_DELAY_CAP_MS = 4000;
+
+function runActionHandler(args: DispatchActionArgs): Promise<void> {
   switch (args.action.kind) {
     case "mcq":
       return handleMcqAction({ ...args, action: args.action });
@@ -65,5 +79,52 @@ export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
       throw new Error(
         `Unknown action kind: ${(args.action as { kind: string }).kind}`,
       );
+  }
+}
+
+/**
+ * Route a model-requested action to its handler with kind-agnostic silent
+ * retries. Wrapping here (not per-handler) means every current and future action
+ * kind inherits retries automatically; it is safe because action persistence
+ * upserts on id, so a re-run is idempotent. Terminal failures and each silent
+ * retry are logged to app_logs. On terminal failure the error is re-thrown so
+ * the caller can emit action_error. See dev-docs/ai-retry-and-failure-recovery-plan.md §6.
+ */
+export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
+  const kind = args.action.kind;
+  try {
+    await withRetry(() => runActionHandler(args), {
+      maxAttempts: INTERACTIVE_MAX_ATTEMPTS,
+      maxDelayMs: ACTION_RETRY_DELAY_CAP_MS,
+      onRetryAttempt: (attempt, error) => {
+        logAppEvent({
+          level: "warn",
+          source: "multimodal_action",
+          event: "silent_retry",
+          errorCode: classifyAiError(error).code,
+          message: error instanceof Error ? error.message : undefined,
+          classId: args.classId,
+          activityId: args.assignmentId,
+          submissionId: args.submissionId,
+          questionOrder: args.questionOrder,
+          metadata: { attempt, kind },
+        });
+      },
+    });
+  } catch (err) {
+    const classified = classifyAiError(err);
+    logAppEvent({
+      level: "error",
+      source: "multimodal_action",
+      event: "ai_failure",
+      errorCode: classified.code,
+      message: classified.message,
+      classId: args.classId,
+      activityId: args.assignmentId,
+      submissionId: args.submissionId,
+      questionOrder: args.questionOrder,
+      metadata: { kind },
+    });
+    throw err;
   }
 }

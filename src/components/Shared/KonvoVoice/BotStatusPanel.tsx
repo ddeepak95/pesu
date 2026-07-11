@@ -43,6 +43,8 @@ interface BotStatusPanelProps {
   showBotWave: boolean;
   botWaveMode: "thinking" | "audio" | "none";
   playbackAnalyser: AnalyserNode | null;
+  /** Overrides the derived status label (e.g. "Reconnecting…" during a silent retry). */
+  statusLabelOverride?: string;
 }
 
 export function BotStatusPanel({
@@ -51,9 +53,10 @@ export function BotStatusPanel({
   showBotWave,
   botWaveMode,
   playbackAnalyser,
+  statusLabelOverride,
 }: BotStatusPanelProps) {
   const botState = uiStateToBotVisual(uiState);
-  const label = getStatusLabel(botState);
+  const label = statusLabelOverride ?? getStatusLabel(botState);
 
   return (
     <Card

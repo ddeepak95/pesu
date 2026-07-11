@@ -25,6 +25,7 @@ import {
   type LLMRubricScore,
 } from "./schemas/evaluation";
 import { generateStructured } from "./structured";
+import { INTERACTIVE_MAX_ATTEMPTS } from "./retry";
 import type { StartAiInvocationInput } from "./logging/types";
 
 /** Validation-driven regenerations of feedback_doc (on top of provider retries). */
@@ -47,6 +48,8 @@ export interface EvaluateSubmissionParams {
   feedbackFocus?: string;
   activityType?: ActivityTypeKind;
   invocation?: Omit<StartAiInvocationInput, "sdkRequest" | "retryOf" | "retryIndex">;
+  /** Forwarded to generateStructured so silent retries can be logged (plan §8). */
+  onRetryAttempt?: (attempt: number, error: unknown) => void;
 }
 
 export interface ValidatedRubricScore {
@@ -81,6 +84,7 @@ export async function evaluateSubmission(
     activityType,
     providerOptions,
     invocation,
+    onRetryAttempt,
   } = params;
 
   const maxScore = rubric.reduce((sum, item) => sum + item.points, 0);
@@ -125,6 +129,10 @@ export async function evaluateSubmission(
         { role: "user", content },
       ],
       providerOptions,
+      // Student-facing interactive flow: keep silent retries short; beyond this
+      // the student controls the retry via the UI. See plan §4/§7.
+      maxRetries: INTERACTIVE_MAX_ATTEMPTS,
+      onRetryAttempt,
       invocation: invocation
         ? { ...invocation, schemaName: "evaluationSchema" }
         : undefined,

@@ -252,8 +252,13 @@ Optionally extend `ActionSkeleton` in `ActionCard.tsx` with a kind-specific
 "Preparing …" label.
 
 The SSE plumbing (`action_start` → skeleton, `action_payload` → ready,
-`action_error` → drop) in `MultimodalInputArea.tsx` is generic and needs no
-change.
+`action_error` → error card with Retry) in `MultimodalInputArea.tsx` is generic
+and needs no change. New kinds inherit silent server retries automatically (the
+`withRetry` wrap lives in `dispatchAction`, not per-handler — so handlers must
+**not** add their own retries) and the manual card retry (via
+`/api/multimodal/action-retry`) for free. Keep your handler "generate → persist
+→ enqueue" with persistence upserting on id, so a re-run is idempotent. See
+[ai-retry-and-failure-recovery-plan.md](./ai-retry-and-failure-recovery-plan.md) §6.
 
 > **Cards that play audio** (like `suggested_response`): import `TtsConfig`
 > from `../ActionCard` and accept it as a prop. `ActionCard` receives

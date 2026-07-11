@@ -24,13 +24,19 @@ export async function insertChatMessageAction(
   supabase: SupabaseClient,
   row: InsertChatMessageActionInput,
 ): Promise<void> {
-  const { error } = await supabase.from("chat_message_actions").insert({
-    id: row.id,
-    chat_message_id: row.chatMessageId,
-    submission_id: row.submissionId,
-    kind: row.kind,
-    payload: row.payload,
-  });
+  // Upsert on id so a re-run (dispatcher silent retry, or a manual action-retry
+  // reusing the same actionId) is idempotent — "persist succeeded but response
+  // lost" double-retries don't create duplicate rows. See plan §6.
+  const { error } = await supabase.from("chat_message_actions").upsert(
+    {
+      id: row.id,
+      chat_message_id: row.chatMessageId,
+      submission_id: row.submissionId,
+      kind: row.kind,
+      payload: row.payload,
+    },
+    { onConflict: "id" },
+  );
   if (error) throw error;
 }
 

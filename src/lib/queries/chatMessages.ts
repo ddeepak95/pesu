@@ -72,11 +72,18 @@ export async function insertChatMessage(
     payload.transcript_candidates = row.transcriptCandidates;
   }
 
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .insert(payload)
-    .select("id")
-    .single();
+  // Upsert on the client-minted id so a retried turn is idempotent: the student
+  // row from the first (failed) attempt isn't duplicated, and a retried dual-STT
+  // turn can overwrite the fallback primary-candidate text with the properly
+  // resolved transcript. When no id is supplied (DB-generated), this is a plain
+  // insert. See dev-docs/ai-retry-and-failure-recovery-plan.md §5.
+  const query = row.id
+    ? supabase
+        .from("chat_messages")
+        .upsert(payload, { onConflict: "id" })
+    : supabase.from("chat_messages").insert(payload);
+
+  const { data, error } = await query.select("id").single();
 
   if (error) throw error;
   return (data?.id as string) ?? null;

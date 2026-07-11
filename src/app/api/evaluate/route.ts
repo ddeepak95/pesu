@@ -12,6 +12,8 @@ import { modelMetaFromResolved } from "@/lib/ai/logging/types";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
+import { classifyAiError } from "@/lib/ai/errors";
+import { logAppEvent } from "@/lib/logging/appLog";
 import {
   buildFeedbackFocusPromptText,
   parseFeedbackFocusAreas,
@@ -40,6 +42,13 @@ interface EvaluateRequestBody {
 
 export async function POST(request: NextRequest) {
   console.log("=== Evaluation API called ===");
+
+  // Captured inside the try for use by the terminal-failure log in the catch
+  // (classDbId/activityType are resolved mid-request, past the destructure).
+  let logClassId: string | null = null;
+  let logActivityId: string | null = null;
+  let logSubmissionId: string | null = null;
+  let logQuestionOrder: number | null = null;
 
   try {
     const body: EvaluateRequestBody = await request.json();
@@ -120,6 +129,11 @@ export async function POST(request: NextRequest) {
       supabase,
       assignmentId,
     );
+
+    logClassId = classDbId;
+    logActivityId = assignmentId;
+    logSubmissionId = submissionId;
+    logQuestionOrder = questionOrder;
 
     // Teacher "Feedback focus" areas steer the AI's feedback sections.
     const { data: assignmentConfig } = await supabase
@@ -242,6 +256,20 @@ export async function POST(request: NextRequest) {
           attemptNumber,
           model: modelMetaFromResolved(evalModelConfig, evalKeySource),
         },
+        onRetryAttempt: (attempt, error) => {
+          logAppEvent({
+            level: "warn",
+            source: "evaluate",
+            event: "silent_retry",
+            errorCode: classifyAiError(error).code,
+            message: error instanceof Error ? error.message : undefined,
+            classId: classDbId,
+            activityId: assignmentId,
+            submissionId,
+            questionOrder,
+            metadata: { attempt },
+          });
+        },
       });
 
     // --- Persist the attempt (displayable grade) + AI audit row ---
@@ -336,12 +364,43 @@ export async function POST(request: NextRequest) {
     console.error("Error:", error);
     console.error("Stack:", error instanceof Error ? error.stack : "N/A");
 
+    // Classify + pass through honest HTTP statuses (429/503) so the client can
+    // decide retry treatment from `code`/`retryable` rather than a blanket 500.
+    const classified = classifyAiError(error);
+
+    logAppEvent({
+      level: "error",
+      source: "evaluate",
+      event: "ai_failure",
+      errorCode: classified.code,
+      message: classified.message,
+      classId: logClassId,
+      activityId: logActivityId,
+      submissionId: logSubmissionId,
+      questionOrder: logQuestionOrder,
+    });
+    const status =
+      classified.code === "RATE_LIMITED"
+        ? 429
+        : classified.code === "PROVIDER_UNAVAILABLE"
+          ? 503
+          : classified.code === "AI_NOT_CONFIGURED"
+            ? 503
+            : classified.code === "BAD_REQUEST"
+              ? 400
+              : 500;
+
     return NextResponse.json(
       {
         error: "Failed to evaluate answer",
         details: error instanceof Error ? error.message : "Unknown error",
+        code: classified.code,
+        retryable: classified.retryable,
+        ...(classified.retryAfterMs
+          ? { retryAfterMs: classified.retryAfterMs }
+          : {}),
       },
-      { status: 500 },
+      { status },
     );
   }
 }

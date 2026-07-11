@@ -6,6 +6,7 @@ import type { PendingAction } from "./actionTypes";
 import { DisplayContentCard } from "./cards/DisplayContentCard";
 import { MCQCard } from "./cards/McqCard";
 import { SuggestedResponseCard } from "./cards/SuggestedResponseCard";
+import { RetryErrorCard } from "@/components/ui/retry-error-card";
 
 export interface TtsConfig {
   ttsModelId: string;
@@ -43,6 +44,10 @@ interface ActionCardProps {
   onMcqAnswer?: (index: number) => void;
   /** TTS config for cards that play audio (e.g. suggested_response). */
   ttsConfig?: TtsConfig;
+  /** Retry generation for an error-state card. */
+  onRetry?: () => void;
+  /** Disables the retry button while another turn/retry is in flight. */
+  retryDisabled?: boolean;
 }
 
 /**
@@ -50,8 +55,28 @@ interface ActionCardProps {
  * component under `./cards/`. To add a new kind: create `cards/<kind>Card.tsx`
  * and add a case in the switch below.
  */
-export function ActionCard({ action, onMcqAnswer, ttsConfig }: ActionCardProps) {
+export function ActionCard({
+  action,
+  onMcqAnswer,
+  ttsConfig,
+  onRetry,
+  retryDisabled,
+}: ActionCardProps) {
   if (action.state === "loading") return <ActionSkeleton kind={action.kind} />;
+  if (action.state === "error") {
+    return (
+      <RetryErrorCard
+        variant="block"
+        message={
+          action.error?.message ?? "Couldn't prepare this — please retry."
+        }
+        retryable={action.error?.retryable ?? true}
+        onRetry={onRetry}
+        disabled={retryDisabled}
+        countdownMs={action.error?.retryAfterMs}
+      />
+    );
+  }
   if (action.state !== "ready" || !action.payload) return null;
 
   switch (action.payload.kind) {

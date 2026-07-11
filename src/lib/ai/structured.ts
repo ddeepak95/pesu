@@ -13,6 +13,7 @@ import {
   DEFAULT_MAX_ATTEMPTS,
   isRetryable,
   waitBeforeRetry,
+  type OnRetryAttempt,
 } from "./retry";
 import type { StartAiInvocationInput } from "./logging/types";
 import {
@@ -31,6 +32,12 @@ interface GenerateStructuredOptions<T> {
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   providerOptions?: SharedV3ProviderOptions;
   maxRetries?: number;
+  /**
+   * Invoked (1-based attempt, error) before each silent-retry backoff. Lets
+   * callers surface transient retries to admin logs without this module taking
+   * a logging dependency. See plan §8.
+   */
+  onRetryAttempt?: OnRetryAttempt;
   /** When set, each provider attempt is logged to ai_invocations + GCS. */
   invocation?: Omit<
     StartAiInvocationInput,
@@ -49,6 +56,7 @@ export async function generateStructured<T>(
     messages,
     providerOptions,
     maxRetries = DEFAULT_MAX_ATTEMPTS,
+    onRetryAttempt,
     invocation,
   } = options;
 
@@ -130,6 +138,7 @@ export async function generateStructured<T>(
         throw err;
       }
 
+      onRetryAttempt?.(attempt, err);
       await waitBeforeRetry(err, attempt - 1);
     }
   }

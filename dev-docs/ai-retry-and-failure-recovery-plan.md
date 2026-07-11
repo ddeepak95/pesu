@@ -1,5 +1,8 @@
 # AI Retry & Failure-Recovery Plan
 
+> **Status (2026-07-11): IMPLEMENTED.** All phases (1–7) shipped; `tsc --noEmit`, ESLint, and `next build` pass. The id-upsert RLS gap (§5/§11) is closed: `chat_message_actions` already had an UPDATE policy, and a new migration (`20260711000100_chat_messages_update_policy.sql`) adds the missing permissive UPDATE policy on `chat_messages`. Migrations still need to be applied to the live DB.
+
+
 Make every AI invocation failure recoverable in place: short silent server retries, then a user-facing **Retry** button — in the multimodal chat, action cards, and the evaluation/feedback flow — with machine-readable error codes end to end and no user content ever lost. Every terminal failure is also written to an admin-visible `app_logs` table (§8) so super admins and institution admins can audit errors down to the activity level.
 
 > **Scope note (2026-07-11):** the text-only chat feature (`ChatInputArea` + `/api/chat-assessment` + `chat-stream.ts`) was removed from the codebase entirely — the multimodal interface is the only conversational surface. This plan therefore covers multimodal, actions, and evaluate only.

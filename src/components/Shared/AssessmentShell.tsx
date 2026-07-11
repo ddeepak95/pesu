@@ -21,6 +21,8 @@ import { MultimodalInputArea } from "@/components/Shared/AssessmentInputs/Multim
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
+import { RetryErrorCard } from "@/components/ui/retry-error-card";
+import type { ClassifiedAiError } from "@/lib/ai/errors";
 import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext";
 import { getLocaleLabel } from "@/lib/locales";
 import { supportedLanguages } from "@/utils/supportedLanguages";
@@ -148,6 +150,12 @@ export function AssessmentShell({
   studentInstructions,
 }: AssessmentShellProps) {
   const [isEvaluating, setIsEvaluating] = React.useState(false);
+  // Set when an evaluation fails; drives the in-place retry card. The answer is
+  // safe (input areas keep their state), so the retry re-runs with it.
+  const [evaluationFailure, setEvaluationFailure] = React.useState<{
+    answerText: string;
+    error: ClassifiedAiError;
+  } | null>(null);
   const [showCompletion, setShowCompletion] = React.useState(false);
   const [languageDisabled, setLanguageDisabled] = React.useState(false);
   const [navigationDisabled, setNavigationDisabled] = React.useState(false);
@@ -329,6 +337,8 @@ export function AssessmentShell({
       logEvent("submit_clicked");
 
       setIsEvaluating(true);
+      // Clear any prior failure — a fresh submission supersedes it.
+      setEvaluationFailure(null);
 
       try {
         const interpolatedEvalPrompt = buildEvaluationPrompt(answerText);
@@ -355,7 +365,19 @@ export function AssessmentShell({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || "Evaluation failed");
+          const err = new Error(
+            errorData.error || "Evaluation failed",
+          ) as Error & { classified?: ClassifiedAiError };
+          err.classified = {
+            code: errorData.code ?? "UNKNOWN",
+            message:
+              errorData.details || errorData.error || "Evaluation failed",
+            retryable: errorData.retryable ?? true,
+            ...(errorData.retryAfterMs
+              ? { retryAfterMs: errorData.retryAfterMs }
+              : {}),
+          };
+          throw err;
         }
 
         const result = await response.json();
@@ -383,11 +405,23 @@ export function AssessmentShell({
         onAttemptCreated?.();
       } catch (error) {
         console.error("Error evaluating answer:", error);
-        showErrorToast(
-          `Failed to evaluate your answer: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-        );
+        const classified: ClassifiedAiError = (
+          error as { classified?: ClassifiedAiError }
+        ).classified ?? {
+          code: "NETWORK",
+          message: error instanceof Error ? error.message : "Unknown error",
+          retryable: true,
+        };
+        // Show the in-place retry card; the answer is preserved by the input
+        // area's own state. Suppress the duplicate toast for retryable errors
+        // (the card replaces it); keep it for positively-permanent failures.
+        setEvaluationFailure({ answerText, error: classified });
+        if (!classified.retryable) {
+          showErrorToast(
+            `Failed to evaluate your answer: ${classified.message}`,
+          );
+        }
+        // Keep the re-throw so input areas retain their answer-preservation.
         throw error;
       } finally {
         setIsEvaluating(false); // Safety net for all paths
@@ -400,6 +434,14 @@ export function AssessmentShell({
       attemptsQuery,
     ],
   );
+
+  // Retry a failed evaluation with the same (preserved) answer. handleEvaluate
+  // re-throws, so swallow here — it already records any new failure.
+  const retryEvaluation = useCallback(() => {
+    const failed = evaluationFailure;
+    if (!failed || isEvaluating) return;
+    void handleEvaluate(failed.answerText).catch(() => {});
+  }, [evaluationFailure, isEvaluating, handleEvaluate]);
 
   const handleSaveAndNavigate = (action: "previous" | "next") => {
     if (action === "previous" && onPrevious) {
@@ -621,6 +663,28 @@ export function AssessmentShell({
                   supportLanguage={effectiveSupportLanguage}
                 />
               )}
+              {evaluationFailure && !isEvaluating ? (
+                <div className="mt-3">
+                  <RetryErrorCard
+                    variant="block"
+                    message={
+                      evaluationFailure.error.retryable
+                        ? "Evaluation failed — your answer is safe."
+                        : evaluationFailure.error.message
+                    }
+                    detail={
+                      evaluationFailure.error.retryable
+                        ? evaluationFailure.error.message
+                        : undefined
+                    }
+                    retryable={evaluationFailure.error.retryable}
+                    retryLabel="Retry evaluation"
+                    onRetry={retryEvaluation}
+                    disabled={isEvaluating}
+                    countdownMs={evaluationFailure.error.retryAfterMs}
+                  />
+                </div>
+              ) : null}
             </>
           )}
         </AssessmentQuestionCard>

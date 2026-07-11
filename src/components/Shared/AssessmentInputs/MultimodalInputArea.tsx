@@ -23,11 +23,16 @@ import { BotStatusPanel } from "@/components/Shared/KonvoVoice/BotStatusPanel";
 import { UserInputPanel } from "@/components/Shared/KonvoVoice/UserInputPanel";
 import { APP_ASSESSMENT_SHELL_CLASS } from "@/components/Shared/KonvoVoice/layoutConstants";
 import { getKonvoUiConfig } from "@/components/Shared/KonvoVoice/uiState";
-import type { PendingAction } from "@/components/Shared/KonvoVoice/actionTypes";
+import type {
+  PendingAction,
+  ChatTurnError,
+} from "@/components/Shared/KonvoVoice/actionTypes";
+import type { AiErrorCode } from "@/lib/ai/errors";
 import type {
   ActionKind,
   ActionPayload,
 } from "@/lib/multimodal/actions/types";
+import type { ActionInput } from "@/lib/multimodal/actions/schema";
 import {
   type ActionDefinition,
   getActionDefinition,
@@ -57,12 +62,21 @@ interface ChatMessage {
   hidden?: boolean;
   /** True for a text-typed student message (no audio — show text, not a waveform). */
   typed?: boolean;
+  /** Present on a failed AI-turn bubble — renders the retry UI in place. */
+  error?: ChatTurnError;
   /**
    * Both transcript candidates when dual-language transcription was used.
    * Present only on the latest student message while the LLM is resolving
    * which reading is correct. Cleared once `user_transcript` arrives.
    */
   transcriptCandidates?: { language: string; text: string }[];
+}
+
+interface RunTurnOpts {
+  availableActionsOverride?: ActionKind[];
+  noSpeech?: boolean;
+  /** Direct-audio-input mode: the learner's raw utterance, sent inline instead of transcribed text. */
+  latestUserAudio?: { base64: string; mimeType: string };
 }
 
 type ChatPhase =
@@ -79,13 +93,35 @@ type MultimodalTurnEvent =
   | { type: "speech_start"; index?: number; sampleRate?: number }
   | { type: "speech_chunk"; index?: number; base64: string }
   | { type: "speech_end"; index?: number }
-  | { type: "action_start"; id: string; kind: ActionKind }
+  | {
+      type: "action_start";
+      id: string;
+      kind: ActionKind;
+      input?: ActionInput;
+      chatMessageId?: string;
+    }
   | { type: "action_payload"; id: string; kind: ActionKind; data: ActionPayload }
-  | { type: "action_error"; id: string; kind: ActionKind; error?: string }
+  | {
+      type: "action_error";
+      id: string;
+      kind: ActionKind;
+      error?: string;
+      code?: AiErrorCode;
+      retryable?: boolean;
+      retryAfterMs?: number;
+    }
   | { type: "user_transcript"; text: string }
   | { type: "user_transcript_empty" }
+  | { type: "retrying"; attempt: number }
   | { type: "done" }
-  | { type: "error"; error?: string; message?: string };
+  | {
+      type: "error";
+      error?: string;
+      message?: string;
+      code?: AiErrorCode;
+      retryable?: boolean;
+      retryAfterMs?: number;
+    };
 
 // Resolves what a message "truthfully" contributed to the conversation. Action
 // cards are stored with content:"" (the real content lives in action.payload,
@@ -222,6 +258,12 @@ export function MultimodalInputArea({
   const [isThinking, setIsThinking] = React.useState(false);
   const [isSpeaking, setIsSpeaking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // True during a silent server retry backoff (SSE "retrying" event) so the bot
+  // panel can show "Reconnecting…" instead of silent dead air.
+  const [isReconnecting, setIsReconnecting] = React.useState(false);
+  // Count of manual retries triggered from a failed-turn bubble (for the
+  // "Retry (n)" label). See dev-docs/ai-retry-and-failure-recovery-plan.md §5.
+  const [turnRetryCount, setTurnRetryCount] = React.useState(0);
   const [micRequestPending, setMicRequestPending] = React.useState(false);
   const [sessionChunkIndex, setSessionChunkIndex] = React.useState(0);
   const [textDraft, setTextDraft] = React.useState("");
@@ -299,6 +341,16 @@ export function MultimodalInputArea({
   const botInterruptionRequestedRef = React.useRef(false);
   const assistantTurnSeqRef = React.useRef(0);
   const activeAbortRef = React.useRef<AbortController | null>(null);
+  // Classified error captured from the turn's SSE `error` event (set just before
+  // the loop throws) so the catch can decide bubble-vs-banner from the code.
+  const turnErrorRef = React.useRef<ChatTurnError | null>(null);
+  // Snapshot of the last failed AI turn, powering the failed-turn bubble's
+  // Retry. Kept in a ref (not message state) because opts can carry large audio.
+  const failedTurnRef = React.useRef<{
+    opts?: RunTurnOpts;
+    error: ChatTurnError;
+    partial: boolean;
+  } | null>(null);
   const activeAssistantTurnRef = React.useRef<{
     text: string;
     ttsStarted: boolean;
@@ -630,26 +682,21 @@ export function MultimodalInputArea({
       setIsThinking(false);
       setIsSpeaking(false);
       setIsStarting(false);
+      setIsReconnecting(false);
       playback.releasePlayback();
     },
     [playback],
   );
 
   const runAssistantTurn = React.useCallback(
-    async (
-      history: ChatMessage[],
-      opts?: {
-        availableActionsOverride?: ActionKind[];
-        noSpeech?: boolean;
-        /** Direct-audio-input mode: the learner's raw utterance, sent inline instead of transcribed text. */
-        latestUserAudio?: { base64: string; mimeType: string };
-      },
-    ) => {
+    async (history: ChatMessage[], opts?: RunTurnOpts) => {
       const turnId = ++assistantTurnSeqRef.current;
       setIsAssistantTurnActive(true);
       setIsThinking(true);
       setIsSpeaking(false);
       setError(null);
+      setIsReconnecting(false);
+      turnErrorRef.current = null;
       botInterruptionRequestedRef.current = false;
 
       const ttsModelId =
@@ -819,7 +866,11 @@ export function MultimodalInputArea({
         if (!reader) throw new Error("No response body");
 
         for await (const event of parseMultimodalTurnStream(reader)) {
-          if (event.type === "text-delta") {
+          if (event.type === "retrying") {
+            // Silent server retry in progress — surface "Reconnecting…".
+            setIsReconnecting(true);
+          } else if (event.type === "text-delta") {
+            setIsReconnecting(false);
             assistantText += event.content;
             activeAssistantTurnRef.current.text = assistantText;
             // Stream the text live into the bot's bubble as it arrives.
@@ -837,7 +888,13 @@ export function MultimodalInputArea({
               id: event.id,
               role: "assistant",
               content: "",
-              action: { id: event.id, kind: event.kind, state: "loading" },
+              action: {
+                id: event.id,
+                kind: event.kind,
+                state: "loading",
+                input: event.input,
+                chatMessageId: event.chatMessageId,
+              },
             };
             setMessages((prev) => {
               const next = [...prev, cardMessage];
@@ -862,8 +919,28 @@ export function MultimodalInputArea({
               return next;
             });
           } else if (event.type === "action_error") {
+            // Keep the card in an error state (with the classified failure) so
+            // the tutor's spoken reference to it stays coherent and the learner
+            // can retry generation — no longer silently removed. See plan §6.
+            const classified: ChatTurnError = {
+              code: event.code ?? "UNKNOWN",
+              message: event.error || "Couldn't prepare this — please retry.",
+              retryable: event.retryable ?? true,
+              ...(event.retryAfterMs ? { retryAfterMs: event.retryAfterMs } : {}),
+            };
             setMessages((prev) => {
-              const next = prev.filter((m) => m.action?.id !== event.id);
+              const next = prev.map((m) =>
+                m.action?.id === event.id
+                  ? {
+                      ...m,
+                      action: {
+                        ...m.action,
+                        state: "error" as const,
+                        error: classified,
+                      },
+                    }
+                  : m,
+              );
               messagesRef.current = next;
               return next;
             });
@@ -923,6 +1000,7 @@ export function MultimodalInputArea({
               "No speech detected. Try speaking louder and closer to the mic.",
             );
           } else if (event.type === "speech_start") {
+            setIsReconnecting(false);
             if (typeof event.sampleRate === "number" && event.sampleRate > 0) {
               sampleRate = event.sampleRate;
             }
@@ -938,9 +1016,19 @@ export function MultimodalInputArea({
             playback.appendChunk(0, event.base64);
             pcmChunks.push(decodeBase64ToBytes(event.base64));
           } else if (event.type === "error") {
-            throw new Error(
-              event.error || event.message || "Assistant turn failed",
-            );
+            // Capture the machine-readable classification so the catch can
+            // decide failed-turn bubble (retryable) vs banner (non-retryable).
+            const message =
+              event.error || event.message || "Assistant turn failed";
+            turnErrorRef.current = {
+              code: event.code ?? "UNKNOWN",
+              message,
+              retryable: event.retryable ?? true,
+              ...(event.retryAfterMs
+                ? { retryAfterMs: event.retryAfterMs }
+                : {}),
+            };
+            throw new Error(message);
           }
         }
 
@@ -980,6 +1068,49 @@ export function MultimodalInputArea({
           scheduleAutoFinish();
         }
       } catch (turnError) {
+        const isAbort =
+          turnError instanceof DOMException &&
+          (turnError.name === "AbortError" ||
+            turnError.message === "signal is aborted without reason");
+
+        // Retryable AI-turn failure (classified from the SSE error event): show
+        // an in-conversation failed-turn bubble with a Retry button instead of
+        // the banner, and leave pending student bubbles + deferred audio intact
+        // so the retry can re-resolve/re-send. Non-retryable and pre-turn
+        // failures fall through to the salvage loop + banner below.
+        const classified = turnErrorRef.current;
+        turnErrorRef.current = null;
+        if (!isAbort && classified && classified.retryable) {
+          setIsReconnecting(false);
+          const partial = assistantText.trim().length > 0;
+          if (partial) {
+            // Commit the partial reply so it stays in the conversation; the
+            // retry continues as a new turn (with a hidden continue-note).
+            if (assistantTurnSeqRef.current === turnId) {
+              activeAssistantTurnRef.current.text = assistantText;
+              activeAssistantTurnRef.current.ttsStarted =
+                activeAssistantTurnRef.current.ttsStarted || ttsStarted;
+            }
+            interrupted = true;
+            commitAssistantTurnToMessages({ force: true, turnId });
+            persistBotAudioIfAny();
+          }
+          releaseAssistantTurnUi(turnId);
+          failedTurnRef.current = { opts, error: classified, partial };
+          const errorBubble: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: "",
+            error: classified,
+          };
+          setMessages((prev) => {
+            const next = [...prev, errorBubble];
+            messagesRef.current = next;
+            return next;
+          });
+          return;
+        }
+
         // Fallback: the turn request failed before its user_transcript event
         // arrived, so no deferred audio was flushed. Resolve each pending
         // bubble to its already-known content (the primary candidate for
@@ -1724,6 +1855,157 @@ export function MultimodalInputArea({
     runAssistantTurn,
   ]);
 
+  // Retry a failed AI turn from its failed-turn bubble. Rebuilds the history
+  // from the current messages (picking up any resolved transcripts and the
+  // committed partial reply), drops the direct-audio payload when the transcript
+  // already resolved, and appends a hidden continue-note for partial deliveries.
+  // See dev-docs/ai-retry-and-failure-recovery-plan.md §5.
+  const retryFailedTurn = React.useCallback(async () => {
+    const failed = failedTurnRef.current;
+    if (!failed || isAssistantTurnActive) return;
+    failedTurnRef.current = null;
+
+    // Remove the failed-turn bubble(s).
+    const withoutError = messagesRef.current.filter((m) => !m.error);
+    setMessages(withoutError);
+    messagesRef.current = withoutError;
+    setTurnRetryCount((c) => c + 1);
+
+    // Rebuild history from current messages: finalize any streaming bubble and
+    // drop still-loading action cards.
+    let history = messagesRef.current
+      .filter((m) => m.action?.state !== "loading")
+      .map((m) =>
+        m.role === "assistant" && m.streaming
+          ? { ...m, streaming: false, content: m.content.trim() || "..." }
+          : m,
+      );
+
+    // Audio-vs-transcript decision: if the latest student turn already resolved
+    // (no longer transcribing), retry with the resolved text and drop the
+    // stored audio — cheaper and deterministic. Otherwise keep it so the model
+    // re-resolves the transcript.
+    const lastStudent = [...history]
+      .reverse()
+      .find((m) => m.role === "student" && !m.hidden);
+    const transcriptResolved = lastStudent
+      ? lastStudent.status !== "transcribing"
+      : true;
+    let opts = failed.opts;
+    if (transcriptResolved && opts?.latestUserAudio) {
+      opts = { ...opts, latestUserAudio: undefined };
+    }
+
+    if (failed.partial) {
+      const continueNote: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "student",
+        content:
+          "[Your previous reply was cut off by a technical error mid-sentence. Continue the conversation naturally; briefly restate anything essential.]",
+        hidden: true,
+      };
+      history = [...history, continueNote];
+      setMessages(history);
+      messagesRef.current = history;
+    }
+
+    await runAssistantTurn(history, opts);
+  }, [isAssistantTurnActive, runAssistantTurn]);
+
+  // Retry a failed action card's generation via the dedicated endpoint — no turn
+  // re-run. Card goes loading → ready (payload) on success, back to error on
+  // failure. See dev-docs/ai-retry-and-failure-recovery-plan.md §6.
+  const retryFailedAction = React.useCallback(
+    async (messageId: string) => {
+      const target = messagesRef.current.find((m) => m.id === messageId);
+      const action = target?.action;
+      if (
+        !action ||
+        action.state !== "error" ||
+        !action.input ||
+        !action.chatMessageId
+      ) {
+        return;
+      }
+
+      const setActionState = (next: PendingAction) => {
+        setMessages((prev) => {
+          const updated = prev.map((m) =>
+            m.id === messageId ? { ...m, action: next } : m,
+          );
+          messagesRef.current = updated;
+          return updated;
+        });
+      };
+
+      setActionState({ ...action, state: "loading", error: undefined });
+
+      try {
+        const res = await fetch("/api/multimodal/action-retry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignmentId,
+            submissionId,
+            questionOrder: question.order,
+            actionId: action.id,
+            input: action.input,
+            chatMessageId: action.chatMessageId,
+            language,
+            ...(supportEnabled && supportLanguage
+              ? { supportLanguage }
+              : {}),
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          payload?: ActionPayload;
+          error?: string;
+          code?: AiErrorCode;
+          retryable?: boolean;
+          retryAfterMs?: number;
+        };
+        if (!res.ok || !data.payload) {
+          setActionState({
+            ...action,
+            state: "error",
+            error: {
+              code: data.code ?? "UNKNOWN",
+              message: data.error || "Retry failed — please try again.",
+              retryable: data.retryable ?? true,
+              ...(data.retryAfterMs ? { retryAfterMs: data.retryAfterMs } : {}),
+            },
+          });
+          return;
+        }
+        setActionState({
+          ...action,
+          state: "ready",
+          payload: data.payload,
+          error: undefined,
+        });
+      } catch (err) {
+        setActionState({
+          ...action,
+          state: "error",
+          error: {
+            code: "NETWORK",
+            message:
+              err instanceof Error ? err.message : "Retry failed — please try again.",
+            retryable: true,
+          },
+        });
+      }
+    },
+    [
+      assignmentId,
+      submissionId,
+      question.order,
+      language,
+      supportEnabled,
+      supportLanguage,
+    ],
+  );
+
   return (
     <div className="relative space-y-4">
       {!hasStarted ? (
@@ -1820,6 +2102,10 @@ export function MultimodalInputArea({
                 language,
               }}
               speechMode={speechMode}
+              onRetryTurn={() => void retryFailedTurn()}
+              onActionRetry={(messageId) => void retryFailedAction(messageId)}
+              retryDisabled={isAssistantTurnActive}
+              retryAttemptCount={turnRetryCount}
             />
             {(() => {
               const bulbDef = resolveBulbAction(
@@ -1879,6 +2165,7 @@ export function MultimodalInputArea({
                 showBotWave={ui.showBotWave}
                 botWaveMode={ui.botWaveMode}
                 playbackAnalyser={playback.playbackAnalyser}
+                statusLabelOverride={isReconnecting ? "Reconnecting…" : undefined}
               />
             </div>
             <div

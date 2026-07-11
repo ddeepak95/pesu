@@ -74,6 +74,17 @@ export default async function PlatformPage({
           add, edit, and delete the built-in activity types.
         </p>
 
+        <p className="text-sm">
+          <Link
+            href="/platform/logs"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Platform logs
+          </Link>
+          {" — "}
+          server-side events and AI failures/retries across all institutions.
+        </p>
+
         {(okMsg || errorMsg) && (
           <div
             className={`rounded border px-4 py-3 text-sm ${

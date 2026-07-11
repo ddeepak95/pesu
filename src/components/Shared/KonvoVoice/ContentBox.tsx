@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ActionCard, type TtsConfig } from "./ActionCard";
 import { useOnDemandTts } from "./useOnDemandTts";
 import { cn } from "@/lib/utils";
-import type { PendingAction } from "./actionTypes";
+import type { PendingAction, ChatTurnError } from "./actionTypes";
+import { ChatTurnErrorBubble } from "./ChatTurnErrorBubble";
 import type { TransliterationResult } from "@/lib/ai/schemas/transliteration";
 
 type ContentDisplay = {
@@ -27,6 +28,8 @@ interface ContentBoxProps {
     action?: PendingAction;
     hidden?: boolean;
     typed?: boolean;
+    /** Present on a failed AI-turn bubble — renders the retry UI in place. */
+    error?: ChatTurnError;
   }>;
   expandedMessageIds?: Record<string, boolean>;
   onToggleExpanded?: (messageId: string) => void;
@@ -45,6 +48,14 @@ interface ContentBoxProps {
   autoScroll?: boolean;
   /** Label shown on student bubbles (e.g. "You" in the live view, "Student" for teachers). */
   studentLabel?: string;
+  /** Retry a failed AI turn (rendered as an error bubble). */
+  onRetryTurn?: (messageId: string) => void;
+  /** Retry a failed action card's generation. */
+  onActionRetry?: (messageId: string) => void;
+  /** Disables retry while a turn is in flight. */
+  retryDisabled?: boolean;
+  /** Number of manual retries already attempted (for the "Retry (n)" label). */
+  retryAttemptCount?: number;
   /**
    * Tutor speech-output mode. "automatic" (default) keeps the collapsed-waveform
    * bubble with a "View message" toggle; "on_demand"/"none" show the message text
@@ -73,6 +84,10 @@ export function ContentBox({
   autoScroll = true,
   studentLabel = "You",
   speechMode = "automatic",
+  onRetryTurn,
+  onActionRetry,
+  retryDisabled,
+  retryAttemptCount,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
@@ -173,6 +188,20 @@ export function ContentBox({
               {messages?.map((m) => {
                 if (m.hidden) return null;
 
+                if (m.error && !m.content) {
+                  return (
+                    <ChatTurnErrorBubble
+                      key={m.id}
+                      error={m.error}
+                      onRetry={
+                        onRetryTurn ? () => onRetryTurn(m.id) : undefined
+                      }
+                      disabled={retryDisabled}
+                      attemptCount={retryAttemptCount}
+                    />
+                  );
+                }
+
                 if (m.action && !m.content) {
                   return (
                     <div
@@ -202,6 +231,12 @@ export function ContentBox({
                               : undefined
                           }
                           ttsConfig={ttsConfig}
+                          onRetry={
+                            onActionRetry
+                              ? () => onActionRetry(m.id)
+                              : undefined
+                          }
+                          retryDisabled={retryDisabled}
                         />
                       </div>
                     </div>

@@ -16,7 +16,7 @@ import {
   TURN_SCHEMA_NAME,
 } from "@/lib/ai/chat-stream-object";
 import { dispatchAction } from "@/lib/multimodal/actions/dispatcher";
-import { getActionDefinition } from "@/lib/multimodal/actions/registry";
+import { resolveActionModel } from "@/lib/multimodal/actions/resolveActionModel";
 import type { ActionInput } from "@/lib/multimodal/actions/schema";
 import type { ActionKind } from "@/lib/multimodal/actions/types";
 import type {
@@ -30,10 +30,12 @@ import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { insertChatMessage } from "@/lib/queries/chatMessages";
 import {
-  DEFAULT_MAX_ATTEMPTS,
+  INTERACTIVE_MAX_ATTEMPTS,
   isRetryableProviderError,
   waitBeforeRetry,
 } from "@/lib/ai/retry";
+import { classifyAiError } from "@/lib/ai/errors";
+import { logAppEvent } from "@/lib/logging/appLog";
 import { modelMetaFromResolved } from "@/lib/ai/logging/types";
 import {
   completeAiInvocation,
@@ -617,7 +619,11 @@ export async function POST(request: NextRequest) {
             transcriptResolution,
           };
 
-          attemptLoop: for (let attempt = 0; attempt < DEFAULT_MAX_ATTEMPTS; attempt++) {
+          // Cap each silent-retry backoff so a long Retry-After can't hold the
+          // SSE stream open in dead air — beyond 2 quick attempts the student
+          // controls the retry via the failed-turn bubble. See plan §4.
+          const INTERACTIVE_RETRY_DELAY_CAP_MS = 4000;
+          attemptLoop: for (let attempt = 0; attempt < INTERACTIVE_MAX_ATTEMPTS; attempt++) {
             if (aborted) break attemptLoop;
 
             const startedAtMs = Date.now();
@@ -811,21 +817,60 @@ export async function POST(request: NextRequest) {
               if (
                 !deliveredToClient &&
                 isRetryableProviderError(err) &&
-                attempt < DEFAULT_MAX_ATTEMPTS - 1
+                attempt < INTERACTIVE_MAX_ATTEMPTS - 1
               ) {
                 if (invocationId) {
                   scheduleFailAiInvocation(invocationId, err, startedAtMs);
                 }
-                await waitBeforeRetry(err, attempt);
+                // Tell the client we're reconnecting so BotStatusPanel can show
+                // "Reconnecting…" instead of silent dead air during the backoff.
+                enqueue({ type: "retrying", attempt: attempt + 1 });
+                logAppEvent({
+                  level: "warn",
+                  source: "multimodal_turn",
+                  event: "silent_retry",
+                  errorCode: classifyAiError(err).code,
+                  message: err instanceof Error ? err.message : undefined,
+                  classId: classDbId,
+                  activityId: assignmentId,
+                  submissionId: submissionId ?? null,
+                  questionOrder,
+                  aiInvocationId: invocationId,
+                  metadata: { attempt: attempt + 1 },
+                });
+                await waitBeforeRetry(
+                  err,
+                  attempt,
+                  INTERACTIVE_RETRY_DELAY_CAP_MS,
+                );
                 continue attemptLoop;
               }
-              const errMsg =
-                err instanceof Error ? err.message : "Unknown streaming error";
               if (invocationId) {
                 scheduleFailAiInvocation(invocationId, err, startedAtMs);
               }
               if (!deliveredToClient) {
-                enqueue({ type: "error", error: errMsg });
+                const classified = classifyAiError(err);
+                logAppEvent({
+                  level: "error",
+                  source: "multimodal_turn",
+                  event: "ai_failure",
+                  errorCode: classified.code,
+                  message: classified.message,
+                  classId: classDbId,
+                  activityId: assignmentId,
+                  submissionId: submissionId ?? null,
+                  questionOrder,
+                  aiInvocationId: invocationId ?? firstInvocationId,
+                });
+                enqueue({
+                  type: "error",
+                  error: classified.message,
+                  code: classified.code,
+                  retryable: classified.retryable,
+                  ...(classified.retryAfterMs
+                    ? { retryAfterMs: classified.retryAfterMs }
+                    : {}),
+                });
               }
               break attemptLoop;
             }
@@ -900,36 +945,26 @@ export async function POST(request: NextRequest) {
           if (resolvedAction && assistantChatMessageId && !aborted) {
             const actionId = crypto.randomUUID();
             const actionKind = resolvedAction.kind;
-            enqueue({ type: "action_start", id: actionId, kind: actionKind });
+            // The action_start event carries the action's generation `input` so
+            // the client can retry generation (via /api/multimodal/action-retry)
+            // without a turn re-run if it fails. The payload is tiny.
+            enqueue({
+              type: "action_start",
+              id: actionId,
+              kind: actionKind,
+              input: resolvedAction,
+              chatMessageId: assistantChatMessageId,
+            });
 
             // Resolve the action's own content-generation model (Call 2).
             // Inherits the chat model unless an admin overrode the action's
             // catalog sub-function (e.g. text.mcq_generation).
-            let actionModel = model;
-            let actionProviderOptions = providerOptions;
-            try {
-              const actionDef = getActionDefinition(actionKind);
-              const actionResolved = await getCachedResolveModelConfig({
+            const { model: actionModel, providerOptions: actionProviderOptions } =
+              await resolveActionModel({
                 classDbId,
-                appFunctionKey: actionDef.appFunctionKey,
-              });
-              actionModel = getLanguageModel(actionResolved.config);
-              actionProviderOptions = providerOptionsForConfig(
-                actionResolved.config,
-              );
-              console.log("[multimodal/turn] action model", {
                 kind: actionKind,
-                appFunctionKey: actionDef.appFunctionKey,
-                provider: actionResolved.config.provider,
-                modelId: actionResolved.config.modelId,
-                keySource: actionResolved.keySource,
+                fallback: { model, providerOptions },
               });
-            } catch (modelErr) {
-              console.error(
-                "[multimodal/turn] Failed to resolve action model; using turn model:",
-                modelErr,
-              );
-            }
 
             const recentMessages = messages
               .filter((m) => !m.hidden && m.content.trim())
@@ -948,16 +983,26 @@ export async function POST(request: NextRequest) {
               languageLabel: localeLabel(language),
               ...(supportAvail ? { supportLanguageLabel: localeLabel(supportAvail) } : {}),
               recentMessages,
+              classId: classDbId,
+              assignmentId,
+              questionOrder,
             }).catch((actionErr) => {
-              const message =
-                actionErr instanceof Error ? actionErr.message : "Action failed";
+              // dispatchAction has already logged the terminal failure (app_logs)
+              // and exhausted silent retries. Keep the card in an error state on
+              // the client (with the classification) instead of dropping it.
+              const classified = classifyAiError(actionErr);
               console.error("[multimodal/turn] Action failed:", actionErr);
               if (!aborted) {
                 enqueue({
                   type: "action_error",
                   id: actionId,
                   kind: actionKind,
-                  error: message,
+                  error: classified.message,
+                  code: classified.code,
+                  retryable: classified.retryable,
+                  ...(classified.retryAfterMs
+                    ? { retryAfterMs: classified.retryAfterMs }
+                    : {}),
                 });
               }
             });
@@ -1036,9 +1081,28 @@ export async function POST(request: NextRequest) {
             });
           }
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Multimodal turn failed";
-          enqueue({ type: "error", error: message });
+          const classified = classifyAiError(error);
+          logAppEvent({
+            level: "error",
+            source: "multimodal_turn",
+            event: "ai_failure",
+            errorCode: classified.code,
+            message: classified.message,
+            classId: classDbId,
+            activityId: assignmentId,
+            submissionId: submissionId ?? null,
+            questionOrder,
+            aiInvocationId: firstInvocationId,
+          });
+          enqueue({
+            type: "error",
+            error: classified.message,
+            code: classified.code,
+            retryable: classified.retryable,
+            ...(classified.retryAfterMs
+              ? { retryAfterMs: classified.retryAfterMs }
+              : {}),
+          });
           enqueue({ type: "done" });
         } finally {
           abortSignal.removeEventListener("abort", onAbort);
