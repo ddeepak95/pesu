@@ -988,6 +988,10 @@ schema fields plus a second generation call to fulfil the action.
 
 ### B.2 Conversation turn — text-chat / voice (retired modes)
 
+> **Update 2026-07-11:** `text_chat` has since been **removed from the codebase entirely**
+> (`ChatInputArea`, `/api/chat-assessment`, `chat-stream.ts`, `CHAT_SYSTEM_APPENDIX` all deleted);
+> only `voice` remains retired-but-kept. The description below is historical.
+
 `text_chat` and `voice` are **retired** assessment modes (`RETIRED_ASSESSMENT_MODES` in
 `settings/registry.ts`) — kept for existing assignments, not creatable for new ones. They use
 `streamText` with a **real** `end_conversation` **tool** and append `CHAT_SYSTEM_APPENDIX` /

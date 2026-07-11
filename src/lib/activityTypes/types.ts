@@ -16,11 +16,7 @@ import type { FeedbackFocusArea } from "@/lib/feedbackFocus";
 export type ActivityTypeKind = "learning" | "assessment" | "speaking_practice" | "code_review";
 
 /** Interaction modes (mirrors InteractionType in promptTemplates / AssessmentMode). */
-export type ActivityInteractionType =
-  | "voice"
-  | "text_chat"
-  | "static_text"
-  | "multimodal";
+export type ActivityInteractionType = "voice" | "static_text" | "multimodal";
 
 /** Activity-type-specific overrides for the Question Card UI strings. */
 export interface ActivityTypeLabels {

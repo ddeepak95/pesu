@@ -174,14 +174,14 @@ export async function getTranscriptsForSubmission(
  *
  * @param assignmentId - The assignment ID
  * @param preferredLanguage - Preferred language for the submission
- * @param submissionMode - The submission mode used (voice, text_chat, or static_text)
+ * @param submissionMode - The submission mode used (voice, static_text, or multimodal)
  * @param studentId - Optional: Student ID for authenticated submissions
  * @param responderDetails - Optional: Responder details for public submissions
  */
 export async function createSubmission(
   assignmentId: string,
   preferredLanguage: string,
-  submissionMode: "voice" | "text_chat" | "static_text" | "multimodal",
+  submissionMode: "voice" | "static_text" | "multimodal",
   options?: {
     studentId?: string;
     responderDetails?: Record<string, string>;

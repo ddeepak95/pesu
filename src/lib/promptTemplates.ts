@@ -118,11 +118,7 @@ export function getVariablesByCategory(category: "static" | "runtime") {
 
 /** Re-exported from the activity-type registry (single source of truth). */
 export type ActivityType = ActivityTypeKind;
-export type InteractionType =
-  | "voice"
-  | "text_chat"
-  | "static_text"
-  | "multimodal";
+export type InteractionType = "voice" | "static_text" | "multimodal";
 
 /**
  * The default system prompt for an activity type = the type's own `systemPrompt`.
@@ -130,7 +126,7 @@ export type InteractionType =
  * No mode-specific or "common" fragments are appended: the conversation language
  * comes from the type's persona (which names `{{language}}`), conciseness/format
  * from the runtime directives (`SPEECH_FORMAT_DIRECTIVE` for multimodal, the
- * chat/voice appendices for the retired modes), and tone from the type itself.
+ * voice appendix for the retired mode), and tone from the type itself.
  * `static_text` has no conversation, so its system prompt never reaches a model.
  *
  * `_interactionType` is retained for signature stability with existing callers.
@@ -206,23 +202,6 @@ export const DEFAULT_EVALUATION_PROMPT =
 export function getDefaultEvaluationPrompt(): string {
   return DEFAULT_EVALUATION_PROMPT;
 }
-
-/**
- * Instructions appended transparently to every text-chat system prompt.
- * NOT part of the teacher-editable template.
- * Contains {{language}} which must be interpolated before use.
- */
-export const CHAT_SYSTEM_APPENDIX = `
-OUTPUT FORMAT:
-Your output is rendered as a plain text chat message. Do NOT use any special characters, markdown formatting, or code blocks. Keep responses concise and conversational.
-
-${SAFETY_DIRECTIVE}
-
-TOOL USAGE:
-You have access to an end_conversation tool. You MUST call it when:
-1. The student has provided an answer that covers the expected answer — call with reason "thorough"
-2. The student explicitly refuses to answer or says they don't want to continue — call with reason "refusal"
-When calling end_conversation, always include a polite ending message in {{language}}.`;
 
 /**
  * Instructions appended transparently to every voice system prompt.

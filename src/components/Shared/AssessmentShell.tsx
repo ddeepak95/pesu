@@ -16,7 +16,6 @@ import { QuestionCompletionPanel } from "@/components/Shared/QuestionCompletionP
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { Loader2 } from "lucide-react";
 import { VoiceInputArea } from "@/components/Shared/AssessmentInputs/VoiceInputArea";
-import { ChatInputArea } from "@/components/Shared/AssessmentInputs/ChatInputArea";
 import { StaticTextInputArea } from "@/components/Shared/AssessmentInputs/StaticTextInputArea";
 import { MultimodalInputArea } from "@/components/Shared/AssessmentInputs/MultimodalInputArea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -33,7 +32,7 @@ import { supportedLanguages } from "@/utils/supportedLanguages";
 const SUPPORT_LANGUAGE_NONE = "__none__";
 
 export interface AssessmentShellProps {
-  assessmentMode: "voice" | "text_chat" | "static_text" | "multimodal";
+  assessmentMode: "voice" | "static_text" | "multimodal";
   question: Question;
   language: string;
   assignmentId: string;
@@ -504,9 +503,7 @@ export function AssessmentShell({
     // Hide the language selectors once the activity has started; before that
     // they show (disabled when teacher-locked).
     !languageDisabled &&
-    (assessmentMode === "voice" ||
-      assessmentMode === "text_chat" ||
-      assessmentMode === "multimodal");
+    (assessmentMode === "voice" || assessmentMode === "multimodal");
   const handleLanguageValueChange = React.useCallback(
     (nextLanguage: string) => {
       onLanguageChange?.(nextLanguage);
@@ -617,7 +614,6 @@ export function AssessmentShell({
                 </div>
               )}
               {assessmentMode === "voice" && <VoiceInputArea {...inputProps} />}
-              {assessmentMode === "text_chat" && <ChatInputArea {...inputProps} />}
               {assessmentMode === "static_text" && <StaticTextInputArea {...inputProps} />}
               {assessmentMode === "multimodal" && (
                 <MultimodalInputArea

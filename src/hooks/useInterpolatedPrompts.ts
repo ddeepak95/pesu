@@ -4,11 +4,9 @@ import {
   interpolatePromptsForRuntime,
   interpolatePrompt,
   buildRuntimeContext,
-  getLanguageName,
 } from "@/lib/promptInterpolation";
 import {
   buildDefaultBotPromptConfig,
-  CHAT_SYSTEM_APPENDIX,
   VOICE_SYSTEM_APPENDIX,
   type ActivityType,
   type InteractionType,
@@ -43,13 +41,13 @@ interface InterpolatedPrompts {
 }
 
 /**
- * Consolidates prompt interpolation for ChatInputArea, VoiceInputArea, and
- * AssessmentShell evaluation into a single hook. All results are memoized so
- * they recompute only when question/language/attempt/config change — not on
- * every message send or re-render.
+ * Consolidates prompt interpolation for VoiceInputArea and AssessmentShell
+ * evaluation into a single hook. All results are memoized so they recompute
+ * only when question/language/attempt/config change — not on every message
+ * send or re-render.
  *
  * Always returns a non-null systemPrompt and greeting (falls back to defaults).
- * For text_chat mode, appends CHAT_SYSTEM_APPENDIX transparently.
+ * For voice mode, appends VOICE_SYSTEM_APPENDIX transparently.
  */
 export function useInterpolatedPrompts({
   question,
@@ -86,8 +84,6 @@ export function useInterpolatedPrompts({
 
   const attemptNumber = attemptCount + 1;
 
-  const languageName = useMemo(() => getLanguageName(language), [language]);
-
   const { systemPrompt, greeting } = useMemo(() => {
     const result = interpolatePromptsForRuntime(
       assignmentShim as Parameters<typeof interpolatePromptsForRuntime>[0],
@@ -101,9 +97,7 @@ export function useInterpolatedPrompts({
     let sp = result?.system_prompt ?? "";
     const gr = result?.greeting ?? "";
 
-    if (assessmentMode === "text_chat") {
-      sp += CHAT_SYSTEM_APPENDIX.replace(/\{\{language\}\}/g, languageName);
-    } else if (assessmentMode === "voice") {
+    if (assessmentMode === "voice") {
       sp += VOICE_SYSTEM_APPENDIX;
     }
 
@@ -115,7 +109,6 @@ export function useInterpolatedPrompts({
     attemptNumber,
     fileSubmissionsContent,
     assessmentMode,
-    languageName,
     supportLanguage,
   ]);
 

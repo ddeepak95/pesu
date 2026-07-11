@@ -204,7 +204,7 @@ export async function createAssignment(
     activity_template_id?: string | null;
     /** Explicit self-contained snapshot. Falls back to the built-in kind's registry definition. */
     activity_definition_snapshot?: TemplateDefinition | null;
-    assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
+    assessment_mode?: "voice" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;
@@ -335,7 +335,7 @@ export async function updateAssignment(
     activity_definition_snapshot?: TemplateDefinition | null;
     /** When the snapshot was last (re)pulled from a template. Preserved on plain saves; only advanced by an explicit template sync. */
     template_synced_at?: string | null;
-    assessment_mode?: "voice" | "text_chat" | "static_text" | "multimodal";
+    assessment_mode?: "voice" | "static_text" | "multimodal";
     status?: "draft" | "active";
     responder_fields_config?: ResponderFieldConfig[]; // JSONB array of ResponderFieldConfig
     max_attempts?: number;

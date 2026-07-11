@@ -107,7 +107,6 @@ function validateBoolean(raw: unknown): boolean {
 
 export const ASSESSMENT_MODE_OPTIONS = [
   { value: "voice", label: "Voice" },
-  { value: "text_chat", label: "Text chat" },
   { value: "static_text", label: "Static text" },
   { value: "multimodal", label: "Multimodal" },
 ] as const satisfies readonly SettingOption[];
@@ -115,10 +114,7 @@ export const ASSESSMENT_MODE_OPTIONS = [
 export type AssessmentMode = (typeof ASSESSMENT_MODE_OPTIONS)[number]["value"];
 
 /** Interaction types kept for existing assignments but no longer creatable. */
-export const RETIRED_ASSESSMENT_MODES = new Set<AssessmentMode>([
-  "voice",
-  "text_chat",
-]);
+export const RETIRED_ASSESSMENT_MODES = new Set<AssessmentMode>(["voice"]);
 
 const enableBulkFeedbackApproval: SettingDefinition<boolean> = {
   key: "enable_bulk_feedback_approval",

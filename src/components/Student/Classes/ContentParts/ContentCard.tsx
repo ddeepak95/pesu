@@ -61,8 +61,6 @@ export default function ContentCard({
     switch (mode) {
       case "voice":
         return "Voice";
-      case "text_chat":
-        return "Text Chat";
       case "static_text":
         return "Static Text";
       case "multimodal":

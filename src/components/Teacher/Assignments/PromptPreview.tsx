@@ -12,7 +12,6 @@ import {
 import {
   buildDefaultDynamicGenerationPrompt,
   buildDynamicGenerationUserMessage,
-  CHAT_SYSTEM_APPENDIX,
   VOICE_SYSTEM_APPENDIX,
 } from "@/lib/promptTemplates";
 import { Info } from "lucide-react";
@@ -261,19 +260,13 @@ export function PromptPreview({
   const endingInstruction =
     config.multimodal_actions?.endConversation?.customInstruction?.trim() ?? "";
 
-  /** Matches useInterpolatedPrompts: voice and text_chat append these; static_text does not. */
+  /** Matches useInterpolatedPrompts: voice appends this; static_text does not. */
   const modalityAppendix = useMemo(() => {
-    if (assessmentMode === "text_chat") {
-      return CHAT_SYSTEM_APPENDIX.replace(
-        /\{\{language\}\}/g,
-        previewContext.language,
-      );
-    }
     if (assessmentMode === "voice") {
       return VOICE_SYSTEM_APPENDIX;
     }
     return null;
-  }, [assessmentMode, previewContext.language]);
+  }, [assessmentMode]);
 
   // Concatenated exactly as runtime does (systemPrompt += appendix /
   // system = systemPrompt + directives, no separator inserted) so the

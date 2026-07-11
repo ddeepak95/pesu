@@ -1,6 +1,6 @@
 /**
  * Canonical safety directive — shared by the multimodal turn path, the retired
- * text_chat/voice appendices, and the evaluation/feedback footer. All three
+ * voice appendix, and the evaluation/feedback footer. All three
  * contexts previously carried independently-drifted copies of the same
  * underlying policy (students are the audience; never offensive/inappropriate/
  * sexual; keep a supportive, age-appropriate, respectful tone) — unified here

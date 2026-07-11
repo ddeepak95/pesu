@@ -16,9 +16,9 @@ interface UsePasteGuardOptions {
 
 /**
  * Shared copy-paste / bulk-input protection + Enter-to-send handlers for the
- * assessment text inputs. Extracted from ChatInputArea so the chat, static-text,
- * and multimodal-text inputs all share one implementation instead of duplicating
- * the four handlers. Enter sends (via `onSubmit`), Shift+Enter inserts a newline.
+ * assessment text inputs, so the static-text and multimodal-text inputs share
+ * one implementation instead of duplicating the four handlers. Enter sends
+ * (via `onSubmit`), Shift+Enter inserts a newline.
  */
 export function usePasteGuard({
   allowCopyPaste = false,

@@ -61,12 +61,7 @@ const actionKindSchema = z.enum([
   "display_content",
 ]);
 
-const interactionTypeSchema = z.enum([
-  "voice",
-  "text_chat",
-  "static_text",
-  "multimodal",
-]);
+const interactionTypeSchema = z.enum(["voice", "static_text", "multimodal"]);
 
 const labelsSchema = z.object({
   question: z.string(),
@@ -86,7 +81,10 @@ const feedbackFocusAreaSchema = z.object({
 });
 
 const defaultsSchema = z.object({
-  interactionType: interactionTypeSchema.optional(),
+  // .catch(undefined): a legacy row with a removed mode (e.g. "text_chat")
+  // drops just this field instead of degrading the whole definition to the
+  // registry default in normalizeDefinition.
+  interactionType: interactionTypeSchema.optional().catch(undefined),
   display: z.object({ useStarDisplay: z.boolean().optional() }).optional(),
   fileSubmission: z.object({ required: z.boolean().optional() }).optional(),
   multimodal: z

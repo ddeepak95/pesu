@@ -1412,10 +1412,7 @@ export default function AssignmentForm({
                   title={title}
                   studentInstructions={studentInstructions}
                   contextForAI={sharedContext}
-                  showBotOverride={
-                    currentAssessmentMode === "voice" ||
-                    currentAssessmentMode === "text_chat"
-                  }
+                  showBotOverride={currentAssessmentMode === "voice"}
                   questionOverride={
                     botPromptConfig.question_overrides?.[question.order]
                   }

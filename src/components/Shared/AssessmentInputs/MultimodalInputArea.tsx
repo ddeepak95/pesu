@@ -104,10 +104,9 @@ function resolveMessageContent(m: ChatMessage): string {
   return "";
 }
 
-// Full bidirectional conversation transcript sent to the evaluator — mirrors
-// ChatInputArea's formatFullConversation (Student:/Bot: per turn), extended to
-// resolve action cards via resolveMessageContent so all action kinds appear
-// truthfully, answered or not.
+// Full bidirectional conversation transcript sent to the evaluator
+// (Student:/Bot: per turn), resolving action cards via resolveMessageContent
+// so all action kinds appear truthfully, answered or not.
 function formatFullConversationTranscript(messages: ChatMessage[]): string {
   const parts: string[] = [];
   for (const m of messages) {
