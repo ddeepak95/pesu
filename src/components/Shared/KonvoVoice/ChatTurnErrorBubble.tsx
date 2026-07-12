@@ -1,6 +1,10 @@
 "use client";
 
 import { RetryErrorCard } from "@/components/ui/retry-error-card";
+import {
+  userFacingAiHint,
+  userFacingAiMessage,
+} from "@/lib/ai/errorMessages";
 import type { ChatTurnError } from "./actionTypes";
 
 /**
@@ -25,11 +29,12 @@ export function ChatTurnErrorBubble({
     attemptCount && attemptCount > 0 ? `Retry (${attemptCount + 1})` : "Retry";
 
   return (
-    <div className="flex flex-row">
+    <div className="flex flex-row justify-center">
       <div className="w-full max-w-[95%] sm:max-w-[85%]">
         <RetryErrorCard
           variant="inline"
-          message={error.message || "Something went wrong — please retry."}
+          message={userFacingAiMessage(error.code)}
+          detail={userFacingAiHint(error.code)}
           retryable={error.retryable}
           retryLabel={retryLabel}
           onRetry={onRetry}

@@ -7,6 +7,10 @@ import { DisplayContentCard } from "./cards/DisplayContentCard";
 import { MCQCard } from "./cards/McqCard";
 import { SuggestedResponseCard } from "./cards/SuggestedResponseCard";
 import { RetryErrorCard } from "@/components/ui/retry-error-card";
+import {
+  userFacingAiHint,
+  userFacingAiMessage,
+} from "@/lib/ai/errorMessages";
 
 export interface TtsConfig {
   ttsModelId: string;
@@ -67,8 +71,11 @@ export function ActionCard({
     return (
       <RetryErrorCard
         variant="block"
-        message={
-          action.error?.message ?? "Couldn't prepare this — please retry."
+        message={userFacingAiMessage(action.error?.code)}
+        detail={
+          action.error
+            ? userFacingAiHint(action.error.code)
+            : "Please try again."
         }
         retryable={action.error?.retryable ?? true}
         onRetry={onRetry}

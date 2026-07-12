@@ -22,6 +22,11 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { RetryErrorCard } from "@/components/ui/retry-error-card";
+import {
+  AI_SURFACE_COPY,
+  evaluateErrorDetail,
+  userFacingAiMessage,
+} from "@/lib/ai/errorMessages";
 import type { ClassifiedAiError } from "@/lib/ai/errors";
 import { AssessmentTrackingProvider } from "@/contexts/AssessmentTrackingContext";
 import { getLocaleLabel } from "@/lib/locales";
@@ -404,7 +409,10 @@ export function AssessmentShell({
         logEvent("attempt_ended");
         onAttemptCreated?.();
       } catch (error) {
-        console.error("Error evaluating answer:", error);
+        // Handled failure: surfaced in-place via the retry card below and the
+        // answer is preserved. Log at warn (not error) so Next's dev overlay
+        // doesn't treat this recoverable case as a crash.
+        console.warn("Evaluation failed (recoverable):", error);
         const classified: ClassifiedAiError = (
           error as { classified?: ClassifiedAiError }
         ).classified ?? {
@@ -667,18 +675,13 @@ export function AssessmentShell({
                 <div className="mt-3">
                   <RetryErrorCard
                     variant="block"
-                    message={
-                      evaluationFailure.error.retryable
-                        ? "Evaluation failed — your answer is safe."
-                        : evaluationFailure.error.message
-                    }
-                    detail={
-                      evaluationFailure.error.retryable
-                        ? evaluationFailure.error.message
-                        : undefined
-                    }
+                    message={userFacingAiMessage(evaluationFailure.error.code)}
+                    detail={evaluateErrorDetail(
+                      evaluationFailure.error.code,
+                      evaluationFailure.error.retryable,
+                    )}
                     retryable={evaluationFailure.error.retryable}
-                    retryLabel="Retry evaluation"
+                    retryLabel={AI_SURFACE_COPY.evaluate.retryLabel}
                     onRetry={retryEvaluation}
                     disabled={isEvaluating}
                     countdownMs={evaluationFailure.error.retryAfterMs}

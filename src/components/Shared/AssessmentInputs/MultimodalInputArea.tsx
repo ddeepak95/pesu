@@ -555,7 +555,15 @@ export function MultimodalInputArea({
 
   const finishSubmission = React.useCallback(async () => {
     const answerText = formatFullConversationTranscript(messagesRef.current).trim();
-    await onSubmitForEvaluation(answerText);
+    // handleEvaluate re-throws on failure (a contract the static-text input relies
+    // on for answer preservation). Here the transcript already lives in messagesRef
+    // and the failure is shown via the retry card, so swallow it to avoid an
+    // unhandled rejection propagating up through runFinish's void call.
+    try {
+      await onSubmitForEvaluation(answerText);
+    } catch {
+      /* surfaced in-place by AssessmentShell's retry card */
+    }
   }, [onSubmitForEvaluation]);
 
   // Live streaming bubble: the assistant message is appended as soon as text

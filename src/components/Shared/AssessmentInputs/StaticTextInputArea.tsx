@@ -120,20 +120,28 @@ export function StaticTextInputArea({
       return;
     }
 
-    // Clear draft state before evaluation
+    // Clear the visible textarea while evaluating, but KEEP the localStorage
+    // draft until evaluation succeeds — so a failed evaluation (or a refresh
+    // during one) doesn't lose the student's answer. See the retry card's
+    // "your answer is saved" reassurance in AssessmentShell.
     setAnswer("");
-    sync("");
     setHasStarted(false);
-    try {
-      window.localStorage.removeItem(storageKey);
-    } catch {
-      /* ignore */
-    }
 
     try {
       await onSubmitForEvaluation(trimmedAnswer);
+      // Success: the attempt is persisted server-side, so drop the local draft.
+      sync("");
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        /* ignore */
+      }
     } catch {
-      /* Error toast already shown by AssessmentShell */
+      // Failure: restore the answer so the box repopulates, and leave the
+      // draft in localStorage so it survives a refresh. Error UI is shown by
+      // AssessmentShell's retry card.
+      setAnswer(trimmedAnswer);
+      setHasStarted(true);
     }
   };
 

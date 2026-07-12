@@ -63,38 +63,35 @@ export function RetryErrorCard({
   return (
     <div
       className={cn(
-        "border border-destructive/40 bg-destructive/10 text-foreground",
+        "mx-auto flex w-fit max-w-full items-center justify-center gap-2 border border-destructive/40 bg-destructive/10 text-foreground",
         variant === "inline"
-          ? "flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
-          : "flex flex-col gap-2 rounded-xl p-4 text-sm",
+          ? "rounded-lg px-3 py-2 text-sm"
+          : "rounded-xl px-4 py-3 text-sm",
       )}
       role="alert"
     >
-      <div className="flex items-start gap-2">
-        <AlertTriangle
-          className="mt-0.5 h-4 w-4 shrink-0 text-destructive"
-          aria-hidden
-        />
-        <div className="min-w-0">
-          <p className="font-medium">{message}</p>
-          {detail ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
-          ) : null}
-        </div>
-      </div>
+      <AlertTriangle
+        className="h-4 w-4 shrink-0 text-destructive"
+        aria-hidden
+      />
+      <p className="min-w-0">
+        <span className="font-medium">{message}</span>
+        {detail ? (
+          <span className="ml-1 text-muted-foreground">{detail}</span>
+        ) : null}
+      </p>
       {retryable && onRetry ? (
-        <div className={variant === "inline" ? "ml-auto" : ""}>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onRetry}
-            disabled={disabled || counting}
-          >
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            {counting ? `${retryLabel} (${seconds}s)` : retryLabel}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={onRetry}
+          disabled={disabled || counting}
+        >
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+          {counting ? `${retryLabel} (${seconds}s)` : retryLabel}
+        </Button>
       ) : null}
     </div>
   );
