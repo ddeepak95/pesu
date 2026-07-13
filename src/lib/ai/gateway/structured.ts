@@ -101,7 +101,7 @@ export async function generateStructuredInternal<T>(
               totalTokens: result.usage.totalTokens ?? null,
             }
           : null;
-        const tokenDetails = tokenDetailsFromSdkUsage(result.usage);
+        const tokenDetails = tokenDetailsFromSdkUsage(result.usage, result.providerMetadata);
         await completeAiInvocation(
           invocationId,
           {

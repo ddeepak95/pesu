@@ -1,6 +1,12 @@
 import "server-only";
 
-import { computeUsage, type TokenDetails } from "@/lib/ai/metering/computeUsage";
+import {
+  computeUsage,
+  disaggregateInputTokens,
+  disaggregateOutputTokens,
+  usageTypeHasTokenMetrics,
+  type TokenDetails,
+} from "@/lib/ai/metering/computeUsage";
 import { CURRENT_RATE_VERSION } from "@/lib/ai/metering/rates";
 import type { UsageType } from "@/lib/ai/metering/usageTypes";
 import { logAppEvent, resolveInstitutionId } from "@/lib/logging/appLog";
@@ -78,6 +84,49 @@ function tokenDetailsFromSdk(usage: SdkUsage | undefined | null): TokenDetails |
   };
 }
 
+/**
+ * Pulls the per-modality (audio/image) input-token breakdown out of
+ * provider-specific metadata. The AI SDK's typed `usage` object collapses
+ * Gemini's raw `promptTokensDetails` (a `[{modality, tokenCount}, ...]`
+ * array covering TEXT/AUDIO/IMAGE/VIDEO) down to just a cache-read split —
+ * see @ai-sdk/google's convertGoogleGenerativeAIUsage — so the modality
+ * breakdown only survives on `providerMetadata.google.usageMetadata` (or
+ * `.vertex.usageMetadata` on Vertex). Needed to price direct-audio-input
+ * turns at the rate card's `audio_input_token` rate instead of the blended
+ * `input_token` rate.
+ */
+function tokenDetailsFromProviderMetadata(providerMetadata: unknown): TokenDetails | null {
+  if (!providerMetadata || typeof providerMetadata !== "object") return null;
+  const pm = providerMetadata as Record<string, unknown>;
+  const googleMeta = (pm.google ?? pm.vertex) as Record<string, unknown> | undefined;
+  const usageMetadata = googleMeta?.usageMetadata as Record<string, unknown> | undefined;
+  const details = usageMetadata?.promptTokensDetails;
+  if (!Array.isArray(details)) return null;
+
+  let audioInputTokens: number | undefined;
+  let imageInputTokens: number | undefined;
+  for (const entry of details) {
+    if (!entry || typeof entry !== "object") continue;
+    const { modality, tokenCount } = entry as { modality?: unknown; tokenCount?: unknown };
+    if (typeof tokenCount !== "number") continue;
+    if (modality === "AUDIO") audioInputTokens = tokenCount;
+    else if (modality === "IMAGE") imageInputTokens = tokenCount;
+  }
+  if (audioInputTokens == null && imageInputTokens == null) return null;
+  return {
+    ...(audioInputTokens != null ? { audioInputTokens } : {}),
+    ...(imageInputTokens != null ? { imageInputTokens } : {}),
+  };
+}
+
+function mergeTokenDetails(...parts: Array<TokenDetails | null>): TokenDetails | null {
+  const merged: TokenDetails = {};
+  for (const part of parts) {
+    if (part) Object.assign(merged, part);
+  }
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
 export function usageFromAiSdkResult(result: {
   usage?: PromiseLike<SdkUsage>;
 }): Promise<CompleteAiInvocationInput["usage"]> {
@@ -87,14 +136,22 @@ export function usageFromAiSdkResult(result: {
 
 export function tokenDetailsFromAiSdkResult(result: {
   usage?: PromiseLike<SdkUsage>;
+  providerMetadata?: PromiseLike<unknown>;
 }): Promise<TokenDetails | null> {
-  if (!result.usage) return Promise.resolve(null);
-  return Promise.resolve(result.usage).then((u) => tokenDetailsFromSdk(u));
+  return Promise.all([
+    result.usage ? Promise.resolve(result.usage) : Promise.resolve(undefined),
+    result.providerMetadata ? Promise.resolve(result.providerMetadata) : Promise.resolve(undefined),
+  ]).then(([usage, providerMetadata]) =>
+    mergeTokenDetails(tokenDetailsFromSdk(usage), tokenDetailsFromProviderMetadata(providerMetadata)),
+  );
 }
 
-/** Direct (non-promise) usage — for callers like generateText whose usage is already resolved. */
-export function tokenDetailsFromSdkUsage(usage: SdkUsage | undefined | null): TokenDetails | null {
-  return tokenDetailsFromSdk(usage);
+/** Direct (non-promise) usage/providerMetadata — for callers like generateText whose results are already resolved. */
+export function tokenDetailsFromSdkUsage(
+  usage: SdkUsage | undefined | null,
+  providerMetadata?: unknown,
+): TokenDetails | null {
+  return mergeTokenDetails(tokenDetailsFromSdk(usage), tokenDetailsFromProviderMetadata(providerMetadata));
 }
 
 function usageFromLoggedSdkResponse(
@@ -258,6 +315,21 @@ export async function completeAiInvocation(
   const catalogModelId = (startedRow?.ai_model_id as string | undefined) ?? null;
   const usageType = (startedRow?.usage_type as UsageType | undefined) ?? "text_generation";
 
+  // Full, self-consistent breakdown for storage: `tokenDetails` above only
+  // carries the SDK-reported subsets (cached/reasoning/audio/image); fold in
+  // the derived `textInputTokens`/`textOutputTokens` remainder — computed via
+  // the same split computeUsage bills from — so `token_details` fully
+  // partitions `prompt_tokens`/`completion_tokens` instead of only covering
+  // the "special" classes.
+  const disaggregatedTokenDetails: TokenDetails = usageTypeHasTokenMetrics(usageType)
+    ? {
+        ...disaggregateInputTokens(usage?.promptTokens, tokenDetails),
+        ...disaggregateOutputTokens(usage?.completionTokens, tokenDetails),
+      }
+    : {};
+  const storedTokenDetails: TokenDetails | null =
+    Object.keys(disaggregatedTokenDetails).length > 0 ? disaggregatedTokenDetails : tokenDetails;
+
   const computed = catalogModelId
     ? computeUsage({
         catalogModelId,
@@ -320,7 +392,7 @@ export async function completeAiInvocation(
       audio_output_ms: input.audioOutputMs ?? null,
       session_ms: input.sessionMs ?? null,
       metric_source: input.metricSource ?? null,
-      token_details: tokenDetails,
+      token_details: storedTokenDetails,
       provider_request_id: input.providerRequestId ?? null,
       cost_usd: computed.costUsd,
       credits: computed.credits,

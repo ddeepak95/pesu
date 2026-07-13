@@ -7,12 +7,73 @@ import type { UsageType } from "@/lib/ai/metering/usageTypes";
  * enforced here at the application layer, not the DB schema. Callers (structured.ts,
  * the turn route) are responsible for normalizing provider-specific
  * `providerMetadata` into this shape before calling computeUsage.
+ *
+ * `cachedInputTokens`/`reasoningTokens`/`audioInputTokens`/`imageInputTokens`
+ * are SUBSETS the provider calls out of its blended input/output totals, as
+ * reported by the SDK — never populated by this app. `textInputTokens`/
+ * `textOutputTokens` are the *remainder* after those subsets are carved out
+ * (see `disaggregateInputTokens`/`disaggregateOutputTokens` below) — this app
+ * computes and fills them in before storage, so `token_details` is a full,
+ * self-consistent partition of `prompt_tokens`/`completion_tokens`, not just
+ * the "special" classes.
  */
 export interface TokenDetails {
+  /** Blended input total minus every other *InputTokens field below — what actually bills at the plain `input_token` rate. */
+  textInputTokens?: number;
   cachedInputTokens?: number;
-  reasoningTokens?: number;
   audioInputTokens?: number;
   imageInputTokens?: number;
+  /** Blended output total minus `reasoningTokens` — what actually bills at the plain `output_token` rate. */
+  textOutputTokens?: number;
+  reasoningTokens?: number;
+}
+
+/** usage_types whose `token_details`/blended input-output totals are meaningful (§4.2: everything else has no LLM tokens). */
+export function usageTypeHasTokenMetrics(usageType: UsageType): boolean {
+  return usageType === "text_generation" || usageType === "realtime_dialogue" || usageType === "embedding";
+}
+
+/**
+ * Splits a blended input-token total into its known subsets plus the
+ * remainder. Shared by `contributionsForUsage` (billing — must carve the
+ * subsets OUT of the blended total or double-bill them, see below) and
+ * `completeAiInvocation` (storage — builds the full `token_details` picture)
+ * so the two never drift apart on the same arithmetic.
+ */
+export function disaggregateInputTokens(
+  totalInputTokens: number | null | undefined,
+  details: TokenDetails | null | undefined,
+): Pick<TokenDetails, "textInputTokens" | "cachedInputTokens" | "audioInputTokens" | "imageInputTokens"> {
+  const cachedInputTokens = details?.cachedInputTokens;
+  const audioInputTokens = details?.audioInputTokens;
+  const imageInputTokens = details?.imageInputTokens;
+  const textInputTokens =
+    totalInputTokens != null
+      ? Math.max(
+          0,
+          totalInputTokens - (cachedInputTokens ?? 0) - (audioInputTokens ?? 0) - (imageInputTokens ?? 0),
+        )
+      : undefined;
+  return {
+    ...(textInputTokens != null ? { textInputTokens } : {}),
+    ...(cachedInputTokens != null ? { cachedInputTokens } : {}),
+    ...(audioInputTokens != null ? { audioInputTokens } : {}),
+    ...(imageInputTokens != null ? { imageInputTokens } : {}),
+  };
+}
+
+/** Output-token counterpart of `disaggregateInputTokens` — see its doc comment. */
+export function disaggregateOutputTokens(
+  totalOutputTokens: number | null | undefined,
+  details: TokenDetails | null | undefined,
+): Pick<TokenDetails, "textOutputTokens" | "reasoningTokens"> {
+  const reasoningTokens = details?.reasoningTokens;
+  const textOutputTokens =
+    totalOutputTokens != null ? Math.max(0, totalOutputTokens - (reasoningTokens ?? 0)) : undefined;
+  return {
+    ...(textOutputTokens != null ? { textOutputTokens } : {}),
+    ...(reasoningTokens != null ? { reasoningTokens } : {}),
+  };
 }
 
 export interface RawUsageMetrics {
@@ -56,21 +117,43 @@ interface MetricContribution {
 function contributionsForUsage(usageType: UsageType, raw: RawUsageMetrics): MetricContribution[] {
   const contributions: MetricContribution[] = [];
 
-  if (usageType === "text_generation" || usageType === "realtime_dialogue" || usageType === "embedding") {
-    if (raw.inputTokens) contributions.push({ metric: "input_token", units: raw.inputTokens });
-    if (raw.outputTokens) contributions.push({ metric: "output_token", units: raw.outputTokens });
-    const details = raw.tokenDetails;
-    if (details?.cachedInputTokens) {
-      contributions.push({ metric: "cached_input_token", units: details.cachedInputTokens });
+  if (usageTypeHasTokenMetrics(usageType)) {
+    // `raw.inputTokens`/`raw.outputTokens` are BLENDED TOTALS, not "everything
+    // except the token_details breakdown" — the AI SDK maps them straight from
+    // the provider's total prompt/completion token count (asLanguageModelUsage:
+    // `inputTokens: usage.inputTokens.total`), and e.g. Gemini's total already
+    // sums TEXT+AUDIO+IMAGE modalities and cached tokens together
+    // (convertGoogleGenerativeAIUsage's `promptTokenCount`). `tokenDetails`
+    // reports SUBSETS of that same total, not additional tokens alongside it,
+    // so the class-specific contributions must be carved OUT of the blended
+    // total before it becomes the `input_token`/`output_token` contribution —
+    // otherwise a cached/audio/image/reasoning token gets billed twice: once
+    // in the blended line, again at its own rate. (Models with no dedicated
+    // rate for a class fall back to the blended input_token/output_token rate
+    // anyway — see FALLBACK_METRIC in rates.ts — so this nets out to the same
+    // total cost for them; it only changes pricing for models that define a
+    // real divergent rate, e.g. gpt-5.4's cached_input_token discount or
+    // gemini-3-flash-preview's audio_input_token premium.)
+    const inputSplit = disaggregateInputTokens(raw.inputTokens, raw.tokenDetails);
+    if (inputSplit.textInputTokens) {
+      contributions.push({ metric: "input_token", units: inputSplit.textInputTokens });
     }
-    if (details?.reasoningTokens) {
-      contributions.push({ metric: "reasoning_token", units: details.reasoningTokens });
+    if (inputSplit.cachedInputTokens) {
+      contributions.push({ metric: "cached_input_token", units: inputSplit.cachedInputTokens });
     }
-    if (details?.audioInputTokens) {
-      contributions.push({ metric: "audio_input_token", units: details.audioInputTokens });
+    if (inputSplit.audioInputTokens) {
+      contributions.push({ metric: "audio_input_token", units: inputSplit.audioInputTokens });
     }
-    if (details?.imageInputTokens) {
-      contributions.push({ metric: "image_input_token", units: details.imageInputTokens });
+    if (inputSplit.imageInputTokens) {
+      contributions.push({ metric: "image_input_token", units: inputSplit.imageInputTokens });
+    }
+
+    const outputSplit = disaggregateOutputTokens(raw.outputTokens, raw.tokenDetails);
+    if (outputSplit.textOutputTokens) {
+      contributions.push({ metric: "output_token", units: outputSplit.textOutputTokens });
+    }
+    if (outputSplit.reasoningTokens) {
+      contributions.push({ metric: "reasoning_token", units: outputSplit.reasoningTokens });
     }
   }
 
