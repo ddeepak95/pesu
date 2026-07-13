@@ -1,14 +1,12 @@
-import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
+import type { MeteredTextModel } from "@/lib/ai/gateway";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import {
   transliterationSchema,
   type TransliterationResult,
 } from "./schemas/transliteration";
-import { generateStructured } from "./structured";
 
 export interface TransliterateMessageParams {
-  model: LanguageModelV3;
-  providerOptions?: SharedV3ProviderOptions;
+  handle: MeteredTextModel;
   text: string;
   fromLanguage: string;
   toLanguage: string;
@@ -17,7 +15,7 @@ export interface TransliterateMessageParams {
 export async function transliterateMessage(
   params: TransliterateMessageParams,
 ): Promise<TransliterationResult> {
-  const { model, providerOptions, text, fromLanguage, toLanguage } = params;
+  const { handle, text, fromLanguage, toLanguage } = params;
 
   const registry = getLocaleRegistryMap();
   const fromLabel = registry.get(fromLanguage)?.label ?? fromLanguage;
@@ -31,13 +29,12 @@ export async function transliterateMessage(
     `- "translation": translate the text into ${toLabel}, written in the native script of ${toLabel}.\n` +
     `If the input text appears to already be written in ${toLabel}, set transliteration to null and return the original text unchanged as the translation.`;
 
-  return generateStructured<TransliterationResult>({
-    model,
+  return handle.generateStructured<TransliterationResult>({
     schema: transliterationSchema,
+    schemaName: "transliterationSchema",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: text },
     ],
-    providerOptions,
   });
 }

@@ -10,7 +10,6 @@
  * disconnect), then emits the action_payload SSE event.
  */
 
-import { generateObject } from "ai";
 import { z } from "zod";
 
 import { SPEECH_SCRIPT_DIRECTIVE } from "@/lib/ai/multimodal-directives";
@@ -45,8 +44,7 @@ export async function handleSuggestedResponseAction(
   const {
     id,
     action,
-    model,
-    providerOptions,
+    handle,
     enqueue,
     supabase,
     submissionId,
@@ -82,12 +80,16 @@ export async function handleSuggestedResponseAction(
     `The tutor just said: "${action.botUtterance.trim()}"\n` +
     `Write the student's direct reply in ${languageLabel}.`;
 
-  const { object } = await generateObject({
-    model,
-    providerOptions,
+  // maxRetries: 1 — dispatchAction already wraps this whole handler in its
+  // own withRetry(INTERACTIVE_MAX_ATTEMPTS) (§5.3).
+  const object = await handle.generateStructured({
     schema: suggestedResponseResultSchema,
-    system: systemPrompt,
-    prompt: userPrompt,
+    schemaName: "suggestedResponseResultSchema",
+    maxRetries: 1,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
   });
 
   const payload: SuggestedResponseActionPayload = {

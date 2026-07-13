@@ -2,18 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { RubricItem } from "@/types/assignment";
 import { catalogNotConfiguredResponse } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
-import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRuntime";
-import { modelMetaFromResolved } from "@/lib/ai/logging/types";
-import type { AiConfigSource } from "@/types/aiSettings";
-import { getLanguageModel } from "@/lib/ai/provider";
-import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
+import { resolveMeteredModel } from "@/lib/ai/gateway";
 import {
   rubricGenerationSchema,
   rubricOnlySchema,
   expectedOnlySchema,
 } from "@/lib/ai/schemas/rubric-generation";
-import { generateStructured } from "@/lib/ai/structured";
 import { getActivityTypeGenerationCopy } from "@/lib/activityTypes/registry";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 
@@ -104,23 +98,12 @@ export async function POST(request: NextRequest) {
       contextText += `\n\nTeacher's Additional Instructions for Generation:\n${focusGuidance.trim()}`;
     }
 
-    let config;
-    let keySource: AiConfigSource = "platform";
+    let handle;
     try {
-      if (classDbId) {
-        const resolved = await getCachedResolveModelConfig({
-          classDbId,
-          appFunctionKey: "text.rubric_generation",
-        });
-        config = resolved.config;
-        keySource = resolved.keySource;
-      } else {
-        const resolved = await resolveCatalogModelConfigForPlatform(
-          "text.rubric_generation",
-        );
-        config = resolved.config;
-        keySource = resolved.keySource;
-      }
+      handle = await resolveMeteredModel({
+        appFunctionKey: "text.rubric_generation",
+        context: { classDbId: classDbId ?? null },
+      });
     } catch (error) {
       const notConfigured = catalogNotConfiguredResponse(error);
       if (notConfigured) {
@@ -130,13 +113,6 @@ export async function POST(request: NextRequest) {
       }
       throw error;
     }
-    const model = getLanguageModel(config);
-    const providerOptions = providerOptionsForConfig(config);
-    const invocationBase = {
-      appFunctionKey: "text.rubric_generation" as const,
-      classId: classDbId ?? null,
-      model: modelMetaFromResolved(config, keySource),
-    };
 
     const baseUser = `${contextText}
 
@@ -147,14 +123,9 @@ Preferred Language (fallback if detection uncertain): ${preferredLanguageName}`;
     let detectedLang = language || "en";
 
     if (generateRubric && generateExpectedAnswer) {
-      const result = await generateStructured({
-        model,
+      const result = await handle.generateStructured({
         schema: rubricGenerationSchema,
-        providerOptions,
-        invocation: {
-          ...invocationBase,
-          schemaName: "rubricGenerationSchema",
-        },
+        schemaName: "rubricGenerationSchema",
         messages: [
           {
             role: "system",
@@ -220,14 +191,9 @@ Please:
 
       expectedAnswer = result.expected_answer?.trim() || "";
     } else if (generateRubric) {
-      const result = await generateStructured({
-        model,
+      const result = await handle.generateStructured({
         schema: rubricOnlySchema,
-        providerOptions,
-        invocation: {
-          ...invocationBase,
-          schemaName: "rubricOnlySchema",
-        },
+        schemaName: "rubricOnlySchema",
         messages: [
           {
             role: "system",
@@ -265,14 +231,9 @@ Please detect language (ISO 639-1) and generate only the ${copy.rubricNoun}.`,
         );
       }
     } else {
-      const result = await generateStructured({
-        model,
+      const result = await handle.generateStructured({
         schema: expectedOnlySchema,
-        providerOptions,
-        invocation: {
-          ...invocationBase,
-          schemaName: "expectedOnlySchema",
-        },
+        schemaName: "expectedOnlySchema",
         messages: [
           {
             role: "system",

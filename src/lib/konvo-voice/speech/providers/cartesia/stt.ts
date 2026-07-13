@@ -55,11 +55,26 @@ export const cartesiaSttProvider: SttProvider = {
       );
     }
 
-    const body = (await response.json()) as { text?: string };
+    const body = (await response.json()) as {
+      text?: string;
+      request_id?: string;
+      duration?: number;
+    };
     const text = body.text ?? "";
     console.log(
       `[konvo-voice/stt] provider=cartesia response.textLen=${text.length} text=${JSON.stringify(text.slice(0, 200))}`,
     );
-    return { text };
+    return {
+      text,
+      usage:
+        typeof body.duration === "number"
+          ? {
+              audioMs: body.duration * 1000,
+              source: "provider",
+              providerRequestId: body.request_id ?? null,
+              raw: body,
+            }
+          : undefined,
+    };
   },
 };

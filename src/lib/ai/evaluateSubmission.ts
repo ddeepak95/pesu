@@ -1,13 +1,13 @@
 /**
  * Shared LLM evaluation helper used by src/app/api/evaluate/route.ts.
  *
- * Accepts an already-resolved LanguageModel so callers control which
- * provider and key are used (env defaults today; user config via BYOK later).
+ * Accepts an already-resolved MeteredTextModel handle (§7.1) so callers
+ * control which provider/model/key are used, and every attempt is metered.
  */
 
-import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
 import { buildEvaluationSystemMessage } from "@/lib/activityTypes/registry";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import type { MeteredTextModel } from "@/lib/ai/gateway";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import {
   appendFeedbackFocusBlock,
@@ -24,9 +24,7 @@ import {
   type EvaluationResult,
   type LLMRubricScore,
 } from "./schemas/evaluation";
-import { generateStructured } from "./structured";
 import { INTERACTIVE_MAX_ATTEMPTS } from "./retry";
-import type { StartAiInvocationInput } from "./logging/types";
 
 /** Validation-driven regenerations of feedback_doc (on top of provider retries). */
 const MAX_FEEDBACK_DOC_ATTEMPTS = 2;
@@ -36,8 +34,7 @@ const FEEDBACK_DOC_CORRECTIVE_NOTE = `
 IMPORTANT CORRECTION: Your previous response contained an invalid feedback_output. Regenerate it strictly as { "version": 1, "blocks": [...] }, where every block has "kind": "section" with a "title" (string) and "content" (string). Do not invent other fields or block kinds, do not include the rubric scores, and keep all text plain (no markdown).`;
 
 export interface EvaluateSubmissionParams {
-  model: LanguageModelV3;
-  providerOptions?: SharedV3ProviderOptions;
+  handle: MeteredTextModel;
   questionPrompt: string;
   answerText: string;
   rubric: Array<{ item: string; points: number }>;
@@ -47,7 +44,6 @@ export interface EvaluateSubmissionParams {
   /** Teacher's free-text "Feedback focus" — steers the AI's dynamic section titles. */
   feedbackFocus?: string;
   activityType?: ActivityTypeKind;
-  invocation?: Omit<StartAiInvocationInput, "sdkRequest" | "retryOf" | "retryIndex">;
   /** Forwarded to generateStructured so silent retries can be logged (plan §8). */
   onRetryAttempt?: (attempt: number, error: unknown) => void;
 }
@@ -73,7 +69,7 @@ export async function evaluateSubmission(
   params: EvaluateSubmissionParams,
 ): Promise<EvaluationOutput> {
   const {
-    model,
+    handle,
     questionPrompt,
     answerText,
     rubric,
@@ -82,8 +78,6 @@ export async function evaluateSubmission(
     customEvaluationPrompt,
     feedbackFocus,
     activityType,
-    providerOptions,
-    invocation,
     onRetryAttempt,
   } = params;
 
@@ -121,21 +115,17 @@ export async function evaluateSubmission(
       attempt === 0
         ? userMessageContent
         : userMessageContent + FEEDBACK_DOC_CORRECTIVE_NOTE;
-    evaluationResult = await generateStructured({
-      model,
+    evaluationResult = await handle.generateStructured({
       schema: evaluationSchema,
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content },
       ],
-      providerOptions,
       // Student-facing interactive flow: keep silent retries short; beyond this
       // the student controls the retry via the UI. See plan §4/§7.
       maxRetries: INTERACTIVE_MAX_ATTEMPTS,
       onRetryAttempt,
-      invocation: invocation
-        ? { ...invocation, schemaName: "evaluationSchema" }
-        : undefined,
+      schemaName: "evaluationSchema",
     });
     feedbackDoc = validateFeedbackDoc(evaluationResult.feedback_output);
     if (feedbackDoc) break;

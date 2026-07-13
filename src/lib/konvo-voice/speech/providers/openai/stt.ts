@@ -37,6 +37,29 @@ export const openaiSttProvider: SttProvider = {
     console.log(
       `[konvo-voice/stt] provider=openai response.textLen=${text.length} text=${JSON.stringify(text.slice(0, 200))}`,
     );
-    return { text };
+
+    // gpt-4o-mini-transcribe returns token usage (no direct duration); the
+    // coming_soon whisper-1 instead returns a duration usage object. Capture
+    // whichever shape is present; audioMs stays unset for the token variant
+    // (§5.1) — the route falls back to a measured/estimated duration.
+    const usage = result.usage;
+    return {
+      text,
+      usage: usage
+        ? {
+            audioMs: usage.type === "duration" ? usage.seconds * 1000 : null,
+            providerTokens:
+              usage.type === "tokens"
+                ? {
+                    input: usage.input_tokens,
+                    output: usage.output_tokens,
+                    audio: usage.input_token_details?.audio_tokens,
+                  }
+                : null,
+            source: "provider",
+            raw: usage,
+          }
+        : undefined,
+    };
   },
 };

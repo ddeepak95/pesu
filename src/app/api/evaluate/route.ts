@@ -7,10 +7,7 @@ import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmis
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
-import { modelMetaFromResolved } from "@/lib/ai/logging/types";
-import { getLanguageModel } from "@/lib/ai/provider";
-import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
+import { resolveMeteredModel, type AiCallContext } from "@/lib/ai/gateway";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 import { classifyAiError } from "@/lib/ai/errors";
 import { logAppEvent } from "@/lib/logging/appLog";
@@ -146,11 +143,20 @@ export async function POST(request: NextRequest) {
         parseFeedbackFocusAreas(assignmentConfig?.feedback_focus),
       ) || undefined;
 
-    let evalResolved;
+    // attemptNumber isn't known until the query below; the handle keeps a
+    // reference to this same context object, so filling it in later still
+    // reaches the invocation row written at completion time.
+    const evalContext: AiCallContext = {
+      classDbId,
+      assignmentId,
+      submissionId,
+      questionOrder,
+    };
+    let evalHandle;
     try {
-      evalResolved = await getCachedResolveModelConfig({
-        classDbId,
+      evalHandle = await resolveMeteredModel({
         appFunctionKey: "text.evaluation",
+        context: evalContext,
       });
     } catch (error) {
       const notConfigured = catalogNotConfiguredResponse(error);
@@ -161,9 +167,6 @@ export async function POST(request: NextRequest) {
       }
       throw error;
     }
-
-    const evalModelConfig = evalResolved.config;
-    const evalKeySource = evalResolved.keySource;
 
     // --- Resolve (or create) the normalized question row + next attempt number ---
     const { data: questionRow, error: questionError } = await serviceClient
@@ -192,6 +195,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
     const attemptNumber = ((lastAttempt?.attempt_number as number) ?? 0) + 1;
+    evalContext.attemptNumber = attemptNumber;
 
     // --- Save transcript (and static_activity) keyed by attempt number ---
     const { error: transcriptError } = await supabase
@@ -233,12 +237,9 @@ export async function POST(request: NextRequest) {
       !!customEvaluationPrompt,
     );
 
-    const model = getLanguageModel(evalModelConfig);
-
     const { validatedRubricScores, overallFeedback, feedbackDoc, totalScore } =
       await evaluateSubmission({
-        model,
-        providerOptions: providerOptionsForConfig(evalModelConfig),
+        handle: evalHandle,
         questionPrompt,
         answerText,
         rubric,
@@ -247,15 +248,6 @@ export async function POST(request: NextRequest) {
         customEvaluationPrompt,
         feedbackFocus,
         activityType,
-        invocation: {
-          appFunctionKey: "text.evaluation",
-          classId: classDbId,
-          assignmentId,
-          submissionId,
-          questionOrder,
-          attemptNumber,
-          model: modelMetaFromResolved(evalModelConfig, evalKeySource),
-        },
         onRetryAttempt: (attempt, error) => {
           logAppEvent({
             level: "warn",
@@ -305,7 +297,7 @@ export async function POST(request: NextRequest) {
         ai_feedback: overallFeedback,
         ai_feedback_doc: feedbackDoc,
         ai_rubric_scores: validatedRubricScores,
-        model_meta: modelMetaFromResolved(evalModelConfig, evalKeySource),
+        model_meta: evalHandle.meta,
       });
     if (aiError) {
       console.error("Error saving AI evaluation audit row:", aiError);

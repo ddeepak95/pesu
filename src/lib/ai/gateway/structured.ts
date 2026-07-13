@@ -1,54 +1,56 @@
+import "server-only";
+
 /**
- * Thin wrapper around generateText with Output.object() that applies shared
- * defaults and composes with the retry helper.
+ * Gateway-internal implementation of structured text generation. Formerly
+ * src/lib/ai/structured.ts — moved here (§9.1 Step 4, §11 file map) so the
+ * only file that imports the `ai` package's execution functions for text
+ * generation is inside src/lib/ai/gateway/** (§7.2 import boundary).
  *
- * generateObject is deprecated in AI SDK v6; the replacement is:
- *   generateText({ output: Output.object({ schema }) })
+ * Not exported outside the gateway: callers get this via
+ * MeteredTextModel.generateStructured (gateway/model.ts), which always
+ * supplies `invocation` — there is no optional hook left to forget (§5.4).
  */
 
-import { generateText, Output } from "ai";
 import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
-import type { Schema } from "ai";
+import type { FlexibleSchema } from "ai";
+import { generateText, Output } from "ai";
+import {
+  failAiInvocation,
+  startAiInvocation,
+  completeAiInvocation,
+  tokenDetailsFromSdkUsage,
+} from "@/lib/ai/logging/recordInvocation";
+import {
+  buildLoggedGenerateTextRequest,
+  buildLoggedSdkResponse,
+} from "@/lib/ai/logging/serialize";
+import type { StartAiInvocationInput } from "@/lib/ai/logging/types";
 import {
   DEFAULT_MAX_ATTEMPTS,
   isRetryable,
   waitBeforeRetry,
   type OnRetryAttempt,
-} from "./retry";
-import type { StartAiInvocationInput } from "./logging/types";
-import {
-  failAiInvocation,
-  startAiInvocation,
-  completeAiInvocation,
-} from "./logging/recordInvocation";
-import {
-  buildLoggedGenerateTextRequest,
-  buildLoggedSdkResponse,
-} from "./logging/serialize";
+} from "@/lib/ai/retry";
 
-interface GenerateStructuredOptions<T> {
+export interface GatewayGenerateStructuredOptions<T> {
   model: LanguageModelV3;
-  schema: Schema<T>;
+  schema: FlexibleSchema<T>;
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   providerOptions?: SharedV3ProviderOptions;
   maxRetries?: number;
-  /**
-   * Invoked (1-based attempt, error) before each silent-retry backoff. Lets
-   * callers surface transient retries to admin logs without this module taking
-   * a logging dependency. See plan §8.
-   */
   onRetryAttempt?: OnRetryAttempt;
-  /** When set, each provider attempt is logged to ai_invocations + GCS. */
-  invocation?: Omit<
-    StartAiInvocationInput,
-    "sdkRequest" | "retryOf" | "retryIndex"
-  > & {
+  /** Metering context is bound at handle resolution — always present, never optional (§5.4, §7.1). */
+  invocation: Omit<StartAiInvocationInput, "sdkRequest" | "retryOf" | "retryIndex"> & {
     schemaName?: string;
   };
 }
 
-export async function generateStructured<T>(
-  options: GenerateStructuredOptions<T>,
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export async function generateStructuredInternal<T>(
+  options: GatewayGenerateStructuredOptions<T>,
 ): Promise<T> {
   const {
     model,
@@ -64,25 +66,22 @@ export async function generateStructured<T>(
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    let invocationId: string | null = null;
     const startedAtMs = Date.now();
 
     const sdkRequest = buildLoggedGenerateTextRequest({
       messages,
       providerOptions,
-      schemaName: invocation?.schemaName,
+      schemaName: invocation.schemaName,
     });
 
-    if (invocation) {
-      invocationId = await startAiInvocation({
-        ...invocation,
-        sdkRequest,
-        retryOf: firstInvocationId,
-        retryIndex: attempt - 1,
-      });
-      if (attempt === 1) {
-        firstInvocationId = invocationId;
-      }
+    const invocationId = await startAiInvocation({
+      ...invocation,
+      sdkRequest,
+      retryOf: firstInvocationId,
+      retryIndex: attempt - 1,
+    });
+    if (attempt === 1) {
+      firstInvocationId = invocationId;
     }
 
     try {
@@ -102,11 +101,13 @@ export async function generateStructured<T>(
               totalTokens: result.usage.totalTokens ?? null,
             }
           : null;
+        const tokenDetails = tokenDetailsFromSdkUsage(result.usage);
         await completeAiInvocation(
           invocationId,
           {
             sdkResponse,
             usage,
+            tokenDetails,
             finishReason: result.finishReason ?? null,
           },
           startedAtMs,
@@ -126,12 +127,7 @@ export async function generateStructured<T>(
             partialSdkResponse = null;
           }
         }
-        await failAiInvocation(
-          invocationId,
-          err,
-          startedAtMs,
-          partialSdkResponse,
-        );
+        await failAiInvocation(invocationId, err, startedAtMs, partialSdkResponse);
       }
 
       if (!isRetryable(err) || attempt === maxRetries) {
@@ -144,8 +140,4 @@ export async function generateStructured<T>(
   }
 
   throw lastError;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

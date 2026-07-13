@@ -437,9 +437,19 @@ see §10 #2.)
 ### 4.4 `ai_usage_rates` — pricing / rate card (versioned)
 
 Maps `(provider, model, usage_type, metric)` → a USD rate, effective-dated.
-Start as **typed TS config** (`src/lib/ai/metering/rates.ts`, keyed off the
-catalog, versioned by a `RATE_VERSION` constant) — fast, testable,
-colocated — and migrate to a DB table only when finance needs runtime edits.
+Start as **typed TS config** (`src/lib/ai/metering/rates.ts`) — fast,
+testable, colocated — and migrate to a DB table only when finance needs
+runtime edits. Concretely: `RATE_CARD_VERSIONS` is a map of rate-version key
+→ `{ effectiveDate, notes, creditsPerUsd, entries }`, where `entries` is
+keyed off the catalog model id and grouped by provider (mirroring
+`CATALOG_PROVIDERS`); `CURRENT_RATE_VERSION` points at the version new rows
+are priced at. Every historical version stays in the file permanently —
+repricing means adding a new version key, never editing an old one's `entries`
+or `creditsPerUsd` in place — so `RATE_CARD_VERSIONS[row.rate_version]`
+always reproduces exactly the rates that priced any given row (rule 4 below).
+`assertRateCardComplete()` (§7.3) also fails the build if a provider's
+entries aren't declared contiguously, keeping the file self-organized as
+models are added.
 
 ```
 metric ∈ 'input_token' | 'output_token'
@@ -453,8 +463,8 @@ rate = {
   usdPerUnit: number,  -- $ per single raw unit; drives cost_usd (§4.1), full precision
 }
 
-// one global constant, versioned alongside RATE_VERSION — not per rate entry
-CREDITS_PER_USD: number
+// one constant per rate version (RateCardVersion.creditsPerUsd) — not per rate entry
+creditsPerUsd: number
 ```
 
 `cost_usd` and `credits` still serve different audiences — `cost_usd` is the

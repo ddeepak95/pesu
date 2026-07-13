@@ -18,7 +18,7 @@ import {
   clearSpeechProviderKeyCache,
   invalidateSpeechProviderKeyCacheForClass,
   invalidateSpeechProviderKeyCacheForInstitution,
-} from "@/lib/konvo-voice/speech/resolveProviderKey";
+} from "@/lib/konvo-voice/speech/speechKeyCacheAdmin";
 import {
   getInstitutionAiPolicy,
   setInstitutionAiPolicyLock,

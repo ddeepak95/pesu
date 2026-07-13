@@ -2,12 +2,10 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
-import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { getLanguageModel } from "@/lib/ai/provider";
-import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
+import { resolveMeteredModel } from "@/lib/ai/gateway";
 import { transliterateMessage } from "@/lib/ai/transliterateMessage";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
@@ -37,11 +35,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
     }
 
-    let resolved;
+    let handle;
     try {
-      resolved = await getCachedResolveModelConfig({
-        classDbId,
+      handle = await resolveMeteredModel({
         appFunctionKey: "text.transliteration",
+        context: { classDbId, assignmentId },
       });
     } catch (error) {
       const notConfigured = catalogNotConfiguredResponse(error);
@@ -54,12 +52,8 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const model = getLanguageModel(resolved.config);
-    const providerOptions = providerOptionsForConfig(resolved.config);
-
     const result = await transliterateMessage({
-      model,
-      providerOptions,
+      handle,
       text,
       fromLanguage,
       toLanguage,

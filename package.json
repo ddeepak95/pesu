@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "prebuild": "npm run validate:ai-metering",
     "start": "next start",
     "lint": "eslint",
     "validate:locales": "npx tsx scripts/validate-locales.ts",
+    "validate:ai-metering": "npx tsx scripts/validate-ai-metering.ts",
     "seed:platform-ai": "npx tsx scripts/seed-platform-ai-catalog.ts",
     "generate:system-template-seed": "npx tsx scripts/generate-system-template-seed.ts"
   },

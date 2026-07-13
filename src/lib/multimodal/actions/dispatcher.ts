@@ -7,9 +7,9 @@
  * emitting the `action_payload` SSE event.
  */
 
-import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { MeteredTextModel } from "@/lib/ai/gateway";
 import type { ActionInput } from "./schema";
 import { handleDisplayContentAction } from "./display-content";
 import { handleMcqAction } from "./mcq";
@@ -26,12 +26,11 @@ export interface DispatchActionArgs {
   /** The action the model requested this turn. */
   action: ActionInput;
   /**
-   * Model + options for this action's content generation, resolved from the
+   * Metered handle for this action's content generation, resolved from the
    * action's own catalog binding (e.g. `text.mcq_generation`). Inherits the
-   * chat model unless an admin overrode that sub-function.
+   * chat handle unless an admin overrode that sub-function (§7.1).
    */
-  model: LanguageModelV3;
-  providerOptions?: SharedV3ProviderOptions;
+  handle: MeteredTextModel;
   enqueue: EnqueueFn;
   supabase: SupabaseClient;
   submissionId: string | null;

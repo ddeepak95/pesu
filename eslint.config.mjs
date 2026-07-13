@@ -60,6 +60,46 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // AI gateway import boundary — dev-docs/ai-usage-metering-plan.md §7.2.
+  // Only src/lib/ai/gateway/** may import the `ai` package's execution
+  // functions (generateText, streamObject, etc.) or the speech provider
+  // client modules — both hold or exercise provider credentials, and the
+  // gateway is the only place allowed to do that (metered handles are the
+  // only capability the rest of the app may obtain). `jsonSchema` is a pure
+  // schema helper with no execution/credential surface, so it's allowlisted
+  // for the zod-schema-adjacent files that legitimately need it.
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["src/lib/ai/gateway/**"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "ai",
+              allowImportNames: ["jsonSchema"],
+              allowTypeImports: true,
+              message:
+                "The `ai` package may only be imported inside src/lib/ai/gateway/** (dev-docs/ai-usage-metering-plan.md §7.2). Obtain a metered handle via resolveMeteredModel instead.",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                "@/lib/konvo-voice/speech/providers/**",
+                "@/lib/konvo-voice/speech/registry",
+                "@/lib/konvo-voice/speech/resolveProviderKey",
+              ],
+              allowTypeImports: true,
+              message:
+                "Speech provider client/key modules may only be imported inside src/lib/ai/gateway/** (dev-docs/ai-usage-metering-plan.md §7.2). Obtain a metered handle via resolveMeteredSpeech instead.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

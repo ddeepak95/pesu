@@ -27,7 +27,7 @@ export interface LogAppEventInput {
   metadata?: Record<string, unknown>;
 }
 
-async function resolveInstitutionId(
+export async function resolveInstitutionId(
   service: ReturnType<typeof createServiceRoleClient>,
   classId: string,
 ): Promise<string | null> {

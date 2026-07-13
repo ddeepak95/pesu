@@ -1,20 +1,14 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
 import {
-  formatReasoningForConfig,
-  providerOptionsForConfig,
-} from "@/lib/ai/providerOptions";
-import { getLanguageModel } from "@/lib/ai/provider";
-import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
-import {
-  aiKeySourceLogLabel,
-  AiNotConfiguredError,
-} from "@/lib/ai/credentials/resolve";
-import {
-  createMultimodalTurnStream,
+  resolveMeteredModel,
+  resolveMeteredSpeech,
   resolveMultimodalTurnCall,
   TURN_SCHEMA_NAME,
-} from "@/lib/ai/chat-stream-object";
+  type AiCallContext,
+  type MeteredTtsSession,
+} from "@/lib/ai/gateway";
 import { dispatchAction } from "@/lib/multimodal/actions/dispatcher";
 import { resolveActionModel } from "@/lib/multimodal/actions/resolveActionModel";
 import type { ActionInput } from "@/lib/multimodal/actions/schema";
@@ -36,7 +30,6 @@ import {
 } from "@/lib/ai/retry";
 import { classifyAiError } from "@/lib/ai/errors";
 import { logAppEvent } from "@/lib/logging/appLog";
-import { modelMetaFromResolved } from "@/lib/ai/logging/types";
 import {
   completeAiInvocation,
   linkInvocationToChatMessage,
@@ -44,29 +37,17 @@ import {
   scheduleFailAiInvocation,
   setChatMessageInvocationId,
   usageFromAiSdkResult,
+  tokenDetailsFromAiSdkResult,
 } from "@/lib/ai/logging/recordInvocation";
 import {
   buildLoggedSdkResponse,
   buildLoggedStreamObjectRequest,
 } from "@/lib/ai/logging/serialize";
-import { getCatalogEntry, isProviderConfigured } from "@/lib/konvo-voice/sessionCatalog";
+import { getCatalogEntry } from "@/lib/konvo-voice/sessionCatalog";
 import {
   KonvoLocaleVoiceError,
   resolveTtsVoice,
 } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
-import {
-  CartesiaTtsContinuationSession,
-} from "@/lib/konvo-voice/speech/providers/cartesia/ws-continuation";
-import { CARTESIA_TTS_MIME } from "@/lib/konvo-voice/speech/providers/cartesia/tts";
-import {
-  SarvamTtsWebSocketSession,
-  SARVAM_WS_TTS_MIME,
-} from "@/lib/konvo-voice/speech/providers/sarvam/ws-stream";
-import {
-  getSpeechApiModelId,
-  getTtsProvider,
-} from "@/lib/konvo-voice/speech/registry";
-import { resolveProviderApiKeyForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
 import { sseEvent, sseHeaders } from "@/lib/konvo-voice/sse";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
@@ -231,10 +212,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ttsEntry = getCatalogEntry(ttsModelId);
-    const ttsProviderApiKey = ttsEntry
-      ? await resolveProviderApiKeyForAssignment(assignmentId, ttsEntry.providerId)
-      : null;
-    if (!ttsEntry || (!ttsProviderApiKey && !isProviderConfigured(ttsEntry.providerId))) {
+    if (!ttsEntry) {
       return NextResponse.json(
         { error: "Selected TTS model unavailable or provider not configured" },
         { status: 400 },
@@ -263,11 +241,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let resolved;
+    // Metering context bound once at handle resolution (§7.1) — attemptNumber
+    // is already known from the request body here (unlike /api/evaluate,
+    // which learns it later), so the full context is available up front.
+    const turnContext: AiCallContext = {
+      classDbId,
+      assignmentId,
+      submissionId: submissionId ?? null,
+      questionOrder,
+      attemptNumber: attemptNumber ?? null,
+    };
+    const ttsClient = await resolveMeteredSpeech({
+      kind: "tts",
+      catalogEntry: ttsEntry,
+      assignmentId,
+      context: turnContext,
+    });
+    let handle;
     try {
-      resolved = await getCachedResolveModelConfig({
-        classDbId,
+      handle = await resolveMeteredModel({
         appFunctionKey: "text.chat_tutoring",
+        context: turnContext,
       });
     } catch (error) {
       if (error instanceof AiNotConfiguredError) {
@@ -282,13 +276,10 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const { config, keySource } = resolved;
     console.log("[multimodal/turn]", {
-      provider: config.provider,
-      modelId: config.modelId,
-      keySource,
-      label: aiKeySourceLogLabel(keySource),
-      reasoning: formatReasoningForConfig(config),
+      provider: handle.meta.provider,
+      modelId: handle.meta.modelId,
+      keySource: handle.meta.keySource,
       ttsModelId,
       ttsProvider: ttsEntry.providerId,
     });
@@ -300,7 +291,7 @@ export async function POST(request: NextRequest) {
     // degrades output quality), handing this model an audio file part it
     // doesn't support would error the whole generation.
     if (directAudioAttached) {
-      const chatModelEntry = getModelEntry(config.modelId);
+      const chatModelEntry = getModelEntry(handle.meta.modelId);
       if (!chatModelEntry || !modelSupportsTasks(chatModelEntry, ["audio_input"])) {
         return NextResponse.json(
           {
@@ -313,14 +304,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const model = getLanguageModel(config);
-    const providerOptions = providerOptionsForConfig(config);
     const aiMetadata = {
-      aiKeySource: keySource,
-      aiProvider: config.provider,
-      aiModelId: config.modelId,
+      aiKeySource: handle.meta.keySource,
+      aiProvider: handle.meta.provider,
+      aiModelId: handle.meta.modelId,
     };
-    const invocationModel = modelMetaFromResolved(config, keySource);
 
     // In single-transcript mode, the student message content is already known
     // (unlike dual mode, which waits for the model to resolve `userTranscript`).
@@ -387,17 +375,16 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const tts = getTtsProvider(ttsModelId);
     const noSpeech = body.noSpeech === true;
     // Live TTS is skipped for silent action turns (noSpeech, also suppresses
     // text) AND for non-automatic speech modes (text still streams; audio is
     // either never produced or synthesized on demand). See plan §4b.
     const suppressAutoTts =
       noSpeech || (body.speechMode ? body.speechMode !== "automatic" : false);
-    const useCartesiaWs = !suppressAutoTts && tts.id === "cartesia";
-    const useSarvamWs = !suppressAutoTts && tts.id === "sarvam";
-    const useStreamingWs = useCartesiaWs || useSarvamWs;
-    const { mimeType, sampleRate } = tts.streamFormat;
+    const useStreamingWs =
+      !suppressAutoTts &&
+      (ttsEntry.providerId === "cartesia" || ttsEntry.providerId === "sarvam");
+    const { mimeType, sampleRate } = ttsClient.streamFormat;
     const abortSignal = request.signal;
     const encoder = new TextEncoder();
 
@@ -444,11 +431,8 @@ export async function POST(request: NextRequest) {
         let silenceDetected = false;
         let winningInvocationId: string | null = null;
         let winningStartedAtMs: number | undefined;
-        let lastStreamResult: ReturnType<
-          typeof createMultimodalTurnStream
-        > | null = null;
-        let cartesiaSession: CartesiaTtsContinuationSession | null = null;
-        let sarvamSession: SarvamTtsWebSocketSession | null = null;
+        let lastStreamResult: ReturnType<typeof handle.streamTurn> | null = null;
+        let ttsSession: MeteredTtsSession | null = null;
         let speechStartSent = false;
         let pendingFallbackTts = "";
         let audioPump: Promise<void> | null = null;
@@ -456,29 +440,19 @@ export async function POST(request: NextRequest) {
 
         const onAbort = () => {
           aborted = true;
-          cartesiaSession?.cancelContext();
-          sarvamSession?.close();
+          void ttsSession?.close().catch(() => {});
         };
         abortSignal.addEventListener("abort", onAbort);
 
         const ensureSpeechStart = () => {
           if (speechStartSent) return;
           speechStartSent = true;
-          const wsMimeType = useCartesiaWs
-            ? CARTESIA_TTS_MIME
-            : useSarvamWs
-              ? SARVAM_WS_TTS_MIME
-              : mimeType;
-          const wsSampleRate = useCartesiaWs
-            ? cartesiaSession?.sampleRate ?? sampleRate
-            : useSarvamWs
-              ? sarvamSession?.sampleRate ?? sampleRate
-              : sampleRate;
+          const wsFormat = ttsSession?.streamFormat;
           enqueue({
             type: "speech_start",
             index: 0,
-            mimeType: useStreamingWs ? wsMimeType : mimeType,
-            sampleRate: useStreamingWs ? wsSampleRate : sampleRate,
+            mimeType: useStreamingWs ? wsFormat?.mimeType ?? mimeType : mimeType,
+            sampleRate: useStreamingWs ? wsFormat?.sampleRate ?? sampleRate : sampleRate,
           });
         };
 
@@ -499,18 +473,16 @@ export async function POST(request: NextRequest) {
             text: trimmed,
             language,
             voice,
-            apiModelId: getSpeechApiModelId(ttsModelId),
-            providerApiKey: ttsProviderApiKey ?? undefined,
             continueGeneration,
           };
 
-          if (tts.synthesizeStream) {
-            for await (const chunk of tts.synthesizeStream(synthInput)) {
+          if (ttsClient.synthesizeStream) {
+            for await (const chunk of ttsClient.synthesizeStream(synthInput)) {
               if (aborted) return;
               enqueueSpeechChunk(chunk);
             }
           } else {
-            const result = await tts.synthesize(synthInput);
+            const result = await ttsClient.synthesize(synthInput);
             if (aborted) return;
             enqueueSpeechChunk(new Uint8Array(result.audio));
           }
@@ -548,10 +520,8 @@ export async function POST(request: NextRequest) {
           enqueue({ type: "text-delta", content: delta });
           // Non-automatic speech modes stream text but no live audio.
           if (suppressAutoTts) return;
-          if (useCartesiaWs && cartesiaSession) {
-            cartesiaSession.pushTranscript(delta, true);
-          } else if (useSarvamWs && sarvamSession) {
-            sarvamSession.pushText(delta);
+          if (useStreamingWs && ttsSession) {
+            ttsSession.pushText(delta, { continueGeneration: true });
           } else {
             await pushFallbackTtsDelta(delta);
           }
@@ -584,29 +554,15 @@ export async function POST(request: NextRequest) {
           })();
 
         try {
-          if (useCartesiaWs) {
-            cartesiaSession = await CartesiaTtsContinuationSession.open({
-              modelId: getSpeechApiModelId(ttsModelId) ?? "sonic-3.5",
-              voiceId: voice,
-              language,
-              apiKey: ttsProviderApiKey ?? undefined,
-            });
-            audioPump = startAudioPump(cartesiaSession.consumeAudio());
-          } else if (useSarvamWs) {
-            sarvamSession = await SarvamTtsWebSocketSession.open({
-              modelId: getSpeechApiModelId(ttsModelId) ?? "bulbul:v3",
-              speaker: voice,
-              language,
-              apiKey: ttsProviderApiKey ?? undefined,
-            });
-            audioPump = startAudioPump(sarvamSession.consumeAudio());
+          if (useStreamingWs) {
+            ttsSession = await ttsClient.openSynthesisSession({ voice, language });
+            audioPump = startAudioPump(ttsSession.consumeAudio());
           }
 
           const streamCallBase = {
             systemPrompt,
             greeting,
             messages: sdkMessages,
-            providerOptions,
             availableActions: enabledActions,
             endConversation: endConversationConfig,
             languageHelpAvailable:
@@ -635,7 +591,7 @@ export async function POST(request: NextRequest) {
               submissionId: submissionId ?? null,
               questionOrder,
               attemptNumber: attemptNumber ?? null,
-              model: invocationModel,
+              model: handle.meta,
               sdkRequest: buildLoggedStreamObjectRequest({
                 system: resolvedCall.system,
                 // Audio parts aren't loggable text — and shouldn't be persisted
@@ -656,10 +612,7 @@ export async function POST(request: NextRequest) {
               firstInvocationId = invocationId;
             }
 
-            const result = createMultimodalTurnStream({
-              model,
-              ...streamCallBase,
-            });
+            const result = handle.streamTurn(streamCallBase);
             lastStreamResult = result;
             let deliveredToClient = false;
 
@@ -957,14 +910,21 @@ export async function POST(request: NextRequest) {
             });
 
             // Resolve the action's own content-generation model (Call 2).
-            // Inherits the chat model unless an admin overrode the action's
-            // catalog sub-function (e.g. text.mcq_generation).
-            const { model: actionModel, providerOptions: actionProviderOptions } =
-              await resolveActionModel({
+            // Inherits the chat handle unless an admin overrode the action's
+            // catalog sub-function (e.g. text.mcq_generation). relatedEntity
+            // links every attempt of this action to the same actionId (§5.3).
+            const actionHandle = await resolveActionModel({
+              context: {
                 classDbId,
-                kind: actionKind,
-                fallback: { model, providerOptions },
-              });
+                assignmentId,
+                submissionId: submissionId ?? null,
+                questionOrder,
+                attemptNumber: attemptNumber ?? null,
+                relatedEntity: { type: "chat_message_action", id: actionId },
+              },
+              kind: actionKind,
+              fallback: handle,
+            });
 
             const recentMessages = messages
               .filter((m) => !m.hidden && m.content.trim())
@@ -974,8 +934,7 @@ export async function POST(request: NextRequest) {
             pendingAction = dispatchAction({
               id: actionId,
               action: resolvedAction,
-              model: actionModel,
-              providerOptions: actionProviderOptions,
+              handle: actionHandle,
               enqueue,
               supabase,
               submissionId: submissionId ?? null,
@@ -1013,21 +972,16 @@ export async function POST(request: NextRequest) {
             // (e.g. a no-speech turn), sending a finalization signal to the TTS
             // session with no prior transcript causes an error.
             if (fullReply.trim()) {
-              if (useCartesiaWs && cartesiaSession) {
-                cartesiaSession.pushTranscript("", false);
-                await audioPump;
-              } else if (useSarvamWs && sarvamSession) {
-                sarvamSession.flush();
+              if (useStreamingWs && ttsSession) {
+                ttsSession.pushText("", { continueGeneration: false });
                 await audioPump;
               } else {
                 await finalizeFallbackTts();
               }
             } else {
-              // No speech — close WebSocket sessions cleanly without sending content.
-              if (useCartesiaWs && cartesiaSession) {
-                cartesiaSession.cancelContext();
-              } else if (useSarvamWs && sarvamSession) {
-                sarvamSession.close();
+              // No speech — close the session cleanly without sending content.
+              if (useStreamingWs && ttsSession) {
+                await ttsSession.close();
               }
               // Fallback TTS has nothing to flush; finalizeFallbackTts guards itself.
             }
@@ -1053,6 +1007,9 @@ export async function POST(request: NextRequest) {
                 const usage = streamResult
                   ? await usageFromAiSdkResult(streamResult)
                   : null;
+                const tokenDetails = streamResult
+                  ? await tokenDetailsFromAiSdkResult(streamResult)
+                  : null;
                 const finishReason =
                   sdkResponse &&
                   typeof sdkResponse === "object" &&
@@ -1068,6 +1025,7 @@ export async function POST(request: NextRequest) {
                       endConversationTriggered,
                     },
                     usage,
+                    tokenDetails,
                     finishReason,
                   },
                   startedAt,
@@ -1106,8 +1064,7 @@ export async function POST(request: NextRequest) {
           enqueue({ type: "done" });
         } finally {
           abortSignal.removeEventListener("abort", onAbort);
-          cartesiaSession?.close();
-          sarvamSession?.close();
+          void ttsSession?.close().catch(() => {});
           controller.close();
         }
       },

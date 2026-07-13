@@ -33,7 +33,7 @@ import {
   clearSpeechProviderKeyCache,
   invalidateSpeechProviderKeyCacheForClass,
   invalidateSpeechProviderKeyCacheForInstitution,
-} from "@/lib/konvo-voice/speech/resolveProviderKey";
+} from "@/lib/konvo-voice/speech/speechKeyCacheAdmin";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
 import { getClassAiOverride } from "@/lib/queries/aiClassSettings";
 import { PLATFORM_SCOPE_ID } from "@/lib/ai/credentials/constants";

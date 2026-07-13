@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCatalogEntry, isProviderConfigured } from "@/lib/konvo-voice/sessionCatalog";
-import { getSpeechApiModelId, getTtsProvider } from "@/lib/konvo-voice/speech/registry";
+import { getCatalogEntry } from "@/lib/konvo-voice/sessionCatalog";
 import { sseEvent, sseHeaders } from "@/lib/konvo-voice/sse";
 import {
   KonvoLocaleVoiceError,
   resolveTtsVoice,
 } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
-import { resolveProviderApiKeyForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
+import { resolveMeteredSpeech, type AiCallContext } from "@/lib/ai/gateway";
+import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 interface MultimodalTtsBody {
   ttsModelId: string;
@@ -38,16 +39,24 @@ export async function POST(request: NextRequest) {
     }
 
     const ttsEntry = getCatalogEntry(ttsModelId);
-    const ttsProviderApiKey =
-      assignmentId && ttsEntry
-        ? await resolveProviderApiKeyForAssignment(assignmentId, ttsEntry.providerId)
-        : null;
-    if (!ttsEntry || (!ttsProviderApiKey && !isProviderConfigured(ttsEntry.providerId))) {
+    if (!ttsEntry) {
       return NextResponse.json(
         { error: "Selected TTS model unavailable or provider not configured" },
         { status: 400 },
       );
     }
+
+    const resolvedAssignmentId = assignmentId?.trim() || null;
+    const classDbId = resolvedAssignmentId
+      ? await getClassDbIdForAssignment(await createServerSupabaseClient(), resolvedAssignmentId)
+      : null;
+    const speechContext: AiCallContext = { classDbId, assignmentId: resolvedAssignmentId };
+    const ttsClient = await resolveMeteredSpeech({
+      kind: "tts",
+      catalogEntry: ttsEntry,
+      assignmentId: resolvedAssignmentId,
+      context: speechContext,
+    });
 
     let voice: string;
     try {
@@ -59,7 +68,6 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const tts = getTtsProvider(ttsModelId);
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
@@ -73,8 +81,8 @@ export async function POST(request: NextRequest) {
           enqueue({
             type: "speech_start",
             index: safeIndex,
-            mimeType: tts.streamFormat.mimeType,
-            sampleRate: tts.streamFormat.sampleRate,
+            mimeType: ttsClient.streamFormat.mimeType,
+            sampleRate: ttsClient.streamFormat.sampleRate,
           });
 
           const synthInput = {
@@ -83,14 +91,12 @@ export async function POST(request: NextRequest) {
             continueGeneration,
             language,
             voice,
-            apiModelId: getSpeechApiModelId(ttsModelId),
-            providerApiKey: ttsProviderApiKey ?? undefined,
           };
 
           if (!trimmed && continueGeneration === false) {
             // Final continuation close signal with no additional transcript content.
-          } else if (tts.synthesizeStream) {
-            for await (const chunk of tts.synthesizeStream(synthInput)) {
+          } else if (ttsClient.synthesizeStream) {
+            for await (const chunk of ttsClient.synthesizeStream(synthInput)) {
               enqueue({
                 type: "speech_chunk",
                 index: safeIndex,
@@ -98,7 +104,7 @@ export async function POST(request: NextRequest) {
               });
             }
           } else {
-            const result = await tts.synthesize(synthInput);
+            const result = await ttsClient.synthesize(synthInput);
             enqueue({
               type: "speech_chunk",
               index: safeIndex,

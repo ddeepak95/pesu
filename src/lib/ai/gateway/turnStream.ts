@@ -26,7 +26,7 @@ import type {
   TranscriptResolutionMode,
 } from "@/lib/multimodal/turnConfig";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
-import { buildMultimodalDirectives } from "./multimodal-directives";
+import { buildMultimodalDirectives } from "@/lib/ai/multimodal-directives";
 
 export const TURN_SCHEMA_NAME = "multimodal_turn";
 

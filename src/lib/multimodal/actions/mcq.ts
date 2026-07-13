@@ -6,7 +6,6 @@
  * client disconnect), then emits the action_payload SSE event.
  */
 
-import { generateObject } from "ai";
 import { z } from "zod";
 
 import {
@@ -32,8 +31,7 @@ export async function handleMcqAction(
   const {
     id,
     action,
-    model,
-    providerOptions,
+    handle,
     enqueue,
     supabase,
     submissionId,
@@ -47,24 +45,35 @@ export async function handleMcqAction(
     : null;
 
   if (!payload) {
-    const { object } = await generateObject({
-      model,
-      providerOptions,
+    // maxRetries: 1 — dispatchAction already wraps this whole handler in its
+    // own withRetry(INTERACTIVE_MAX_ATTEMPTS); without this the two retry
+    // loops would multiply attempts (§5.3).
+    const object = await handle.generateStructured({
       schema: mcqResultSchema,
-      system:
-        "You write a single high-quality multiple choice question for a tutoring " +
-        "session. Exactly four choices, one correct. The explanation justifies the " +
-        "correct answer briefly. Match the difficulty requested. The question, " +
-        "choices, and explanation are rendered as GitHub-flavored Markdown — you may " +
-        "use **bold**, *italics*, `inline code`, and fenced code blocks where they " +
-        "make the content clearer. Use Unicode for simple scientific notation (e.g. " +
-        "O₂, H₂O, x²). Keep each choice concise.",
-      prompt:
-        `Topic: ${action.topic}\n` +
-        `Difficulty: ${action.difficulty}\n` +
-        (action.guidance ? `Requirement: ${action.guidance}\n` : "") +
-        `Write the question, all four choices, and the explanation in ${languageLabel} ` +
-        `to match the conversation language.`,
+      schemaName: "mcqResultSchema",
+      maxRetries: 1,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write a single high-quality multiple choice question for a tutoring " +
+            "session. Exactly four choices, one correct. The explanation justifies the " +
+            "correct answer briefly. Match the difficulty requested. The question, " +
+            "choices, and explanation are rendered as GitHub-flavored Markdown — you may " +
+            "use **bold**, *italics*, `inline code`, and fenced code blocks where they " +
+            "make the content clearer. Use Unicode for simple scientific notation (e.g. " +
+            "O₂, H₂O, x²). Keep each choice concise.",
+        },
+        {
+          role: "user",
+          content:
+            `Topic: ${action.topic}\n` +
+            `Difficulty: ${action.difficulty}\n` +
+            (action.guidance ? `Requirement: ${action.guidance}\n` : "") +
+            `Write the question, all four choices, and the explanation in ${languageLabel} ` +
+            `to match the conversation language.`,
+        },
+      ],
     });
     payload = { kind: "mcq", ...object };
   }

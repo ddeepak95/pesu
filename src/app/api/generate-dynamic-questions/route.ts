@@ -14,18 +14,12 @@ import {
 } from "@/lib/promptTemplates";
 import { getActivityTypeDefinition } from "@/lib/activityTypes/registry";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
-import type { ResolvedModelConfig } from "@/lib/ai/config";
-import { getLanguageModel } from "@/lib/ai/provider";
-import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-questions";
-import { generateStructured } from "@/lib/ai/structured";
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
-import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import { resolveMeteredModel, type MeteredTextModel } from "@/lib/ai/gateway";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
-import type { AiConfigSource } from "@/types/aiSettings";
 
 /**
  * Interpolate template variables and conditional blocks into a prompt string.
@@ -155,14 +149,8 @@ async function generateMergedQuestions(
     instructions?: string;
     sharedContext?: string;
   },
-  modelConfig: ResolvedModelConfig,
+  handle: MeteredTextModel,
   customPromptTemplate?: string | null,
-  logging?: {
-    classDbId: string;
-    assignmentId: string;
-    submissionId: string;
-    keySource: AiConfigSource;
-  },
   activityType?: ActivityTypeKind,
 ): Promise<Question[]> {
   const sorted = sortTemplates(templates);
@@ -186,13 +174,11 @@ async function generateMergedQuestions(
 
   const systemMessage = interpolateTemplate(promptTemplateStr, templateVariables);
 
-  const model = getLanguageModel(modelConfig);
   const schema = buildGeneratedQuestionsSchema(n);
 
-  const result = await generateStructured({
-    model,
+  const result = await handle.generateStructured({
     schema,
-    providerOptions: providerOptionsForConfig(modelConfig),
+    schemaName: "dynamicQuestionsSchema",
     messages: [
       { role: "system", content: systemMessage },
       {
@@ -200,16 +186,6 @@ async function generateMergedQuestions(
         content: buildDynamicGenerationUserMessage(n),
       },
     ],
-    invocation: logging
-      ? {
-          appFunctionKey: "text.dynamic_questions",
-          classId: logging.classDbId,
-          assignmentId: logging.assignmentId,
-          submissionId: logging.submissionId,
-          model: modelMetaFromResolved(modelConfig, logging.keySource),
-          schemaName: "dynamicQuestionsSchema",
-        }
-      : undefined,
   });
 
   const output: Question[] = [];
@@ -403,11 +379,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let catalogResolved;
+    let handle;
     try {
-      catalogResolved = await getCachedResolveModelConfig({
-        classDbId,
+      handle = await resolveMeteredModel({
         appFunctionKey: "text.dynamic_questions",
+        context: { classDbId, assignmentId, submissionId },
       });
     } catch (error) {
       const notConfigured = catalogNotConfiguredResponse(error);
@@ -423,14 +399,8 @@ export async function POST(request: NextRequest) {
       templates,
       fileContent,
       context,
-      catalogResolved.config,
+      handle,
       assignment.dynamic_generation_prompt as string | null,
-      {
-        classDbId,
-        assignmentId,
-        submissionId,
-        keySource: catalogResolved.keySource,
-      },
       (assignment.activity_type as ActivityTypeKind) ?? undefined,
     );
 

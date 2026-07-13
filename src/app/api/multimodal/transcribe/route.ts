@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getSpeechApiModelId,
-  getSttProvider,
-} from "@/lib/konvo-voice/speech/registry";
 import type { KonvoSessionConfig } from "@/lib/konvo-voice/sessionConfig";
-import { isProviderConfigured } from "@/lib/konvo-voice/sessionCatalog";
 import { getCatalogEntry } from "@/lib/konvo-voice/sessionCatalog";
 import {
   SARVAM_STT_CATALOG_MODEL_ID,
   SARVAM_STT_MAX_DURATION_MS,
 } from "@/lib/konvo-voice/speech/constants";
-import { resolveProviderApiKeyForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
-import { withRetry } from "@/lib/ai/retry";
+import { resolveMeteredSpeech, type AiCallContext } from "@/lib/ai/gateway";
+import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   if (!raw) return null;
@@ -82,25 +78,36 @@ export async function POST(request: NextRequest) {
     }
 
     const catalogEntry = getCatalogEntry(sessionConfig.sttModelId);
-    const assignmentIdRaw = formData.get("assignmentId");
-    const assignmentId =
-      typeof assignmentIdRaw === "string" && assignmentIdRaw.trim()
-        ? assignmentIdRaw.trim()
-        : null;
-    const sttProviderApiKey =
-      assignmentId && catalogEntry
-        ? await resolveProviderApiKeyForAssignment(assignmentId, catalogEntry.providerId)
-        : null;
-
-    if (
-      !catalogEntry ||
-      (!sttProviderApiKey && !isProviderConfigured(catalogEntry.providerId))
-    ) {
+    if (!catalogEntry) {
       return NextResponse.json(
         { error: "STT model unavailable or provider not configured" },
         { status: 400 },
       );
     }
+
+    const assignmentIdRaw = formData.get("assignmentId");
+    const assignmentId =
+      typeof assignmentIdRaw === "string" && assignmentIdRaw.trim()
+        ? assignmentIdRaw.trim()
+        : null;
+    const submissionIdRaw = formData.get("submissionId");
+    const submissionId =
+      typeof submissionIdRaw === "string" && submissionIdRaw.trim()
+        ? submissionIdRaw.trim()
+        : null;
+
+    // class_id resolved server-side from the assignment — never trust a
+    // client-supplied id for attribution (§5.0 "context plumbing").
+    const classDbId = assignmentId
+      ? await getClassDbIdForAssignment(await createServerSupabaseClient(), assignmentId)
+      : null;
+    const speechContext: AiCallContext = { classDbId, assignmentId, submissionId };
+    const sttClient = await resolveMeteredSpeech({
+      kind: "stt",
+      catalogEntry,
+      assignmentId,
+      context: speechContext,
+    });
 
     const segments = collectAudioSegments(formData);
     if (segments.length === 0) {
@@ -134,8 +141,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const stt = getSttProvider(sessionConfig.sttModelId);
-    const apiModelId = getSpeechApiModelId(sessionConfig.sttModelId);
+    const fallbackAudioMs = Number.isFinite(recordingDurationMs) ? recordingDurationMs : null;
 
     /** Transcribe all segments for a given language hint, returning joined text. */
     const transcribeAll = async (language: string): Promise<string> => {
@@ -149,16 +155,13 @@ export async function POST(request: NextRequest) {
               ? segment.name
               : "recording.webm";
           const mimeType = segment.type || "audio/webm";
-          const result = await withRetry(() =>
-            stt.transcribe({
-              audio: buffer,
-              filename,
-              mimeType,
-              language,
-              apiModelId,
-              providerApiKey: sttProviderApiKey ?? undefined,
-            }),
-          3);
+          const result = await sttClient.transcribe({
+            audio: buffer,
+            filename,
+            mimeType,
+            language,
+            fallbackAudioMs,
+          });
           const part = (result.text ?? "").trim();
           if (part) parts.push(part);
         }
@@ -171,16 +174,13 @@ export async function POST(request: NextRequest) {
       const filename =
         audio instanceof File && audio.name ? audio.name : "recording.webm";
       const mimeType = audio.type || "audio/webm";
-      const result = await withRetry(() =>
-        stt.transcribe({
-          audio: buffer,
-          filename,
-          mimeType,
-          language,
-          apiModelId,
-          providerApiKey: sttProviderApiKey ?? undefined,
-        }),
-      3);
+      const result = await sttClient.transcribe({
+        audio: buffer,
+        filename,
+        mimeType,
+        language,
+        fallbackAudioMs,
+      });
       return (result.text ?? "").trim();
     };
 
@@ -255,16 +255,13 @@ export async function POST(request: NextRequest) {
             ? segment.name
             : "recording.webm";
         const mimeType = segment.type || "audio/webm";
-        const result = await withRetry(() =>
-          stt.transcribe({
-            audio: buffer,
-            filename,
-            mimeType,
-            language: sessionConfig.language,
-            apiModelId,
-            providerApiKey: sttProviderApiKey ?? undefined,
-          }),
-        3);
+        const result = await sttClient.transcribe({
+          audio: buffer,
+          filename,
+          mimeType,
+          language: sessionConfig.language,
+          fallbackAudioMs,
+        });
         const part = (result.text ?? "").trim();
         if (part) parts.push(part);
       }

@@ -98,8 +98,14 @@ export async function POST(request: NextRequest) {
         content: r.content as string,
       }));
 
-    const { model, providerOptions } = await resolveActionModel({
-      classDbId,
+    const actionHandle = await resolveActionModel({
+      context: {
+        classDbId,
+        assignmentId,
+        submissionId,
+        questionOrder,
+        relatedEntity: { type: "chat_message_action", id: actionId },
+      },
       kind: action.kind,
     });
 
@@ -118,8 +124,7 @@ export async function POST(request: NextRequest) {
       await dispatchAction({
         id: actionId,
         action,
-        model,
-        providerOptions,
+        handle: actionHandle,
         enqueue,
         supabase,
         submissionId: submissionId ?? null,

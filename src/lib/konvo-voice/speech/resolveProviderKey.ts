@@ -5,9 +5,11 @@ import { PLATFORM_SCOPE_ID } from "@/lib/ai/credentials/constants";
 import {
   buildEffectiveCatalogRuntimeState,
   getProviderApiKey,
+  getProviderApiKeySource,
 } from "@/lib/ai/catalog/buildEffectiveRuntime";
 import { getCatalogSecretsForScope } from "@/lib/queries/aiCatalog";
 import { createServiceRoleClient } from "@/lib/supabase-server";
+import type { AiConfigSource } from "@/types/aiSettings";
 
 /** Per warm server instance; not shared across lambdas/regions. */
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -132,65 +134,89 @@ export async function resolveProviderApiKeyForAssignment(
   return pending;
 }
 
-export function invalidateSpeechProviderKeyCacheForAssignment(
+export interface ProviderApiKeyWithSource {
+  apiKey: string | null;
+  keySource: AiConfigSource;
+}
+
+type SpeechProviderKeySourceCacheStore = {
+  cache: Map<string, ProviderApiKeyWithSource>;
+  inflight: Map<string, Promise<ProviderApiKeyWithSource>>;
+};
+
+const globalSourceStore = globalThis as typeof globalThis & {
+  __speechProviderKeySourceCacheStore?: SpeechProviderKeySourceCacheStore;
+};
+
+function getSourceStore(): SpeechProviderKeySourceCacheStore {
+  if (!globalSourceStore.__speechProviderKeySourceCacheStore) {
+    globalSourceStore.__speechProviderKeySourceCacheStore = {
+      cache: new Map(),
+      inflight: new Map(),
+    };
+  }
+  return globalSourceStore.__speechProviderKeySourceCacheStore;
+}
+
+/**
+ * Same resolution as resolveProviderApiKeyForAssignment, but also reports
+ * which scope supplied the key (class/institution -> BYOK; platform/env ->
+ * platform-paid) — needed by the gateway to derive ai_key_source /
+ * key_owner for metering (§5.0, §7.1, §7.2). Gateway-internal only.
+ */
+export async function resolveProviderApiKeyWithSourceForAssignment(
   assignmentId: string,
-  providerId?: ProviderId,
-): void {
-  const { cache, inflight } = getStore();
-  if (providerId) {
-    const key = cacheKey(assignmentId, providerId);
-    cache.delete(key);
-    inflight.delete(key);
-    return;
+  providerId: ProviderId,
+): Promise<ProviderApiKeyWithSource> {
+  const key = cacheKey(assignmentId, providerId);
+  const { cache, inflight } = getSourceStore();
+
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  let pending = inflight.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const { classDbId, institutionId } =
+        await loadClassAndInstitutionForAssignment(assignmentId);
+      if (!classDbId) {
+        return { apiKey: null, keySource: "env" as AiConfigSource };
+      }
+
+      const service = createServiceRoleClient();
+      const [platformSecrets, institutionSecrets, classSecrets] = await Promise.all([
+        getCatalogSecretsForScope(service, "platform", PLATFORM_SCOPE_ID),
+        institutionId
+          ? getCatalogSecretsForScope(service, "institution", institutionId)
+          : Promise.resolve(null),
+        getCatalogSecretsForScope(service, "class", classDbId),
+      ]);
+
+      const runtime = buildEffectiveCatalogRuntimeState(
+        platformSecrets,
+        institutionSecrets,
+        classSecrets,
+      );
+      return {
+        apiKey: getProviderApiKey(runtime, providerId),
+        keySource: getProviderApiKeySource(runtime, providerId),
+      };
+    })()
+      .then((result) => {
+        cache.set(key, result);
+        return result;
+      })
+      .finally(() => {
+        inflight.delete(key);
+      });
+    inflight.set(key, pending);
   }
 
-  const suffix = `:${assignmentId}`;
-  for (const key of cache.keys()) {
-    if (key.endsWith(suffix)) cache.delete(key);
-  }
-  for (const key of inflight.keys()) {
-    if (key.endsWith(suffix)) inflight.delete(key);
-  }
+  return pending;
 }
 
-export async function invalidateSpeechProviderKeyCacheForClass(
-  classDbId: string,
-): Promise<void> {
-  const service = createServiceRoleClient();
-  const { data, error } = await service
-    .from("assignments")
-    .select("assignment_id")
-    .eq("class_id", classDbId);
-  if (error) throw error;
-
-  for (const row of data ?? []) {
-    const assignmentId = row.assignment_id as string | null;
-    if (assignmentId) {
-      invalidateSpeechProviderKeyCacheForAssignment(assignmentId);
-    }
-  }
-}
-
-export async function invalidateSpeechProviderKeyCacheForInstitution(
-  institutionId: string,
-): Promise<void> {
-  const service = createServiceRoleClient();
-  const { data: classes, error: classesError } = await service
-    .from("classes")
-    .select("id")
-    .eq("institution_id", institutionId);
-  if (classesError) throw classesError;
-
-  for (const row of classes ?? []) {
-    const classDbId = row.id as string | null;
-    if (classDbId) {
-      await invalidateSpeechProviderKeyCacheForClass(classDbId);
-    }
-  }
-}
-
-export function clearSpeechProviderKeyCache(): void {
-  const store = getStore();
-  store.cache.clear();
-  store.inflight.clear();
-}
+// Cache invalidation/clear helpers live in speechKeyCacheAdmin.ts — split out
+// so admin flows (AI settings changes) don't need to import this
+// credential-resolution module, which the gateway boundary (§7.2) restricts
+// to src/lib/ai/gateway/**. Both files address the same globalThis-backed
+// stores by key, so no cross-file export is needed.

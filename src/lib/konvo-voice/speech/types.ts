@@ -7,10 +7,29 @@ export interface TranscribeInput {
   language?: string;
   apiModelId?: string;
   providerApiKey?: string;
+  /**
+   * Client-reported duration (spoofable — §10 #8), used only when the
+   * provider itself returns no usable duration (e.g. Sarvam, or OpenAI's
+   * token-billed usage variant). Read only by the gateway's metering wrapper,
+   * not by provider clients.
+   */
+  fallbackAudioMs?: number | null;
+}
+
+/** Usage/duration metadata a provider returns (or the caller measures) for one call — §5.1. */
+export interface SpeechUsage {
+  /** STT input duration, when known. */
+  audioMs?: number | null;
+  providerTokens?: { input?: number; output?: number; audio?: number } | null;
+  source: "provider" | "measured" | "estimated";
+  providerRequestId?: string | null;
+  /** Provider usage/duration blob, kept for invoice reconciliation. */
+  raw?: unknown;
 }
 
 export interface TranscribeResult {
   text: string;
+  usage?: SpeechUsage;
 }
 
 export interface SttProvider {
