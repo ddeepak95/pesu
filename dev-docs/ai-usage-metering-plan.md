@@ -155,7 +155,16 @@ folded in pending confirmation**: `getProviderApiKeySource` already exists
 the key's supplying scope — §5.0/§7.2/§9.1 Step 4's "extend
 `getProviderApiKey` to report supplying scope" is therefore a smaller task
 (wire an existing primitive through) than currently written; left as-is
-until confirmed.
+until confirmed. Revised 2026-07-13 (v14 — **`prompt_tokens`/`completion_tokens`/
+`total_tokens` dropped from `ai_invocations`**): these were the table's
+original, pre-metering blended-total columns (§3). Now that `token_details`
+(v12/v13) stores a full disaggregated breakdown whose fields sum exactly to
+those totals, the three columns are pure duplicate data — reconstructible via
+`sum()` over `token_details`'s jsonb fields, never read back at write time
+(`computeUsage` always works off the in-memory SDK usage object, not a
+persisted column). Dropped via
+`supabase/migrations/20260713020000_ai_invocations_drop_token_totals.sql`;
+`completeAiInvocation` (`recordInvocation.ts`) no longer writes them.
 
 ## 1. Goal
 

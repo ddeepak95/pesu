@@ -14,8 +14,11 @@ import type { UsageType } from "@/lib/ai/metering/usageTypes";
  * `textOutputTokens` are the *remainder* after those subsets are carved out
  * (see `disaggregateInputTokens`/`disaggregateOutputTokens` below) — this app
  * computes and fills them in before storage, so `token_details` is a full,
- * self-consistent partition of `prompt_tokens`/`completion_tokens`, not just
- * the "special" classes.
+ * self-consistent partition of the blended prompt/completion totals, not
+ * just the "special" classes. `ai_invocations` has no separate
+ * prompt_tokens/completion_tokens/total_tokens columns — this jsonb bag is
+ * the only persisted record of token counts; sum its fields to recover the
+ * old blended totals.
  */
 export interface TokenDetails {
   /** Blended input total minus every other *InputTokens field below — what actually bills at the plain `input_token` rate. */

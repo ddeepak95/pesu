@@ -319,8 +319,10 @@ export async function completeAiInvocation(
   // carries the SDK-reported subsets (cached/reasoning/audio/image); fold in
   // the derived `textInputTokens`/`textOutputTokens` remainder — computed via
   // the same split computeUsage bills from — so `token_details` fully
-  // partitions `prompt_tokens`/`completion_tokens` instead of only covering
-  // the "special" classes.
+  // partitions the blended prompt/completion totals instead of only covering
+  // the "special" classes. This is now the ONLY place those totals are
+  // persisted — the row has no separate prompt_tokens/completion_tokens/
+  // total_tokens columns; sum token_details' fields to recover them.
   const disaggregatedTokenDetails: TokenDetails = usageTypeHasTokenMetrics(usageType)
     ? {
         ...disaggregateInputTokens(usage?.promptTokens, tokenDetails),
@@ -384,9 +386,6 @@ export async function completeAiInvocation(
       status: "completed",
       completed_at: completedAt.toISOString(),
       duration_ms: durationMs,
-      prompt_tokens: usage?.promptTokens ?? null,
-      completion_tokens: usage?.completionTokens ?? null,
-      total_tokens: usage?.totalTokens ?? null,
       audio_ms: input.audioMs ?? null,
       characters: input.characters ?? null,
       audio_output_ms: input.audioOutputMs ?? null,
