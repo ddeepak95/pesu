@@ -606,20 +606,43 @@ On each event, a `record_usage_counter(...)` SQL function upserts four rows —
 `(inst, class, usage_type)`, `(inst, class, 'all')`, `(inst, SENTINEL,
 usage_type)`, `(inst, SENTINEL, 'all')` — atomically:
 
+> **Revised in the Phase 2 implementation plan's D1** (`dev-docs/ai-usage-metering-phase2-plan.md`):
+> `key_owner` is derived *inside* `record_usage_counter` itself, from the raw
+> `ai_key_source`, via a small standalone `key_owner_from_source` function —
+> not passed in pre-computed. This keeps exactly one place the mapping lives
+> (called identically by the hot-path upsert and the nightly reconcile
+> rebuild), so it can never drift from `ai_invocations.ai_key_source`. Same
+> reasoning gave `period_start` a raw `p_started_at` input instead of a
+> pre-computed date, computed here via decision #6's UTC calendar-month rule.
+
 ```sql
+create or replace function public.key_owner_from_source(p_ai_key_source text)
+returns text
+language sql immutable as $$
+  select case
+    when p_ai_key_source in ('platform', 'env') then 'platform'
+    when p_ai_key_source in ('institution', 'class') then 'byok'
+    else 'platform'  -- fail-safe default; flagged separately by the nightly reconcile (§9)
+  end;
+$$;
+
 create or replace function public.record_usage_counter(
   p_institution_id uuid,
   p_class_id uuid,          -- may be null (institution-scope work)
-  p_key_owner text,         -- 'platform' | 'byok'
-  p_period_start date,
+  p_ai_key_source text,     -- ai_invocations.ai_key_source, raw — key_owner derived below, never passed in (D1)
+  p_started_at timestamptz,
   p_usage_type text,
   p_credits numeric
 ) returns void
-language sql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public as $$
+declare
+  v_key_owner    text := public.key_owner_from_source(p_ai_key_source);
+  v_period_start date := (date_trunc('month', p_started_at at time zone 'utc'))::date;
+begin
   insert into public.ai_usage_counters as c
     (institution_id, class_id, key_owner, period_start, usage_type, credits, events)
   select distinct  -- distinct: when p_class_id is null the class rows collapse into the sentinel rows
-    p_institution_id, v.cid, p_key_owner, p_period_start, v.ut, p_credits, 1
+    p_institution_id, v.cid, v_key_owner, v_period_start, v.ut, p_credits, 1
   from (values
     (coalesce(p_class_id, '00000000-0000-0000-0000-000000000000'::uuid), p_usage_type),
     (coalesce(p_class_id, '00000000-0000-0000-0000-000000000000'::uuid), 'all'),
@@ -631,6 +654,7 @@ language sql security definer set search_path = public as $$
     credits    = c.credits + excluded.credits,
     events     = c.events + excluded.events,
     updated_at = now();
+end;
 $$;
 -- service-role only: revoke execute from anon, authenticated
 ```
@@ -639,9 +663,11 @@ $$;
 `key_owner='byok'` — a fully separate bucket from `key_owner='platform'` — so the
 platform-vs-BYOK analytics split (§8.1) is always available, even though
 (as of v10) capping BYOK spend happens through a wallet (§4.6), not this
-table. `key_owner` is derived once, at write time, from the row's
-`ai_key_source` — the same resolution the gateway already does for
-`keySource` (§7.1). Counters are a pure cache of `ai_invocations` →
+table. `key_owner` is derived by `record_usage_counter` itself (via
+`key_owner_from_source`, above) from the row's `ai_key_source` — the same
+resolution the gateway already does for `keySource` (§7.1), now with one
+single SQL source of truth instead of being computed redundantly by each
+caller. Counters are a pure cache of `ai_invocations` →
 **rebuildable** by re-aggregating the base table (nightly reconcile, §9).
 
 - **Institution total for a key owner** (O(1) analytics read): `(inst, SENTINEL, key_owner, 'all')`.
@@ -1539,7 +1565,7 @@ unblocked. Each is deliberately cheap to revise later (rate-version snapshots
 | 7 | Turn-inline TTS granularity | One row per turn (WS session, or fallback-chunk roll-up). | Per-chunk rows only if invoice reconciliation demands them. |
 | 8 | STT duration source | Provider-reported (`metric_source='provider'`) when available; else measured (Sarvam last-timestamp / server-derived); else client `recordingDurationMs` as `'estimated'`. Server-side audio decoding deferred. | Tighten if monthly reconciliation shows drift. |
 | 9 | Gateway inversion | Adopted — Phase 1 does the inversion directly; the transitional required-`invocation`-param alternative is rejected (leaves raw models in circulation). | — |
-| 10 | Metering durability | Best-effort detached writes + `app_logs` on every drop + Phase 2 nightly rebuild/drift check. | Upgrade to a transactional outbox if drift materializes. |
+| 10 | Metering durability | Awaited, isolated counter upsert — never fire-and-forget — wrapped in `try/catch` so a counter failure can't fail the user-facing AI response; retries on failure are deferred to `after()` so they cost zero response latency; `app_logs` on every drop; Phase 2 nightly rebuild/drift check as the last-resort backstop. (Revised from an earlier best-effort-detached draft — see the Phase 2 plan's D2 for why pure fire-and-forget was rejected: a detached promise isn't guaranteed to run to completion once the response is sent on a serverless runtime.) | Upgrade to a transactional outbox if drift materializes. |
 | 11 | Always-on write volume | Accepted — text rows already existed behind the flag; speech adds low-rate rows; §4.1 indexes are aggregation-first. | Partition/archive by month if volume grows. |
 | 12 | OpenAI TTS token-billing mismatch | Meter `characters` + `audio_output_ms` as a flagged approximation; reconcile against the monthly invoice (that is what `metric_source` + `provider_request_id` exist for). | Add a token-estimate metric if reconciliation drifts. |
 | 13 | Allocation model — cap vs. wallet | **Wallet, not a period-reset cap** (§4.6): a real balance, funded by a recurring monthly grant (nullable — `null` means pure top-up, no recurring renewal) and/or on-demand top-ups, drained by usage, with an optional `max_balance` that bounds rollover only. `max_balance` never clamps a top-up (money already paid — that check belongs in the purchase flow, before charging, not as a post-hoc clamp). One mechanism covers recurring-only, top-up-only, and hybrid funding. | Each wallet's `monthly_grant` / `max_balance` / `enforcement` is a per-row config edit, not a schema change. A true multi-currency purchase price for top-ups is a separate, still-open decision (see the currency deferral note below). |
