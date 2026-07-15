@@ -1,0 +1,117 @@
+# Attempt identity: server-reserved `attempt_id`, merged into `submission_attempts`
+
+## Context
+
+Follow-on to the `question_id` stable-identity migration (`dev-docs/question-stable-ids-plan.md`, already implemented and deployed on `usage-metering`). That work added `ai_invocations.attempt_id` but never populated it except post-hoc for the single `text.evaluation` invocation — every `turn`/`action-retry`/`transcribe` invocation during a multimodal conversation happens *before* a `submission_attempts` row exists (that row is only created by `evaluate/route.ts`, after grading), so those invocations can never be linked to an attempt. This makes `attempt_id` useless for per-attempt cost rollups on multimodal assignments, which is the majority of invocation volume.
+
+Decision (this conversation): rather than a side "reservation" table, **merge the early-created identity into `submission_attempts` itself** — a row is created the moment a multimodal conversation starts (not just at grading), with grade fields left null until `evaluate()` fills them in via `UPDATE` instead of `INSERT`. `submission_attempts.id` becomes the one real "attempt identity," created *before* any AI call happens and used as a real FK everywhere `attempt_number` is currently used as a loose join key (`chat_messages`, `voice_messages`, `submission_transcripts`, `static_activity`, `submission_session_audio`, `attempt_sessions`, `ai_invocations`) — same scope/rigor as the `question_id` rollout, but `attempt_id` gets to be a *real* FK everywhere (unlike `question_id`, which had to stay FK-less because it lives inside a jsonb array element with no backing row).
+
+Creation is **synchronous and awaited** client-side (not fire-and-forget like the `attempt_session_id` mount POST is today) — the conversation does not start until the attempt is confirmed created server-side, per explicit user direction ("a proper attempt create and wait for its success"). Since that same round trip is now load-bearing and blocking anyway, the `attempt_sessions` row creation is folded into it too — the session POST stops being fire-and-forget as well (see Phase C).
+
+A single `submission_attempts.id` can have **many** `attempt_sessions` rows (one per page refresh during that attempt), but only one of them is the session whose messages actually became the graded answer. `submission_attempts` gains a `session_id` FK pointing at that one — set at grading time from whichever session was active when the student actually submitted (see Phase A step 5, Phase D step 4, Phase E). Without this, a teacher (or an analyst) looking at an attempt with three `attempt_sessions` rows (two abandoned refreshes, one real) has no way to tell which session's `chat_messages`/`voice_messages` rows are the ones that mattered.
+
+**The risk this plan exists to manage**: today, "a `submission_attempts` row exists" is silently treated as "this question was attempted/graded" in ~15 places across rollup triggers, release-gate logic, teacher grading UI, and student progress UI (full list below, from direct codebase research). Once ungraded rows can exist, every one of those must gain a "graded" filter, or opening (but not finishing) a multimodal question will falsely mark it attempted, block release, and show ghost zero-scores in the teacher grading panel. This plan's Phase F is exactly that fix-list, verified exhaustively before writing any migration.
+
+## Confirmed facts (direct codebase research this session)
+
+- Only `src/app/api/evaluate/route.ts:304-317` ever `INSERT`s into `submission_attempts`. No other insert site exists.
+- `pickLastAttemptId` (`src/lib/submissions/grading.ts:31`) has zero call sites — dead code, no action needed beyond leaving a note.
+- `submission_session_audio`'s PK is the composite `(submission_id, question_order, attempt_number)` — the existing `onConflict` in `session-chunk/route.ts` is backed by a real constraint.
+- `attempt_grade_drafts.attempt_id` and `attempt_ai_evaluations.attempt_id` are both real FKs to `submission_attempts(id) ON DELETE CASCADE` already — no change needed there.
+- `submission_attempts` RLS: three policies (SELECT/INSERT/UPDATE, all `USING(true)`/`WITH CHECK(true)` for `authenticated, anon`) — no DELETE policy. Unchanged by this plan.
+- This codebase's established convention for race-sensitive check-then-act sequences in `plpgsql` is `SELECT ... FOR UPDATE` + `IF NOT FOUND` (see `accept_teacher_invite` in `20260526165126_remote_schema.sql`), **not** advisory locks. The new RPC follows this pattern.
+- `AiCallContext`/`StartAiInvocationInput`/`recordInvocation.ts`'s insert already have `attemptId` wired end-to-end (added in the prior `question_id` pass) — **no changes needed there**. Once every route populates `AiCallContext.attemptId` at construction time, `ai_invocations.attempt_id` populates automatically. This also means the existing post-hoc `linkInvocationToAttempt` call in `evaluate/route.ts` becomes dead weight once `attemptId` is known before the AI call runs — remove that call (keep the exported function only if something else still needs it; grep at implementation time).
+
+## Design
+
+### Phase A — Migration (`supabase/migrations/20260715000000_attempt_identity.sql`)
+
+1. **`submission_attempts.graded_at timestamptz`** (nullable). Backfill existing rows: `graded_at = created_at` (every existing row was created only at grading time historically, so this is exact, not approximate). Partial index `WHERE stale = false AND graded_at IS NULL` for the RPC's lookup.
+   - `created_at`'s meaning shifts from "graded at" to "attempt started" for new rows — note this in a column comment. `graded_at` is the new "when did grading finish" signal.
+
+2. **Fix `recompute_submission_rollups()`** (`CREATE OR REPLACE FUNCTION`, same body as `20260615000000_grading_normalized_schema.sql` lines 88-148, add `AND sa.graded_at IS NOT NULL` to the `WHERE sa.stale = false` subqueries for `total_attempts`, `questions_attempted_count`, `has_attempts` (EXISTS), and `max_score`'s per-question `MAX(sa.max_score)` subquery — `graded_score` itself sums `submission_questions.released_score`, unaffected). This is the single most important line in the whole migration — it's what keeps `submissions.has_attempts`/`total_attempts`/`questions_attempted_count`/`max_score` correct once ungraded rows exist, which in turn keeps `getStudentIdsWithPendingApprovalsInClass`, `contentCompletions.ts`'s equivalent, and every column in `SubmissionsListSection.tsx` correct with **zero application-code changes** (confirmed by direct research — those all read the trigger-maintained columns, not raw `submission_attempts`).
+
+3. **New RPC `get_or_create_current_attempt(p_submission_question_id uuid, p_max_score numeric) RETURNS submission_attempts`**, `SECURITY DEFINER`, following the `SELECT ... FOR UPDATE` convention:
+   ```sql
+   PERFORM 1 FROM submission_questions WHERE id = p_submission_question_id FOR UPDATE;
+   SELECT * INTO v_row FROM submission_attempts
+     WHERE submission_question_id = p_submission_question_id AND stale = false AND graded_at IS NULL LIMIT 1;
+   IF FOUND THEN RETURN v_row; END IF;
+   SELECT COALESCE(MAX(attempt_number), 0) + 1 INTO v_next FROM submission_attempts WHERE submission_question_id = p_submission_question_id;
+   INSERT INTO submission_attempts (submission_question_id, attempt_number, max_score, stale)
+     VALUES (p_submission_question_id, v_next, p_max_score, false) RETURNING * INTO v_row;
+   RETURN v_row;
+   ```
+   Locking the parent `submission_questions` row serializes concurrent callers for the same question (mirrors `accept_teacher_invite`). Grant `EXECUTE` to `anon, authenticated, service_role`.
+
+4. **`attempt_id uuid` columns**, added to `chat_messages`, `voice_messages`, `submission_transcripts`, `static_activity`, `submission_session_audio`, `attempt_sessions`, `ai_invocations`. Backfill via join through `submission_questions`/`submission_attempts` on `(submission_id, question_id, attempt_number)` — same shape as the `question_id` backfill in the prior migration (temp lookup table, one UPDATE per target table).
+   - Real FK now (unlike `question_id`, which had no backing row): `references public.submission_attempts(id) on delete cascade` for the four content tables + `attempt_sessions`; `on delete set null` for `ai_invocations` (audit table, matches its existing FK-nullable convention for `ai_invocation_id`/`related_entity_id`).
+   - New unique constraints where "one row per attempt" already holds: `submission_transcripts_attempt_id_unique unique(attempt_id)`, `static_activity_attempt_id_unique unique(attempt_id)`. No new constraint needed on `chat_messages`/`voice_messages` (many rows per attempt) or `submission_session_audio` (existing composite PK already sufficient).
+   - `question_order`/`attempt_number` columns are **not** dropped anywhere — same deferred-cleanup philosophy as the `question_id` migration.
+
+5. **`submission_attempts.session_id uuid references public.attempt_sessions(id) on delete set null`** (nullable — `static_text`/`voice` attempts never have a session at all). This is the "winning session" pointer described in Context. Left null for existing/historical rows (no session existed before this pass); populated going forward only at grading time (Phase D), never at creation time — the session active when the conversation *starts* isn't necessarily the one that finishes it (a refresh swaps in a new `session_id` for the same `attempt_id`), so this column intentionally lags behind `attempt_sessions` until the attempt is actually graded.
+
+### Phase B — Server helpers
+
+- `src/lib/submissions/attempts.ts` (new): `upsertSubmissionQuestion(client, {submissionId, questionOrder, questionId}) -> submissionQuestionId` (extracted verbatim from `evaluate/route.ts`'s existing inline upsert so both the new endpoint and `evaluate/route.ts` share it) and `getOrCreateCurrentAttempt(client, {submissionQuestionId, maxScore}) -> {id, attempt_number, ...}` (thin wrapper over `.rpc("get_or_create_current_attempt", ...)`).
+- `src/lib/submissions/attemptSessions.ts`: `EnsureAttemptSessionInput` gains `attemptId: string` (required — by the time anything calls this, the attempt is already resolved); the upsert payload gains `attempt_id: input.attemptId`. After this change, `ensureAttemptSession` has exactly one caller (the new attempt-start route) — `turn`/`utterance` no longer need their own defensive `ensureAttemptSession` call, since the client now guarantees the attempt+session exist before making *any* of those requests (this is the "wait for success" guarantee paying off — remove those two now-redundant calls).
+
+### Phase C — Rename `attempt-session` → `attempt-start`, make it the single blocking creation point
+
+`src/app/api/multimodal/attempt-session/route.ts` → renamed `src/app/api/multimodal/attempt-start/route.ts`. Contract changes: client no longer sends `attemptNumber` (it doesn't know it in advance anymore); server resolves/creates it. The route's docstring currently says "Not load-bearing for correctness... Fire-and-forget is safe" — delete that framing entirely; this route is now the opposite: the *only* place the attempt and its session get created, and the client blocks on it before doing anything else.
+
+Request: `{ sessionId, submissionId, questionId, maxScore }` (maxScore = `question.total_points`, needed only if the RPC creates a fresh row).
+Flow: `upsertSubmissionQuestion` → `getOrCreateCurrentAttempt` → `ensureAttemptSession(client, {id: sessionId, submissionId, questionId, attemptId, attemptNumber})`.
+Response: `{ attemptId, attemptNumber }`.
+
+Because creation is now guaranteed-awaited here, the defensive `ensureAttemptSession` calls that used to live in `turn`/`utterance` as a fallback for a lost fire-and-forget POST are no longer needed (Phase B already calls this out) — this endpoint is the single source of truth for both the attempt and the session that child routes trust exists.
+
+### Phase D — `evaluate/route.ts` rewrite (the flagship change)
+
+Replace the manual `SELECT last attempt_number ... +1` + `INSERT` (current lines ~190-221, ~278-300) with:
+1. `submissionQuestionId = await upsertSubmissionQuestion(...)` (shared helper, same upsert this route already does).
+2. `{ id: attemptId, attempt_number: attemptNumber } = await getOrCreateCurrentAttempt(serviceClient, { submissionQuestionId, maxScore })` — reuses the in-progress row from the multimodal conversation if one exists; creates fresh for `static_text`/`voice` (which never call `attempt-start`) exactly like today.
+3. Set `evalContext.attemptId = attemptId` **before** `resolveMeteredModel` runs (attempt id is now known up front, unlike before) — this is what makes `ai_invocations.attempt_id` populate for the evaluation call without any post-hoc linking.
+4. Transcript/`static_activity` upserts: switch from the ad-hoc `attemptNumber` computed inline to the resolved one, and add `attempt_id: attemptId` to both payloads (per Phase A's new columns).
+5. `EvaluateRequestBody` already has an (unused-until-now) `sessionId?: string | null` field from the prior pass — this is where it finally gets consumed: replace the final `submission_attempts.insert(...)` with `UPDATE ... SET score, feedback, feedback_doc, rubric_scores, graded_at = now(), session_id = sessionId ?? null WHERE id = attemptId RETURNING id, created_at, attempt_number`. This is what stamps "the session that actually produced this graded answer" — see Phase E for where `sessionId` starts actually reaching this route.
+6. Remove the post-hoc `evalHandle.lastInvocationId` + `linkInvocationToAttempt(...)` call — no longer needed (see Confirmed Facts above). Keep `attempt_ai_evaluations.ai_invocation_id` insert as-is (still wants the invocation id, just no longer needs the extra link-back RPC).
+
+### Phase E — Client (`MultimodalInputArea.tsx`)
+
+Replace the current fire-and-forget mount effect (the one posting to `/api/multimodal/attempt-session`) with an **awaited** call to `/api/multimodal/attempt-start` that runs before `handleStart()`/conversation-reset. Store `{attemptId, attemptNumber}` in state. On failure, surface an error state (reuse the existing `RetryErrorCard`/error-toast patterns already in this component) instead of silently proceeding into a conversation with no attempt identity.
+
+Every downstream request this component already threads `questionId`/`sessionId` into (turn, action-retry, transcribe, utterance, session-chunk) gains an `attemptId` sibling — same call sites, same pattern, just one more field. `nextAttemptNumber` (the prop from `AssessmentShell`) stops being this component's source of truth for attempt identity; it's superseded by the server-resolved value from `attempt-start` (the two will always agree in practice once Phase F's `nextAttemptNumber` fix lands, since both derive from the same "reuse in-progress, else max+1" rule).
+
+`static_text`/`voice` input areas are unaffected — they never had a pre-answer phase worth tagging, and `evaluate()`'s `getOrCreateCurrentAttempt` fallback (Phase D step 2) covers them exactly as it does today.
+
+**Threading `sessionId` through to `evaluate()`** (new — needed for Phase D step 5, the "winning session" pointer): `AssessmentInputProps.onSubmitForEvaluation` (`src/components/Shared/AssessmentInputs/types.ts`) gains an optional second parameter: `(answerText: string, sessionId?: string) => Promise<void>`. `MultimodalInputArea`'s `finishSubmission` passes its own `sessionId` ref; `StaticTextInputArea`/`VoiceInputArea` simply never pass one (stays `undefined`, matching today's behavior). `AssessmentShell.handleEvaluate` accepts the new param and includes it as `sessionId` in the `/api/evaluate` POST body — the field is already declared on `EvaluateRequestBody`, it's just never been populated by the caller until now.
+
+### Phase F — Correctness fixes (the "ungraded row ≠ attempted" gate), all in `src/lib/queries/submissions.ts` and `src/lib/submissions/grading.ts`
+
+This is the list from direct research, each fixed at the **query layer** so no UI component needs to change — they simply never receive an ungraded attempt object:
+
+- `getQuestionsWithAttempts`: add `graded_at IS NOT NULL` to the "has non-stale attempt" check (feeds `allQuestionsHaveAttempts`/`requireAllAttempts` gate).
+- `getQuestionAttemptsNormalized`: split into two derived values from the same row set — `attempts` (returned to callers) filters to `graded_at IS NOT NULL`; `nextAttemptNumber` becomes "the in-progress non-stale ungraded row's number, if one exists, else `max(all rows) + 1`" (this one still needs to see ungraded rows to compute correctly — it's the one place that legitimately needs both). This single change fixes `AssessmentShell`'s `maxAttemptsReached`, `showCompletion`, `latestAttempt`, `remainingAttempts` — all derived from `attempts` — with no changes in `AssessmentShell.tsx` itself.
+- `getSubmissionGrading` (teacher view): add `graded_at IS NOT NULL` filter — the teacher grading panel should only ever see completed attempts. Fixes `SubmissionGradingPanel.tsx`'s "auto-select last non-stale attempt" and `EditableAttemptGradingForm`'s null-score-means-zero ambiguity, with no changes in either component.
+- `getUnreviewedQuestionIds`/`unreviewedQuestionIds` (release gate): embedded select gains `graded_at`; gate condition becomes `!stale && graded_at != null`. Prevents an in-progress conversation from permanently blocking release.
+- `getStudentIdsWithPendingApprovalsInClass` (`queries/submissions.ts`) and its twin in `contentCompletions.ts`, plus every column read in `SubmissionsListSection.tsx`: **no code change** — all read the trigger-maintained `submissions.has_attempts`/etc., fixed automatically by Phase A step 2.
+
+## Critical files
+
+- `supabase/migrations/20260715000000_attempt_identity.sql` (new)
+- `src/lib/submissions/attempts.ts` (new — `upsertSubmissionQuestion`, `getOrCreateCurrentAttempt`)
+- `src/lib/submissions/attemptSessions.ts` (attemptId param)
+- `src/app/api/multimodal/attempt-session/route.ts` → renamed `src/app/api/multimodal/attempt-start/route.ts`
+- `src/app/api/evaluate/route.ts` (insert → update, drop post-hoc linking)
+- `src/app/api/multimodal/turn/route.ts`, `audio/utterance/route.ts` (attemptId threading; drop their now-redundant `ensureAttemptSession` calls)
+- `src/app/api/multimodal/action-retry/route.ts`, `transcribe/route.ts`, `audio/session-chunk/route.ts` (attemptId threading into `AiCallContext`/payloads, no ensureAttemptSession needed)
+- `src/lib/multimodal/actions/dispatcher.ts`, `src/lib/ai/gateway/speech.ts` (attemptId sibling, same pattern as questionId/sessionId)
+- `src/components/Shared/AssessmentInputs/MultimodalInputArea.tsx` (awaited attempt-start call replaces fire-and-forget session POST; passes `sessionId` into `onSubmitForEvaluation`)
+- `src/components/Shared/AssessmentInputs/types.ts` (`onSubmitForEvaluation` gains optional `sessionId` param), `src/components/Shared/AssessmentShell.tsx` (`handleEvaluate` threads it into the `/api/evaluate` body)
+- `src/lib/queries/submissions.ts`, `src/lib/submissions/grading.ts` (Phase F filters)
+
+## Verification
+
+1. SQL sanity on a staging copy: confirm the RPC is race-safe under two near-simultaneous calls for the same `submission_question_id` (should never create two non-stale ungraded rows); confirm `recompute_submission_rollups` no longer flips `has_attempts`/`total_attempts` for an ungraded row; confirm backfill `attempt_id` counts match `question_id`'s prior backfill counts (same join shape).
+2. Manual click-through: open a multimodal question, do NOT answer, navigate away — confirm `has_attempts`/teacher "pending review" badge stay false, confirm no ghost attempt in the teacher grading panel. Answer and submit — confirm the same `attempt_id` appears on every `ai_invocations` row from that conversation (turns, actions, transcribe) *and* on the final evaluation row, confirm `submission_attempts.graded_at` is set and `created_at` predates it. Refresh mid-conversation *before* submitting — confirm `attempt_sessions` gains a second row (new `session_id`) while `attempt_id`/`attempt_number` stay the same on both rows, then submit and confirm `submission_attempts.session_id` points at the **second** (post-refresh) session — the one whose messages actually got graded — not the first, abandoned one. Confirm the teacher grading panel still shows exactly one (eventually graded) attempt, not one per refresh.
+3. `npx tsc --noEmit`, `npm run lint`, `npm run validate:ai-metering`, `npm run build`.

@@ -73,15 +73,15 @@ export function usePublicSubmissionsForAssignment(assignmentId: string | null) {
  */
 export function useChatMessages(params: {
   submissionId: string | null;
-  questionOrder: number | null;
+  questionId: string | null;
   attemptNumber: number | null;
 }) {
-  const { submissionId, questionOrder, attemptNumber } = params;
+  const { submissionId, questionId, attemptNumber } = params;
   return useSWR<ChatMessageRow[]>(
-    submissionId && questionOrder !== null && attemptNumber !== null
-      ? ["chatMessages", submissionId, questionOrder, attemptNumber]
+    submissionId && questionId !== null && attemptNumber !== null
+      ? ["chatMessages", submissionId, questionId, attemptNumber]
       : null,
-    () => getChatMessages(submissionId!, questionOrder!, attemptNumber!),
+    () => getChatMessages(submissionId!, questionId!, attemptNumber!),
   );
 }
 
@@ -104,15 +104,15 @@ export function useChatMessageActions(chatMessageIds: string[]) {
  */
 export function useVoiceMessagesForAttempt(params: {
   submissionId: string | null;
-  questionOrder: number | null;
+  questionId: string | null;
   attemptNumber: number | null;
 }) {
-  const { submissionId, questionOrder, attemptNumber } = params;
+  const { submissionId, questionId, attemptNumber } = params;
   return useSWR<VoiceMessageRow[]>(
-    submissionId && questionOrder !== null && attemptNumber !== null
-      ? ["voiceMessagesForAttempt", submissionId, questionOrder, attemptNumber]
+    submissionId && questionId !== null && attemptNumber !== null
+      ? ["voiceMessagesForAttempt", submissionId, questionId, attemptNumber]
       : null,
-    () => getVoiceMessagesForAttempt(submissionId!, questionOrder!, attemptNumber!),
+    () => getVoiceMessagesForAttempt(submissionId!, questionId!, attemptNumber!),
   );
 }
 
@@ -122,15 +122,15 @@ export function useVoiceMessagesForAttempt(params: {
  */
 export function useTranscript(params: {
   submissionId: string | null;
-  questionOrder: number | null;
+  questionId: string | null;
   attemptNumber: number | null;
 }) {
-  const { submissionId, questionOrder, attemptNumber } = params;
+  const { submissionId, questionId, attemptNumber } = params;
   return useSWR<string | null>(
-    submissionId && questionOrder !== null && attemptNumber !== null
-      ? ["transcript", submissionId, questionOrder, attemptNumber]
+    submissionId && questionId !== null && attemptNumber !== null
+      ? ["transcript", submissionId, questionId, attemptNumber]
       : null,
-    () => getTranscript(submissionId!, questionOrder!, attemptNumber!)
+    () => getTranscript(submissionId!, questionId!, attemptNumber!)
   );
 }
 
@@ -188,15 +188,15 @@ export function useTranscriptsForSubmission(submissionId: string | null) {
  */
 export function useQuestionAttemptsNormalized(params: {
   submissionId: string | null;
-  questionOrder: number | null;
+  questionId: string | null;
   excludeStale?: boolean;
 }) {
-  const { submissionId, questionOrder, excludeStale = false } = params;
+  const { submissionId, questionId, excludeStale = false } = params;
   return useSWR<NormalizedQuestionAttempts>(
-    submissionId && questionOrder !== null
-      ? ["questionAttemptsNormalized", submissionId, questionOrder, excludeStale]
+    submissionId && questionId !== null
+      ? ["questionAttemptsNormalized", submissionId, questionId, excludeStale]
       : null,
-    () => getQuestionAttemptsNormalized(submissionId!, questionOrder!, excludeStale)
+    () => getQuestionAttemptsNormalized(submissionId!, questionId!, excludeStale)
   );
 }
 
@@ -221,7 +221,7 @@ export function invalidateQuestionAttemptsNormalizedCache(submissionId?: string)
  */
 export async function selectAttempt(params: {
   submissionId: string;
-  questionOrder: number;
+  questionId: string;
   attemptNumber: number;
 }): Promise<Response> {
   const res = await fetch("/api/submissions/select-attempt", {
@@ -258,11 +258,11 @@ export function invalidateSubmissionGradingCache(submissionId?: string) {
 }
 
 /**
- * Fetch the set of question orders that already have at least one
+ * Fetch the set of question ids that already have at least one
  * non-stale attempt for the submission.
  */
 export function useQuestionsWithAttempts(submissionId: string | null) {
-  return useSWR<Set<number>>(
+  return useSWR<Set<string>>(
     submissionId ? ["questionsWithAttempts", submissionId] : null,
     () => getQuestionsWithAttempts(submissionId!),
     {

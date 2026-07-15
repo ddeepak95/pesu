@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai/gateway";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 import { classifyAiError } from "@/lib/ai/errors";
+import { linkInvocationToAttempt } from "@/lib/ai/logging/recordInvocation";
 import { logAppEvent } from "@/lib/logging/appLog";
 import {
   buildFeedbackFocusPromptText,
@@ -23,10 +24,13 @@ import {
   getActivityTypeForAssignment,
   getClassDbIdForAssignment,
 } from "@/lib/assignments/assignmentClassCache";
+import { ensureAttemptSession } from "@/lib/submissions/attemptSessions";
 
 interface EvaluateRequestBody {
   submissionId: string;
   questionOrder: number;
+  questionId: string;
+  sessionId?: string | null;
   answerText: string;
   questionPrompt: string;
   rubric: Array<{ item: string; points: number }>;
@@ -57,6 +61,8 @@ export async function POST(request: NextRequest) {
     const {
       submissionId,
       questionOrder,
+      questionId,
+      sessionId,
       answerText,
       questionPrompt,
       rubric,
@@ -69,6 +75,7 @@ export async function POST(request: NextRequest) {
     if (
       !submissionId ||
       questionOrder === undefined ||
+      !questionId ||
       !answerText ||
       !questionPrompt ||
       !rubric ||
@@ -161,6 +168,8 @@ export async function POST(request: NextRequest) {
       assignmentId,
       submissionId,
       questionOrder,
+      questionId,
+      sessionId,
     };
     let evalHandle;
     try {
@@ -182,8 +191,12 @@ export async function POST(request: NextRequest) {
     const { data: questionRow, error: questionError } = await serviceClient
       .from("submission_questions")
       .upsert(
-        { submission_id: submissionId, question_order: questionOrder },
-        { onConflict: "submission_id,question_order" },
+        {
+          submission_id: submissionId,
+          question_order: questionOrder,
+          question_id: questionId,
+        },
+        { onConflict: "submission_id,question_id" },
       )
       .select("id")
       .single();
@@ -195,17 +208,26 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
-    const questionId = questionRow.id as string;
+    const submissionQuestionId = questionRow.id as string;
 
     const { data: lastAttempt } = await serviceClient
       .from("submission_attempts")
       .select("attempt_number")
-      .eq("submission_question_id", questionId)
+      .eq("submission_question_id", submissionQuestionId)
       .order("attempt_number", { ascending: false })
       .limit(1)
       .maybeSingle();
     const attemptNumber = ((lastAttempt?.attempt_number as number) ?? 0) + 1;
     evalContext.attemptNumber = attemptNumber;
+
+    if (sessionId) {
+      await ensureAttemptSession(serviceClient, {
+        id: sessionId,
+        submissionId,
+        questionId,
+        attemptNumber,
+      });
+    }
 
     // --- Save transcript (and static_activity) keyed by attempt number ---
     const { error: transcriptError } = await supabase
@@ -214,10 +236,12 @@ export async function POST(request: NextRequest) {
         {
           submission_id: submissionId,
           question_order: questionOrder,
+          question_id: questionId,
           attempt_number: attemptNumber,
           answer_text: answerText,
+          session_id: sessionId ?? null,
         },
-        { onConflict: "submission_id,question_order,attempt_number" },
+        { onConflict: "submission_id,question_id,attempt_number" },
       );
     if (transcriptError) {
       console.error("Error saving transcript:", transcriptError);
@@ -231,10 +255,12 @@ export async function POST(request: NextRequest) {
             submission_id: submissionId,
             assignment_id: currentSubmission.assignment_id,
             question_order: questionOrder,
+            question_id: questionId,
             attempt_number: attemptNumber,
             content: answerText,
+            session_id: sessionId ?? null,
           },
-          { onConflict: "submission_id,question_order,attempt_number" },
+          { onConflict: "submission_id,question_id,attempt_number" },
         );
       if (staticError) {
         console.error("Error saving static activity:", staticError);
@@ -278,7 +304,7 @@ export async function POST(request: NextRequest) {
     const { data: attemptRow, error: attemptError } = await serviceClient
       .from("submission_attempts")
       .insert({
-        submission_question_id: questionId,
+        submission_question_id: submissionQuestionId,
         attempt_number: attemptNumber,
         max_score: maxScore,
         stale: false,
@@ -298,6 +324,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const attemptId = attemptRow.id as string;
+    const lastInvocationId = evalHandle.lastInvocationId;
 
     const { error: aiError } = await serviceClient
       .from("attempt_ai_evaluations")
@@ -308,9 +335,14 @@ export async function POST(request: NextRequest) {
         ai_feedback_doc: feedbackDoc,
         ai_rubric_scores: validatedRubricScores,
         model_meta: evalHandle.meta,
+        ai_invocation_id: lastInvocationId ?? null,
       });
     if (aiError) {
       console.error("Error saving AI evaluation audit row:", aiError);
+    }
+
+    if (lastInvocationId) {
+      await linkInvocationToAttempt(lastInvocationId, attemptId);
     }
 
     // --- Selection (default-last) + release branch ---
@@ -324,7 +356,7 @@ export async function POST(request: NextRequest) {
     const { error: selError } = await serviceClient
       .from("submission_questions")
       .update(questionUpdate)
-      .eq("id", questionId);
+      .eq("id", submissionQuestionId);
     if (selError) {
       console.error("Error updating selection/released_score:", selError);
     }
@@ -349,7 +381,7 @@ export async function POST(request: NextRequest) {
       success: true,
       attempt: {
         id: attemptId,
-        submission_question_id: questionId,
+        submission_question_id: submissionQuestionId,
         attempt_number: attemptNumber,
         max_score: maxScore,
         stale: false,

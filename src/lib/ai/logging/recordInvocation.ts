@@ -29,7 +29,10 @@ function contextPayload(ctx: AiInvocationDomainContext) {
     assignmentId: ctx.assignmentId ?? null,
     submissionId: ctx.submissionId ?? null,
     questionOrder: ctx.questionOrder ?? null,
+    questionId: ctx.questionId ?? null,
     attemptNumber: ctx.attemptNumber ?? null,
+    attemptId: ctx.attemptId ?? null,
+    sessionId: ctx.sessionId ?? null,
   };
 }
 
@@ -290,7 +293,10 @@ async function persistAiInvocationStart(
     assignment_id: input.assignmentId ?? null,
     submission_id: input.submissionId ?? null,
     question_order: input.questionOrder ?? null,
+    question_id: input.questionId ?? null,
     attempt_number: input.attemptNumber ?? null,
+    attempt_id: input.attemptId ?? null,
+    session_id: input.sessionId ?? null,
     related_entity_type: input.relatedEntityType ?? null,
     related_entity_id: input.relatedEntityId ?? null,
     request_storage_path: paths?.requestStoragePath ?? null,
@@ -584,6 +590,21 @@ export async function linkInvocationToChatMessage(
 
   if (error) {
     logInvocationError("failed to link chat_message on invocation", error);
+  }
+}
+
+export async function linkInvocationToAttempt(
+  invocationId: string,
+  attemptId: string,
+): Promise<void> {
+  const service = createServiceRoleClient();
+  const { error } = await service
+    .from("ai_invocations")
+    .update({ attempt_id: attemptId })
+    .eq("id", invocationId);
+
+  if (error) {
+    logInvocationError("failed to link attempt on invocation", error);
   }
 }
 

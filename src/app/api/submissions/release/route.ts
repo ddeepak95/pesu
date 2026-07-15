@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: "unreviewed_questions",
-          questionOrders: result.unreviewedQuestionOrders,
+          questionIds: result.unreviewedQuestionIds,
         },
         { status: 409 },
       );

@@ -274,6 +274,17 @@ export function MultimodalInputArea({
   // has started (spoken, or its text has begun streaming).
   const [hasBotStarted, setHasBotStarted] = React.useState(false);
 
+  // Client-minted attempt-session id: a page refresh is a fresh mount, so this
+  // naturally produces a new id with zero persistence logic — the desired
+  // "refresh = new session" behavior. Foundation-only data capture (see
+  // dev-docs/question-stable-ids-plan.md § attempt_session_id); no
+  // abandonment-detection logic or resume UI reads this yet.
+  const sessionIdRef = React.useRef<string | null>(null);
+  if (sessionIdRef.current === null) {
+    sessionIdRef.current = crypto.randomUUID();
+  }
+  const sessionId = sessionIdRef.current;
+
   const { systemPrompt, greeting } = useInterpolatedPrompts({
     question,
     language,
@@ -399,6 +410,24 @@ export function MultimodalInputArea({
     };
   }, []);
 
+  // Fire-and-forget: stamp attempt_sessions.started_at at true page-load time.
+  // Not load-bearing for correctness — every child-writing route also calls
+  // ensureAttemptSession before its own insert, so a slow/failed request here
+  // never blocks a chat/transcript write (see dev-docs/question-stable-ids-plan.md).
+  React.useEffect(() => {
+    void fetch("/api/multimodal/attempt-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        submissionId,
+        questionId: question.id,
+        attemptNumber: nextAttemptNumber,
+      }),
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const hasStarted = messages.length > 0 || isStarting;
 
   const phase: ChatPhase = React.useMemo(() => {
@@ -462,6 +491,7 @@ export function MultimodalInputArea({
       formData.append("submissionId", submissionId);
       formData.append("assignmentId", assignmentId);
       formData.append("questionOrder", String(question.order));
+      formData.append("questionId", question.id);
       formData.append("attemptNumber", String(nextAttemptNumber));
       formData.append("chunkIndex", String(sessionChunkIndex + 1));
       if (sessionChunkIndex === 0 && sessionStartedAtRef.current) {
@@ -483,6 +513,7 @@ export function MultimodalInputArea({
       assignmentId,
       nextAttemptNumber,
       question.order,
+      question.id,
       sessionChunkIndex,
       submissionId,
     ],
@@ -509,6 +540,8 @@ export function MultimodalInputArea({
         formData.append("submissionId", submissionId);
         formData.append("assignmentId", assignmentId);
         formData.append("questionOrder", String(question.order));
+        formData.append("questionId", question.id);
+        formData.append("sessionId", sessionId);
         formData.append("attemptNumber", String(nextAttemptNumber));
         formData.append("utteranceOrdinal", String(input.ordinal));
         formData.append("dbRole", input.dbRole);
@@ -549,6 +582,8 @@ export function MultimodalInputArea({
       nextAttemptNumber,
       flushSessionChunk,
       question.order,
+      question.id,
+      sessionId,
       submissionId,
     ],
   );
@@ -802,6 +837,8 @@ export function MultimodalInputArea({
             assignmentId,
             submissionId,
             questionOrder: question.order,
+            questionId: question.id,
+            sessionId,
             attemptNumber,
             messages: history
               .map((m) => ({ ...m, content: resolveMessageContent(m) }))
@@ -1202,6 +1239,8 @@ export function MultimodalInputArea({
       playback,
       persistUtteranceAudio,
       question.order,
+      question.id,
+      sessionId,
       releaseAssistantTurnUi,
       scheduleAutoFinish,
       commitAssistantTurnToMessages,
@@ -1239,7 +1278,7 @@ export function MultimodalInputArea({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           submissionId,
-          questionOrder: question.order,
+          questionId: question.id,
           attemptNumber: nextAttemptNumber,
         }),
       });
@@ -1263,7 +1302,7 @@ export function MultimodalInputArea({
     isStarting,
     maxAttemptsReached,
     nextAttemptNumber,
-    question.order,
+    question.id,
     runAssistantTurn,
     submissionId,
   ]);
@@ -1713,6 +1752,8 @@ export function MultimodalInputArea({
         formData.append("assignmentId", assignmentId);
         formData.append("submissionId", submissionId);
         formData.append("questionOrder", String(question.order));
+        formData.append("questionId", question.id);
+        formData.append("sessionId", sessionId);
         formData.append("attemptNumber", String(nextAttemptNumber));
         if (recordedDurationMs != null) {
           formData.append("recordingDurationMs", String(recordedDurationMs));
@@ -1807,6 +1848,8 @@ export function MultimodalInputArea({
     directAudioInputEnabled,
     submissionId,
     question.order,
+    question.id,
+    sessionId,
     nextAttemptNumber,
   ]);
 
@@ -1966,6 +2009,8 @@ export function MultimodalInputArea({
             assignmentId,
             submissionId,
             questionOrder: question.order,
+            questionId: question.id,
+            sessionId,
             actionId: action.id,
             input: action.input,
             chatMessageId: action.chatMessageId,
@@ -2018,6 +2063,8 @@ export function MultimodalInputArea({
       assignmentId,
       submissionId,
       question.order,
+      question.id,
+      sessionId,
       language,
       supportEnabled,
       supportLanguage,

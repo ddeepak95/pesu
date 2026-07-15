@@ -70,7 +70,10 @@ function contextInvocationFields(context: AiCallContext) {
     assignmentId: context.assignmentId,
     submissionId: context.submissionId,
     questionOrder: context.questionOrder,
+    questionId: context.questionId,
     attemptNumber: context.attemptNumber,
+    attemptId: context.attemptId,
+    sessionId: context.sessionId,
     userId: context.userId,
   };
 }

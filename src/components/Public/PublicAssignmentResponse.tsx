@@ -76,7 +76,7 @@ const PublicAssignmentResponse = forwardRef<
   const [displayName, setDisplayName] = useState<string>("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [existingAnswers, setExistingAnswers] = useState<{
-    [key: number]: string;
+    [key: string]: string;
   }>({});
   const [integrityRevoked, setIntegrityRevoked] = useState<{
     at: string;
@@ -196,15 +196,15 @@ const PublicAssignmentResponse = forwardRef<
       }
 
       // Reconstruct answers from transcripts table
-      const reconstructedAnswers: { [key: number]: string } = {};
+      const reconstructedAnswers: { [key: string]: string } = {};
       const transcripts = await fetchTranscriptsForSubmissionTracked(
         submission.submission_id
       );
 
-      // Build a map of question_order -> latest transcript text
+      // Build a map of question_id -> latest transcript text
       for (const t of transcripts) {
-        if (!reconstructedAnswers[t.question_order] || t.attempt_number > 0) {
-          reconstructedAnswers[t.question_order] = t.answer_text;
+        if (!reconstructedAnswers[t.question_id] || t.attempt_number > 0) {
+          reconstructedAnswers[t.question_id] = t.answer_text;
         }
       }
       setExistingAnswers(reconstructedAnswers);

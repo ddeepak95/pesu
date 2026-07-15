@@ -118,6 +118,8 @@ export interface RubricItem {
 }
 
 export interface Question {
+  /** Stable identity, client-minted (crypto.randomUUID()); survives reorder. */
+  id: string;
   order: number;
   prompt: string;
   total_points: number;
@@ -200,9 +202,9 @@ export interface BotPromptConfig {
   conversation_start: ConversationStartConfig;
   /**
    * Optional per-question overrides for system prompt and conversation start.
-   * Key is the question order (0-based index).
+   * Key is the question's stable `id`.
    */
-  question_overrides?: Record<number, QuestionPromptOverride>;
+  question_overrides?: Record<string, QuestionPromptOverride>;
   /**
    * Multimodal-only: which rich actions (MCQ, etc.) the tutor may use, and when
    * to end the conversation. Only consulted in multimodal assessment mode.

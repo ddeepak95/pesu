@@ -35,42 +35,42 @@ export function pickLastAttemptId(attempts: AttemptLite[]): string | null {
 }
 
 interface QuestionGateRow {
-  question_order: number;
+  question_id: string;
   submission_attempts: { stale: boolean }[] | null;
   // UNIQUE fk -> PostgREST returns a to-one object (or null), not an array.
   submission_question_reviews: { id: string } | { id: string }[] | null;
 }
 
 /**
- * Pure review-gate check: returns the orders of questions that have at least one
+ * Pure review-gate check: returns the ids of questions that have at least one
  * non-stale attempt but no review row. An empty array means the gate is satisfied.
  */
-export function unreviewedQuestionOrders(rows: QuestionGateRow[]): number[] {
-  const out: number[] = [];
+export function unreviewedQuestionIds(rows: QuestionGateRow[]): string[] {
+  const out: string[] = [];
   for (const q of rows) {
     const hasNonStale = (q.submission_attempts ?? []).some((a) => !a.stale);
     const rev = q.submission_question_reviews;
     const reviewed = Array.isArray(rev) ? rev.length > 0 : rev != null;
-    if (hasNonStale && !reviewed) out.push(q.question_order);
+    if (hasNonStale && !reviewed) out.push(q.question_id);
   }
-  return out.sort((a, b) => a - b);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
 // DB-backed helpers
 // ---------------------------------------------------------------------------
 
-/** Resolve a submission_questions.id from (submission_id, question_order). */
+/** Resolve a submission_questions.id from (submission_id, question_id). */
 async function getQuestionId(
   supabase: SupabaseClient,
   submissionId: string,
-  questionOrder: number
+  questionId: string
 ): Promise<string | null> {
   const { data } = await supabase
     .from("submission_questions")
     .select("id")
     .eq("submission_id", submissionId)
-    .eq("question_order", questionOrder)
+    .eq("question_id", questionId)
     .maybeSingle();
   return (data?.id as string | undefined) ?? null;
 }
@@ -90,18 +90,18 @@ async function getAttemptIdsForSubmission(
 }
 
 /** Fetch the review-gate state for every question in a submission. */
-export async function getUnreviewedQuestionOrders(
+export async function getUnreviewedQuestionIds(
   supabase: SupabaseClient,
   submissionId: string
-): Promise<number[]> {
+): Promise<string[]> {
   const { data, error } = await supabase
     .from("submission_questions")
     .select(
-      "question_order, submission_attempts!submission_attempts_submission_question_id_fkey(stale), submission_question_reviews(id)"
+      "question_id, submission_attempts!submission_attempts_submission_question_id_fkey(stale), submission_question_reviews(id)"
     )
     .eq("submission_id", submissionId);
   if (error) throw error;
-  return unreviewedQuestionOrders((data ?? []) as QuestionGateRow[]);
+  return unreviewedQuestionIds((data ?? []) as QuestionGateRow[]);
 }
 
 export interface AttemptEdit {
@@ -114,7 +114,7 @@ export interface AttemptEdit {
 }
 
 export interface SelectionOverride {
-  questionOrder: number;
+  questionId: string;
   selectedAttemptId: string;
 }
 
@@ -125,7 +125,7 @@ export interface ReleaseOptions {
 
 export type ReleaseResult =
   | { ok: true }
-  | { ok: false; unreviewedQuestionOrders: number[] };
+  | { ok: false; unreviewedQuestionIds: string[] };
 
 /**
  * Recompute each question's released_score from its selected attempt's (published)
@@ -175,7 +175,7 @@ export async function releaseSubmission(
       .from("submission_questions")
       .update({ selected_attempt_id: sel.selectedAttemptId })
       .eq("submission_id", submissionId)
-      .eq("question_order", sel.questionOrder);
+      .eq("question_id", sel.questionId);
     if (error) throw error;
   }
 
@@ -187,9 +187,9 @@ export async function releaseSubmission(
     .maybeSingle();
   const alreadyReleased = subRow?.feedback_released_at != null;
   if (!alreadyReleased) {
-    const unreviewed = await getUnreviewedQuestionOrders(supabase, submissionId);
+    const unreviewed = await getUnreviewedQuestionIds(supabase, submissionId);
     if (unreviewed.length > 0) {
-      return { ok: false, unreviewedQuestionOrders: unreviewed };
+      return { ok: false, unreviewedQuestionIds: unreviewed };
     }
   }
 
@@ -328,19 +328,19 @@ export async function discardDrafts(
 export async function setQuestionReviewed(
   supabase: SupabaseClient,
   submissionId: string,
-  questionOrder: number,
+  questionId: string,
   reviewed: boolean,
   reviewedBy: string | null
 ): Promise<void> {
-  const questionId = await getQuestionId(supabase, submissionId, questionOrder);
-  if (!questionId) throw new Error(`question not found: ${submissionId}/${questionOrder}`);
+  const submissionQuestionId = await getQuestionId(supabase, submissionId, questionId);
+  if (!submissionQuestionId) throw new Error(`question not found: ${submissionId}/${questionId}`);
 
   if (reviewed) {
     const { error } = await supabase
       .from("submission_question_reviews")
       .upsert(
         {
-          submission_question_id: questionId,
+          submission_question_id: submissionQuestionId,
           reviewed_at: new Date().toISOString(),
           reviewed_by: reviewedBy,
         },
@@ -351,7 +351,7 @@ export async function setQuestionReviewed(
     const { error } = await supabase
       .from("submission_question_reviews")
       .delete()
-      .eq("submission_question_id", questionId);
+      .eq("submission_question_id", submissionQuestionId);
     if (error) throw error;
   }
 }
@@ -368,35 +368,35 @@ export async function setQuestionReviewed(
 export async function setSelectedAttempt(
   supabase: SupabaseClient,
   submissionId: string,
-  questionOrder: number,
+  questionId: string,
   attemptNumber: number,
   opts: { clearReview?: boolean } = {}
 ): Promise<void> {
-  const questionId = await getQuestionId(supabase, submissionId, questionOrder);
-  if (!questionId) throw new Error(`question not found: ${submissionId}/${questionOrder}`);
+  const submissionQuestionId = await getQuestionId(supabase, submissionId, questionId);
+  if (!submissionQuestionId) throw new Error(`question not found: ${submissionId}/${questionId}`);
 
   const { data: attempt, error: aErr } = await supabase
     .from("submission_attempts")
     .select("id")
-    .eq("submission_question_id", questionId)
+    .eq("submission_question_id", submissionQuestionId)
     .eq("attempt_number", attemptNumber)
     .maybeSingle();
   if (aErr) throw aErr;
   if (!attempt) {
-    throw new Error(`attempt not found: ${submissionId}/${questionOrder}/${attemptNumber}`);
+    throw new Error(`attempt not found: ${submissionId}/${questionId}/${attemptNumber}`);
   }
 
   const { error } = await supabase
     .from("submission_questions")
     .update({ selected_attempt_id: attempt.id })
-    .eq("id", questionId);
+    .eq("id", submissionQuestionId);
   if (error) throw error;
 
   if (opts.clearReview) {
     const { error: rErr } = await supabase
       .from("submission_question_reviews")
       .delete()
-      .eq("submission_question_id", questionId);
+      .eq("submission_question_id", submissionQuestionId);
     if (rErr) throw rErr;
   }
 }

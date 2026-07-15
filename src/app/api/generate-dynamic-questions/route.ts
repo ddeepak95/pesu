@@ -228,6 +228,7 @@ async function generateMergedQuestions(
     }
 
     output.push({
+      id: t.id,
       order: i,
       prompt,
       total_points: points,

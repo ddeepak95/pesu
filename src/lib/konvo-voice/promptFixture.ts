@@ -11,6 +11,7 @@ export const KONVO_DEMO_ASSIGNMENT = {
 };
 
 export const KONVO_DEMO_QUESTION: Question = {
+  id: "konvo-demo-question",
   order: 0,
   prompt:
     "Explain the process of photosynthesis in your own words. What do plants need, and what do they produce?",

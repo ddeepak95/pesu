@@ -30,13 +30,13 @@ export function StaticTextInputArea({
   const { logEvent } = useActivityTracking({
     componentType: "question",
     componentId: assignmentId,
-    subComponentId: String(question.order),
+    subComponentId: String(question.id),
   });
 
   const restoredFromStorageRef = React.useRef(false);
   const storageKey = React.useMemo(
-    () => `static-${submissionId}-${question.order}`,
-    [submissionId, question.order],
+    () => `static-${submissionId}-${question.id}`,
+    [submissionId, question.id],
   );
 
   const { guard, sync } = React.useMemo(

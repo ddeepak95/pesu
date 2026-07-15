@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getStorageBucket } from "@/lib/firebase-admin";
+import { ensureAttemptSession } from "@/lib/submissions/attemptSessions";
 
 type DbRole = "student" | "assistant";
 type StorageRole = "user" | "bot";
@@ -25,6 +26,8 @@ export async function POST(request: NextRequest) {
     const submissionId = asText(formData.get("submissionId"));
     const assignmentId = asText(formData.get("assignmentId"));
     const questionOrder = asInt(formData.get("questionOrder"));
+    const questionId = asText(formData.get("questionId"));
+    const sessionId = asText(formData.get("sessionId"));
     const attemptNumber = asInt(formData.get("attemptNumber"));
     const utteranceOrdinal = asInt(formData.get("utteranceOrdinal"));
     const dbRole = asText(formData.get("dbRole")) as DbRole | null;
@@ -40,6 +43,7 @@ export async function POST(request: NextRequest) {
       !submissionId ||
       !assignmentId ||
       questionOrder == null ||
+      !questionId ||
       attemptNumber == null ||
       utteranceOrdinal == null ||
       (dbRole !== "student" && dbRole !== "assistant") ||
@@ -68,6 +72,15 @@ export async function POST(request: NextRequest) {
     const utteranceId = `${submissionId}:${questionOrder}:${attemptNumber}:${storageRole}:${utteranceOrdinal}`;
     const supabase = await createServerSupabaseClient();
 
+    if (sessionId) {
+      await ensureAttemptSession(supabase, {
+        id: sessionId,
+        submissionId,
+        questionId,
+        attemptNumber,
+      });
+    }
+
     const { data: existing } = await supabase
       .from("voice_messages")
       .select("id")
@@ -79,6 +92,7 @@ export async function POST(request: NextRequest) {
       submission_id: submissionId,
       assignment_id: assignmentId,
       question_order: questionOrder,
+      question_id: questionId,
       role: dbRole,
       content,
       audio_file_url: audioFileUrl,
@@ -88,6 +102,7 @@ export async function POST(request: NextRequest) {
       generated_content: generatedContent,
       utterance_id: utteranceId,
       chat_message_id: chatMessageId,
+      session_id: sessionId,
     };
 
     if (existing?.id) {

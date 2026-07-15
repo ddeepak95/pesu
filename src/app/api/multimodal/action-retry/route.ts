@@ -16,6 +16,8 @@ interface ActionRetryRequestBody {
   assignmentId: string;
   submissionId?: string | null;
   questionOrder: number;
+  questionId: string;
+  sessionId?: string | null;
   actionId: string;
   input: unknown;
   chatMessageId: string;
@@ -38,6 +40,8 @@ export async function POST(request: NextRequest) {
       assignmentId,
       submissionId,
       questionOrder,
+      questionId,
+      sessionId,
       actionId,
       chatMessageId,
       language,
@@ -47,6 +51,7 @@ export async function POST(request: NextRequest) {
     if (
       !assignmentId ||
       questionOrder === undefined ||
+      !questionId ||
       !actionId ||
       !chatMessageId ||
       !language?.trim()
@@ -95,7 +100,7 @@ export async function POST(request: NextRequest) {
         .from("chat_messages")
         .select("role, content, created_at")
         .eq("submission_id", submissionId ?? "")
-        .eq("question_order", questionOrder)
+        .eq("question_id", questionId)
         .order("created_at", { ascending: true });
       const recentMessages = (recentRows ?? [])
         .filter((r) => typeof r.content === "string" && r.content.trim())
@@ -111,6 +116,8 @@ export async function POST(request: NextRequest) {
           assignmentId,
           submissionId,
           questionOrder,
+          questionId,
+          sessionId: sessionId ?? null,
           relatedEntity: { type: "chat_message_action", id: actionId },
         },
         kind: action.kind,
@@ -144,6 +151,8 @@ export async function POST(request: NextRequest) {
           classId: classDbId,
           assignmentId,
           questionOrder,
+          questionId,
+          sessionId: sessionId ?? null,
         });
       } catch (err) {
         // dispatchAction already logged the terminal failure with
@@ -159,6 +168,7 @@ export async function POST(request: NextRequest) {
           activityId: assignmentId,
           submissionId: submissionId ?? null,
           questionOrder,
+          questionId,
           metadata: { kind: action.kind },
         });
         const status =

@@ -21,7 +21,7 @@ const SUBMISSION_SESSION_RESTORE_COLUMNS =
 
 /** All columns for the submission_transcripts table */
 const TRANSCRIPT_ALL_COLUMNS =
-  "id, submission_id, question_order, attempt_number, answer_text, created_at";
+  "id, submission_id, question_order, question_id, attempt_number, answer_text, created_at";
 
 /**
  * Generate a unique short submission ID
@@ -79,7 +79,7 @@ export async function getStudentIdsWithPendingApprovalsInClass(
  */
 export async function getTranscript(
   submissionId: string,
-  questionOrder: number,
+  questionId: string,
   attemptNumber: number
 ): Promise<string | null> {
   const supabase = createClient();
@@ -88,7 +88,7 @@ export async function getTranscript(
     .from("submission_transcripts")
     .select("answer_text")
     .eq("submission_id", submissionId)
-    .eq("question_order", questionOrder)
+    .eq("question_id", questionId)
     .eq("attempt_number", attemptNumber)
     .maybeSingle();
 
@@ -106,14 +106,14 @@ export async function getTranscript(
  */
 export async function getLatestTranscript(
   submissionId: string,
-  questionOrder: number
+  questionId: string
 ): Promise<string | null> {
   const supabase = createClient();
 
   // Resolve latest non-stale attempt from the normalized tables.
   const { attempts } = await getQuestionAttemptsNormalized(
     submissionId,
-    questionOrder,
+    questionId,
     true,
   );
   if (attempts.length === 0) return null;
@@ -129,7 +129,7 @@ export async function getLatestTranscript(
     .from("submission_transcripts")
     .select("answer_text")
     .eq("submission_id", submissionId)
-    .eq("question_order", questionOrder)
+    .eq("question_id", questionId)
     .eq("attempt_number", latestAttemptNumber)
     .maybeSingle();
 
@@ -414,30 +414,30 @@ export async function getSubmissionForSessionRestore(
 // ---------------------------------------------------------------------------
 
 /**
- * Return the set of question orders that have at least one non-stale attempt.
+ * Return the set of question ids that have at least one non-stale attempt.
  * Single DB round-trip — replaces per-question getQuestionAttempts loops.
  */
 export async function getQuestionsWithAttempts(
   submissionId: string
-): Promise<Set<number>> {
+): Promise<Set<string>> {
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("submission_questions")
     .select(
-      "question_order, submission_attempts!submission_attempts_submission_question_id_fkey(stale)"
+      "question_id, submission_attempts!submission_attempts_submission_question_id_fkey(stale)"
     )
     .eq("submission_id", submissionId);
 
   if (error || !data) return new Set();
 
-  const result = new Set<number>();
+  const result = new Set<string>();
   for (const q of data as {
-    question_order: number;
+    question_id: string;
     submission_attempts: { stale: boolean }[] | null;
   }[]) {
     if ((q.submission_attempts ?? []).some((a) => !a.stale)) {
-      result.add(q.question_order);
+      result.add(q.question_id);
     }
   }
   return result;
@@ -500,7 +500,7 @@ export interface NormalizedQuestionAttempts {
  */
 export async function getQuestionAttemptsNormalized(
   submissionId: string,
-  questionOrder: number,
+  questionId: string,
   excludeStale: boolean = false
 ): Promise<NormalizedQuestionAttempts> {
   const supabase = createClient();
@@ -532,7 +532,7 @@ export async function getQuestionAttemptsNormalized(
       "id, selected_attempt_id, submission_attempts!submission_attempts_submission_question_id_fkey(id, submission_question_id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, created_at)"
     )
     .eq("submission_id", submissionId)
-    .eq("question_order", questionOrder)
+    .eq("question_id", questionId)
     .maybeSingle();
 
   if (error) {
@@ -590,6 +590,7 @@ export interface TeacherGradingAttempt {
 export interface TeacherGradingQuestion {
   id: string;
   question_order: number;
+  question_id: string;
   selected_attempt_id: string | null;
   released_score: number | null;
   reviewed: boolean;
@@ -631,6 +632,7 @@ interface RawTeacherAttemptRow {
 interface RawTeacherQuestionRow {
   id: string;
   question_order: number;
+  question_id: string;
   selected_attempt_id: string | null;
   released_score: number | string | null;
   submission_attempts: RawTeacherAttemptRow[] | null;
@@ -668,7 +670,7 @@ export async function getSubmissionGrading(
   const { data, error } = await supabase
     .from("submission_questions")
     .select(
-      "id, question_order, selected_attempt_id, released_score, " +
+      "id, question_order, question_id, selected_attempt_id, released_score, " +
         "submission_attempts!submission_attempts_submission_question_id_fkey(" +
         "id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, " +
         "attempt_ai_evaluations(ai_score, ai_feedback, ai_feedback_doc, ai_rubric_scores), " +
@@ -716,6 +718,7 @@ export async function getSubmissionGrading(
     return {
       id: q.id,
       question_order: q.question_order,
+      question_id: q.question_id,
       selected_attempt_id: q.selected_attempt_id,
       released_score: q.released_score == null ? null : Number(q.released_score),
       reviewed: review != null,

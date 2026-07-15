@@ -265,9 +265,7 @@ export function interpolatePromptsForRuntime(
   );
 
   // Check for question-specific overrides
-  // Note: JSON keys are always strings, so we need to check both number and string keys
-  const questionOverride = config.question_overrides?.[question.order] 
-    || config.question_overrides?.[String(question.order) as unknown as number];
+  const questionOverride = config.question_overrides?.[question.id];
 
   // Get the system prompt (with override if exists)
   const systemPromptTemplate =

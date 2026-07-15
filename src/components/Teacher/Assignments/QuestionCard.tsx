@@ -69,7 +69,7 @@ interface QuestionCardProps {
   showBotOverride?: boolean;
   questionOverride?: QuestionPromptOverride;
   onQuestionOverrideChange?: (
-    questionOrder: number,
+    questionId: string,
     override: QuestionPromptOverride | undefined,
   ) => void;
   defaultSystemPrompt?: string;
@@ -663,7 +663,7 @@ export default function QuestionCard({
             <QuestionPromptOverrideEditor
               override={questionOverride}
               onChange={(override) =>
-                onQuestionOverrideChange(question.order, override)
+                onQuestionOverrideChange(question.id, override)
               }
               defaultSystemPrompt={defaultSystemPrompt}
               defaultConversationStart={defaultConversationStart}

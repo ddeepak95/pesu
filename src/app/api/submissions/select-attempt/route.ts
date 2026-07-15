@@ -4,18 +4,18 @@ import { setSelectedAttempt } from "@/lib/submissions/grading";
 
 interface SelectAttemptRequestBody {
   submissionId: string;
-  questionOrder: number;
+  questionId: string;
   attemptNumber: number;
 }
 
 export async function PATCH(request: NextRequest) {
   try {
     const body: SelectAttemptRequestBody = await request.json();
-    const { submissionId, questionOrder, attemptNumber } = body;
+    const { submissionId, questionId, attemptNumber } = body;
 
-    if (!submissionId || questionOrder === undefined || !attemptNumber) {
+    if (!submissionId || !questionId || !attemptNumber) {
       return NextResponse.json(
-        { error: "Missing required fields: submissionId, questionOrder, attemptNumber" },
+        { error: "Missing required fields: submissionId, questionId, attemptNumber" },
         { status: 400 },
       );
     }
@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest) {
       // grading decision, so an existing review is preserved (not cleared); when
       // the submission is already released, setSelectedAttempt re-syncs the
       // released score to the newly counted attempt.
-      await setSelectedAttempt(supabase, submissionId, questionOrder, attemptNumber, {
+      await setSelectedAttempt(supabase, submissionId, questionId, attemptNumber, {
         clearReview: false,
       });
       return NextResponse.json({ success: true });
@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    await setSelectedAttempt(supabase, submissionId, questionOrder, attemptNumber, {
+    await setSelectedAttempt(supabase, submissionId, questionId, attemptNumber, {
       clearReview: false,
     });
     return NextResponse.json({ success: true });

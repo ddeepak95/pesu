@@ -26,7 +26,10 @@ export interface AiCallContext {
   assignmentId?: string | null;
   submissionId?: string | null;
   questionOrder?: number | null;
+  questionId?: string | null;
   attemptNumber?: number | null;
+  attemptId?: string | null;
+  sessionId?: string | null;
   /** Acting user (request auth). */
   userId?: string | null;
   relatedEntity?: { type: string; id: string } | null;
@@ -34,6 +37,8 @@ export interface AiCallContext {
 
 export interface MeteredTextModel {
   readonly meta: { provider: string; modelId: string; keySource: AiConfigSource };
+  /** The invocation id of the most recent generateStructured call (overwritten on every call). */
+  readonly lastInvocationId: string | null;
   generateStructured<T>(opts: {
     schema: FlexibleSchema<T>;
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -49,6 +54,11 @@ export interface MeteredTextModel {
 
 class MeteredTextModelImpl implements MeteredTextModel {
   readonly meta: { provider: string; modelId: string; keySource: AiConfigSource };
+  private _lastInvocationId: string | null = null;
+
+  get lastInvocationId(): string | null {
+    return this._lastInvocationId;
+  }
 
   constructor(
     private readonly runtime: ReturnType<typeof getLanguageModel>,
@@ -61,14 +71,14 @@ class MeteredTextModelImpl implements MeteredTextModel {
     this.meta = modelMeta;
   }
 
-  generateStructured<T>(opts: {
+  async generateStructured<T>(opts: {
     schema: FlexibleSchema<T>;
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
     maxRetries?: number;
     onRetryAttempt?: OnRetryAttempt;
     schemaName?: string;
   }): Promise<T> {
-    return generateStructuredInternal({
+    const { output, invocationId } = await generateStructuredInternal({
       model: this.runtime,
       providerOptions: this.providerOptions,
       schema: opts.schema,
@@ -83,13 +93,18 @@ class MeteredTextModelImpl implements MeteredTextModel {
         assignmentId: this.context.assignmentId,
         submissionId: this.context.submissionId,
         questionOrder: this.context.questionOrder,
+        questionId: this.context.questionId,
         attemptNumber: this.context.attemptNumber,
+        attemptId: this.context.attemptId,
+        sessionId: this.context.sessionId,
         userId: this.context.userId,
         relatedEntityType: this.context.relatedEntity?.type ?? null,
         relatedEntityId: this.context.relatedEntity?.id ?? null,
         schemaName: opts.schemaName,
       },
     });
+    this._lastInvocationId = invocationId;
+    return output;
   }
 
   streamTurn(opts: Omit<MultimodalTurnStreamOptions, "model" | "providerOptions">) {

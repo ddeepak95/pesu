@@ -58,6 +58,8 @@ export interface DispatchActionArgs {
   classId?: string | null;
   assignmentId?: string | null;
   questionOrder?: number | null;
+  questionId?: string | null;
+  sessionId?: string | null;
 }
 
 /** Cap on each silent-retry backoff — actions run in parallel with TTS, so a
@@ -106,6 +108,7 @@ export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
           activityId: args.assignmentId,
           submissionId: args.submissionId,
           questionOrder: args.questionOrder,
+          questionId: args.questionId,
           metadata: { attempt, kind },
         });
       },
@@ -122,6 +125,7 @@ export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
       activityId: args.assignmentId,
       submissionId: args.submissionId,
       questionOrder: args.questionOrder,
+      questionId: args.questionId,
       metadata: { kind },
     });
     throw err;

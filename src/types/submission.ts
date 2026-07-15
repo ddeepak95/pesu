@@ -23,6 +23,7 @@ export interface RubricScore {
 export interface SubmissionQuestion {
   id: string;
   submission_id: string;
+  question_id: string;
   question_order: number;
   selected_attempt_id: string | null;
   released_score: number | null;
@@ -60,6 +61,7 @@ export interface SubmissionAttempt {
 export interface SubmissionTranscript {
   id: string;
   submission_id: string;
+  question_id: string;
   question_order: number;
   attempt_number: number;
   answer_text: string;
@@ -74,6 +76,7 @@ export interface StaticActivity {
   id: string;
   submission_id: string;
   assignment_id: string;
+  question_id: string;
   question_order: number;
   attempt_number: number;
   content: string;

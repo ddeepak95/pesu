@@ -49,9 +49,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export interface GenerateStructuredInternalResult<T> {
+  output: T;
+  /** The invocation id of the successful attempt (not the retry anchor). */
+  invocationId: string | null;
+}
+
 export async function generateStructuredInternal<T>(
   options: GatewayGenerateStructuredOptions<T>,
-): Promise<T> {
+): Promise<GenerateStructuredInternalResult<T>> {
   const {
     model,
     schema,
@@ -114,7 +120,7 @@ export async function generateStructuredInternal<T>(
         );
       }
 
-      return result.output as T;
+      return { output: result.output as T, invocationId };
     } catch (err) {
       lastError = err;
 

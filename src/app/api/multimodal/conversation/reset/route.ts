@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 interface ResetConversationBody {
   submissionId?: string;
-  questionOrder?: number;
+  questionId?: string;
   attemptNumber?: number;
 }
 
@@ -21,12 +21,12 @@ interface ResetConversationBody {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { submissionId, questionOrder, attemptNumber } =
+    const { submissionId, questionId, attemptNumber } =
       (await request.json()) as ResetConversationBody;
 
     if (
       !submissionId ||
-      questionOrder == null ||
+      !questionId ||
       attemptNumber == null
     ) {
       return NextResponse.json(
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerSupabaseClient();
     const match = {
       submission_id: submissionId,
-      question_order: questionOrder,
+      question_id: questionId,
       attempt_number: attemptNumber,
     };
 

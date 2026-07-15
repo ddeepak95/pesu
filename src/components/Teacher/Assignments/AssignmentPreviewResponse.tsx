@@ -56,7 +56,7 @@ export default function AssignmentPreviewResponse({
   const [loading, setLoading] = useState(true);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [existingAnswers, setExistingAnswers] = useState<{
-    [key: number]: string;
+    [key: string]: string;
   }>({});
   const [uploadedFiles, setUploadedFiles] = useState<SubmissionFile[]>([]);
   const [generatedQuestions, setGeneratedQuestions] = useState<
@@ -95,10 +95,10 @@ export default function AssignmentPreviewResponse({
     async (sid: string) => {
       // Reconstruct prior answers from transcripts so re-opening preview resumes.
       const transcripts = await fetchTranscriptsForSubmissionTracked(sid);
-      const answers: { [key: number]: string } = {};
+      const answers: { [key: string]: string } = {};
       for (const t of transcripts) {
-        if (!answers[t.question_order] || t.attempt_number > 0) {
-          answers[t.question_order] = t.answer_text;
+        if (!answers[t.question_id] || t.attempt_number > 0) {
+          answers[t.question_id] = t.answer_text;
         }
       }
       setExistingAnswers(answers);

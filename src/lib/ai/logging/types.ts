@@ -23,7 +23,10 @@ export interface AiInvocationDomainContext {
   assignmentId?: string | null;
   submissionId?: string | null;
   questionOrder?: number | null;
+  questionId?: string | null;
   attemptNumber?: number | null;
+  attemptId?: string | null;
+  sessionId?: string | null;
   /** Acting user (request auth context) — §4.1. */
   userId?: string | null;
   /** Links this invocation to a domain row (e.g. a chat_message_action id) — §5.3. */

@@ -35,7 +35,7 @@ interface AssessmentNavigationProps {
   // Attempt validation props
   requireAllAttempts?: boolean;
   allQuestionsHaveAttempts?: boolean;
-  questionsWithAttempts?: Set<number>;
+  questionsWithAttempts?: Set<string>;
   completedQuestionIndices?: number[];
   onGoToQuestion?: (index: number) => void;
   totalQuestions?: number;

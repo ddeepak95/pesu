@@ -42,7 +42,7 @@ interface AssignmentResponseCoreProps {
   /** Scopes the localStorage session key to the logged-in student; omitted for the public (no-account) flow. */
   sessionUserId?: string;
   initialQuestionIndex?: number; // Initial question index
-  existingAnswers?: { [key: number]: string }; // Existing answers to restore
+  existingAnswers?: { [key: string]: string }; // Existing answers to restore
   /** When server returns integrity lock during evaluate */
   onIntegrityAccessRevoked?: () => void;
   /** True when the wrapper is showing the integrity-revoked screen (hook safety; Core usually unmounts). */
@@ -103,7 +103,7 @@ export default function AssignmentResponseCore({
 }: AssignmentResponseCoreProps) {
   const [currentStepIndex, setCurrentStepIndex] =
     useState(initialQuestionIndex);
-  const [answers, setAnswers] = useState<{ [key: number]: string }>(
+  const [answers, setAnswers] = useState<{ [key: string]: string }>(
     existingAnswers,
   );
   // Use assignment's preferred_language as fallback if initialPreferredLanguage is empty
@@ -115,7 +115,7 @@ export default function AssignmentResponseCore({
   // global overlay covers the load).
   const questionsWithAttemptsQuery = useQuestionsWithAttempts(submissionId);
   const questionsWithAttempts = useMemo(
-    () => questionsWithAttemptsQuery.data ?? new Set<number>(),
+    () => questionsWithAttemptsQuery.data ?? new Set<string>(),
     [questionsWithAttemptsQuery.data]
   );
 
@@ -182,7 +182,7 @@ export default function AssignmentResponseCore({
     () =>
       sortedQuestions
         .map((q, i) => i)
-        .filter((i) => questionsWithAttempts.has(sortedQuestions[i].order)),
+        .filter((i) => questionsWithAttempts.has(sortedQuestions[i].id)),
     [sortedQuestions, questionsWithAttempts]
   );
 
@@ -209,7 +209,7 @@ export default function AssignmentResponseCore({
 
     setAnswers((prev) => ({
       ...prev,
-      [currentQuestion.order]: transcript,
+      [currentQuestion.id]: transcript,
     }));
 
     updateQuestionIndex(assignmentId, currentStepIndex, sessionUserId);
@@ -582,7 +582,7 @@ export default function AssignmentResponseCore({
         </div>
       ) : currentQuestion ? (
         <AssessmentShell
-          key={currentQuestion.order}
+          key={currentQuestion.id}
           assessmentMode={assessmentMode}
           question={currentQuestion}
           language={preferredLanguage}
@@ -595,7 +595,7 @@ export default function AssignmentResponseCore({
           onNext={handleNext}
           isFirstQuestion={currentStepIndex === 0}
           isLastQuestion={isLastQuestion}
-          existingAnswer={answers[currentQuestion.order]}
+          existingAnswer={answers[currentQuestion.id]}
           onLanguageChange={handleLanguageChange}
           languageLocked={assignmentData.lock_language ?? false}
           maxAttempts={previewMode ? undefined : assignmentData.max_attempts ?? 1}

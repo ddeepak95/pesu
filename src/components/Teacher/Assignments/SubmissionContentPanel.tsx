@@ -97,7 +97,7 @@ export function SubmissionContentPanel({
   }, [assignment, fullSubmission]);
 
   const currentQuestion = questions[selectedQuestionIndex] ?? null;
-  const questionOrder = currentQuestion?.order ?? null;
+  const questionId = currentQuestion?.id ?? null;
 
   const hasFileSubmission = !!assignment?.file_submission_config;
   const isStaticText = assignment?.assessment_mode === "static_text";
@@ -106,7 +106,7 @@ export function SubmissionContentPanel({
   // Transcript data
   const chatMessagesQuery = useChatMessages({
     submissionId: showConversation ? submissionId : null,
-    questionOrder: showConversation ? questionOrder : null,
+    questionId: showConversation ? questionId : null,
     attemptNumber: selectedAttemptNumber,
   });
 
@@ -116,14 +116,14 @@ export function SubmissionContentPanel({
 
   const voiceQuery = useVoiceMessagesForAttempt({
     submissionId: showConversation ? submissionId : null,
-    questionOrder: showConversation ? questionOrder : null,
+    questionId: showConversation ? questionId : null,
     attemptNumber: selectedAttemptNumber,
   });
 
   // Static-text answer for the selected attempt (read from submission_transcripts).
   const transcriptQuery = useTranscript({
     submissionId: isStaticText && showConversation ? submissionId : null,
-    questionOrder: isStaticText && showConversation ? questionOrder : null,
+    questionId: isStaticText && showConversation ? questionId : null,
     attemptNumber: selectedAttemptNumber,
   });
 

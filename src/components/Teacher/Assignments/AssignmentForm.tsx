@@ -80,6 +80,14 @@ import {
   type AssessmentMode,
 } from "@/lib/settings/registry";
 
+/** Legacy-backfill-on-load: mint a stable id for any question missing one (mirrors QuizForm.tsx). */
+function ensureQuestionIds(questions: Question[]): Question[] {
+  return questions.map((q) => ({
+    ...q,
+    id: q.id || crypto.randomUUID(),
+  }));
+}
+
 /**
  * Seed a multimodal bot config's language-support block from the class-level
  * language defaults. Used in create mode only: the class config provides the
@@ -290,6 +298,7 @@ export default function AssignmentForm({
   initialTitle = "",
   initialQuestions = [
     {
+      id: "",
       order: 0,
       prompt: "",
       total_points: 0,
@@ -342,7 +351,9 @@ export default function AssignmentForm({
   const router = useTrackedRouter();
   const { user } = useAuth();
   const [title, setTitle] = useState(initialTitle);
-  const [questions, setQuestions] = useState<Question[]>(initialQuestions);
+  const [questions, setQuestions] = useState<Question[]>(() =>
+    ensureQuestionIds(initialQuestions),
+  );
   const [preferredLanguage, setPreferredLanguage] = useState(initialLanguage);
   const [lockLanguage, setLockLanguage] = useState(initialLockLanguage);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
@@ -723,6 +734,7 @@ export default function AssignmentForm({
 
   const handleAddQuestion = () => {
     const newQuestion: Question = {
+      id: crypto.randomUUID(),
       order: questions.length,
       prompt: "",
       total_points: 0,
@@ -767,32 +779,18 @@ export default function AssignmentForm({
 
   const handleDeleteQuestion = (index: number) => {
     if (questions.length > 1) {
+      const deletedId = questions[index].id;
       const newQuestions = questions.filter((_, i) => i !== index);
       // Update order
       newQuestions.forEach((q, i) => (q.order = i));
       setQuestions(newQuestions);
 
       // Also remove any question override for the deleted question
-      if (botPromptConfig.question_overrides?.[index] !== undefined) {
-        const newOverrides = { ...botPromptConfig.question_overrides };
-        // Remove the deleted question's override and re-index higher ones
-        const updatedOverrides: Record<number, (typeof newOverrides)[number]> =
-          {};
-        for (const [key, value] of Object.entries(newOverrides)) {
-          const order = parseInt(key, 10);
-          if (order < index) {
-            updatedOverrides[order] = value;
-          } else if (order > index) {
-            updatedOverrides[order - 1] = value;
-          }
-          // order === index is skipped (deleted)
-        }
+      if (botPromptConfig.question_overrides?.[deletedId] !== undefined) {
+        const { [deletedId]: _, ...rest } = botPromptConfig.question_overrides;
         setBotPromptConfig({
           ...botPromptConfig,
-          question_overrides:
-            Object.keys(updatedOverrides).length > 0
-              ? updatedOverrides
-              : undefined,
+          question_overrides: Object.keys(rest).length > 0 ? rest : undefined,
         });
       }
     }
@@ -800,14 +798,14 @@ export default function AssignmentForm({
 
   // Handle question prompt override changes
   const handleQuestionOverrideChange = (
-    questionOrder: number,
+    questionId: string,
     override: import("@/types/assignment").QuestionPromptOverride | undefined,
   ) => {
     const currentOverrides = botPromptConfig.question_overrides || {};
 
     if (override === undefined) {
       // Remove the override for this question
-      const { [questionOrder]: _, ...rest } = currentOverrides;
+      const { [questionId]: _, ...rest } = currentOverrides;
       setBotPromptConfig({
         ...botPromptConfig,
         question_overrides: Object.keys(rest).length > 0 ? rest : undefined,
@@ -818,7 +816,7 @@ export default function AssignmentForm({
         ...botPromptConfig,
         question_overrides: {
           ...currentOverrides,
-          [questionOrder]: override,
+          [questionId]: override,
         },
       });
     }
@@ -1414,7 +1412,7 @@ export default function AssignmentForm({
                   contextForAI={sharedContext}
                   showBotOverride={currentAssessmentMode === "voice"}
                   questionOverride={
-                    botPromptConfig.question_overrides?.[question.order]
+                    botPromptConfig.question_overrides?.[question.id]
                   }
                   onQuestionOverrideChange={handleQuestionOverrideChange}
                   classDbId={classDbId}

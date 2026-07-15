@@ -64,7 +64,7 @@ export interface AssessmentShellProps {
   starScale?: number;
   requireAllAttempts?: boolean;
   allQuestionsHaveAttempts?: boolean;
-  questionsWithAttempts?: Set<number>;
+  questionsWithAttempts?: Set<string>;
   completedQuestionIndices?: number[];
   onGoToQuestion?: (index: number) => void;
   onAttemptCreated?: () => void;
@@ -170,7 +170,7 @@ export function AssessmentShell({
   // global overlay covers the load and the cache is shared across remounts.
   const attemptsQuery = useQuestionAttemptsNormalized({
     submissionId,
-    questionOrder: question.order,
+    questionId: question.id,
     excludeStale: true,
   });
   const attempts = React.useMemo(
@@ -188,7 +188,7 @@ export function AssessmentShell({
   const [seenAttemptsKey, setSeenAttemptsKey] = React.useState<string | null>(
     null
   );
-  const attemptsKey = `${submissionId}::${question.order}`;
+  const attemptsKey = `${submissionId}::${question.id}`;
   if (
     !attemptsQuery.isLoading &&
     attemptsQuery.data !== undefined &&
@@ -326,7 +326,7 @@ export function AssessmentShell({
   const { logEvent } = useActivityTracking({
     componentType: "question",
     componentId: assignmentId,
-    subComponentId: String(question.order),
+    subComponentId: String(question.id),
   });
 
 
@@ -356,6 +356,7 @@ export function AssessmentShell({
           body: JSON.stringify({
             submissionId,
             questionOrder: question.order,
+            questionId: question.id,
             answerText,
             questionPrompt: question.prompt,
             rubric: question.rubric,
@@ -495,7 +496,7 @@ export function AssessmentShell({
     (attemptNumber: number) => {
       void selectAttempt({
         submissionId,
-        questionOrder: question.order,
+        questionId: question.id,
         attemptNumber,
       }).then((res) => {
         if (!res.ok) {
@@ -503,7 +504,7 @@ export function AssessmentShell({
         }
       });
     },
-    [submissionId, question.order],
+    [submissionId, question.id],
   );
 
   const inputProps = {

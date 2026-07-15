@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     const submissionId = asText(formData.get("submissionId"));
     const assignmentId = asText(formData.get("assignmentId"));
     const questionOrder = asInt(formData.get("questionOrder"));
+    const questionId = asText(formData.get("questionId"));
     const attemptNumber = asInt(formData.get("attemptNumber"));
     const chunkIndex = asInt(formData.get("chunkIndex"));
     const recordingStartedAt = asText(formData.get("recordingStartedAt"));
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
       !submissionId ||
       !assignmentId ||
       questionOrder == null ||
+      !questionId ||
       attemptNumber == null ||
       chunkIndex == null ||
       !(audio instanceof File)
@@ -67,6 +69,7 @@ export async function POST(request: NextRequest) {
     const payload = {
       submission_id: submissionId,
       question_order: questionOrder,
+      question_id: questionId,
       attempt_number: attemptNumber,
       composite_audio_chunk_urls: urls,
       recording_started_at: recordingStartedAt ?? null,

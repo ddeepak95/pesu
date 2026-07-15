@@ -12,7 +12,7 @@ export interface VoiceMessageRow {
 
 export async function getVoiceMessagesForAttempt(
   submissionId: string,
-  questionOrder: number,
+  questionId: string,
   attemptNumber: number,
 ): Promise<VoiceMessageRow[]> {
   const supabase = createClient();
@@ -20,7 +20,7 @@ export async function getVoiceMessagesForAttempt(
     .from("voice_messages")
     .select("id, role, content, audio_file_url, created_at, chat_message_id")
     .eq("submission_id", submissionId)
-    .eq("question_order", questionOrder)
+    .eq("question_id", questionId)
     .eq("attempt_number", attemptNumber)
     .order("created_at", { ascending: true });
   if (error) throw error;

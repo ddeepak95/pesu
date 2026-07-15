@@ -103,6 +103,10 @@ export async function POST(request: NextRequest) {
     const parsedQuestionOrder =
       typeof questionOrderRaw === "string" ? Number.parseInt(questionOrderRaw, 10) : NaN;
     const questionOrder = Number.isFinite(parsedQuestionOrder) ? parsedQuestionOrder : null;
+    const questionIdRaw = formData.get("questionId");
+    const questionId = typeof questionIdRaw === "string" && questionIdRaw.trim() ? questionIdRaw.trim() : null;
+    const sessionIdRaw = formData.get("sessionId");
+    const sessionId = typeof sessionIdRaw === "string" && sessionIdRaw.trim() ? sessionIdRaw.trim() : null;
     const attemptNumberRaw = formData.get("attemptNumber");
     const parsedAttemptNumber =
       typeof attemptNumberRaw === "string" ? Number.parseInt(attemptNumberRaw, 10) : NaN;
@@ -125,7 +129,9 @@ export async function POST(request: NextRequest) {
         assignmentId,
         submissionId,
         questionOrder,
+        questionId,
         attemptNumber,
+        sessionId,
       };
       const sttClient = await resolveMeteredSpeech({
         kind: "stt",

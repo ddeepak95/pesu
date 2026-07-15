@@ -4,18 +4,18 @@ import { setQuestionReviewed } from "@/lib/submissions/grading";
 
 interface ReviewQuestionRequestBody {
   submissionId: string;
-  questionOrder: number;
+  questionId: string;
   reviewed: boolean;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: ReviewQuestionRequestBody = await request.json();
-    const { submissionId, questionOrder, reviewed } = body;
+    const { submissionId, questionId, reviewed } = body;
 
-    if (!submissionId || questionOrder === undefined || reviewed === undefined) {
+    if (!submissionId || !questionId || reviewed === undefined) {
       return NextResponse.json(
-        { error: "Missing required fields: submissionId, questionOrder, reviewed" },
+        { error: "Missing required fields: submissionId, questionId, reviewed" },
         { status: 400 },
       );
     }
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     await setQuestionReviewed(
       supabase,
       submissionId,
-      questionOrder,
+      questionId,
       reviewed,
       user?.id ?? null,
     );

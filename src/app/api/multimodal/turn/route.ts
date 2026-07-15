@@ -44,6 +44,7 @@ import {
   buildLoggedSdkResponse,
   buildLoggedStreamObjectRequest,
 } from "@/lib/ai/logging/serialize";
+import { ensureAttemptSession } from "@/lib/submissions/attemptSessions";
 import { getCatalogEntry } from "@/lib/konvo-voice/sessionCatalog";
 import {
   KonvoLocaleVoiceError,
@@ -77,6 +78,8 @@ interface MultimodalTurnRequestBody {
   assignmentId: string;
   submissionId?: string;
   questionOrder: number;
+  questionId: string;
+  sessionId?: string | null;
   messages: MultimodalTurnMessage[];
   attemptNumber?: number;
   system_prompt: string;
@@ -147,6 +150,8 @@ export async function POST(request: NextRequest) {
       assignmentId,
       submissionId,
       questionOrder,
+      questionId,
+      sessionId,
       messages,
       attemptNumber,
       system_prompt: systemPrompt,
@@ -201,6 +206,7 @@ export async function POST(request: NextRequest) {
     if (
       !assignmentId ||
       questionOrder === undefined ||
+      !questionId ||
       !messages ||
       !systemPrompt ||
       !language?.trim() ||
@@ -256,8 +262,18 @@ export async function POST(request: NextRequest) {
       assignmentId,
       submissionId: submissionId ?? null,
       questionOrder,
+      questionId,
       attemptNumber: attemptNumber ?? null,
+      sessionId: sessionId ?? null,
     };
+    if (sessionId && submissionId && attemptNumber != null) {
+      await ensureAttemptSession(supabase, {
+        id: sessionId,
+        submissionId,
+        questionId,
+        attemptNumber,
+      });
+    }
     const ttsClient = await resolveMeteredSpeech({
       kind: "tts",
       catalogEntry: ttsEntry,
@@ -412,9 +428,11 @@ export async function POST(request: NextRequest) {
               submission_id: submissionId ?? null,
               assignment_id: assignmentId,
               question_order: questionOrder,
+              question_id: questionId,
               role: "student",
               content: latestStudentContent,
               attempt_number: attemptNumber ?? null,
+              session_id: sessionId ?? null,
             });
           } catch (error) {
             console.error("[multimodal/turn] Failed to log student chat message:", error);
@@ -597,7 +615,9 @@ export async function POST(request: NextRequest) {
               assignmentId,
               submissionId: submissionId ?? null,
               questionOrder,
+              questionId,
               attemptNumber: attemptNumber ?? null,
+              sessionId: sessionId ?? null,
               model: handle.meta,
               sdkRequest: buildLoggedStreamObjectRequest({
                 system: resolvedCall.system,
@@ -661,10 +681,12 @@ export async function POST(request: NextRequest) {
                           submission_id: submissionId ?? null,
                           assignment_id: assignmentId,
                           question_order: questionOrder,
+                          question_id: questionId,
                           role: "student",
                           content: chosen,
                           attempt_number: attemptNumber ?? null,
                           transcriptCandidates: candidates?.slice(0, 2),
+                          session_id: sessionId ?? null,
                         });
                       } catch (dbErr) {
                         console.error(
@@ -730,10 +752,12 @@ export async function POST(request: NextRequest) {
                         submission_id: submissionId ?? null,
                         assignment_id: assignmentId,
                         question_order: questionOrder,
+                        question_id: questionId,
                         role: "student",
                         content: chosen,
                         attempt_number: attemptNumber ?? null,
                         transcriptCandidates: candidates?.slice(0, 2),
+                        session_id: sessionId ?? null,
                       });
                     } catch (dbErr) {
                       console.error(
@@ -795,6 +819,7 @@ export async function POST(request: NextRequest) {
                   activityId: assignmentId,
                   submissionId: submissionId ?? null,
                   questionOrder,
+                  questionId,
                   aiInvocationId: invocationId,
                   metadata: { attempt: attempt + 1 },
                 });
@@ -820,6 +845,7 @@ export async function POST(request: NextRequest) {
                   activityId: assignmentId,
                   submissionId: submissionId ?? null,
                   questionOrder,
+                  questionId,
                   aiInvocationId: invocationId ?? firstInvocationId,
                 });
                 enqueue({
@@ -849,10 +875,12 @@ export async function POST(request: NextRequest) {
                   submission_id: submissionId ?? null,
                   assignment_id: assignmentId,
                   question_order: questionOrder,
+                  question_id: questionId,
                   role: "student",
                   content: fallbackText,
                   attempt_number: attemptNumber ?? null,
                   transcriptCandidates: candidates?.slice(0, 2),
+                  session_id: sessionId ?? null,
                 });
               } catch (dbErr) {
                 console.error(
@@ -887,10 +915,12 @@ export async function POST(request: NextRequest) {
                 submission_id: submissionId ?? null,
                 assignment_id: assignmentId,
                 question_order: questionOrder,
+                question_id: questionId,
                 role: "assistant",
                 content: fullReply.trim() || "...",
                 attempt_number: attemptNumber ?? null,
                 aiMetadata,
+                session_id: sessionId ?? null,
               });
             } catch (error) {
               console.error(
@@ -926,7 +956,9 @@ export async function POST(request: NextRequest) {
                 assignmentId,
                 submissionId: submissionId ?? null,
                 questionOrder,
+                questionId,
                 attemptNumber: attemptNumber ?? null,
+                sessionId: sessionId ?? null,
                 relatedEntity: { type: "chat_message_action", id: actionId },
               },
               kind: actionKind,
@@ -952,6 +984,8 @@ export async function POST(request: NextRequest) {
               classId: classDbId,
               assignmentId,
               questionOrder,
+              questionId,
+              sessionId: sessionId ?? null,
             }).catch((actionErr) => {
               // dispatchAction has already logged the terminal failure (app_logs)
               // and exhausted silent retries. Keep the card in an error state on
@@ -1057,6 +1091,7 @@ export async function POST(request: NextRequest) {
             activityId: assignmentId,
             submissionId: submissionId ?? null,
             questionOrder,
+            questionId,
             aiInvocationId: firstInvocationId,
           });
           enqueue({

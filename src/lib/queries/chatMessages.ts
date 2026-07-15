@@ -27,9 +27,11 @@ export interface InsertChatMessageInput {
   submission_id: string | null;
   assignment_id: string;
   question_order: number;
+  question_id: string;
   role: ChatMessageRole;
   content: string;
   attempt_number: number | null;
+  session_id?: string | null;
   aiMetadata?: ChatMessageAiMetadata;
   aiInvocationId?: string | null;
   /**
@@ -49,6 +51,7 @@ export async function insertChatMessage(
     submission_id: row.submission_id,
     assignment_id: row.assignment_id,
     question_order: row.question_order,
+    question_id: row.question_id,
     role: row.role,
     content: row.content,
     attempt_number: row.attempt_number,
@@ -56,6 +59,10 @@ export async function insertChatMessage(
 
   if (row.id) {
     payload.id = row.id;
+  }
+
+  if (row.session_id) {
+    payload.session_id = row.session_id;
   }
 
   if (row.aiMetadata) {
@@ -97,7 +104,7 @@ export interface ChatMessageRow {
 
 export async function getChatMessages(
   submissionId: string,
-  questionOrder: number,
+  questionId: string,
   attemptNumber: number,
 ): Promise<ChatMessageRow[]> {
   const supabase = createClient();
@@ -105,7 +112,7 @@ export async function getChatMessages(
     .from("chat_messages")
     .select("id, role, content")
     .eq("submission_id", submissionId)
-    .eq("question_order", questionOrder)
+    .eq("question_id", questionId)
     .eq("attempt_number", attemptNumber)
     .order("created_at", { ascending: true });
   if (error) throw error;

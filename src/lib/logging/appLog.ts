@@ -22,6 +22,7 @@ export interface LogAppEventInput {
   activityId?: string | null;
   submissionId?: string | null;
   questionOrder?: number | null;
+  questionId?: string | null;
   userId?: string | null;
   aiInvocationId?: string | null;
   metadata?: Record<string, unknown>;
@@ -62,6 +63,7 @@ export function logAppEvent(input: LogAppEventInput): void {
         activity_id: input.activityId ?? null,
         submission_id: input.submissionId ?? null,
         question_order: input.questionOrder ?? null,
+        question_id: input.questionId ?? null,
         user_id: input.userId ?? null,
         ai_invocation_id: input.aiInvocationId ?? null,
         metadata: input.metadata ?? {},

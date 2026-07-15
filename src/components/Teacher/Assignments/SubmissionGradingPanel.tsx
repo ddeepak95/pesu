@@ -87,7 +87,7 @@ export function SubmissionGradingPanel({
   }, [assignment, fullSubmission]);
 
   const currentQuestion = questions[selectedQuestionIndex] ?? null;
-  const questionOrder = currentQuestion?.order ?? null;
+  const questionId = currentQuestion?.id ?? null;
   const isDynamic =
     assignment?.dynamic_questions_enabled && !!fullSubmission?.generated_questions;
 
@@ -114,8 +114,8 @@ export function SubmissionGradingPanel({
   }, [currentQuestion?.prompt, questionExpanded]);
 
   const gradingQuestion = useMemo(
-    () => grading?.questions.find((q) => q.question_order === questionOrder) ?? null,
-    [grading, questionOrder],
+    () => grading?.questions.find((q) => q.question_id === questionId) ?? null,
+    [grading, questionId],
   );
   const attempts = useMemo(
     () => gradingQuestion?.attempts ?? [],
@@ -176,11 +176,11 @@ export function SubmissionGradingPanel({
     : null;
 
   const markReviewed = useCallback(
-    async (order: number, reviewed: boolean) => {
+    async (qId: string, reviewed: boolean) => {
       const res = await fetch("/api/submissions/review-question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submissionId, questionOrder: order, reviewed }),
+        body: JSON.stringify({ submissionId, questionId: qId, reviewed }),
       });
       if (!res.ok) {
         showErrorToast("Could not update review state.");
@@ -194,16 +194,16 @@ export function SubmissionGradingPanel({
   const handleEditChange = (attempt: TeacherGradingAttempt, next: AttemptGradeEdit) => {
     setEditMap((prev) => ({ ...prev, [attempt.id]: next }));
     // Auto-mark the question reviewed the first time the teacher edits it.
-    if (gradingQuestion && !gradingQuestion.reviewed && questionOrder !== null) {
-      void markReviewed(questionOrder, true);
+    if (gradingQuestion && !gradingQuestion.reviewed && questionId !== null) {
+      void markReviewed(questionId, true);
     }
   };
 
   const handleSelectThisAttempt = async () => {
-    if (!currentAttempt || questionOrder === null) return;
+    if (!currentAttempt || questionId === null) return;
     const res = await selectAttempt({
       submissionId,
-      questionOrder,
+      questionId,
       attemptNumber: currentAttempt.attempt_number,
     });
     if (!res.ok) {
@@ -248,11 +248,13 @@ export function SubmissionGradingPanel({
       });
       if (res.status === 409) {
         const data = await res.json().catch(() => ({}));
-        const orders: number[] = data.questionOrders ?? [];
+        const ids: string[] = data.questionIds ?? [];
+        const displayNumbers = ids.map((id) => {
+          const idx = questions.findIndex((q) => q.id === id);
+          return idx >= 0 ? idx + 1 : "?";
+        });
         showErrorToast(
-          `Review every question before releasing. Unreviewed: ${orders
-            .map((o) => o + 1)
-            .join(", ")}`,
+          `Review every question before releasing. Unreviewed: ${displayNumbers.join(", ")}`,
         );
         return;
       }
@@ -495,7 +497,7 @@ export function SubmissionGradingPanel({
             onChange={(next) => handleEditChange(currentAttempt, next)}
             disabled={!formEditable}
           />
-          {questionOrder !== null && (
+          {questionId !== null && (
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -503,7 +505,7 @@ export function SubmissionGradingPanel({
                 disabled={busyReview || !formEditable}
                 onChange={async (e) => {
                   setBusyReview(true);
-                  await markReviewed(questionOrder, e.target.checked);
+                  await markReviewed(questionId, e.target.checked);
                   setBusyReview(false);
                 }}
               />
