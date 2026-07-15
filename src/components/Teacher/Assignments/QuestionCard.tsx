@@ -16,6 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AI_NOT_CONFIGURED_ERROR_CODE } from "@/lib/ai/credentials/constants";
+import { QUOTA_EXCEEDED_ERROR_CODE } from "@/lib/ai/metering/constants";
 import RubricItemRow from "@/components/Teacher/Assignments/RubricItemRow";
 import { QuestionPromptOverrideEditor } from "@/components/Teacher/Assignments/QuestionPromptOverrideEditor";
 import {
@@ -199,6 +200,15 @@ export default function QuestionCard({
         ) {
           throw new Error(
             "AI is not configured for this class. Set up providers and the Rubric generation app function in AI settings.",
+          );
+        }
+        if (
+          response.status === 402 &&
+          errorData.code === QUOTA_EXCEEDED_ERROR_CODE
+        ) {
+          throw new Error(
+            errorData.error ||
+              "This class is out of AI credits. Contact your institution admin to add more.",
           );
         }
         throw new Error(

@@ -43,6 +43,7 @@ import { useEndConversationFinish } from "./useEndConversationFinish";
 import type { AssessmentInputProps } from "./types";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 import { AI_NOT_CONFIGURED_ERROR_CODE } from "@/lib/ai/credentials/constants";
+import { QUOTA_EXCEEDED_ERROR_CODE } from "@/lib/ai/metering/constants";
 import { MULTIMODAL_ERROR_CODES } from "@/lib/multimodal/errorCodes";
 import { DIRECT_AUDIO_INPUT_MAX_BYTES } from "@/lib/multimodal/turnConfig";
 import { isSarvamSttCatalogModel } from "@/lib/konvo-voice/speech/constants";
@@ -433,6 +434,10 @@ export function MultimodalInputArea({
     id: string;
     number: number;
   } | null> | null>(null);
+  // Set when attempt-start refused the session for being out of AI credits
+  // (dev-docs/ai-usage-metering-phase3-plan.md D12) — handleStart surfaces
+  // this specific message instead of the generic "couldn't start" fallback.
+  const quotaExceededMessageRef = React.useRef<string | null>(null);
 
   const startAttempt = React.useCallback(async (): Promise<{
     id: string;
@@ -451,8 +456,18 @@ export function MultimodalInputArea({
         }),
       });
       if (!res.ok) {
-        throw new Error("Failed to start attempt");
+        const errorData = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+        if (res.status === 402 && errorData.code === QUOTA_EXCEEDED_ERROR_CODE) {
+          quotaExceededMessageRef.current =
+            errorData.error ||
+            "This class is out of AI credits. Contact your instructor.";
+        }
+        throw new Error(errorData.error || "Failed to start attempt");
       }
+      quotaExceededMessageRef.current = null;
       const data = (await res.json()) as {
         attemptId: string;
         attemptNumber: number;
@@ -1331,8 +1346,11 @@ export function MultimodalInputArea({
     const resolvedAttempt = await ensureAttemptStarted();
     if (!resolvedAttempt) {
       setIsStarting(false);
-      setError("Couldn't start this activity. Please refresh and try again.");
-      showErrorToast("Couldn't start this activity. Please refresh and try again.");
+      const message =
+        quotaExceededMessageRef.current ??
+        "Couldn't start this activity. Please refresh and try again.";
+      setError(message);
+      showErrorToast(message);
       return;
     }
     sessionStartedAtRef.current = new Date().toISOString();

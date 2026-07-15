@@ -4,10 +4,14 @@ import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRuntime";
 import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
 import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import { keyOwnerFromSource } from "@/lib/ai/metering/keyOwner";
+import { assertWithinQuota, resolveWalletId } from "@/lib/ai/metering/quota";
 import type { UsageType } from "@/lib/ai/metering/usageTypes";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
 import type { OnRetryAttempt } from "@/lib/ai/retry";
+import { resolveInstitutionId } from "@/lib/logging/appLog";
+import { createServiceRoleClient } from "@/lib/supabase-server";
 import type { AiConfigSource } from "@/types/aiSettings";
 import type { FlexibleSchema } from "ai";
 import {
@@ -33,12 +37,29 @@ export interface AiCallContext {
   /** Acting user (request auth). */
   userId?: string | null;
   relatedEntity?: { type: string; id: string } | null;
+  /**
+   * Set by the turn / utterance / transcribe routes on session-internal
+   * calls — the session's admission was already checked once at
+   * attempt-start (dev-docs/ai-usage-metering-phase3-plan.md D6), so the
+   * gateway skips its own per-call quota check for these.
+   */
+  admittedAtSessionStart?: boolean;
+  /**
+   * Set by evaluate only — rides through the quota check unconditionally
+   * (debits, may drive the wallet negative; grading already-completed work
+   * must never be blocked, D6).
+   */
+  quotaPolicy?: "ride-through";
 }
 
 export interface MeteredTextModel {
   readonly meta: { provider: string; modelId: string; keySource: AiConfigSource };
   /** The invocation id of the most recent generateStructured call (overwritten on every call). */
   readonly lastInvocationId: string | null;
+  /** Resolved once at handle resolution (D2) — null for platform-scope calls. */
+  readonly institutionId: string | null;
+  /** Resolved once at handle resolution — null when no wallet exists for this scope (D5). */
+  readonly walletId: string | null;
   generateStructured<T>(opts: {
     schema: FlexibleSchema<T>;
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -67,6 +88,8 @@ class MeteredTextModelImpl implements MeteredTextModel {
     private readonly appFunctionKey: AppFunctionKey,
     private readonly usageType: UsageType,
     private readonly context: AiCallContext,
+    readonly institutionId: string | null,
+    readonly walletId: string | null,
   ) {
     this.meta = modelMeta;
   }
@@ -101,6 +124,8 @@ class MeteredTextModelImpl implements MeteredTextModel {
         relatedEntityType: this.context.relatedEntity?.type ?? null,
         relatedEntityId: this.context.relatedEntity?.id ?? null,
         schemaName: opts.schemaName,
+        institutionId: this.institutionId,
+        walletId: this.walletId,
       },
     });
     this._lastInvocationId = invocationId;
@@ -123,21 +148,43 @@ class MeteredTextModelImpl implements MeteredTextModel {
  * no raw LanguageModelV3 or API key left in circulation for a call site to
  * misuse or forget to log (§7.1).
  *
- * Quota enforcement (assertWithinQuota, §8) is a Phase 3 concern — this
- * handle currently always admits the call (Phase 1: "Gateway + universal
- * capture, no enforcement", §9).
+ * Quota enforcement (dev-docs/ai-usage-metering-phase3-plan.md D2, D6):
+ * institutionId/walletId are resolved here, once, right after keySource is
+ * known and before the handle is constructed. A per-call balance check
+ * (assertWithinQuota) runs unless the caller marks the call as already
+ * admitted at session start (`admittedAtSessionStart`) or explicitly
+ * ride-through (`quotaPolicy: 'ride-through'`, evaluate only) — the
+ * fail-closed default is to check.
  */
 export async function resolveMeteredModel(input: {
   appFunctionKey: AppFunctionKey;
   usageType?: UsageType;
   context: AiCallContext;
 }): Promise<MeteredTextModel> {
-  const { config, keySource } = input.context.classDbId
+  const classDbId = input.context.classDbId;
+  const { config, keySource } = classDbId
     ? await getCachedResolveModelConfig({
-        classDbId: input.context.classDbId,
+        classDbId,
         appFunctionKey: input.appFunctionKey,
       })
     : await resolveCatalogModelConfigForPlatform(input.appFunctionKey);
+
+  const institutionId = classDbId
+    ? await resolveInstitutionId(createServiceRoleClient(), classDbId)
+    : null;
+
+  let walletId: string | null = null;
+  if (institutionId && classDbId) {
+    const keyOwner = keyOwnerFromSource(keySource);
+    walletId = await resolveWalletId({ institutionId, classId: classDbId, keyOwner });
+
+    const shouldCheck =
+      input.context.admittedAtSessionStart !== true &&
+      input.context.quotaPolicy !== "ride-through";
+    if (shouldCheck) {
+      await assertWithinQuota({ institutionId, classId: classDbId, keyOwner });
+    }
+  }
 
   const model = getLanguageModel(config);
   const providerOptions = providerOptionsForConfig(config);
@@ -150,5 +197,7 @@ export async function resolveMeteredModel(input: {
     input.appFunctionKey,
     input.usageType ?? "text_generation",
     input.context,
+    institutionId,
+    walletId,
   );
 }

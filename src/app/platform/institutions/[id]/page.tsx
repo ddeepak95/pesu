@@ -71,6 +71,7 @@ export default async function InstitutionDetailPage({
         classOverrideHrefBase={`/platform/institutions/${id}/classes`}
         notice={{ ok, error }}
         activityTemplatesManageHref={`/platform/institutions/${id}/activity-templates`}
+        walletsManageHref={`/platform/institutions/${id}/wallets`}
       />
     </PageLayout>
   );

@@ -5,6 +5,7 @@ import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCach
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 import { resolveMeteredModel, runWithAiContext } from "@/lib/ai/gateway";
 import { transliterateMessage } from "@/lib/ai/transliterateMessage";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -54,6 +55,10 @@ export async function POST(request: NextRequest) {
         }
         if (error instanceof AiNotConfiguredError) {
           return NextResponse.json({ error: error.message, code: error.code }, { status: 503 });
+        }
+        const quotaBlocked = quotaExceededResponse(error);
+        if (quotaBlocked) {
+          return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
         }
         throw error;
       }

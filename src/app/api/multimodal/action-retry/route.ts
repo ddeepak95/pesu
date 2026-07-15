@@ -11,6 +11,7 @@ import { actionInputSchema } from "@/lib/multimodal/actions/schema";
 import type { ActionPayload } from "@/lib/multimodal/actions/types";
 import { classifyAiError } from "@/lib/ai/errors";
 import { logAppEvent } from "@/lib/logging/appLog";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 
 interface ActionRetryRequestBody {
   assignmentId: string;
@@ -112,19 +113,31 @@ export async function POST(request: NextRequest) {
           content: r.content as string,
         }));
 
-      const actionHandle = await resolveActionModel({
-        context: {
-          classDbId,
-          assignmentId,
-          submissionId,
-          questionOrder,
-          questionId,
-          sessionId: sessionId ?? null,
-          attemptId: attemptId ?? null,
-          relatedEntity: { type: "chat_message_action", id: actionId },
-        },
-        kind: action.kind,
-      });
+      let actionHandle;
+      try {
+        actionHandle = await resolveActionModel({
+          context: {
+            classDbId,
+            assignmentId,
+            submissionId,
+            questionOrder,
+            questionId,
+            sessionId: sessionId ?? null,
+            attemptId: attemptId ?? null,
+            relatedEntity: { type: "chat_message_action", id: actionId },
+            // Retrying an action generated inside an already-admitted session
+            // (D6) — no separate per-call check.
+            admittedAtSessionStart: true,
+          },
+          kind: action.kind,
+        });
+      } catch (error) {
+        const quotaBlocked = quotaExceededResponse(error);
+        if (quotaBlocked) {
+          return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
+        }
+        throw error;
+      }
 
       const localeLabel = (code: string) =>
         getLocaleRegistryMap().get(code)?.label ?? code;

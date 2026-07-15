@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { RubricItem } from "@/types/assignment";
 import { catalogNotConfiguredResponse } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 import { resolveMeteredModel, runWithAiContext } from "@/lib/ai/gateway";
 import {
   rubricGenerationSchema,
@@ -118,6 +119,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(notConfigured.body, {
           status: notConfigured.status,
         });
+      }
+      const quotaBlocked = quotaExceededResponse(error);
+      if (quotaBlocked) {
+        return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
       }
       throw error;
     }

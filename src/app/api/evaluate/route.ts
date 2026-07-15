@@ -7,6 +7,7 @@ import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmis
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 import {
   resolveMeteredModel,
   runWithAiContext,
@@ -190,6 +191,10 @@ export async function POST(request: NextRequest) {
       sessionId,
       attemptId,
       attemptNumber,
+      // Grading already-completed work must never be blocked (decision #2) —
+      // rides through the quota check unconditionally; still debits and may
+      // drive the wallet negative.
+      quotaPolicy: "ride-through",
     };
     let evalHandle;
     try {
@@ -203,6 +208,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(notConfigured.body, {
           status: notConfigured.status,
         });
+      }
+      const quotaBlocked = quotaExceededResponse(error);
+      if (quotaBlocked) {
+        return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
       }
       throw error;
     }

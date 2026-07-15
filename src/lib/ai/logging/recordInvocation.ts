@@ -95,6 +95,40 @@ async function upsertUsageCounter(rpcArgs: UsageCounterRpcArgs): Promise<boolean
   }
 }
 
+/**
+ * Isolated, retried write to the ai_credit_balances wallet debit (D1). Same
+ * shape as upsertUsageCounter — never allowed to fail the caller's AI
+ * response. No floor at zero (decision #7): a session already admitted at
+ * attempt-start may legitimately drive its wallet negative.
+ */
+async function debitWalletBalance(walletId: string, credits: number): Promise<boolean> {
+  try {
+    const service = createServiceRoleClient();
+    const { error } = await service.rpc("debit_wallet_balance", {
+      p_wallet_id: walletId,
+      p_credits: credits,
+    });
+    if (error) {
+      logAppEvent({
+        level: "warn",
+        source: "usage_metering",
+        event: "wallet_debit_failed",
+        message: error.message,
+      });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logAppEvent({
+      level: "warn",
+      source: "usage_metering",
+      event: "wallet_debit_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
 /** Shape of the `ai` package's `LanguageModelUsage` that we actually read. */
 type SdkUsage = {
   inputTokens?: number;
@@ -274,9 +308,15 @@ async function persistAiInvocationStart(
   // sentinel, and it's only ever used on the production-degrade path above.
   const appFunctionKey: string = contextMissing ? "unattributed" : input.appFunctionKey;
 
-  const institutionId = classId
-    ? await resolveInstitutionId(service, classId)
-    : null;
+  // D2: institutionId is resolved once at gateway handle resolution and
+  // threaded down explicitly — only re-resolved here when the caller omitted it
+  // (e.g. a call site that doesn't go through resolveMeteredModel/resolveMeteredSpeech).
+  const institutionId =
+    input.institutionId !== undefined
+      ? input.institutionId
+      : classId
+        ? await resolveInstitutionId(service, classId)
+        : null;
 
   // The row is always written — it's the system of record for billing/usage,
   // independent of whether GCS debug-payload capture is enabled (§6).
@@ -289,6 +329,7 @@ async function persistAiInvocationStart(
     ai_key_source: input.model.keySource,
     class_id: classId,
     institution_id: institutionId,
+    wallet_id: input.walletId ?? null,
     user_id: userId,
     assignment_id: input.assignmentId ?? null,
     submission_id: input.submissionId ?? null,
@@ -391,7 +432,7 @@ export async function completeAiInvocation(
   // extra round-trip was already happening here, no new query).
   const { data: startedRow, error: fetchError } = await service
     .from("ai_invocations")
-    .select("ai_model_id, usage_type, ai_key_source, institution_id, class_id, started_at")
+    .select("ai_model_id, usage_type, ai_key_source, institution_id, class_id, wallet_id, started_at")
     .eq("id", invocationId)
     .maybeSingle();
   if (fetchError) {
@@ -523,6 +564,29 @@ export async function completeAiInvocation(
           source: "usage_metering",
           event: "counter_upsert_exhausted",
           message: `record_usage_counter failed after ${COUNTER_RETRY_DELAYS_MS.length} retries.`,
+          aiInvocationId: invocationId,
+        });
+      });
+    }
+  }
+
+  // Wallet debit (D1) — gated on wallet_id being non-null (D5: no wallet ->
+  // nothing to debit). No floor at zero (decision #7): a session admitted at
+  // attempt-start may legitimately drive its wallet negative mid-session.
+  const walletId = (startedRow?.wallet_id as string | null) ?? null;
+  if (computed.credits != null && walletId) {
+    const firstDebitSucceeded = await debitWalletBalance(walletId, computed.credits);
+    if (!firstDebitSucceeded) {
+      after(async () => {
+        for (const delayMs of COUNTER_RETRY_DELAYS_MS) {
+          await sleep(delayMs);
+          if (await debitWalletBalance(walletId, computed.credits!)) return;
+        }
+        logAppEvent({
+          level: "error",
+          source: "usage_metering",
+          event: "wallet_debit_exhausted",
+          message: `debit_wallet_balance failed after ${COUNTER_RETRY_DELAYS_MS.length} retries.`,
           aiInvocationId: invocationId,
         });
       });

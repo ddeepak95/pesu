@@ -18,6 +18,7 @@ import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-question
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 import {
   resolveMeteredModel,
   runWithAiContext,
@@ -402,6 +403,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(notConfigured.body, {
           status: notConfigured.status,
         });
+      }
+      const quotaBlocked = quotaExceededResponse(error);
+      if (quotaBlocked) {
+        return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
       }
       throw error;
     }

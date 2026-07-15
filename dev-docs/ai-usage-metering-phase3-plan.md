@@ -49,18 +49,32 @@ original main-plan design, not just add detail to it:
    future public API route is a thin wrapper around the same RPCs, since
    permission checks live inside the RPCs themselves (`auth.uid()`-based),
    not in route code.
-7. **Quota is checked once per session, not once per turn — and it's fine
-   for a wallet to go negative mid-session.** A multi-turn multimodal
-   session (chat tutoring, speaking practice) is gated exactly once, at
-   whichever call is first to establish that session's `attempt_sessions`
-   row. Every subsequent turn in that session skips the balance check
-   entirely (though the balance is still debited every turn, same as
-   today) — so a long session can legitimately push a wallet negative, and
-   nothing blocks it mid-flight. The *next* session's start check is what
-   catches an exhausted wallet. One-shot AI surfaces with no session
-   concept (rubric generation, evaluate, transliteration, dynamic
-   questions) are unaffected — each such call is its own "session" and is
-   checked every time, as originally designed.
+7. **Quota is checked once per session — at session start, before any AI
+   call — and it's fine for a wallet to go negative mid-session.** A
+   multi-turn multimodal session (chat tutoring, speaking practice) is
+   admitted or refused exactly once, in the `attempt-start` route that
+   already blocks the client before the conversation begins — **not** on the
+   first AI call. `attempt-start` resolves **every** AI surface the session
+   will use (chat LLM + TTS + STT — not just the LLM), maps each to its
+   wallet, and refuses to start the session (surfacing `QUOTA_EXCEEDED`, so
+   the client shows an "out of credits" message instead of opening the
+   conversation) if any required `block`-enforced wallet is exhausted. Once
+   admitted, every turn in that session skips the balance check entirely (the
+   balance is still debited every turn) — so a long session can legitimately
+   push a wallet negative, and nothing blocks it mid-flight. The *next*
+   session's start check is what catches an exhausted wallet. This
+   **replaces** the earlier draft's "gate on the first AI call, keyed off
+   `attempt_sessions` row-creation" mechanism, which was unimplementable
+   here: the `attempt_sessions` row is created by `attempt-start` — a route
+   that makes no AI call — so no real AI call ever coincided with
+   row-creation, and the gate would never have fired for the multimodal
+   path it was meant to protect. Two categories skip the per-call check for
+   their own reasons: **session-internal calls** (turn LLM/TTS,
+   utterance/transcribe STT) were admitted at start; **evaluate** rides
+   through unconditionally (debits, may drive the wallet negative — grading
+   already-completed work must never be blocked). Genuine one-shot surfaces
+   with no session (rubric generation, transliteration, dynamic questions)
+   are checked every time, at the gateway.
 8. **Nightly reconcile also verifies wallet balances, not just
    `ai_usage_counters`.** `ai_credit_balances.balance` is a maintained
    running total (incremented by `allocate_wallet_credits`, decremented by
@@ -117,38 +131,86 @@ unmetered until a wallet row exists for it, and (per D2's revision) a
 class's capacity math simply doesn't run when its institution has no
 wallet for that `key_owner`.
 
-**D6 — quota is gated once per session, keyed off `attempt_sessions`
-row-creation, not once per handle resolution.** (Revises the original
-draft's D6, which checked on every `resolveMeteredModel`/`resolveMeteredSpeech`
-call.) `ensureAttemptSession` (`src/lib/submissions/attemptSessions.ts:24`)
-already does a first-writer-wins upsert (`on conflict (id) do nothing`) —
-today it discards whether its own call was the one that inserted the row.
-It's changed to return `{ created: boolean }` (via `.select("id")` after
-the upsert — a conflict-ignored row returns no data, so `data.length > 0`
-is exactly "this call created the session"). Every one of its 5 current
-call sites (`attempt-start/route.ts:53`, `turn/route.ts:285`,
-`audio/utterance/route.ts`, `evaluate/route.ts:210`,
-`transcribe/route.ts` — confirmed via grep, all defensively call
-`ensureAttemptSession` per the "deploy-skew window" comment already in the
-code) sets a new `AiCallContext.isNewSession` field from that result.
-Inside `resolveMeteredModel`/`resolveMeteredSpeech`:
+**D6 — quota is gated once per session, at session start (`attempt-start`),
+before any AI call — not at handle resolution.** (Revises both the original
+draft's per-`resolveMeteredModel` check and this file's earlier
+`isNewSession`/row-creation variant, which never fired: the
+`attempt_sessions` row is created by `attempt-start`, a route that makes no
+AI call, so no AI call ever coincided with row-creation.)
+`attempt-start/route.ts` is the single client-blocking route that creates a
+session and gates the whole conversation on its response — it is the one
+place that runs exactly once per session *and* runs before the user has
+invested anything, so a refusal there is both correct and good UX. A new
+`assertSessionCanStart` helper (service-role, D4) runs there:
 
-- `context.sessionId` absent → always check (one-shot call, unchanged
-  behavior).
-- `context.sessionId` present and `context.isNewSession === true` → check
-  once, here (this is the first AI call of a brand-new session).
-- `context.sessionId` present and `context.isNewSession` falsy → **skip
-  the balance check entirely.** The debit (D1, unchanged) still runs at
-  completion regardless — only the *admission* check is skipped.
+1. **Resolve scope** (`classId` → `institutionId`). `attempt-start` today
+   has only `submissionId`/`questionId`, so it resolves `assignmentId` from
+   the submission, then `classDbId` via `getClassDbIdForAssignment`
+   (`turn/route.ts:257`), the same path the turn route uses.
+2. **Enumerate the session's AI surfaces** from the assignment's
+   `bot_prompt_config.multimodal_interaction` (`MultimodalInteractionConfig`,
+   persisted on the assignment — `src/types/assignment.ts:217`, shape in
+   `src/lib/multimodal/turnConfig.ts:41-61`; the client derives the same
+   three signals at `MultimodalInputArea.tsx:328-338`):
+   - **Chat LLM** (`text.chat_tutoring`) — always.
+   - **STT** — iff `input.modes` includes `"audio"` **and**
+     `input.audioDelivery ?? "transcribe"` is `"transcribe"`. When
+     `audioDelivery === "direct"`, learner audio goes straight to the chat
+     model (no separate STT call) — its cost lands on the **LLM** wallet as
+     audio-input tokens, so STT is *not* a distinct surface to check.
+   - **TTS** — iff `output.speechMode ?? "automatic"` is not `"none"`.
 
-This keeps the check physically inside the gateway (so a future call site
-still can't silently forget it — it always runs the *logic*, it just
-short-circuits on `isNewSession`), rather than moving enforcement out to
-the submissions layer where it would duplicate the gateway's own
-keySource/keyOwner resolution. A turn route that resolves both TTS and LLM
-handles on a session's first turn runs the check twice, independently
-(they can resolve to different wallets by `key_owner`) — same tolerance
-the original draft's D6 already accepted.
+   The TTS/STT catalog entries (needed to resolve provider → `keySource` →
+   `keyOwner`) come from the assignment's bound speech models. All the
+   resolution primitives already exist as `server-only`, service-role
+   callables — no extraction needed:
+   - **STT/TTS model ids**: `resolveMultimodalSpeechModelsForClass(classDbId)`
+     (`src/lib/konvo-voice/resolveMultimodalSpeechModelsForClass.ts:31`) →
+     `{ sttModelId, ttsModelId }`. `attempt-start` already resolves
+     `classDbId` (step 1), so call the `…ForClass` variant directly (the
+     `…ForAssignment` wrapper just re-resolves `class_id`).
+   - **STT/TTS keySource**: `getModelEntry(modelId).providerId` →
+     `resolveProviderApiKeyWithSourceForAssignment(assignmentId, providerId)`
+     — the exact `{ apiKey, keySource }` call `speech.ts:407` uses.
+   - **LLM keySource**: `getCachedResolveModelConfig(classDbId,
+     'text.chat_tutoring')` → `{ config, keySource }`, same as `model.ts:135`.
+   - `keyOwner = keyOwnerFromSource(keySource)` for each (§3).
+
+   Resolve each surface to its `keyOwner`, collapsing to
+   the **distinct set of wallets** in play — at most two for a fixed scope
+   (the platform-`key_owner` wallet and the byok-`key_owner` wallet, each
+   resolved most-specific-first). This is the "resolve everything, not just
+   the LLM wallet" decision — a speech session whose BYOK STT wallet is
+   exhausted is refused even if the platform LLM wallet is funded.
+3. **Decide**: if any distinct wallet is `block`-enforced and insufficient,
+   throw `QuotaExceededError` → the route returns `QUOTA_EXCEEDED`, the
+   client shows "out of credits" and does not open the conversation. If any
+   is `warn`-enforced and below threshold (and none block), admit but flag.
+   `off`/no-wallet surfaces impose nothing (D5).
+
+Once a session is admitted, **no AI call inside it re-checks** — the debit
+(D1) still runs at completion on every call, only the admission check is
+skipped. The **gateway** decides whether to check per call from explicit
+`AiCallContext` flags, *never* from `sessionId` presence (which the earlier
+draft got wrong — `evaluate`/`transcribe` carry a `sessionId` for
+attribution without being the admitted interactive session):
+
+- `context.admittedAtSessionStart === true` (set by the turn / utterance /
+  transcribe routes for session-internal calls) → **skip** the check.
+- `context.quotaPolicy === 'ride-through'` (set by `evaluate` only) →
+  **skip** the check; the call debits and may drive the wallet negative.
+  Grading already-completed work must not be blocked (decision #2).
+- otherwise (genuine one-shot: rubric generation, transliteration, dynamic
+  questions) → **check**, at the gateway, every call. Fail-closed default: a
+  new AI surface that forgets to declare itself is *checked*, not silently
+  un-gated.
+
+Enforcement thus lives in two well-defined places — one admission decision
+per session at start, and a per-call check for standalone one-shots — with
+the debit uniformly at completion regardless. The `ensureAttemptSession`
+return-type change and `AiCallContext.isNewSession` from the earlier draft
+are dropped entirely; `ensureAttemptSession` stays void and its call sites
+are untouched.
 
 **D7 — found while reading the real call sites: two of the eight gateway
 call sites don't catch `resolveMeteredSpeech` errors at all today.**
@@ -174,6 +236,16 @@ a one-time budget that permanently shrinks the moment it's handed out.
 `null` capacity skips the check (unbounded). This is **not** a transfer —
 the institution wallet's own balance is never debited by a class
 allocation (per the "separate capacity ceiling, not a transfer" decision).
+
+The sum-then-insert is race-safe: `allocate_wallet_credits` takes a
+`SELECT … FOR UPDATE` on the institution-wallet row before summing sibling
+class balances (§Implementation step 2), so two concurrent allocations under
+the same institution+key_owner serialize on that one row — the second reads
+the first's committed balance and can't slip past the ceiling. Every
+contending allocation locks the *same single* row, so there's no lock-order
+deadlock. When there's no institution wallet row there's no capacity and
+nothing to race; concurrent *debits* only lower the sum (free up room), a
+safe direction that needs no lock.
 
 **D9 — wallet funding/policy writes go through the acting user's own
 Supabase client, not service-role, and mirror the existing
@@ -203,7 +275,13 @@ New `AiErrorCode` member, non-retryable, `QuotaExceededError` class in
 `QUOTA_EXCEEDED` code surfaced through the existing client-side
 `errorData.code === ...` pattern (`MultimodalInputArea.tsx:953`,
 `QuestionCard.tsx:198`), plus one `GET /api/ai/quota-status` read for a
-future banner. The wallet **editor** and **funding** UI (forms for
+future banner. **The primary surface, per decision #7, is the session-start
+refusal**: whatever client code calls `attempt-start` branches on a
+`QUOTA_EXCEEDED` response and shows an "out of credits — can't start this
+session" message *before* the conversation opens, rather than letting the
+user begin and hit an error mid-turn. The mid-call `QUOTA_EXCEEDED` handling
+above remains only for genuine one-shots (which aren't admitted at session
+start). The wallet **editor** and **funding** UI (forms for
 allocating credits, toggling `self_manage_enabled`, setting capacity) is
 this phase's actual new admin-facing surface — see §Implementation — but
 the rich analytics (spend distribution, funding history views) stay Phase
@@ -411,10 +489,17 @@ begin
       raise exception 'Not permitted to fund this class wallet';
     end if;
 
+    -- FOR UPDATE serializes concurrent class allocations under the same
+    -- institution+key_owner on the single institution-wallet row, so the
+    -- sum-then-insert capacity check below can't be raced past its ceiling
+    -- (D8). No institution wallet row -> no capacity -> unbounded, and
+    -- nothing to race. Concurrent debits only shrink the sum (free up room),
+    -- a safe direction, so they need no lock.
     select w.class_allocation_capacity into v_capacity
     from public.ai_credit_wallets w
     where w.institution_id = v_wallet.institution_id
-      and w.class_id is null and w.key_owner = v_wallet.key_owner;
+      and w.class_id is null and w.key_owner = v_wallet.key_owner
+    for update;
 
     if v_capacity is not null then
       select coalesce(sum(b.balance), 0) into v_current_class_sum
@@ -476,34 +561,45 @@ otherwise unchanged: most-specific-first lookup (class row, else
 institution row, for the given `key_owner`), reading `ai_credit_balances`
 for the resolved wallet.
 
-### 4. `ensureAttemptSession` → returns `{ created: boolean }` (D6)
+### 4. `assertSessionCanStart` + `attempt-start` wiring (D6)
 
-```ts
-export async function ensureAttemptSession(
-  client: SupabaseClient,
-  input: EnsureAttemptSessionInput,
-): Promise<{ created: boolean }> {
-  const { data, error } = await client
-    .from("attempt_sessions")
-    .upsert({ id: input.id, ... }, { onConflict: "id", ignoreDuplicates: true })
-    .select("id");
-  if (error) {
-    console.error("[ensureAttemptSession] failed to upsert:", error);
-    return { created: false };
-  }
-  return { created: (data?.length ?? 0) > 0 };
-}
-```
+New `assertSessionCanStart(input)` in `src/lib/ai/metering/quota.ts`
+(service-role, D4): resolves the session's `classId`/`institutionId`,
+enumerates the session's AI surfaces from the assignment's
+`bot_prompt_config.multimodal_interaction` (chat LLM always; TTS unless
+`output.speechMode` is `"none"`; STT when `input.modes` includes `"audio"`
+and `input.audioDelivery` is `"transcribe"` — see D6 for the exact fields),
+resolves each to its `keyOwner`, and checks the **distinct wallet set**
+(D6). Throws `QuotaExceededError` if any `block` wallet is exhausted;
+returns a `{ warnings }` result otherwise.
 
-All 5 call sites (`attempt-start/route.ts:53`, `turn/route.ts:285`,
-`audio/utterance/route.ts`, `evaluate/route.ts:210`, `transcribe/route.ts`)
-capture the result and set `AiCallContext.isNewSession` (new optional
-field on `AiCallContext`, `gateway/model.ts:23-36`) before calling
-`resolveMeteredModel`/`resolveMeteredSpeech`.
+`attempt-start/route.ts` calls it **after resolving `classId`/`institutionId`
+and before** `upsertSubmissionQuestion`/`getOrCreateCurrentAttempt`/
+`ensureAttemptSession`, so a refused session writes no attempt or session
+row. A thrown `QuotaExceededError` is caught and returned as a structured
+`QUOTA_EXCEEDED` JSON response (not a 500); the client branches on it to
+show "out of credits" and not open the conversation.
 
-*Verify:* two concurrent requests racing to create the same `sessionId`
-(simulate with a quick double-call) — confirm exactly one gets
-`created: true`.
+The deploy-skew alias `attempt-session/route.ts` (temporary, slated for
+deletion) is intentionally left un-gated — it exists only for old client
+bundles in flight and carries no new session traffic once the current
+release ships.
+
+The earlier draft's `ensureAttemptSession` return-type change and the
+`AiCallContext.isNewSession` field are **dropped** — this model never needs
+to detect "the first AI call of a session," so `ensureAttemptSession` stays
+void and all its call sites are untouched. (Note the earlier draft's
+call-site list was also wrong: it named `transcribe/route.ts` — which does
+*not* call `ensureAttemptSession` — and omitted `attempt-session/route.ts`,
+which does.)
+
+*Verify:* with a class chat-LLM wallet at `enforcement='block'`, balance
+`0`, hit `attempt-start` for that class — confirm `QUOTA_EXCEEDED` is
+returned and **no** `attempt_sessions`/attempt row is written. Fund it,
+confirm the session starts. With a BYOK STT wallet exhausted but the
+platform LLM wallet funded, confirm a **speech-enabled** session is refused
+(all surfaces resolved, not just the LLM) while a **text-only** session in
+the same class is admitted.
 
 ### 5. Gateway wiring — `model.ts` / `speech.ts` (D2, D6)
 
@@ -512,24 +608,31 @@ Both `resolveMeteredModel` and `resolveMeteredSpeech`, right after
 
 1. Resolve `institutionId` (D2) — skip everything below if `classDbId` is
    null.
-2. `keyOwner = keyOwnerFromSource(keySource)`.
-3. Decide whether to actually check: `context.sessionId == null ||
-   context.isNewSession === true`. If not, skip straight to step 5 with
-   `walletId` from a cheap wallet-lookup-only call (no balance check) —
-   still need `walletId` for the debit later even when the balance check
-   is skipped.
-4. If checking: `assertWithinQuota({ institutionId, classId,
-   keyOwner })` — throws `QuotaExceededError` before any provider
-   credential is touched or row is written.
-5. `institutionId` and `walletId` thread into the invocation payload
+2. `keyOwner = keyOwnerFromSource(keySource)`; resolve `walletId` (needed for
+   the debit later regardless of whether the balance is checked).
+3. Decide whether to check, **from context flags — never from `sessionId`
+   presence** (D6):
+   - `context.admittedAtSessionStart === true` → skip (session-internal,
+     already admitted at `attempt-start`).
+   - `context.quotaPolicy === 'ride-through'` → skip (evaluate; debits, may
+     go negative — decision #2).
+   - otherwise → `assertWithinQuota({ institutionId, classId, keyOwner })`,
+     which throws `QuotaExceededError` before any provider credential is
+     touched or row is written. Fail-closed default.
+4. `institutionId` and `walletId` thread into the invocation payload
    (`StartAiInvocationInput` gains `institutionId?`/`walletId?`).
 
-*Verify:* set a test wallet to `enforcement='block'`, balance `0`. First
-turn of a new session: confirm `QuotaExceededError` thrown, no
-`ai_invocations` row written. Second turn of an *already-admitted* session
-against the same wallet: confirm the call is admitted (no throw) even
-though the balance is still `0`/negative, and confirm the debit still
-applies (balance goes further negative).
+New `AiCallContext` fields (`gateway/model.ts:23-36`):
+`admittedAtSessionStart?: boolean` (set by the turn / utterance / transcribe
+routes on the context they already build) and `quotaPolicy?: 'ride-through'`
+(set by `evaluate`).
+
+*Verify:* a genuine one-shot (transliteration) against a `block` wallet at
+balance `0` → `QuotaExceededError`, no `ai_invocations` row. A turn inside an
+*already-admitted* session against the same wallet → admitted (no throw) even
+at negative balance, and the debit still applies (balance goes further
+negative). An `evaluate` call against the same wallet → admitted, debits
+further negative, never throws.
 
 ### 6. `recordInvocation.ts` — wallet debit (D1, unchanged from original draft)
 
@@ -667,17 +770,23 @@ has drifted.
   column + index on `ai_invocations` (steps 1-2).
 - `supabase/migrations/20260716010000_pg_cron_wallet_balance_reconcile.sql`
   — `reconcile_ai_credit_balances()` + cron schedule (step 10).
-- `src/lib/ai/metering/keyOwner.ts`, `quota.ts` — new (step 3).
+- `src/lib/ai/metering/keyOwner.ts`, `quota.ts` — new;
+  `quota.ts` holds both `assertWithinQuota`/`getQuotaStatus` (per-call, step
+  3) and `assertSessionCanStart` (all-surfaces session-start admission, step
+  4).
 - `src/lib/ai/errors.ts` — `QUOTA_EXCEEDED` (step 3).
-- `src/lib/submissions/attemptSessions.ts` — `ensureAttemptSession` return
-  type (step 4).
-- `src/lib/ai/gateway/model.ts`, `speech.ts` — `AiCallContext.isNewSession`,
+- `src/app/api/multimodal/attempt-start/route.ts` — call
+  `assertSessionCanStart`, surface `QUOTA_EXCEEDED` (step 4).
+- `src/lib/ai/gateway/model.ts`, `speech.ts` —
+  `AiCallContext.admittedAtSessionStart`/`quotaPolicy`, gateway per-call
   quota wiring (step 5).
 - `src/lib/ai/logging/types.ts`, `recordInvocation.ts` — `institutionId`/
   `walletId` threading, wallet debit (step 6).
 - 8 route files — `QUOTA_EXCEEDED` catch wiring (step 7).
-- 5 route files calling `ensureAttemptSession` — capture `created`, set
-  `isNewSession` (step 4).
+- Session-internal routes (`turn`, `audio/utterance`, `transcribe`) set
+  `admittedAtSessionStart: true`; `evaluate/route.ts` sets
+  `quotaPolicy: 'ride-through'` (steps 4-5). `ensureAttemptSession` is **not**
+  touched (its return type is unchanged).
 - New institution wallet admin UI + server actions; new platform
   `self_manage_enabled` toggle UI (step 8).
 - `src/app/api/ai/quota-status/route.ts` — new (step 9).
@@ -698,13 +807,13 @@ for funding/policy actions; Phase 4's dashboards/spend-distribution views.
    sites touched, safe to ship idle.
 2. **`keyOwner.ts` / `quota.ts` / `errors.ts`** (§3) — pure/service-role,
    independently verifiable against step 1's schema.
-3. **`ensureAttemptSession` return-type change** (§4) — small, mechanical,
-   touches 5 call sites; safe on its own since nothing reads
-   `isNewSession` yet.
-4. **Gateway wiring** (§5-6) — the one behavior-changing step. Every
-   wallet still starts with no row at all (D5: unrestricted), so this is a
-   no-op until step 8's UI (or manual SQL) actually creates a wallet with
-   `enforcement != 'off'`.
+3. **Session-start admission** (§4) — `assertSessionCanStart` +
+   `attempt-start` wiring. Behavior-changing, but inert until a wallet with
+   `enforcement != 'off'` exists (D5), so safe to ship ahead of the UI. This
+   is the primary multimodal gate.
+4. **Gateway per-call wiring** (§5-6) — the other behavior-changing step
+   (one-shot admission checks + the universal debit). Same D5 inertness: a
+   no-op until a real enforced wallet exists.
 5. **Route `QUOTA_EXCEEDED` wiring** (§7) — lands in the same PR as step 4,
    not after (D7's pre-existing-gap reasoning: shipping enforcement
    without this means 2 of 8 routes degrade a block to a raw 500).

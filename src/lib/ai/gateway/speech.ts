@@ -19,6 +19,11 @@ import {
 } from "@/lib/konvo-voice/speech/providers/sarvam/ws-stream";
 import { resolveProviderApiKeyWithSourceForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
 import { withRetry } from "@/lib/ai/retry";
+import { keyOwnerFromSource } from "@/lib/ai/metering/keyOwner";
+import { assertWithinQuota, resolveWalletId } from "@/lib/ai/metering/quota";
+import { resolveInstitutionId } from "@/lib/logging/appLog";
+import { createServiceRoleClient } from "@/lib/supabase-server";
+import type { AiConfigSource } from "@/types/aiSettings";
 import type {
   SttProvider,
   SynthesizeInput,
@@ -67,7 +72,11 @@ function computeAudioOutputMs(bytes: number, sampleRate: number, mimeType: strin
   return Math.round((bytes / PCM_BYTES_PER_SAMPLE / sampleRate) * 1000);
 }
 
-function contextInvocationFields(context: AiCallContext) {
+function contextInvocationFields(
+  context: AiCallContext,
+  institutionId: string | null,
+  walletId: string | null,
+) {
   return {
     classId: context.classDbId,
     assignmentId: context.assignmentId,
@@ -78,6 +87,8 @@ function contextInvocationFields(context: AiCallContext) {
     attemptId: context.attemptId,
     sessionId: context.sessionId,
     userId: context.userId,
+    institutionId,
+    walletId,
   };
 }
 
@@ -88,6 +99,8 @@ class MeteredSttClientImpl implements MeteredSttClient {
     private readonly apiKey: string | null,
     readonly modelMeta: AiInvocationModelMeta,
     private readonly context: AiCallContext,
+    private readonly institutionId: string | null,
+    private readonly walletId: string | null,
   ) {}
 
   async transcribe(
@@ -98,7 +111,7 @@ class MeteredSttClientImpl implements MeteredSttClient {
       appFunctionKey: "speech_to_text",
       usageType: "speech_to_text",
       model: this.modelMeta,
-      ...contextInvocationFields(this.context),
+      ...contextInvocationFields(this.context, this.institutionId, this.walletId),
       sdkRequest: {
         filename: input.filename,
         mimeType: input.mimeType,
@@ -162,6 +175,8 @@ class MeteredTtsClientImpl implements MeteredTtsClient {
     private readonly apiKey: string | null,
     private readonly modelMeta: AiInvocationModelMeta,
     private readonly context: AiCallContext,
+    private readonly institutionId: string | null,
+    private readonly walletId: string | null,
   ) {
     this.streamFormat = provider.streamFormat;
     if (provider.synthesizeStream) {
@@ -175,7 +190,7 @@ class MeteredTtsClientImpl implements MeteredTtsClient {
       appFunctionKey: "text_to_speech",
       usageType: "text_to_speech",
       model: this.modelMeta,
-      ...contextInvocationFields(this.context),
+      ...contextInvocationFields(this.context, this.institutionId, this.walletId),
       sdkRequest: extra ?? {},
     });
   }
@@ -418,6 +433,28 @@ export async function resolveMeteredSpeech(input: {
     keySource,
   };
 
+  // Quota enforcement (D2, D6) — mirrors resolveMeteredModel: institutionId/
+  // walletId resolved once here, right after keySource is known and before
+  // the handle is constructed; the per-call balance check is skipped for
+  // calls already admitted at session start or explicitly ride-through.
+  const classDbId = input.context.classDbId;
+  const institutionId = classDbId
+    ? await resolveInstitutionId(createServiceRoleClient(), classDbId)
+    : null;
+
+  let walletId: string | null = null;
+  if (institutionId && classDbId) {
+    const keyOwner = keyOwnerFromSource(keySource);
+    walletId = await resolveWalletId({ institutionId, classId: classDbId, keyOwner });
+
+    const shouldCheck =
+      input.context.admittedAtSessionStart !== true &&
+      input.context.quotaPolicy !== "ride-through";
+    if (shouldCheck) {
+      await assertWithinQuota({ institutionId, classId: classDbId, keyOwner });
+    }
+  }
+
   if (input.kind === "stt") {
     const provider = getSttProvider(input.catalogEntry.id);
     return new MeteredSttClientImpl(
@@ -426,6 +463,8 @@ export async function resolveMeteredSpeech(input: {
       apiKey,
       modelMeta,
       input.context,
+      institutionId,
+      walletId,
     );
   }
 
@@ -437,5 +476,26 @@ export async function resolveMeteredSpeech(input: {
     apiKey,
     modelMeta,
     input.context,
+    institutionId,
+    walletId,
   );
+}
+
+/**
+ * Resolves only the key_owner-determining keySource for a speech provider —
+ * never the decrypted API key itself. Exists so session-start admission
+ * (assertSessionCanStart, dev-docs/ai-usage-metering-phase3-plan.md D6) can
+ * learn which wallet an STT/TTS surface would debit without importing the
+ * restricted speech-provider-key module directly (§7.2 import boundary) —
+ * that module may only be touched inside src/lib/ai/gateway/**.
+ */
+export async function resolveSpeechKeySource(
+  providerId: ModelCatalogEntry["providerId"],
+  assignmentId: string,
+): Promise<AiConfigSource> {
+  const { keySource } = await resolveProviderApiKeyWithSourceForAssignment(
+    assignmentId,
+    providerId,
+  );
+  return keySource;
 }

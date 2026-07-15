@@ -12,6 +12,8 @@ import {
 } from "@/lib/ai/gateway";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { catalogNotConfiguredResponse } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 
 interface MultimodalTtsBody {
   ttsModelId: string;
@@ -61,13 +63,32 @@ export async function POST(request: NextRequest) {
     const userId = user?.id ?? null;
 
     return await runWithAiContext({ userId, classId: classDbId }, async () => {
-      const speechContext: AiCallContext = { classDbId, assignmentId: resolvedAssignmentId };
-      const ttsClient = await resolveMeteredSpeech({
-        kind: "tts",
-        catalogEntry: ttsEntry,
+      const speechContext: AiCallContext = {
+        classDbId,
         assignmentId: resolvedAssignmentId,
-        context: speechContext,
-      });
+        // Session-internal TTS call (on-demand/lazy synthesis) for an
+        // already-admitted session (D6) — no separate per-call check.
+        admittedAtSessionStart: true,
+      };
+      let ttsClient;
+      try {
+        ttsClient = await resolveMeteredSpeech({
+          kind: "tts",
+          catalogEntry: ttsEntry,
+          assignmentId: resolvedAssignmentId,
+          context: speechContext,
+        });
+      } catch (error) {
+        const notConfigured = catalogNotConfiguredResponse(error);
+        if (notConfigured) {
+          return NextResponse.json(notConfigured.body, { status: notConfigured.status });
+        }
+        const quotaBlocked = quotaExceededResponse(error);
+        if (quotaBlocked) {
+          return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
+        }
+        throw error;
+      }
 
       let voice: string;
       try {

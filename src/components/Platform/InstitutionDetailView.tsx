@@ -75,6 +75,8 @@ export interface InstitutionDetailViewProps {
   notice?: { ok?: string; error?: string };
   /** "Manage Activity Templates" link target for this institution's template library. */
   activityTemplatesManageHref: string;
+  /** "AI credit wallets" link target for this institution's wallet funding/policy page. */
+  walletsManageHref: string;
 }
 
 type ActiveTab = "settings" | "classes";
@@ -109,6 +111,7 @@ export default function InstitutionDetailView({
   classOverrideHrefBase,
   notice,
   activityTemplatesManageHref,
+  walletsManageHref,
 }: InstitutionDetailViewProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -220,6 +223,7 @@ export default function InstitutionDetailView({
             effectiveSettings={effectiveSettings}
             institutionPolicy={institutionPolicy}
             activityTemplatesManageHref={activityTemplatesManageHref}
+            walletsManageHref={walletsManageHref}
             adminsSection={
               <AdminsCard
                 institutionId={institution.id}

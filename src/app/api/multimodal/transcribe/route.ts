@@ -12,6 +12,8 @@ import {
 } from "@/lib/ai/gateway";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { catalogNotConfiguredResponse } from "@/lib/ai/credentials/resolveCatalogConfig";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 
 function parseSessionConfig(raw: string | null): KonvoSessionConfig | null {
   if (!raw) return null;
@@ -148,13 +150,29 @@ export async function POST(request: NextRequest) {
         attemptNumber,
         attemptId,
         sessionId,
+        // Session-internal STT call for an already-admitted session (D6) — no
+        // separate per-call check.
+        admittedAtSessionStart: true,
       };
-      const sttClient = await resolveMeteredSpeech({
-        kind: "stt",
-        catalogEntry,
-        assignmentId,
-        context: speechContext,
-      });
+      let sttClient;
+      try {
+        sttClient = await resolveMeteredSpeech({
+          kind: "stt",
+          catalogEntry,
+          assignmentId,
+          context: speechContext,
+        });
+      } catch (error) {
+        const notConfigured = catalogNotConfiguredResponse(error);
+        if (notConfigured) {
+          return NextResponse.json(notConfigured.body, { status: notConfigured.status });
+        }
+        const quotaBlocked = quotaExceededResponse(error);
+        if (quotaBlocked) {
+          return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
+        }
+        throw error;
+      }
 
       const segments = collectAudioSegments(formData);
       if (segments.length === 0) {

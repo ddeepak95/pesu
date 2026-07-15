@@ -12,6 +12,7 @@
 
 import { getRetryAfterMs } from "./retry";
 import { AI_NOT_CONFIGURED_ERROR_CODE } from "./credentials/constants";
+import { QUOTA_EXCEEDED_ERROR_CODE } from "./metering/constants";
 import { MULTIMODAL_ERROR_CODES } from "@/lib/multimodal/errorCodes";
 import { INTEGRITY_ACCESS_REVOKED_ERROR_CODE } from "@/lib/integrity/constants";
 
@@ -21,6 +22,7 @@ export type AiErrorCode =
   | "NETWORK" // fetch TypeError, socket reset
   | "TIMEOUT"
   | "AI_NOT_CONFIGURED" // existing AI_NOT_CONFIGURED_ERROR_CODE
+  | "QUOTA_EXCEEDED" // wallet exhausted under block enforcement (Phase 3 D11)
   | "CAPABILITY_MISMATCH" // existing AUDIO_INPUT_CAPABILITY_MISMATCH
   | "INTEGRITY_REVOKED" // existing integrity access revoked code
   | "BAD_REQUEST" // 400/422, schema-invalid input
@@ -82,6 +84,9 @@ export function classifyAiError(err: unknown): ClassifiedAiError {
   const explicitCode = obj ? readString(obj, "code") : undefined;
   if (explicitCode === AI_NOT_CONFIGURED_ERROR_CODE) {
     return { code: "AI_NOT_CONFIGURED", message, retryable: false };
+  }
+  if (explicitCode === QUOTA_EXCEEDED_ERROR_CODE) {
+    return { code: "QUOTA_EXCEEDED", message, retryable: false };
   }
   if (explicitCode === MULTIMODAL_ERROR_CODES.AUDIO_INPUT_CAPABILITY_MISMATCH) {
     return { code: "CAPABILITY_MISMATCH", message, retryable: false };

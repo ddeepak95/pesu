@@ -15,7 +15,7 @@ export type { AiCallContext, MeteredTextModel } from "./model";
 export { resolveMeteredModel } from "./model";
 
 export type { MeteredSttClient, MeteredTtsClient, MeteredTtsSession } from "./speech";
-export { resolveMeteredSpeech } from "./speech";
+export { resolveMeteredSpeech, resolveSpeechKeySource } from "./speech";
 
 export type { AiRequestContext } from "./context";
 export { runWithAiContext, getAiContext, AiContextMissingError } from "./context";

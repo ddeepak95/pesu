@@ -32,6 +32,14 @@ export interface AiInvocationDomainContext {
   /** Links this invocation to a domain row (e.g. a chat_message_action id) — §5.3. */
   relatedEntityType?: string | null;
   relatedEntityId?: string | null;
+  /**
+   * Resolved once at gateway handle resolution (dev-docs/ai-usage-metering-
+   * phase3-plan.md D2) — persistAiInvocationStart uses the given value
+   * instead of re-resolving from classId when present.
+   */
+  institutionId?: string | null;
+  /** Resolved once at gateway handle resolution — null when no wallet exists for this scope (D5). */
+  walletId?: string | null;
 }
 
 export interface StartAiInvocationInput extends AiInvocationDomainContext {

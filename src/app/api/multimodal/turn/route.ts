@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
+import { quotaExceededResponse } from "@/lib/ai/metering/quota";
 import {
   resolveMeteredModel,
   resolveMeteredSpeech,
@@ -280,6 +281,10 @@ export async function POST(request: NextRequest) {
       attemptNumber: attemptNumber ?? null,
       attemptId: attemptId ?? null,
       sessionId: sessionId ?? null,
+      // This session's admission was already checked once at attempt-start
+      // (dev-docs/ai-usage-metering-phase3-plan.md D6) — every turn inside it
+      // skips the gateway's per-call quota check (still debits normally).
+      admittedAtSessionStart: true,
     };
     if (sessionId && submissionId && attemptNumber != null) {
       await ensureAttemptSession(supabase, {
@@ -290,12 +295,21 @@ export async function POST(request: NextRequest) {
         attemptId,
       });
     }
-    const ttsClient = await resolveMeteredSpeech({
-      kind: "tts",
-      catalogEntry: ttsEntry,
-      assignmentId,
-      context: turnContext,
-    });
+    let ttsClient;
+    try {
+      ttsClient = await resolveMeteredSpeech({
+        kind: "tts",
+        catalogEntry: ttsEntry,
+        assignmentId,
+        context: turnContext,
+      });
+    } catch (error) {
+      const quotaBlocked = quotaExceededResponse(error);
+      if (quotaBlocked) {
+        return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
+      }
+      throw error;
+    }
     let handle;
     try {
       handle = await resolveMeteredModel({
@@ -311,6 +325,10 @@ export async function POST(request: NextRequest) {
           },
           { status: 503 },
         );
+      }
+      const quotaBlocked = quotaExceededResponse(error);
+      if (quotaBlocked) {
+        return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
       }
       throw error;
     }
@@ -998,6 +1016,9 @@ export async function POST(request: NextRequest) {
                 attemptId: attemptId ?? null,
                 sessionId: sessionId ?? null,
                 relatedEntity: { type: "chat_message_action", id: actionId },
+                // Generated inside an already-admitted session (D6) — no
+                // separate per-call check.
+                admittedAtSessionStart: true,
               },
               kind: actionKind,
               fallback: handle,
