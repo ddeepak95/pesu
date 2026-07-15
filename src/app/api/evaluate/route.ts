@@ -7,7 +7,11 @@ import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmis
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { resolveMeteredModel, type AiCallContext } from "@/lib/ai/gateway";
+import {
+  resolveMeteredModel,
+  runWithAiContext,
+  type AiCallContext,
+} from "@/lib/ai/gateway";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 import { classifyAiError } from "@/lib/ai/errors";
 import { logAppEvent } from "@/lib/logging/appLog";
@@ -143,6 +147,12 @@ export async function POST(request: NextRequest) {
         parseFeedbackFocusAreas(assignmentConfig?.feedback_focus),
       ) || undefined;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    return await runWithAiContext({ userId, classId: classDbId }, async () => {
     // attemptNumber isn't known until the query below; the handle keeps a
     // reference to this same context object, so filling it in later still
     // reaches the invocation row written at completion time.
@@ -350,6 +360,7 @@ export async function POST(request: NextRequest) {
         created_at: attemptRow.created_at,
         released: isReleased,
       },
+    });
     });
   } catch (error) {
     console.error("=== Evaluation error ===");

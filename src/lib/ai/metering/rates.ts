@@ -191,11 +191,19 @@ const RATE_CARD_VERSIONS: Record<string, RateCardVersion> = {
         },
       },
       "openai-gpt-4o-mini-transcribe": {
-        // OpenAI's transcription models are actually token-billed
-        // ($1.25/1M input audio tokens, $5.00/1M output text tokens), but
-        // we meter STT as audio_second (§4.2 v1 default); OpenAI's own
-        // published blended-equivalent rate is ~$0.003/min.
-        rates: { audio_second: { usdPerUnit: 0.003 / 60 } },
+        // Token-billed, priced on the exact counts OpenAI's response reports
+        // (Transcription.Tokens.input_token_details.audio_tokens / output_tokens):
+        // $1.25/1M audio-input tokens, $5.00/1M output text tokens — real
+        // published pricing, applied via contributionsForUsage's
+        // speech_to_text token-preference branch (computeUsage.ts).
+        // audio_second stays as a fallback rate for the case token usage
+        // isn't reported (e.g. a future response-shape change) — the
+        // ~$0.003/min blended-equivalent OpenAI publishes for that case.
+        rates: {
+          audio_input_token: { usdPerUnit: 1.25 / 1_000_000 },
+          output_token: { usdPerUnit: 5.0 / 1_000_000 },
+          audio_second: { usdPerUnit: 0.003 / 60 },
+        },
       },
       "openai-gpt-4o-mini-tts": {
         // OpenAI bills this as $0.60/1M text-input tokens + $12/1M

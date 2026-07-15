@@ -53,6 +53,9 @@ export interface AiInvocationBillableMetrics {
   metricSource?: MetricSource | null;
   tokenDetails?: TokenDetails | null;
   providerRequestId?: string | null;
+  /** Token-billed STT providers only (currently OpenAI) — see RawUsageMetrics in computeUsage.ts. */
+  sttAudioInputTokens?: number | null;
+  sttOutputTokens?: number | null;
 }
 
 export interface CompleteAiInvocationInput extends AiInvocationBillableMetrics {

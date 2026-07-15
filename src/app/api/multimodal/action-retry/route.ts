@@ -6,6 +6,7 @@ import { assertSubmissionNotIntegrityLocked } from "@/lib/integrity/assertSubmis
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { dispatchAction } from "@/lib/multimodal/actions/dispatcher";
 import { resolveActionModel } from "@/lib/multimodal/actions/resolveActionModel";
+import { runWithAiContext } from "@/lib/ai/gateway";
 import { actionInputSchema } from "@/lib/multimodal/actions/schema";
 import type { ActionPayload } from "@/lib/multimodal/actions/types";
 import { classifyAiError } from "@/lib/ai/errors";
@@ -83,104 +84,111 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Rebuild recent conversation from the DB (do not trust client-sent history).
-    const { data: recentRows } = await supabase
-      .from("chat_messages")
-      .select("role, content, created_at")
-      .eq("submission_id", submissionId ?? "")
-      .eq("question_order", questionOrder)
-      .order("created_at", { ascending: true });
-    const recentMessages = (recentRows ?? [])
-      .filter((r) => typeof r.content === "string" && r.content.trim())
-      .slice(-6)
-      .map((r) => ({
-        role: r.role as "student" | "assistant",
-        content: r.content as string,
-      }));
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
 
-    const actionHandle = await resolveActionModel({
-      context: {
-        classDbId,
-        assignmentId,
-        submissionId,
-        questionOrder,
-        relatedEntity: { type: "chat_message_action", id: actionId },
-      },
-      kind: action.kind,
-    });
+    return await runWithAiContext({ userId, classId: classDbId }, async () => {
+      // Rebuild recent conversation from the DB (do not trust client-sent history).
+      const { data: recentRows } = await supabase
+        .from("chat_messages")
+        .select("role, content, created_at")
+        .eq("submission_id", submissionId ?? "")
+        .eq("question_order", questionOrder)
+        .order("created_at", { ascending: true });
+      const recentMessages = (recentRows ?? [])
+        .filter((r) => typeof r.content === "string" && r.content.trim())
+        .slice(-6)
+        .map((r) => ({
+          role: r.role as "student" | "assistant",
+          content: r.content as string,
+        }));
 
-    const localeLabel = (code: string) =>
-      getLocaleRegistryMap().get(code)?.label ?? code;
-
-    // Collector enqueue — capture the action_payload the handler emits.
-    let capturedPayload: ActionPayload | null = null;
-    const enqueue = (data: Record<string, unknown>) => {
-      if (data.type === "action_payload" && data.data) {
-        capturedPayload = data.data as ActionPayload;
-      }
-    };
-
-    try {
-      await dispatchAction({
-        id: actionId,
-        action,
-        handle: actionHandle,
-        enqueue,
-        supabase,
-        submissionId: submissionId ?? null,
-        chatMessageId,
-        languageLabel: localeLabel(language),
-        ...(supportLanguage && supportLanguage !== language
-          ? { supportLanguageLabel: localeLabel(supportLanguage) }
-          : {}),
-        recentMessages,
-        classId: classDbId,
-        assignmentId,
-        questionOrder,
-      });
-    } catch (err) {
-      // dispatchAction already logged the terminal failure with
-      // source "multimodal_action"; add an action_retry-scoped row too.
-      const classified = classifyAiError(err);
-      logAppEvent({
-        level: "error",
-        source: "action_retry",
-        event: "ai_failure",
-        errorCode: classified.code,
-        message: classified.message,
-        classId: classDbId,
-        activityId: assignmentId,
-        submissionId: submissionId ?? null,
-        questionOrder,
-        metadata: { kind: action.kind },
-      });
-      const status =
-        classified.code === "RATE_LIMITED"
-          ? 429
-          : classified.code === "PROVIDER_UNAVAILABLE"
-            ? 503
-            : 500;
-      return NextResponse.json(
-        {
-          error: classified.message,
-          code: classified.code,
-          retryable: classified.retryable,
-          ...(classified.retryAfterMs
-            ? { retryAfterMs: classified.retryAfterMs }
-            : {}),
+      const actionHandle = await resolveActionModel({
+        context: {
+          classDbId,
+          assignmentId,
+          submissionId,
+          questionOrder,
+          relatedEntity: { type: "chat_message_action", id: actionId },
         },
-        { status },
-      );
-    }
+        kind: action.kind,
+      });
 
-    if (!capturedPayload) {
-      return NextResponse.json(
-        { error: "Action produced no payload", code: "UNKNOWN", retryable: true },
-        { status: 500 },
-      );
-    }
+      const localeLabel = (code: string) =>
+        getLocaleRegistryMap().get(code)?.label ?? code;
 
-    return NextResponse.json({ payload: capturedPayload });
+      // Collector enqueue — capture the action_payload the handler emits.
+      let capturedPayload: ActionPayload | null = null;
+      const enqueue = (data: Record<string, unknown>) => {
+        if (data.type === "action_payload" && data.data) {
+          capturedPayload = data.data as ActionPayload;
+        }
+      };
+
+      try {
+        await dispatchAction({
+          id: actionId,
+          action,
+          handle: actionHandle,
+          enqueue,
+          supabase,
+          submissionId: submissionId ?? null,
+          chatMessageId,
+          languageLabel: localeLabel(language),
+          ...(supportLanguage && supportLanguage !== language
+            ? { supportLanguageLabel: localeLabel(supportLanguage) }
+            : {}),
+          recentMessages,
+          classId: classDbId,
+          assignmentId,
+          questionOrder,
+        });
+      } catch (err) {
+        // dispatchAction already logged the terminal failure with
+        // source "multimodal_action"; add an action_retry-scoped row too.
+        const classified = classifyAiError(err);
+        logAppEvent({
+          level: "error",
+          source: "action_retry",
+          event: "ai_failure",
+          errorCode: classified.code,
+          message: classified.message,
+          classId: classDbId,
+          activityId: assignmentId,
+          submissionId: submissionId ?? null,
+          questionOrder,
+          metadata: { kind: action.kind },
+        });
+        const status =
+          classified.code === "RATE_LIMITED"
+            ? 429
+            : classified.code === "PROVIDER_UNAVAILABLE"
+              ? 503
+              : 500;
+        return NextResponse.json(
+          {
+            error: classified.message,
+            code: classified.code,
+            retryable: classified.retryable,
+            ...(classified.retryAfterMs
+              ? { retryAfterMs: classified.retryAfterMs }
+              : {}),
+          },
+          { status },
+        );
+      }
+
+      if (!capturedPayload) {
+        return NextResponse.json(
+          { error: "Action produced no payload", code: "UNKNOWN", retryable: true },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ payload: capturedPayload });
+    });
   } catch (error) {
     const classified = classifyAiError(error);
     return NextResponse.json(

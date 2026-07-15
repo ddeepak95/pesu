@@ -1,5 +1,7 @@
 import "server-only";
 
+import { after } from "next/server";
+import { AiContextMissingError, getAiContext } from "@/lib/ai/gateway/context";
 import {
   computeUsage,
   disaggregateInputTokens,
@@ -41,6 +43,53 @@ function modelPayload(model: AiInvocationModelMeta) {
 
 function logInvocationError(label: string, err: unknown) {
   console.error(`[ai-invocation] ${label}:`, err);
+}
+
+/**
+ * Isolated, retried write to the ai_usage_counters cache (D2). Never allowed
+ * to fail the caller's AI response — the source-of-truth ai_invocations row
+ * is already committed by the time this runs. The first attempt is awaited
+ * inline; on failure the caller schedules retries via after() (zero added
+ * response latency), with the nightly reconcile as the last-resort backstop.
+ */
+interface UsageCounterRpcArgs {
+  p_institution_id: string | null;
+  p_class_id: string | null;
+  p_ai_key_source: string;
+  p_started_at: string;
+  p_usage_type: string;
+  p_credits: number;
+}
+
+const COUNTER_RETRY_DELAYS_MS = [200, 1000, 3000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function upsertUsageCounter(rpcArgs: UsageCounterRpcArgs): Promise<boolean> {
+  try {
+    const service = createServiceRoleClient();
+    const { error } = await service.rpc("record_usage_counter", rpcArgs);
+    if (error) {
+      logAppEvent({
+        level: "warn",
+        source: "usage_metering",
+        event: "counter_upsert_failed",
+        message: error.message,
+      });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logAppEvent({
+      level: "warn",
+      source: "usage_metering",
+      event: "counter_upsert_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
 }
 
 /** Shape of the `ai` package's `LanguageModelUsage` that we actually read. */
@@ -195,22 +244,49 @@ async function persistAiInvocationStart(
   const captureEnabled = isAiInvocationLoggingEnabled();
   const paths = captureEnabled ? aiInvocationStoragePaths(invocationId) : null;
 
-  const institutionId = input.classId
-    ? await resolveInstitutionId(service, input.classId)
+  // Runtime attribution backstop (§4/D4): explicit input wins, ambient
+  // runWithAiContext() fills the rest. `ambient === undefined` (as opposed to
+  // an ambient context whose fields are legitimately null) means no call site
+  // ever wrapped this request at all — the case this backstop exists to catch.
+  const ambient = getAiContext();
+  const userId = input.userId ?? ambient?.userId ?? null;
+  const classId = input.classId ?? ambient?.classId ?? null;
+  const contextMissing = ambient === undefined && classId == null && userId == null;
+
+  if (contextMissing) {
+    if (process.env.NODE_ENV !== "production") {
+      throw new AiContextMissingError(
+        `AI invocation "${input.appFunctionKey}" has no request context — wrap the call site in runWithAiContext(), or pass classId/userId explicitly.`,
+      );
+    }
+    logAppEvent({
+      level: "error",
+      source: "usage_metering",
+      event: "ai_context_missing",
+      message: `AI invocation "${input.appFunctionKey}" started with no attribution context (no runWithAiContext() active, classId/userId both null).`,
+    });
+  }
+
+  // Widened to `string` locally — no DB constraint blocks the "unattributed"
+  // sentinel, and it's only ever used on the production-degrade path above.
+  const appFunctionKey: string = contextMissing ? "unattributed" : input.appFunctionKey;
+
+  const institutionId = classId
+    ? await resolveInstitutionId(service, classId)
     : null;
 
   // The row is always written — it's the system of record for billing/usage,
   // independent of whether GCS debug-payload capture is enabled (§6).
   const { error: insertError } = await service.from("ai_invocations").insert({
     id: invocationId,
-    app_function_key: input.appFunctionKey,
+    app_function_key: appFunctionKey,
     usage_type: input.usageType ?? "text_generation",
     ai_provider: input.model.provider,
     ai_model_id: input.model.modelId,
     ai_key_source: input.model.keySource,
-    class_id: input.classId ?? null,
+    class_id: classId,
     institution_id: institutionId,
-    user_id: input.userId ?? null,
+    user_id: userId,
     assignment_id: input.assignmentId ?? null,
     submission_id: input.submissionId ?? null,
     question_order: input.questionOrder ?? null,
@@ -252,6 +328,7 @@ export async function startAiInvocation(
     await persistAiInvocationStart(input, invocationId);
     return invocationId;
   } catch (err) {
+    if (err instanceof AiContextMissingError) throw err;
     logInvocationError("failed to persist start", err);
     return null;
   }
@@ -304,9 +381,11 @@ export async function completeAiInvocation(
 
   // Re-read what was recorded at start — model/usage_type are the row's own
   // properties, not something every completer should have to carry forward.
+  // Also carries the attribution fields the counter upsert needs below (one
+  // extra round-trip was already happening here, no new query).
   const { data: startedRow, error: fetchError } = await service
     .from("ai_invocations")
-    .select("ai_model_id, usage_type")
+    .select("ai_model_id, usage_type, ai_key_source, institution_id, class_id, started_at")
     .eq("id", invocationId)
     .maybeSingle();
   if (fetchError) {
@@ -345,6 +424,8 @@ export async function completeAiInvocation(
           audioOutputSeconds:
             input.audioOutputMs != null ? input.audioOutputMs / 1000 : null,
           sessionSeconds: input.sessionMs != null ? input.sessionMs / 1000 : null,
+          sttAudioInputTokens: input.sttAudioInputTokens ?? null,
+          sttOutputTokens: input.sttOutputTokens ?? null,
         },
       })
     : {
@@ -411,6 +492,35 @@ export async function completeAiInvocation(
       message: error.message,
       aiInvocationId: invocationId,
     });
+    return;
+  }
+
+  if (computed.credits != null && startedRow) {
+    const rpcArgs: UsageCounterRpcArgs = {
+      p_institution_id: (startedRow.institution_id as string | null) ?? null,
+      p_class_id: (startedRow.class_id as string | null) ?? null,
+      p_ai_key_source: (startedRow.ai_key_source as string | null) ?? "unconfigured",
+      p_started_at: (startedRow.started_at as string | null) ?? completedAt.toISOString(),
+      p_usage_type: usageType,
+      p_credits: computed.credits,
+    };
+
+    const firstAttemptSucceeded = await upsertUsageCounter(rpcArgs);
+    if (!firstAttemptSucceeded) {
+      after(async () => {
+        for (const delayMs of COUNTER_RETRY_DELAYS_MS) {
+          await sleep(delayMs);
+          if (await upsertUsageCounter(rpcArgs)) return;
+        }
+        logAppEvent({
+          level: "error",
+          source: "usage_metering",
+          event: "counter_upsert_exhausted",
+          message: `record_usage_counter failed after ${COUNTER_RETRY_DELAYS_MS.length} retries.`,
+          aiInvocationId: invocationId,
+        });
+      });
+    }
   }
 }
 

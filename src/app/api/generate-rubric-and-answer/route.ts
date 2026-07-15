@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { RubricItem } from "@/types/assignment";
 import { catalogNotConfiguredResponse } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { resolveMeteredModel } from "@/lib/ai/gateway";
+import { resolveMeteredModel, runWithAiContext } from "@/lib/ai/gateway";
 import {
   rubricGenerationSchema,
   rubricOnlySchema,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/schemas/rubric-generation";
 import { getActivityTypeGenerationCopy } from "@/lib/activityTypes/registry";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 interface GenerateRubricAndAnswerRequestBody {
   questionPrompt: string;
@@ -98,6 +99,13 @@ export async function POST(request: NextRequest) {
       contextText += `\n\nTeacher's Additional Instructions for Generation:\n${focusGuidance.trim()}`;
     }
 
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    return await runWithAiContext({ userId, classId: classDbId ?? null }, async () => {
     let handle;
     try {
       handle = await resolveMeteredModel({
@@ -270,6 +278,7 @@ Please detect language (ISO 639-1) and generate only the ${copy.expectedAnswerNo
     );
 
     return NextResponse.json(response);
+    });
   } catch (error) {
     console.error("Generate rubric and answer API error:", error);
     return NextResponse.json(

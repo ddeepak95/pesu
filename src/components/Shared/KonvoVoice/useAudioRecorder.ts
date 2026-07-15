@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export interface StopRecordingResult {
+  blob: Blob | null;
+  /** Wall-clock recording duration, from startRecording() to stopRecording() — used as a metering fallback (recordingDurationMs) when a provider reports no duration of its own. Null if no recording session was ever started. */
+  durationMs: number | null;
+}
+
 export interface UseAudioRecorderResult {
   isRecording: boolean;
   recordingSessionId: number;
@@ -10,7 +16,7 @@ export interface UseAudioRecorderResult {
   /** Call synchronously inside a click handler before any await. */
   primeAudio: () => void;
   startRecording: () => Promise<boolean>;
-  stopRecording: () => Promise<Blob | null>;
+  stopRecording: () => Promise<StopRecordingResult>;
   clearRecording: () => void;
   error: string | null;
 }
@@ -57,7 +63,8 @@ export function useAudioRecorder(
   const sessionIdRef = useRef(0);
   const activeSessionRef = useRef(0);
   const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stopRecordingRef = useRef<(() => Promise<Blob | null>) | null>(null);
+  const recordingStartedAtMsRef = useRef<number | null>(null);
+  const stopRecordingRef = useRef<(() => Promise<StopRecordingResult>) | null>(null);
   const maxRecordingMs = options?.maxRecordingMs;
 
   const clearMaxDurationTimer = useCallback(() => {
@@ -119,6 +126,7 @@ export function useAudioRecorder(
     stopTracks();
     closeAudioContext();
     setIsRecording(false);
+    recordingStartedAtMsRef.current = null;
   }, [stopTracks, closeAudioContext, clearMaxDurationTimer]);
 
   const startRecording = useCallback(async (): Promise<boolean> => {
@@ -212,6 +220,7 @@ export function useAudioRecorder(
         abortCurrentSession();
       };
 
+      recordingStartedAtMsRef.current = Date.now();
       recorder.start(250);
       setIsRecording(true);
 
@@ -237,15 +246,20 @@ export function useAudioRecorder(
     }
   }, [abortCurrentSession, closeAudioGraph, clearMaxDurationTimer, maxRecordingMs]);
 
-  const stopRecording = useCallback((): Promise<Blob | null> => {
+  const stopRecording = useCallback((): Promise<StopRecordingResult> => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
       const sessionId = activeSessionRef.current;
+      // Captured at the moment recording actually stops, not after the flush
+      // wait below, so the reported duration matches the real recording length.
+      const startedAtMs = recordingStartedAtMsRef.current;
+      const durationMs = startedAtMs != null ? Date.now() - startedAtMs : null;
+      recordingStartedAtMsRef.current = null;
 
       if (!recorder || recorder.state !== "recording") {
         const blob = getAccumulatedBlob();
         setIsRecording(false);
-        resolve(blob);
+        resolve({ blob, durationMs });
         return;
       }
 
@@ -261,7 +275,7 @@ export function useAudioRecorder(
           if (activeSessionRef.current === sessionId) {
             activeSessionRef.current = 0;
           }
-          resolve(blob);
+          resolve({ blob, durationMs });
         })();
       };
 

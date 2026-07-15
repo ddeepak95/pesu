@@ -20,6 +20,7 @@ export interface TranscribeInput {
 export interface SpeechUsage {
   /** STT input duration, when known. */
   audioMs?: number | null;
+  /** Token-billed STT providers (OpenAI) — `audio`/`output` are read by the gateway (speech.ts) and priced directly via computeUsage's speech_to_text token-preference branch, taking priority over audioMs. */
   providerTokens?: { input?: number; output?: number; audio?: number } | null;
   source: "provider" | "measured" | "estimated";
   providerRequestId?: string | null;

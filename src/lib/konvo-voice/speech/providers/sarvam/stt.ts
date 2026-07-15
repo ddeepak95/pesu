@@ -32,6 +32,11 @@ export const sarvamSttProvider: SttProvider = {
     form.append("model", model);
     form.append("mode", "transcribe");
     form.append("language_code", languageCode);
+    // Sarvam reports no duration/usage by default (§5.1) — request word-level
+    // timestamps so audio duration can be self-measured from the last word's
+    // end time, instead of relying entirely on the (currently unsent) client
+    // fallback.
+    form.append("with_timestamps", "true");
 
     const response = await fetch(`${SARVAM_API_BASE}/speech-to-text`, {
       method: "POST",
@@ -53,11 +58,24 @@ export const sarvamSttProvider: SttProvider = {
       );
     }
 
-    const body = (await response.json()) as { transcript?: string };
+    const body = (await response.json()) as {
+      transcript?: string;
+      timestamps?: { words?: string[]; end_time_seconds?: number[] } | null;
+    };
     const text = body.transcript ?? "";
     console.log(
       `[konvo-voice/stt] provider=sarvam response.textLen=${text.length} text=${JSON.stringify(text.slice(0, 200))}`,
     );
-    return { text };
+
+    const endTimes = body.timestamps?.end_time_seconds;
+    const audioMs =
+      Array.isArray(endTimes) && endTimes.length > 0
+        ? Math.round(Math.max(...endTimes) * 1000)
+        : null;
+
+    return {
+      text,
+      usage: audioMs != null ? { audioMs, source: "measured", raw: body.timestamps } : undefined,
+    };
   },
 };

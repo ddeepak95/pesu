@@ -5,7 +5,11 @@ import {
   SARVAM_STT_CATALOG_MODEL_ID,
   SARVAM_STT_MAX_DURATION_MS,
 } from "@/lib/konvo-voice/speech/constants";
-import { resolveMeteredSpeech, type AiCallContext } from "@/lib/ai/gateway";
+import {
+  resolveMeteredSpeech,
+  runWithAiContext,
+  type AiCallContext,
+} from "@/lib/ai/gateway";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
@@ -95,56 +99,177 @@ export async function POST(request: NextRequest) {
       typeof submissionIdRaw === "string" && submissionIdRaw.trim()
         ? submissionIdRaw.trim()
         : null;
+    const questionOrderRaw = formData.get("questionOrder");
+    const parsedQuestionOrder =
+      typeof questionOrderRaw === "string" ? Number.parseInt(questionOrderRaw, 10) : NaN;
+    const questionOrder = Number.isFinite(parsedQuestionOrder) ? parsedQuestionOrder : null;
+    const attemptNumberRaw = formData.get("attemptNumber");
+    const parsedAttemptNumber =
+      typeof attemptNumberRaw === "string" ? Number.parseInt(attemptNumberRaw, 10) : NaN;
+    const attemptNumber = Number.isFinite(parsedAttemptNumber) ? parsedAttemptNumber : null;
 
     // class_id resolved server-side from the assignment — never trust a
     // client-supplied id for attribution (§5.0 "context plumbing").
+    const supabase = await createServerSupabaseClient();
     const classDbId = assignmentId
-      ? await getClassDbIdForAssignment(await createServerSupabaseClient(), assignmentId)
+      ? await getClassDbIdForAssignment(supabase, assignmentId)
       : null;
-    const speechContext: AiCallContext = { classDbId, assignmentId, submissionId };
-    const sttClient = await resolveMeteredSpeech({
-      kind: "stt",
-      catalogEntry,
-      assignmentId,
-      context: speechContext,
-    });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
 
-    const segments = collectAudioSegments(formData);
-    if (segments.length === 0) {
-      return NextResponse.json(
-        { error: "Missing audio file" },
-        { status: 400 },
-      );
-    }
+    return await runWithAiContext({ userId, classId: classDbId }, async () => {
+      const speechContext: AiCallContext = {
+        classDbId,
+        assignmentId,
+        submissionId,
+        questionOrder,
+        attemptNumber,
+      };
+      const sttClient = await resolveMeteredSpeech({
+        kind: "stt",
+        catalogEntry,
+        assignmentId,
+        context: speechContext,
+      });
 
-    const durationRaw = formData.get("recordingDurationMs");
-    const recordingDurationMs =
-      typeof durationRaw === "string" && durationRaw.trim()
-        ? Number.parseInt(durationRaw, 10)
-        : NaN;
+      const segments = collectAudioSegments(formData);
+      if (segments.length === 0) {
+        return NextResponse.json(
+          { error: "Missing audio file" },
+          { status: 400 },
+        );
+      }
 
-    const isSarvam = sessionConfig.sttModelId === SARVAM_STT_CATALOG_MODEL_ID;
-    const isChunked = isSarvam && segments.length > 1;
+      const durationRaw = formData.get("recordingDurationMs");
+      const recordingDurationMs =
+        typeof durationRaw === "string" && durationRaw.trim()
+          ? Number.parseInt(durationRaw, 10)
+          : NaN;
 
-    if (
-      isSarvam &&
-      !isChunked &&
-      Number.isFinite(recordingDurationMs) &&
-      recordingDurationMs > SARVAM_STT_MAX_DURATION_MS
-    ) {
-      return NextResponse.json(
-        {
-          error: "Recording too long for Sarvam STT",
-          details: `Sarvam supports up to ${SARVAM_STT_MAX_DURATION_MS / 1000} seconds per request. Longer recordings are split automatically on supported browsers.`,
-        },
-        { status: 400 },
-      );
-    }
+      const isSarvam = sessionConfig.sttModelId === SARVAM_STT_CATALOG_MODEL_ID;
+      const isChunked = isSarvam && segments.length > 1;
 
-    const fallbackAudioMs = Number.isFinite(recordingDurationMs) ? recordingDurationMs : null;
+      if (
+        isSarvam &&
+        !isChunked &&
+        Number.isFinite(recordingDurationMs) &&
+        recordingDurationMs > SARVAM_STT_MAX_DURATION_MS
+      ) {
+        return NextResponse.json(
+          {
+            error: "Recording too long for Sarvam STT",
+            details: `Sarvam supports up to ${SARVAM_STT_MAX_DURATION_MS / 1000} seconds per request. Longer recordings are split automatically on supported browsers.`,
+          },
+          { status: 400 },
+        );
+      }
 
-    /** Transcribe all segments for a given language hint, returning joined text. */
-    const transcribeAll = async (language: string): Promise<string> => {
+      const fallbackAudioMs = Number.isFinite(recordingDurationMs) ? recordingDurationMs : null;
+
+      /** Transcribe all segments for a given language hint, returning joined text. */
+      const transcribeAll = async (language: string): Promise<string> => {
+        if (isChunked) {
+          const parts: string[] = [];
+          for (const segment of segments) {
+            const buffer = Buffer.from(await segment.arrayBuffer());
+            if (buffer.length < 500) continue;
+            const filename =
+              segment instanceof File && segment.name
+                ? segment.name
+                : "recording.webm";
+            const mimeType = segment.type || "audio/webm";
+            const result = await sttClient.transcribe({
+              audio: buffer,
+              filename,
+              mimeType,
+              language,
+              fallbackAudioMs,
+            });
+            const part = (result.text ?? "").trim();
+            if (part) parts.push(part);
+          }
+          return parts.join(" ");
+        }
+
+        const audio = segments[0]!;
+        const buffer = Buffer.from(await audio.arrayBuffer());
+        if (buffer.length < 500) return "";
+        const filename =
+          audio instanceof File && audio.name ? audio.name : "recording.webm";
+        const mimeType = audio.type || "audio/webm";
+        const result = await sttClient.transcribe({
+          audio: buffer,
+          filename,
+          mimeType,
+          language,
+          fallbackAudioMs,
+        });
+        return (result.text ?? "").trim();
+      };
+
+      const supportLanguage = sessionConfig.supportLanguage?.trim();
+      const isDual =
+        Boolean(supportLanguage) && supportLanguage !== sessionConfig.language;
+
+      if (isDual) {
+        // Parallel transcription: same audio, two language hints.
+        const [primaryResult, supportResult] = await Promise.allSettled([
+          transcribeAll(sessionConfig.language),
+          transcribeAll(supportLanguage!),
+        ]);
+
+        const primaryText =
+          primaryResult.status === "fulfilled" ? primaryResult.value : "";
+        const supportText =
+          supportResult.status === "fulfilled" ? supportResult.value : "";
+
+        if (primaryResult.status === "rejected") {
+          console.warn(
+            "[konvo-voice/transcribe] primary language transcription failed:",
+            primaryResult.reason,
+          );
+        }
+        if (supportResult.status === "rejected") {
+          console.warn(
+            "[konvo-voice/transcribe] support language transcription failed:",
+            supportResult.reason,
+          );
+        }
+
+        const candidates: TranscribeCandidate[] = [];
+        if (primaryText) candidates.push({ language: sessionConfig.language, text: primaryText });
+        if (supportText) candidates.push({ language: supportLanguage!, text: supportText });
+
+        console.log(
+          `[konvo-voice/transcribe] dual primary=${sessionConfig.language} support=${supportLanguage} ` +
+            `primaryLen=${primaryText.length} supportLen=${supportText.length}`,
+        );
+
+        if (candidates.length === 0) {
+          return NextResponse.json(
+            {
+              error: "No speech detected",
+              details:
+                "The transcription service returned no text. The recording may be silent or unsupported.",
+            },
+            { status: 422 },
+          );
+        }
+
+        if (candidates.length === 1) {
+          // Only one reading succeeded — treat as single mode (no dual-pick needed).
+          return NextResponse.json({ text: candidates[0]!.text } satisfies TranscribeResponse);
+        }
+
+        return NextResponse.json({
+          text: primaryText,
+          candidates,
+        } satisfies TranscribeResponse);
+      }
+
+      // ── Single-language path (unchanged behavior) ──────────────────────────
       if (isChunked) {
         const parts: string[] = [];
         for (const segment of segments) {
@@ -159,70 +284,46 @@ export async function POST(request: NextRequest) {
             audio: buffer,
             filename,
             mimeType,
-            language,
+            language: sessionConfig.language,
             fallbackAudioMs,
           });
           const part = (result.text ?? "").trim();
           if (part) parts.push(part);
         }
-        return parts.join(" ");
+
+        const text = parts.join(" ");
+        console.log(
+          `[konvo-voice/transcribe] provider=sarvam chunks=${segments.length} transcriptLen=${text.length}`,
+        );
+
+        if (!text) {
+          return NextResponse.json(
+            {
+              error: "No speech detected",
+              details:
+                "The transcription service returned no text across all segments.",
+            },
+            { status: 422 },
+          );
+        }
+
+        return NextResponse.json({ text });
       }
 
       const audio = segments[0]!;
       const buffer = Buffer.from(await audio.arrayBuffer());
-      if (buffer.length < 500) return "";
-      const filename =
-        audio instanceof File && audio.name ? audio.name : "recording.webm";
-      const mimeType = audio.type || "audio/webm";
-      const result = await sttClient.transcribe({
-        audio: buffer,
-        filename,
-        mimeType,
-        language,
-        fallbackAudioMs,
-      });
-      return (result.text ?? "").trim();
-    };
-
-    const supportLanguage = sessionConfig.supportLanguage?.trim();
-    const isDual =
-      Boolean(supportLanguage) && supportLanguage !== sessionConfig.language;
-
-    if (isDual) {
-      // Parallel transcription: same audio, two language hints.
-      const [primaryResult, supportResult] = await Promise.allSettled([
-        transcribeAll(sessionConfig.language),
-        transcribeAll(supportLanguage!),
-      ]);
-
-      const primaryText =
-        primaryResult.status === "fulfilled" ? primaryResult.value : "";
-      const supportText =
-        supportResult.status === "fulfilled" ? supportResult.value : "";
-
-      if (primaryResult.status === "rejected") {
-        console.warn(
-          "[konvo-voice/transcribe] primary language transcription failed:",
-          primaryResult.reason,
-        );
-      }
-      if (supportResult.status === "rejected") {
-        console.warn(
-          "[konvo-voice/transcribe] support language transcription failed:",
-          supportResult.reason,
+      if (buffer.length < 500) {
+        return NextResponse.json(
+          {
+            error: "Audio too short",
+            details: "Recording was empty or too brief to transcribe.",
+          },
+          { status: 400 },
         );
       }
 
-      const candidates: TranscribeCandidate[] = [];
-      if (primaryText) candidates.push({ language: sessionConfig.language, text: primaryText });
-      if (supportText) candidates.push({ language: supportLanguage!, text: supportText });
-
-      console.log(
-        `[konvo-voice/transcribe] dual primary=${sessionConfig.language} support=${supportLanguage} ` +
-          `primaryLen=${primaryText.length} supportLen=${supportText.length}`,
-      );
-
-      if (candidates.length === 0) {
+      const text = await transcribeAll(sessionConfig.language);
+      if (!text) {
         return NextResponse.json(
           {
             error: "No speech detected",
@@ -233,83 +334,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (candidates.length === 1) {
-        // Only one reading succeeded — treat as single mode (no dual-pick needed).
-        return NextResponse.json({ text: candidates[0]!.text } satisfies TranscribeResponse);
-      }
-
-      return NextResponse.json({
-        text: primaryText,
-        candidates,
-      } satisfies TranscribeResponse);
-    }
-
-    // ── Single-language path (unchanged behavior) ──────────────────────────
-    if (isChunked) {
-      const parts: string[] = [];
-      for (const segment of segments) {
-        const buffer = Buffer.from(await segment.arrayBuffer());
-        if (buffer.length < 500) continue;
-        const filename =
-          segment instanceof File && segment.name
-            ? segment.name
-            : "recording.webm";
-        const mimeType = segment.type || "audio/webm";
-        const result = await sttClient.transcribe({
-          audio: buffer,
-          filename,
-          mimeType,
-          language: sessionConfig.language,
-          fallbackAudioMs,
-        });
-        const part = (result.text ?? "").trim();
-        if (part) parts.push(part);
-      }
-
-      const text = parts.join(" ");
-      console.log(
-        `[konvo-voice/transcribe] provider=sarvam chunks=${segments.length} transcriptLen=${text.length}`,
-      );
-
-      if (!text) {
-        return NextResponse.json(
-          {
-            error: "No speech detected",
-            details:
-              "The transcription service returned no text across all segments.",
-          },
-          { status: 422 },
-        );
-      }
-
       return NextResponse.json({ text });
-    }
-
-    const audio = segments[0]!;
-    const buffer = Buffer.from(await audio.arrayBuffer());
-    if (buffer.length < 500) {
-      return NextResponse.json(
-        {
-          error: "Audio too short",
-          details: "Recording was empty or too brief to transcribe.",
-        },
-        { status: 400 },
-      );
-    }
-
-    const text = await transcribeAll(sessionConfig.language);
-    if (!text) {
-      return NextResponse.json(
-        {
-          error: "No speech detected",
-          details:
-            "The transcription service returned no text. The recording may be silent or unsupported.",
-        },
-        { status: 422 },
-      );
-    }
-
-    return NextResponse.json({ text });
+    });
   } catch (error) {
     console.error("[konvo-voice/transcribe]", error);
     return NextResponse.json(

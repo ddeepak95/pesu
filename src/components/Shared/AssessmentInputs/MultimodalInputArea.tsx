@@ -1582,7 +1582,8 @@ export function MultimodalInputArea({
     }
 
     if (recorder.isRecording) {
-      const recorded = await recorder.stopRecording();
+      const { blob: recorded, durationMs: recordedDurationMs } =
+        await recorder.stopRecording();
       if (!recorded || recorded.size < 2000) {
         showWarningToast(
           "Recording too short. Speak for 1-2 seconds and try again.",
@@ -1710,6 +1711,12 @@ export function MultimodalInputArea({
           );
         }
         formData.append("assignmentId", assignmentId);
+        formData.append("submissionId", submissionId);
+        formData.append("questionOrder", String(question.order));
+        formData.append("attemptNumber", String(nextAttemptNumber));
+        if (recordedDurationMs != null) {
+          formData.append("recordingDurationMs", String(recordedDurationMs));
+        }
         const response = await fetch("/api/multimodal/transcribe", {
           method: "POST",
           body: formData,
@@ -1798,6 +1805,9 @@ export function MultimodalInputArea({
     supportEnabled,
     supportLanguage,
     directAudioInputEnabled,
+    submissionId,
+    question.order,
+    nextAttemptNumber,
   ]);
 
   // Text input: build a student message from typed text and run the turn —

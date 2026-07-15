@@ -18,6 +18,7 @@ export type { MeteredSttClient, MeteredTtsClient, MeteredTtsSession } from "./sp
 export { resolveMeteredSpeech } from "./speech";
 
 export type { AiRequestContext } from "./context";
+export { runWithAiContext, getAiContext, AiContextMissingError } from "./context";
 
 // Pure schema/prompt-building helpers for the multimodal turn route — no `ai`
 // package import, safe to expose alongside MeteredTextModel.streamTurn.

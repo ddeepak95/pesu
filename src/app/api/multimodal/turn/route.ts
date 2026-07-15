@@ -5,6 +5,7 @@ import {
   resolveMeteredModel,
   resolveMeteredSpeech,
   resolveMultimodalTurnCall,
+  runWithAiContext,
   TURN_SCHEMA_NAME,
   type AiCallContext,
   type MeteredTtsSession,
@@ -241,6 +242,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    return await runWithAiContext({ userId, classId: classDbId }, async () => {
     // Metering context bound once at handle resolution (§7.1) — attemptNumber
     // is already known from the request body here (unlike /api/evaluate,
     // which learns it later), so the full context is available up front.
@@ -1071,6 +1078,7 @@ export async function POST(request: NextRequest) {
     });
 
     return new Response(readable, { headers: sseHeaders() });
+    });
   } catch (error) {
     console.error("[multimodal/turn]", error);
     return NextResponse.json(

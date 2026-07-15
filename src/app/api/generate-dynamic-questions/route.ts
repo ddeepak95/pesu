@@ -18,7 +18,11 @@ import { buildGeneratedQuestionsSchema } from "@/lib/ai/schemas/dynamic-question
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { resolveMeteredModel, type MeteredTextModel } from "@/lib/ai/gateway";
+import {
+  resolveMeteredModel,
+  runWithAiContext,
+  type MeteredTextModel,
+} from "@/lib/ai/gateway";
 import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCache";
 
 /**
@@ -379,6 +383,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    return await runWithAiContext({ userId, classId: classDbId }, async () => {
     let handle;
     try {
       handle = await resolveMeteredModel({
@@ -428,6 +438,7 @@ export async function POST(request: NextRequest) {
       questions: generatedQuestions,
       cached: false,
       generated_from_file_ids: persistedFileIds,
+    });
     });
   } catch (error) {
     console.error("Generate dynamic questions API error:", error);

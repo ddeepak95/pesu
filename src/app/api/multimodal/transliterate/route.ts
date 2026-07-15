@@ -5,7 +5,7 @@ import { getClassDbIdForAssignment } from "@/lib/assignments/assignmentClassCach
 import {
   catalogNotConfiguredResponse,
 } from "@/lib/ai/credentials/resolveCatalogConfig";
-import { resolveMeteredModel } from "@/lib/ai/gateway";
+import { resolveMeteredModel, runWithAiContext } from "@/lib/ai/gateway";
 import { transliterateMessage } from "@/lib/ai/transliterateMessage";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { AiNotConfiguredError } from "@/lib/ai/credentials/resolve";
@@ -35,31 +35,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
     }
 
-    let handle;
-    try {
-      handle = await resolveMeteredModel({
-        appFunctionKey: "text.transliteration",
-        context: { classDbId, assignmentId },
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    return await runWithAiContext({ userId, classId: classDbId }, async () => {
+      let handle;
+      try {
+        handle = await resolveMeteredModel({
+          appFunctionKey: "text.transliteration",
+          context: { classDbId, assignmentId },
+        });
+      } catch (error) {
+        const notConfigured = catalogNotConfiguredResponse(error);
+        if (notConfigured) {
+          return NextResponse.json(notConfigured.body, { status: notConfigured.status });
+        }
+        if (error instanceof AiNotConfiguredError) {
+          return NextResponse.json({ error: error.message, code: error.code }, { status: 503 });
+        }
+        throw error;
+      }
+
+      const result = await transliterateMessage({
+        handle,
+        text,
+        fromLanguage,
+        toLanguage,
       });
-    } catch (error) {
-      const notConfigured = catalogNotConfiguredResponse(error);
-      if (notConfigured) {
-        return NextResponse.json(notConfigured.body, { status: notConfigured.status });
-      }
-      if (error instanceof AiNotConfiguredError) {
-        return NextResponse.json({ error: error.message, code: error.code }, { status: 503 });
-      }
-      throw error;
-    }
 
-    const result = await transliterateMessage({
-      handle,
-      text,
-      fromLanguage,
-      toLanguage,
+      return NextResponse.json(result);
     });
-
-    return NextResponse.json(result);
   } catch (error) {
     console.error("[multimodal/transliterate]", error);
     return NextResponse.json(

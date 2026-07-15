@@ -124,6 +124,11 @@ class MeteredSttClientImpl implements MeteredSttClient {
             audioMs,
             metricSource,
             providerRequestId: usage?.providerRequestId ?? null,
+            // Token-billed providers (OpenAI) report exact billed tokens —
+            // computeUsage prices off these in preference to audioMs/audioSeconds
+            // when present (see contributionsForUsage's speech_to_text branch).
+            sttAudioInputTokens: usage?.providerTokens?.audio ?? null,
+            sttOutputTokens: usage?.providerTokens?.output ?? null,
           },
           startedAtMs,
         );

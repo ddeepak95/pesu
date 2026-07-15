@@ -87,6 +87,16 @@ export interface RawUsageMetrics {
   characters?: number | null; // TTS input characters
   audioOutputSeconds?: number | null; // TTS/realtime synthesized audio duration
   sessionSeconds?: number | null; // realtime session length
+  /**
+   * STT providers that bill by token (e.g. OpenAI's gpt-4o-mini-transcribe:
+   * $1.25/1M audio-input tokens, $5.00/1M output text tokens) report exact
+   * token counts distinct from `inputTokens`/`outputTokens` above, which are
+   * reserved for the blended LLM totals `usageTypeHasTokenMetrics` covers.
+   * When present, these take priority over `audioSeconds` for pricing — see
+   * `contributionsForUsage`'s speech_to_text branch.
+   */
+  sttAudioInputTokens?: number | null;
+  sttOutputTokens?: number | null;
 }
 
 export interface ComputedUsage {
@@ -160,8 +170,21 @@ function contributionsForUsage(usageType: UsageType, raw: RawUsageMetrics): Metr
     }
   }
 
-  if (usageType === "speech_to_text" && raw.audioSeconds) {
-    contributions.push({ metric: "audio_second", units: raw.audioSeconds });
+  if (usageType === "speech_to_text") {
+    // Prefer exact provider-billed tokens (OpenAI) over a duration-based
+    // approximation — audio_second is a fallback for providers that only
+    // ever report duration (Cartesia, Sarvam), not a second billing
+    // dimension alongside tokens for the same call.
+    if (raw.sttAudioInputTokens || raw.sttOutputTokens) {
+      if (raw.sttAudioInputTokens) {
+        contributions.push({ metric: "audio_input_token", units: raw.sttAudioInputTokens });
+      }
+      if (raw.sttOutputTokens) {
+        contributions.push({ metric: "output_token", units: raw.sttOutputTokens });
+      }
+    } else if (raw.audioSeconds) {
+      contributions.push({ metric: "audio_second", units: raw.audioSeconds });
+    }
   }
 
   if (usageType === "text_to_speech") {
@@ -196,6 +219,24 @@ function contributionsForUsage(usageType: UsageType, raw: RawUsageMetrics): Metr
  * floored (§4.4). Never throws — an unpriceable model/metric degrades to
  * null cost/credits, not a blocked call (§4.4 rule 3, §7.4).
  */
+/**
+ * usage_types billed on a single non-token metric (audio seconds/characters/
+ * session seconds), not LLM tokens. Unlike `text_generation`'s token counts
+ * (effectively always present when the SDK returns a result), a zero-
+ * contribution result for one of these always means the metric was missing
+ * or unmeasured (e.g. a provider that reports no duration and no client
+ * fallback was sent) — never a legitimate "nothing to bill" case, since the
+ * call itself only exists because that modality was used. Silently returning
+ * `missingRate: false` here let a real STT pricing gap go undetected with no
+ * `app_logs` signal at all — see dev-docs/ai-usage-metering-phase2-plan.md's
+ * "speech_to_text not reaching ai_usage_counters" investigation.
+ */
+const NON_TOKEN_METRIC_USAGE_TYPES = new Set<UsageType>([
+  "speech_to_text",
+  "text_to_speech",
+  "realtime_dialogue",
+]);
+
 export function computeUsage(input: {
   catalogModelId: string;
   usageType: UsageType;
@@ -206,7 +247,8 @@ export function computeUsage(input: {
   const rateVersion = input.rateVersion ?? CURRENT_RATE_VERSION;
   const contributions = contributionsForUsage(input.usageType, input.metrics);
   if (contributions.length === 0) {
-    return { costUsd: null, credits: null, rateVersion, missingRate: false, nativeCostUnits: null, nativeUnit: null };
+    const missingRate = NON_TOKEN_METRIC_USAGE_TYPES.has(input.usageType);
+    return { costUsd: null, credits: null, rateVersion, missingRate, nativeCostUnits: null, nativeUnit: null };
   }
 
   let costUsd = 0;
