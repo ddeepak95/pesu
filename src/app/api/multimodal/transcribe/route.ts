@@ -64,6 +64,19 @@ export interface TranscribeResponse {
   text: string;
   /** Present only when dual transcription was performed (two non-empty candidates). */
   candidates?: TranscribeCandidate[];
+  /**
+   * The ai_invocations row that produced `text`. Only set when exactly one
+   * underlying transcribe() call produced it (single segment, single
+   * language) — chunked/dual transcription involves multiple invocations, so
+   * there's no single row to point to.
+   */
+  invocationId?: string | null;
+  /** Which STT model/provider/key produced this transcription — always known, unlike invocationId. */
+  aiMetadata?: {
+    aiKeySource: string;
+    aiProvider: string;
+    aiModelId: string;
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -111,6 +124,8 @@ export async function POST(request: NextRequest) {
     const parsedAttemptNumber =
       typeof attemptNumberRaw === "string" ? Number.parseInt(attemptNumberRaw, 10) : NaN;
     const attemptNumber = Number.isFinite(parsedAttemptNumber) ? parsedAttemptNumber : null;
+    const attemptIdRaw = formData.get("attemptId");
+    const attemptId = typeof attemptIdRaw === "string" && attemptIdRaw.trim() ? attemptIdRaw.trim() : null;
 
     // class_id resolved server-side from the assignment — never trust a
     // client-supplied id for attribution (§5.0 "context plumbing").
@@ -131,6 +146,7 @@ export async function POST(request: NextRequest) {
         questionOrder,
         questionId,
         attemptNumber,
+        attemptId,
         sessionId,
       };
       const sttClient = await resolveMeteredSpeech({
@@ -174,8 +190,15 @@ export async function POST(request: NextRequest) {
 
       const fallbackAudioMs = Number.isFinite(recordingDurationMs) ? recordingDurationMs : null;
 
-      /** Transcribe all segments for a given language hint, returning joined text. */
-      const transcribeAll = async (language: string): Promise<string> => {
+      /**
+       * Transcribe all segments for a given language hint, returning the joined
+       * text plus the invocation that produced it. `invocationId` is only
+       * non-null for a single-segment call — a chunked call spans multiple
+       * ai_invocations rows, so there's no single one to point to.
+       */
+      const transcribeAll = async (
+        language: string,
+      ): Promise<{ text: string; invocationId: string | null }> => {
         if (isChunked) {
           const parts: string[] = [];
           for (const segment of segments) {
@@ -196,12 +219,12 @@ export async function POST(request: NextRequest) {
             const part = (result.text ?? "").trim();
             if (part) parts.push(part);
           }
-          return parts.join(" ");
+          return { text: parts.join(" "), invocationId: null };
         }
 
         const audio = segments[0]!;
         const buffer = Buffer.from(await audio.arrayBuffer());
-        if (buffer.length < 500) return "";
+        if (buffer.length < 500) return { text: "", invocationId: null };
         const filename =
           audio instanceof File && audio.name ? audio.name : "recording.webm";
         const mimeType = audio.type || "audio/webm";
@@ -212,7 +235,13 @@ export async function POST(request: NextRequest) {
           language,
           fallbackAudioMs,
         });
-        return (result.text ?? "").trim();
+        return { text: (result.text ?? "").trim(), invocationId: result.invocationId };
+      };
+
+      const aiMetadata = {
+        aiKeySource: sttClient.modelMeta.keySource,
+        aiProvider: sttClient.modelMeta.provider,
+        aiModelId: sttClient.modelMeta.modelId,
       };
 
       const supportLanguage = sessionConfig.supportLanguage?.trim();
@@ -227,9 +256,13 @@ export async function POST(request: NextRequest) {
         ]);
 
         const primaryText =
-          primaryResult.status === "fulfilled" ? primaryResult.value : "";
+          primaryResult.status === "fulfilled" ? primaryResult.value.text : "";
         const supportText =
-          supportResult.status === "fulfilled" ? supportResult.value : "";
+          supportResult.status === "fulfilled" ? supportResult.value.text : "";
+        const primaryInvocationId =
+          primaryResult.status === "fulfilled" ? primaryResult.value.invocationId : null;
+        const supportInvocationId =
+          supportResult.status === "fulfilled" ? supportResult.value.invocationId : null;
 
         if (primaryResult.status === "rejected") {
           console.warn(
@@ -266,12 +299,23 @@ export async function POST(request: NextRequest) {
 
         if (candidates.length === 1) {
           // Only one reading succeeded — treat as single mode (no dual-pick needed).
-          return NextResponse.json({ text: candidates[0]!.text } satisfies TranscribeResponse);
+          // Whichever side survived is the one that produced this text; the other
+          // was empty, so there's exactly one relevant invocation.
+          const soleInvocationId = primaryText ? primaryInvocationId : supportInvocationId;
+          return NextResponse.json({
+            text: candidates[0]!.text,
+            invocationId: soleInvocationId,
+            aiMetadata,
+          } satisfies TranscribeResponse);
         }
 
+        // Both candidates resolved — two invocations contributed, and the final
+        // pick between them happens downstream (the LLM chooses via
+        // userTranscript), so there's no single STT invocation to attribute yet.
         return NextResponse.json({
           text: primaryText,
           candidates,
+          aiMetadata,
         } satisfies TranscribeResponse);
       }
 
@@ -313,7 +357,8 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        return NextResponse.json({ text });
+        // Multiple chunks contributed — no single invocation to attribute to.
+        return NextResponse.json({ text, aiMetadata } satisfies TranscribeResponse);
       }
 
       const audio = segments[0]!;
@@ -328,7 +373,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const text = await transcribeAll(sessionConfig.language);
+      const { text, invocationId } = await transcribeAll(sessionConfig.language);
       if (!text) {
         return NextResponse.json(
           {
@@ -340,7 +385,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      return NextResponse.json({ text });
+      return NextResponse.json({ text, invocationId, aiMetadata } satisfies TranscribeResponse);
     });
   } catch (error) {
     console.error("[konvo-voice/transcribe]", error);

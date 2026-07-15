@@ -18,6 +18,7 @@ interface ActionRetryRequestBody {
   questionOrder: number;
   questionId: string;
   sessionId?: string | null;
+  attemptId?: string | null;
   actionId: string;
   input: unknown;
   chatMessageId: string;
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
       questionOrder,
       questionId,
       sessionId,
+      attemptId,
       actionId,
       chatMessageId,
       language,
@@ -118,6 +120,7 @@ export async function POST(request: NextRequest) {
           questionOrder,
           questionId,
           sessionId: sessionId ?? null,
+          attemptId: attemptId ?? null,
           relatedEntity: { type: "chat_message_action", id: actionId },
         },
         kind: action.kind,

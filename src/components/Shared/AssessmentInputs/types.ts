@@ -22,7 +22,15 @@ export interface AssessmentInputProps {
   nextAttemptNumber: number;
   isEvaluating: boolean;
 
-  onSubmitForEvaluation: (answerText: string) => Promise<void>;
+  /**
+   * `sessionId` (multimodal only) stamps `submission_attempts.session_id`
+   * with the attempt_sessions row whose messages actually got graded —
+   * StaticText/Voice input areas never pass one.
+   */
+  onSubmitForEvaluation: (
+    answerText: string,
+    sessionId?: string,
+  ) => Promise<void>;
   onLanguageDisabledChange?: (disabled: boolean) => void;
   onNavigationDisabledChange?: (disabled: boolean) => void;
   /**

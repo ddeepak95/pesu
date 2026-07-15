@@ -23,7 +23,10 @@ import { MULTIMODAL_ERROR_CODES } from "@/lib/multimodal/errorCodes";
 import { getModelEntry, modelSupportsTasks } from "@/lib/ai/catalog/helpers";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
-import { insertChatMessage } from "@/lib/queries/chatMessages";
+import {
+  insertChatMessage,
+  type ChatMessageAiMetadata,
+} from "@/lib/queries/chatMessages";
 import {
   INTERACTIVE_MAX_ATTEMPTS,
   isRetryableProviderError,
@@ -80,6 +83,7 @@ interface MultimodalTurnRequestBody {
   questionOrder: number;
   questionId: string;
   sessionId?: string | null;
+  attemptId?: string | null;
   messages: MultimodalTurnMessage[];
   attemptNumber?: number;
   system_prompt: string;
@@ -134,6 +138,15 @@ interface MultimodalTurnRequestBody {
    * latestTranscriptCandidates (direct delivery subsumes dual-STT disambiguation).
    */
   latestUserAudio?: { base64: string; mimeType: string };
+  /**
+   * Attribution for the latest student message when it was transcribed by a
+   * separate STT call (single-transcript mode, via /api/multimodal/transcribe)
+   * before this turn request was sent. Not used in dual-transcript or
+   * direct-audio mode — there the turn's own model call resolves the
+   * transcript and is attributed directly.
+   */
+  latestUserTranscriptAiMetadata?: ChatMessageAiMetadata;
+  latestUserTranscriptInvocationId?: string | null;
 }
 
 function shouldFlushFallbackTtsChunk(buffer: string): boolean {
@@ -152,6 +165,7 @@ export async function POST(request: NextRequest) {
       questionOrder,
       questionId,
       sessionId,
+      attemptId,
       messages,
       attemptNumber,
       system_prompt: systemPrompt,
@@ -264,6 +278,7 @@ export async function POST(request: NextRequest) {
       questionOrder,
       questionId,
       attemptNumber: attemptNumber ?? null,
+      attemptId: attemptId ?? null,
       sessionId: sessionId ?? null,
     };
     if (sessionId && submissionId && attemptNumber != null) {
@@ -272,6 +287,7 @@ export async function POST(request: NextRequest) {
         submissionId,
         questionId,
         attemptNumber,
+        attemptId,
       });
     }
     const ttsClient = await resolveMeteredSpeech({
@@ -433,6 +449,13 @@ export async function POST(request: NextRequest) {
               content: latestStudentContent,
               attempt_number: attemptNumber ?? null,
               session_id: sessionId ?? null,
+              attempt_id: attemptId ?? null,
+              ...(body.latestUserTranscriptAiMetadata
+                ? { aiMetadata: body.latestUserTranscriptAiMetadata }
+                : {}),
+              ...(body.latestUserTranscriptInvocationId
+                ? { aiInvocationId: body.latestUserTranscriptInvocationId }
+                : {}),
             });
           } catch (error) {
             console.error("[multimodal/turn] Failed to log student chat message:", error);
@@ -617,6 +640,7 @@ export async function POST(request: NextRequest) {
               questionOrder,
               questionId,
               attemptNumber: attemptNumber ?? null,
+              attemptId: attemptId ?? null,
               sessionId: sessionId ?? null,
               model: handle.meta,
               sdkRequest: buildLoggedStreamObjectRequest({
@@ -687,6 +711,12 @@ export async function POST(request: NextRequest) {
                           attempt_number: attemptNumber ?? null,
                           transcriptCandidates: candidates?.slice(0, 2),
                           session_id: sessionId ?? null,
+                          attempt_id: attemptId ?? null,
+                          // This transcript is the model's own userTranscript field —
+                          // the same invocation about to produce the reply, so it's
+                          // attributable to it just like the assistant message.
+                          aiMetadata,
+                          aiInvocationId: invocationId,
                         });
                       } catch (dbErr) {
                         console.error(
@@ -758,6 +788,9 @@ export async function POST(request: NextRequest) {
                         attempt_number: attemptNumber ?? null,
                         transcriptCandidates: candidates?.slice(0, 2),
                         session_id: sessionId ?? null,
+                        attempt_id: attemptId ?? null,
+                        aiMetadata,
+                        aiInvocationId: invocationId,
                       });
                     } catch (dbErr) {
                       console.error(
@@ -881,6 +914,9 @@ export async function POST(request: NextRequest) {
                   attempt_number: attemptNumber ?? null,
                   transcriptCandidates: candidates?.slice(0, 2),
                   session_id: sessionId ?? null,
+                  attempt_id: attemptId ?? null,
+                  aiMetadata,
+                  aiInvocationId: winningInvocationId ?? firstInvocationId,
                 });
               } catch (dbErr) {
                 console.error(
@@ -921,6 +957,7 @@ export async function POST(request: NextRequest) {
                 attempt_number: attemptNumber ?? null,
                 aiMetadata,
                 session_id: sessionId ?? null,
+                attempt_id: attemptId ?? null,
               });
             } catch (error) {
               console.error(
@@ -958,6 +995,7 @@ export async function POST(request: NextRequest) {
                 questionOrder,
                 questionId,
                 attemptNumber: attemptNumber ?? null,
+                attemptId: attemptId ?? null,
                 sessionId: sessionId ?? null,
                 relatedEntity: { type: "chat_message_action", id: actionId },
               },

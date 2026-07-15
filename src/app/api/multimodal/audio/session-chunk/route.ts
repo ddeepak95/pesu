@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     const questionOrder = asInt(formData.get("questionOrder"));
     const questionId = asText(formData.get("questionId"));
     const attemptNumber = asInt(formData.get("attemptNumber"));
+    const attemptId = asText(formData.get("attemptId"));
     const chunkIndex = asInt(formData.get("chunkIndex"));
     const recordingStartedAt = asText(formData.get("recordingStartedAt"));
     const audio = formData.get("audio");
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
       attempt_number: attemptNumber,
       composite_audio_chunk_urls: urls,
       recording_started_at: recordingStartedAt ?? null,
+      attempt_id: attemptId,
     };
 
     const { error } = await supabase

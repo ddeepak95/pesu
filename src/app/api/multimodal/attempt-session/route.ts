@@ -10,11 +10,11 @@ interface AttemptSessionRequestBody {
 }
 
 /**
- * Stamp `attempt_sessions.started_at` at true page-load time. Not load-bearing
- * for correctness — every child-writing route (turn, utterance, evaluate) also
- * calls `ensureAttemptSession` before its own FK-bearing insert, so a slow or
- * failed request here never blocks a chat/transcript write. See
- * dev-docs/question-stable-ids-plan.md § attempt_session_id.
+ * Backward-compat alias for an already-open old client page during deploy
+ * skew (which fire-and-forgets here instead of awaiting /attempt-start).
+ * Kept only for this release — delete in the follow-up cleanup pass once no
+ * old client bundle can still be in flight. See
+ * dev-docs/attempt-identity-plan.md Phase C.
  */
 export async function POST(request: NextRequest) {
   try {

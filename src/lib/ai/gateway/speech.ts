@@ -31,8 +31,11 @@ import type {
 import type { AiCallContext } from "./model";
 
 export interface MeteredSttClient {
+  readonly modelMeta: AiInvocationModelMeta;
   /** Writes its own ai_invocations row (speech_to_text). */
-  transcribe(input: TranscribeInput): Promise<TranscribeResult>;
+  transcribe(
+    input: TranscribeInput,
+  ): Promise<TranscribeResult & { invocationId: string | null }>;
 }
 
 export interface MeteredTtsSession {
@@ -83,11 +86,13 @@ class MeteredSttClientImpl implements MeteredSttClient {
     private readonly provider: SttProvider,
     private readonly apiModelId: string | undefined,
     private readonly apiKey: string | null,
-    private readonly modelMeta: AiInvocationModelMeta,
+    readonly modelMeta: AiInvocationModelMeta,
     private readonly context: AiCallContext,
   ) {}
 
-  async transcribe(input: TranscribeInput): Promise<TranscribeResult> {
+  async transcribe(
+    input: TranscribeInput,
+  ): Promise<TranscribeResult & { invocationId: string | null }> {
     const startedAtMs = Date.now();
     const invocationId = await startAiInvocation({
       appFunctionKey: "speech_to_text",
@@ -136,7 +141,7 @@ class MeteredSttClientImpl implements MeteredSttClient {
           startedAtMs,
         );
       }
-      return result;
+      return { ...result, invocationId };
     } catch (err) {
       if (invocationId) {
         await failAiInvocation(invocationId, err, startedAtMs);

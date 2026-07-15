@@ -54,6 +54,13 @@ interface SubmissionGradingPanelProps {
   onQuestionChange: (index: number) => void;
   selectedAttemptNumber: number | null;
   onAttemptChange: (attemptNumber: number | null) => void;
+  /**
+   * Reports the resolved attempt_id for whatever attempt_number is currently
+   * selected (this panel owns the attempt_number <-> TeacherGradingAttempt
+   * lookup) — the content panel reads by attempt_id, so it needs this instead
+   * of re-deriving it from attempt_number itself.
+   */
+  onCurrentAttemptIdChange?: (attemptId: string | null) => void;
 }
 
 export function SubmissionGradingPanel({
@@ -63,6 +70,7 @@ export function SubmissionGradingPanel({
   onQuestionChange,
   selectedAttemptNumber,
   onAttemptChange,
+  onCurrentAttemptIdChange,
 }: SubmissionGradingPanelProps) {
   const assignmentQuery = useAssignmentByIdForTeacher(assignmentId);
   const fullSubmissionQuery = useSubmissionById(submissionId);
@@ -153,6 +161,10 @@ export function SubmissionGradingPanel({
     selectedAttemptNumber !== null
       ? attempts.find((a) => a.attempt_number === selectedAttemptNumber) ?? null
       : null;
+
+  useEffect(() => {
+    onCurrentAttemptIdChange?.(currentAttempt?.id ?? null);
+  }, [currentAttempt, onCurrentAttemptIdChange]);
 
   // Seed the form from (in priority): in-memory edits, the saved draft, the
   // published values. The draft is what the teacher last saved but hasn't published.

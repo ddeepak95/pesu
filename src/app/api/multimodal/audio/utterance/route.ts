@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     const questionOrder = asInt(formData.get("questionOrder"));
     const questionId = asText(formData.get("questionId"));
     const sessionId = asText(formData.get("sessionId"));
+    const attemptId = asText(formData.get("attemptId"));
     const attemptNumber = asInt(formData.get("attemptNumber"));
     const utteranceOrdinal = asInt(formData.get("utteranceOrdinal"));
     const dbRole = asText(formData.get("dbRole")) as DbRole | null;
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
         submissionId,
         questionId,
         attemptNumber,
+        attemptId,
       });
     }
 
@@ -103,6 +105,7 @@ export async function POST(request: NextRequest) {
       utterance_id: utteranceId,
       chat_message_id: chatMessageId,
       session_id: sessionId,
+      attempt_id: attemptId,
     };
 
     if (existing?.id) {

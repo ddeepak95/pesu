@@ -69,19 +69,13 @@ export function usePublicSubmissionsForAssignment(assignmentId: string | null) {
 
 /**
  * Fetch all chat messages (student + assistant) for a single attempt.
- * Pass `null` for any param to skip the fetch.
+ * Pass `null` to skip the fetch.
  */
-export function useChatMessages(params: {
-  submissionId: string | null;
-  questionId: string | null;
-  attemptNumber: number | null;
-}) {
-  const { submissionId, questionId, attemptNumber } = params;
+export function useChatMessages(params: { attemptId: string | null }) {
+  const { attemptId } = params;
   return useSWR<ChatMessageRow[]>(
-    submissionId && questionId !== null && attemptNumber !== null
-      ? ["chatMessages", submissionId, questionId, attemptNumber]
-      : null,
-    () => getChatMessages(submissionId!, questionId!, attemptNumber!),
+    attemptId ? ["chatMessages", attemptId] : null,
+    () => getChatMessages(attemptId!),
   );
 }
 
@@ -100,37 +94,24 @@ export function useChatMessageActions(chatMessageIds: string[]) {
 
 /**
  * Fetch all voice_messages rows (audio URLs) for a single attempt.
- * Pass `null` for any param to skip the fetch.
+ * Pass `null` to skip the fetch.
  */
-export function useVoiceMessagesForAttempt(params: {
-  submissionId: string | null;
-  questionId: string | null;
-  attemptNumber: number | null;
-}) {
-  const { submissionId, questionId, attemptNumber } = params;
+export function useVoiceMessagesForAttempt(params: { attemptId: string | null }) {
+  const { attemptId } = params;
   return useSWR<VoiceMessageRow[]>(
-    submissionId && questionId !== null && attemptNumber !== null
-      ? ["voiceMessagesForAttempt", submissionId, questionId, attemptNumber]
-      : null,
-    () => getVoiceMessagesForAttempt(submissionId!, questionId!, attemptNumber!),
+    attemptId ? ["voiceMessagesForAttempt", attemptId] : null,
+    () => getVoiceMessagesForAttempt(attemptId!),
   );
 }
 
 /**
- * Fetch the transcript text for a single attempt. Pass `null` for any param
- * to skip the fetch.
+ * Fetch the transcript text for a single attempt. Pass `null` to skip the fetch.
  */
-export function useTranscript(params: {
-  submissionId: string | null;
-  questionId: string | null;
-  attemptNumber: number | null;
-}) {
-  const { submissionId, questionId, attemptNumber } = params;
+export function useTranscript(params: { attemptId: string | null }) {
+  const { attemptId } = params;
   return useSWR<string | null>(
-    submissionId && questionId !== null && attemptNumber !== null
-      ? ["transcript", submissionId, questionId, attemptNumber]
-      : null,
-    () => getTranscript(submissionId!, questionId!, attemptNumber!)
+    attemptId ? ["transcript", attemptId] : null,
+    () => getTranscript(attemptId!)
   );
 }
 

@@ -5,6 +5,12 @@ export interface EnsureAttemptSessionInput {
   submissionId: string;
   questionId?: string | null;
   attemptNumber: number;
+  /**
+   * Optional, not required — `attempt-start` (the primary caller in steady
+   * state) always passes a resolved id, but `turn`/`utterance` keep calling
+   * this defensively during the deploy-skew window and may not have one.
+   */
+  attemptId?: string | null;
 }
 
 /**
@@ -25,6 +31,7 @@ export async function ensureAttemptSession(
       submission_id: input.submissionId,
       question_id: input.questionId ?? null,
       attempt_number: input.attemptNumber,
+      attempt_id: input.attemptId ?? null,
     },
     { onConflict: "id", ignoreDuplicates: true },
   );

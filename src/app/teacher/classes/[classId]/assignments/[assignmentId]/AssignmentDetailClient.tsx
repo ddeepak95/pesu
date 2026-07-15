@@ -176,10 +176,16 @@ export default function AssignmentDetailClient({
   const [selectedAttemptNumber, setSelectedAttemptNumber] = useState<
     number | null
   >(null);
+  // Resolved by SubmissionGradingPanel (which owns the attempt_number ->
+  // TeacherGradingAttempt lookup) — the content panel reads by attempt_id.
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     setSelectedQuestionIndex(0);
     setSelectedAttemptNumber(null);
+    setSelectedAttemptId(null);
   }, [activeSubmissionId]);
 
   // Opens overlay immediately then updates URL history entry in background.
@@ -497,7 +503,7 @@ export default function AssignmentDetailClient({
                 submissionId={activeSubmissionId}
                 assignmentId={assignmentId}
                 selectedQuestionIndex={selectedQuestionIndex}
-                selectedAttemptNumber={selectedAttemptNumber}
+                selectedAttemptId={selectedAttemptId}
                 onIntegrityRestored={async () => {
                   await invalidateSubmissionsCache();
                 }}
@@ -511,6 +517,7 @@ export default function AssignmentDetailClient({
                 onQuestionChange={setSelectedQuestionIndex}
                 selectedAttemptNumber={selectedAttemptNumber}
                 onAttemptChange={setSelectedAttemptNumber}
+                onCurrentAttemptIdChange={setSelectedAttemptId}
               />
             </div>
           </div>

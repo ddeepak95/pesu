@@ -159,6 +159,7 @@ export function AssessmentShell({
   // safe (input areas keep their state), so the retry re-runs with it.
   const [evaluationFailure, setEvaluationFailure] = React.useState<{
     answerText: string;
+    sessionId?: string;
     error: ClassifiedAiError;
   } | null>(null);
   const [showCompletion, setShowCompletion] = React.useState(false);
@@ -331,7 +332,7 @@ export function AssessmentShell({
 
 
   const handleEvaluate = useCallback(
-    async (answerText: string) => {
+    async (answerText: string, sessionId?: string) => {
       if (maxAttemptsReached) {
         showWarningToast(
           "You have reached the maximum number of attempts for this question.",
@@ -357,6 +358,7 @@ export function AssessmentShell({
             submissionId,
             questionOrder: question.order,
             questionId: question.id,
+            ...(sessionId && { sessionId }),
             answerText,
             questionPrompt: question.prompt,
             rubric: question.rubric,
@@ -424,7 +426,7 @@ export function AssessmentShell({
         // Show the in-place retry card; the answer is preserved by the input
         // area's own state. Suppress the duplicate toast for retryable errors
         // (the card replaces it); keep it for positively-permanent failures.
-        setEvaluationFailure({ answerText, error: classified });
+        setEvaluationFailure({ answerText, sessionId, error: classified });
         if (!classified.retryable) {
           showErrorToast(
             `Failed to evaluate your answer: ${classified.message}`,
@@ -449,7 +451,7 @@ export function AssessmentShell({
   const retryEvaluation = useCallback(() => {
     const failed = evaluationFailure;
     if (!failed || isEvaluating) return;
-    void handleEvaluate(failed.answerText).catch(() => {});
+    void handleEvaluate(failed.answerText, failed.sessionId).catch(() => {});
   }, [evaluationFailure, isEvaluating, handleEvaluate]);
 
   const handleSaveAndNavigate = (action: "previous" | "next") => {

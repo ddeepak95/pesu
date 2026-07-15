@@ -77,6 +77,15 @@ interface RunTurnOpts {
   noSpeech?: boolean;
   /** Direct-audio-input mode: the learner's raw utterance, sent inline instead of transcribed text. */
   latestUserAudio?: { base64: string; mimeType: string };
+  /**
+   * Attribution for the latest student message when it was produced by a
+   * separate STT call (single-transcript mode, via /api/multimodal/transcribe)
+   * rather than resolved inline by the turn's own model call.
+   */
+  latestUserTranscriptMeta?: {
+    invocationId?: string | null;
+    aiMetadata?: { aiKeySource: string; aiProvider: string; aiModelId: string };
+  };
 }
 
 type ChatPhase =
@@ -410,23 +419,64 @@ export function MultimodalInputArea({
     };
   }, []);
 
-  // Fire-and-forget: stamp attempt_sessions.started_at at true page-load time.
-  // Not load-bearing for correctness — every child-writing route also calls
-  // ensureAttemptSession before its own insert, so a slow/failed request here
-  // never blocks a chat/transcript write (see dev-docs/question-stable-ids-plan.md).
+  // Server-reserved attempt identity: resolved (and awaited) before the
+  // conversation is allowed to start — every downstream write (chat_messages,
+  // ai_invocations, ...) FKs to this attempt_id. Kicked off eagerly on mount
+  // (not waiting for the Start click) so it's usually already resolved by the
+  // time the learner clicks Start; handleStart still awaits it to guarantee
+  // ordering. See dev-docs/attempt-identity-plan.md Phase E.
+  const [attempt, setAttempt] = React.useState<{
+    id: string;
+    number: number;
+  } | null>(null);
+  const attemptStartPromiseRef = React.useRef<Promise<{
+    id: string;
+    number: number;
+  } | null> | null>(null);
+
+  const startAttempt = React.useCallback(async (): Promise<{
+    id: string;
+    number: number;
+  } | null> => {
+    try {
+      const res = await fetch("/api/multimodal/attempt-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          submissionId,
+          questionOrder: question.order,
+          questionId: question.id,
+          maxScore: question.total_points,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to start attempt");
+      }
+      const data = (await res.json()) as {
+        attemptId: string;
+        attemptNumber: number;
+      };
+      const resolved = { id: data.attemptId, number: data.attemptNumber };
+      setAttempt(resolved);
+      return resolved;
+    } catch (startError) {
+      console.error("Failed to start attempt", startError);
+      return null;
+    }
+  }, [sessionId, submissionId, question.order, question.id, question.total_points]);
+
   React.useEffect(() => {
-    void fetch("/api/multimodal/attempt-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId,
-        submissionId,
-        questionId: question.id,
-        attemptNumber: nextAttemptNumber,
-      }),
-    }).catch(() => {});
+    attemptStartPromiseRef.current = startAttempt();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const ensureAttemptStarted = React.useCallback(async () => {
+    if (attempt) return attempt;
+    const pending = attemptStartPromiseRef.current ?? startAttempt();
+    attemptStartPromiseRef.current = pending;
+    return pending;
+  }, [attempt, startAttempt]);
 
   const hasStarted = messages.length > 0 || isStarting;
 
@@ -492,7 +542,8 @@ export function MultimodalInputArea({
       formData.append("assignmentId", assignmentId);
       formData.append("questionOrder", String(question.order));
       formData.append("questionId", question.id);
-      formData.append("attemptNumber", String(nextAttemptNumber));
+      formData.append("attemptNumber", String(attempt?.number ?? nextAttemptNumber));
+      if (attempt?.id) formData.append("attemptId", attempt.id);
       formData.append("chunkIndex", String(sessionChunkIndex + 1));
       if (sessionChunkIndex === 0 && sessionStartedAtRef.current) {
         formData.append("recordingStartedAt", sessionStartedAtRef.current);
@@ -511,6 +562,7 @@ export function MultimodalInputArea({
     },
     [
       assignmentId,
+      attempt,
       nextAttemptNumber,
       question.order,
       question.id,
@@ -542,7 +594,8 @@ export function MultimodalInputArea({
         formData.append("questionOrder", String(question.order));
         formData.append("questionId", question.id);
         formData.append("sessionId", sessionId);
-        formData.append("attemptNumber", String(nextAttemptNumber));
+        formData.append("attemptNumber", String(attempt?.number ?? nextAttemptNumber));
+        if (attempt?.id) formData.append("attemptId", attempt.id);
         formData.append("utteranceOrdinal", String(input.ordinal));
         formData.append("dbRole", input.dbRole);
         formData.append("storageRole", input.storageRole);
@@ -579,6 +632,7 @@ export function MultimodalInputArea({
     },
     [
       assignmentId,
+      attempt,
       nextAttemptNumber,
       flushSessionChunk,
       question.order,
@@ -595,11 +649,11 @@ export function MultimodalInputArea({
     // and the failure is shown via the retry card, so swallow it to avoid an
     // unhandled rejection propagating up through runFinish's void call.
     try {
-      await onSubmitForEvaluation(answerText);
+      await onSubmitForEvaluation(answerText, sessionId);
     } catch {
       /* surfaced in-place by AssessmentShell's retry card */
     }
-  }, [onSubmitForEvaluation]);
+  }, [onSubmitForEvaluation, sessionId]);
 
   // Live streaming bubble: the assistant message is appended as soon as text
   // starts arriving and updated in place as more streams in. `commit` then just
@@ -744,7 +798,8 @@ export function MultimodalInputArea({
 
       const ttsModelId =
         speechModels?.ttsModelId ?? DEFAULT_KONVO_SESSION_CONFIG.ttsModelId;
-      const attemptNumber = nextAttemptNumber;
+      const attemptNumber = attempt?.number ?? nextAttemptNumber;
+      const attemptId = attempt?.id ?? null;
 
       let sampleRate = 24000;
       let ttsStarted = false;
@@ -839,6 +894,7 @@ export function MultimodalInputArea({
             questionOrder: question.order,
             questionId: question.id,
             sessionId,
+            attemptId,
             attemptNumber,
             messages: history
               .map((m) => ({ ...m, content: resolveMessageContent(m) }))
@@ -861,6 +917,12 @@ export function MultimodalInputArea({
               ? { latestTranscriptCandidates }
               : {}),
             ...(opts?.latestUserAudio ? { latestUserAudio: opts.latestUserAudio } : {}),
+            ...(opts?.latestUserTranscriptMeta?.aiMetadata
+              ? { latestUserTranscriptAiMetadata: opts.latestUserTranscriptMeta.aiMetadata }
+              : {}),
+            ...(opts?.latestUserTranscriptMeta?.invocationId
+              ? { latestUserTranscriptInvocationId: opts.latestUserTranscriptMeta.invocationId }
+              : {}),
             availableActions: (() => {
               if (opts?.availableActionsOverride) return opts.availableActionsOverride;
               const auto = resolveAutoActions(activityDefinitionSnapshot, activityType);
@@ -1231,6 +1293,7 @@ export function MultimodalInputArea({
       activityType,
       activityDefinitionSnapshot,
       assignmentId,
+      attempt,
       nextAttemptNumber,
       botPromptConfig?.multimodal_actions,
       greeting,
@@ -1262,8 +1325,17 @@ export function MultimodalInputArea({
       return;
     }
     if (messagesRef.current.length > 0 || isStarting) return;
-    sessionStartedAtRef.current = new Date().toISOString();
     setIsStarting(true);
+    // The conversation does not start until the attempt is confirmed created
+    // server-side — every downstream write this component makes FKs to it.
+    const resolvedAttempt = await ensureAttemptStarted();
+    if (!resolvedAttempt) {
+      setIsStarting(false);
+      setError("Couldn't start this activity. Please refresh and try again.");
+      showErrorToast("Couldn't start this activity. Please refresh and try again.");
+      return;
+    }
+    sessionStartedAtRef.current = new Date().toISOString();
     setExpandedMessageIds({});
     setHasBotStarted(false);
     userOrdinalRef.current = 0;
@@ -1279,7 +1351,7 @@ export function MultimodalInputArea({
         body: JSON.stringify({
           submissionId,
           questionId: question.id,
-          attemptNumber: nextAttemptNumber,
+          attemptNumber: resolvedAttempt.number,
         }),
       });
     } catch (resetError) {
@@ -1301,7 +1373,7 @@ export function MultimodalInputArea({
   }, [
     isStarting,
     maxAttemptsReached,
-    nextAttemptNumber,
+    ensureAttemptStarted,
     question.id,
     runAssistantTurn,
     submissionId,
@@ -1754,7 +1826,8 @@ export function MultimodalInputArea({
         formData.append("questionOrder", String(question.order));
         formData.append("questionId", question.id);
         formData.append("sessionId", sessionId);
-        formData.append("attemptNumber", String(nextAttemptNumber));
+        formData.append("attemptNumber", String(attempt?.number ?? nextAttemptNumber));
+        if (attempt?.id) formData.append("attemptId", attempt.id);
         if (recordedDurationMs != null) {
           formData.append("recordingDurationMs", String(recordedDurationMs));
         }
@@ -1766,6 +1839,8 @@ export function MultimodalInputArea({
         const body = (await response.json().catch(() => ({}))) as {
           text?: string;
           candidates?: { language: string; text: string }[];
+          invocationId?: string | null;
+          aiMetadata?: { aiKeySource: string; aiProvider: string; aiModelId: string };
           error?: string;
           details?: string;
         };
@@ -1804,7 +1879,20 @@ export function MultimodalInputArea({
         deferredStudentAudioRef.current.set(pendingMessageId, wavBlob);
 
         setIsTranscribing(false);
-        await runAssistantTurn(nextHistory);
+        // In dual mode the model resolves userTranscript itself from the two
+        // candidates sent below, so this STT call's invocation isn't the one
+        // that produced the eventual chat_messages content — only attribute
+        // it in single-transcript mode.
+        await runAssistantTurn(nextHistory, {
+          ...(isDual
+            ? {}
+            : {
+                latestUserTranscriptMeta: {
+                  invocationId: body.invocationId ?? null,
+                  aiMetadata: body.aiMetadata,
+                },
+              }),
+        });
       } catch (sendError) {
         setMessages((prev) => prev.filter((m) => m.status !== "transcribing"));
         const message =
@@ -1831,6 +1919,7 @@ export function MultimodalInputArea({
   }, [
     assignmentId,
     activityType,
+    attempt,
     isSpeaking,
     isThinking,
     isTranscribing,
@@ -2011,6 +2100,7 @@ export function MultimodalInputArea({
             questionOrder: question.order,
             questionId: question.id,
             sessionId,
+            attemptId: attempt?.id ?? null,
             actionId: action.id,
             input: action.input,
             chatMessageId: action.chatMessageId,
@@ -2065,6 +2155,7 @@ export function MultimodalInputArea({
       question.order,
       question.id,
       sessionId,
+      attempt,
       language,
       supportEnabled,
       supportLanguage,

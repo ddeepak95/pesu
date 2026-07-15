@@ -78,18 +78,14 @@ export async function getStudentIdsWithPendingApprovalsInClass(
  * Fetch transcript for a single attempt (used by TranscriptDialog)
  */
 export async function getTranscript(
-  submissionId: string,
-  questionId: string,
-  attemptNumber: number
+  attemptId: string
 ): Promise<string | null> {
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("submission_transcripts")
     .select("answer_text")
-    .eq("submission_id", submissionId)
-    .eq("question_id", questionId)
-    .eq("attempt_number", attemptNumber)
+    .eq("attempt_id", attemptId)
     .maybeSingle();
 
   if (error) {
@@ -425,7 +421,7 @@ export async function getQuestionsWithAttempts(
   const { data, error } = await supabase
     .from("submission_questions")
     .select(
-      "question_id, submission_attempts!submission_attempts_submission_question_id_fkey(stale)"
+      "question_id, submission_attempts!submission_attempts_submission_question_id_fkey(stale, graded_at, score)"
     )
     .eq("submission_id", submissionId);
 
@@ -434,9 +430,15 @@ export async function getQuestionsWithAttempts(
   const result = new Set<string>();
   for (const q of data as {
     question_id: string;
-    submission_attempts: { stale: boolean }[] | null;
+    submission_attempts:
+      | { stale: boolean; graded_at: string | null; score: number | string | null }[]
+      | null;
   }[]) {
-    if ((q.submission_attempts ?? []).some((a) => !a.stale)) {
+    if (
+      (q.submission_attempts ?? []).some(
+        (a) => !a.stale && (a.graded_at != null || a.score != null)
+      )
+    ) {
       result.add(q.question_id);
     }
   }
@@ -459,6 +461,7 @@ interface RawAttemptRow {
   feedback_doc: unknown;
   rubric_scores: RubricScore[] | null;
   created_at: string;
+  graded_at: string | null;
 }
 
 function mapAttemptRow(row: RawAttemptRow, released: boolean): NormalizedAttempt {
@@ -529,7 +532,7 @@ export async function getQuestionAttemptsNormalized(
   const { data: question, error } = await supabase
     .from("submission_questions")
     .select(
-      "id, selected_attempt_id, submission_attempts!submission_attempts_submission_question_id_fkey(id, submission_question_id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, created_at)"
+      "id, selected_attempt_id, submission_attempts!submission_attempts_submission_question_id_fkey(id, submission_question_id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, created_at, graded_at)"
     )
     .eq("submission_id", submissionId)
     .eq("question_id", questionId)
@@ -545,11 +548,16 @@ export async function getQuestionAttemptsNormalized(
   if (!question)
     return { attempts: [], selectedAttemptId: null, released, nextAttemptNumber: 1 };
 
-  let rows = ((question.submission_attempts ?? []) as RawAttemptRow[]).slice();
-  // Next attempt number = max over ALL attempts (stale included) + 1, computed
-  // before the excludeStale filter so it matches the evaluate route's numbering.
+  const allRows = ((question.submission_attempts ?? []) as RawAttemptRow[]).slice();
+  // Next attempt number = max over ALL attempts (stale AND ungraded included)
+  // + 1, computed before the graded/excludeStale filters below so it matches
+  // getOrCreateCurrentAttempt's numbering (reuse in-progress, else max + 1) —
+  // this is the one place that legitimately needs to see ungraded rows.
   const nextAttemptNumber =
-    rows.reduce((max, r) => Math.max(max, r.attempt_number), 0) + 1;
+    allRows.reduce((max, r) => Math.max(max, r.attempt_number), 0) + 1;
+  // An in-progress (ungraded) attempt never counts as "attempted" — see the
+  // transition-safe gate in recompute_submission_rollups.
+  let rows = allRows.filter((r) => r.graded_at != null || r.score != null);
   if (excludeStale) rows = rows.filter((r) => !r.stale);
   rows.sort((a, b) => a.attempt_number - b.attempt_number);
 
@@ -619,6 +627,7 @@ interface RawTeacherAttemptRow {
   feedback: string | null;
   feedback_doc: unknown;
   rubric_scores: RubricScore[] | null;
+  graded_at: string | null;
   attempt_ai_evaluations:
     | { ai_score: number | string | null; ai_feedback: string | null; ai_feedback_doc: unknown; ai_rubric_scores: RubricScore[] | null }
     | { ai_score: number | string | null; ai_feedback: string | null; ai_feedback_doc: unknown; ai_rubric_scores: RubricScore[] | null }[]
@@ -672,7 +681,7 @@ export async function getSubmissionGrading(
     .select(
       "id, question_order, question_id, selected_attempt_id, released_score, " +
         "submission_attempts!submission_attempts_submission_question_id_fkey(" +
-        "id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, " +
+        "id, attempt_number, max_score, stale, score, feedback, feedback_doc, rubric_scores, graded_at, " +
         "attempt_ai_evaluations(ai_score, ai_feedback, ai_feedback_doc, ai_rubric_scores), " +
         "attempt_grade_drafts(draft_score, draft_feedback, draft_feedback_doc, draft_rubric_scores)), " +
         "submission_question_reviews(id, reviewed_at, reviewed_by)"
@@ -689,6 +698,7 @@ export async function getSubmissionGrading(
     (data ?? []) as unknown as RawTeacherQuestionRow[]
   ).map((q) => {
     const attempts = (q.submission_attempts ?? [])
+      .filter((a) => a.graded_at != null || a.score != null)
       .slice()
       .sort((a, b) => a.attempt_number - b.attempt_number)
       .map((a) => {

@@ -36,19 +36,25 @@ export function pickLastAttemptId(attempts: AttemptLite[]): string | null {
 
 interface QuestionGateRow {
   question_id: string;
-  submission_attempts: { stale: boolean }[] | null;
+  submission_attempts:
+    | { stale: boolean; graded_at: string | null; score: number | string | null }[]
+    | null;
   // UNIQUE fk -> PostgREST returns a to-one object (or null), not an array.
   submission_question_reviews: { id: string } | { id: string }[] | null;
 }
 
 /**
  * Pure review-gate check: returns the ids of questions that have at least one
- * non-stale attempt but no review row. An empty array means the gate is satisfied.
+ * non-stale, graded attempt but no review row. An in-progress (ungraded)
+ * attempt must never permanently block release. An empty array means the
+ * gate is satisfied.
  */
 export function unreviewedQuestionIds(rows: QuestionGateRow[]): string[] {
   const out: string[] = [];
   for (const q of rows) {
-    const hasNonStale = (q.submission_attempts ?? []).some((a) => !a.stale);
+    const hasNonStale = (q.submission_attempts ?? []).some(
+      (a) => !a.stale && (a.graded_at != null || a.score != null)
+    );
     const rev = q.submission_question_reviews;
     const reviewed = Array.isArray(rev) ? rev.length > 0 : rev != null;
     if (hasNonStale && !reviewed) out.push(q.question_id);
@@ -97,7 +103,7 @@ export async function getUnreviewedQuestionIds(
   const { data, error } = await supabase
     .from("submission_questions")
     .select(
-      "question_id, submission_attempts!submission_attempts_submission_question_id_fkey(stale), submission_question_reviews(id)"
+      "question_id, submission_attempts!submission_attempts_submission_question_id_fkey(stale, graded_at, score), submission_question_reviews(id)"
     )
     .eq("submission_id", submissionId);
   if (error) throw error;

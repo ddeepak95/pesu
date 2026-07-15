@@ -49,7 +49,7 @@ interface SubmissionContentPanelProps {
   submissionId: string;
   assignmentId: string;
   selectedQuestionIndex: number;
-  selectedAttemptNumber: number | null;
+  selectedAttemptId: string | null;
   onIntegrityRestored?: () => void;
 }
 
@@ -57,7 +57,7 @@ export function SubmissionContentPanel({
   submissionId,
   assignmentId,
   selectedQuestionIndex,
-  selectedAttemptNumber,
+  selectedAttemptId,
   onIntegrityRestored,
 }: SubmissionContentPanelProps) {
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
@@ -97,17 +97,14 @@ export function SubmissionContentPanel({
   }, [assignment, fullSubmission]);
 
   const currentQuestion = questions[selectedQuestionIndex] ?? null;
-  const questionId = currentQuestion?.id ?? null;
 
   const hasFileSubmission = !!assignment?.file_submission_config;
   const isStaticText = assignment?.assessment_mode === "static_text";
-  const showConversation = selectedAttemptNumber !== null && currentQuestion !== null;
+  const showConversation = selectedAttemptId !== null && currentQuestion !== null;
 
   // Transcript data
   const chatMessagesQuery = useChatMessages({
-    submissionId: showConversation ? submissionId : null,
-    questionId: showConversation ? questionId : null,
-    attemptNumber: selectedAttemptNumber,
+    attemptId: showConversation ? selectedAttemptId : null,
   });
 
   const messages = useMemo(() => chatMessagesQuery.data ?? [], [chatMessagesQuery.data]);
@@ -115,16 +112,12 @@ export function SubmissionContentPanel({
   const actionsQuery = useChatMessageActions(messageIds);
 
   const voiceQuery = useVoiceMessagesForAttempt({
-    submissionId: showConversation ? submissionId : null,
-    questionId: showConversation ? questionId : null,
-    attemptNumber: selectedAttemptNumber,
+    attemptId: showConversation ? selectedAttemptId : null,
   });
 
   // Static-text answer for the selected attempt (read from submission_transcripts).
   const transcriptQuery = useTranscript({
-    submissionId: isStaticText && showConversation ? submissionId : null,
-    questionId: isStaticText && showConversation ? questionId : null,
-    attemptNumber: selectedAttemptNumber,
+    attemptId: isStaticText && showConversation ? selectedAttemptId : null,
   });
 
   const audioUrlMap = useMemo(() => {

@@ -32,6 +32,7 @@ export interface InsertChatMessageInput {
   content: string;
   attempt_number: number | null;
   session_id?: string | null;
+  attempt_id?: string | null;
   aiMetadata?: ChatMessageAiMetadata;
   aiInvocationId?: string | null;
   /**
@@ -63,6 +64,10 @@ export async function insertChatMessage(
 
   if (row.session_id) {
     payload.session_id = row.session_id;
+  }
+
+  if (row.attempt_id) {
+    payload.attempt_id = row.attempt_id;
   }
 
   if (row.aiMetadata) {
@@ -103,17 +108,13 @@ export interface ChatMessageRow {
 }
 
 export async function getChatMessages(
-  submissionId: string,
-  questionId: string,
-  attemptNumber: number,
+  attemptId: string,
 ): Promise<ChatMessageRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_messages")
     .select("id, role, content")
-    .eq("submission_id", submissionId)
-    .eq("question_id", questionId)
-    .eq("attempt_number", attemptNumber)
+    .eq("attempt_id", attemptId)
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as ChatMessageRow[];

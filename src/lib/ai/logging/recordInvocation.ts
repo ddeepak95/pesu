@@ -593,21 +593,6 @@ export async function linkInvocationToChatMessage(
   }
 }
 
-export async function linkInvocationToAttempt(
-  invocationId: string,
-  attemptId: string,
-): Promise<void> {
-  const service = createServiceRoleClient();
-  const { error } = await service
-    .from("ai_invocations")
-    .update({ attempt_id: attemptId })
-    .eq("id", invocationId);
-
-  if (error) {
-    logInvocationError("failed to link attempt on invocation", error);
-  }
-}
-
 export async function setChatMessageInvocationId(
   chatMessageId: string,
   invocationId: string,

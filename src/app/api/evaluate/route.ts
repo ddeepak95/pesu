@@ -14,7 +14,6 @@ import {
 } from "@/lib/ai/gateway";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
 import { classifyAiError } from "@/lib/ai/errors";
-import { linkInvocationToAttempt } from "@/lib/ai/logging/recordInvocation";
 import { logAppEvent } from "@/lib/logging/appLog";
 import {
   buildFeedbackFocusPromptText,
@@ -25,6 +24,10 @@ import {
   getClassDbIdForAssignment,
 } from "@/lib/assignments/assignmentClassCache";
 import { ensureAttemptSession } from "@/lib/submissions/attemptSessions";
+import {
+  getOrCreateCurrentAttempt,
+  upsertSubmissionQuestion,
+} from "@/lib/submissions/attempts";
 
 interface EvaluateRequestBody {
   submissionId: string;
@@ -160,9 +163,24 @@ export async function POST(request: NextRequest) {
     const userId = user?.id ?? null;
 
     return await runWithAiContext({ userId, classId: classDbId }, async () => {
-    // attemptNumber isn't known until the query below; the handle keeps a
-    // reference to this same context object, so filling it in later still
-    // reaches the invocation row written at completion time.
+    // --- Resolve (or create) the normalized question row + current attempt ---
+    // Reuses the in-progress row from a multimodal conversation (attempt-start)
+    // if one exists; creates fresh for static_text/voice (which never call
+    // attempt-start) exactly like the old INSERT-only flow did.
+    const submissionQuestionId = await upsertSubmissionQuestion(serviceClient, {
+      submissionId,
+      questionOrder,
+      questionId,
+    });
+    const { id: attemptId, attempt_number: attemptNumber } =
+      await getOrCreateCurrentAttempt(serviceClient, {
+        submissionQuestionId,
+        maxScore,
+      });
+
+    // attempt id/number are known up front now (unlike before), so the
+    // evaluation call's ai_invocations row gets them without any post-hoc
+    // linking.
     const evalContext: AiCallContext = {
       classDbId,
       assignmentId,
@@ -170,6 +188,8 @@ export async function POST(request: NextRequest) {
       questionOrder,
       questionId,
       sessionId,
+      attemptId,
+      attemptNumber,
     };
     let evalHandle;
     try {
@@ -187,45 +207,13 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    // --- Resolve (or create) the normalized question row + next attempt number ---
-    const { data: questionRow, error: questionError } = await serviceClient
-      .from("submission_questions")
-      .upsert(
-        {
-          submission_id: submissionId,
-          question_order: questionOrder,
-          question_id: questionId,
-        },
-        { onConflict: "submission_id,question_id" },
-      )
-      .select("id")
-      .single();
-
-    if (questionError || !questionRow) {
-      console.error("Error upserting submission_questions:", questionError);
-      return NextResponse.json(
-        { error: "Failed to prepare question" },
-        { status: 500 },
-      );
-    }
-    const submissionQuestionId = questionRow.id as string;
-
-    const { data: lastAttempt } = await serviceClient
-      .from("submission_attempts")
-      .select("attempt_number")
-      .eq("submission_question_id", submissionQuestionId)
-      .order("attempt_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const attemptNumber = ((lastAttempt?.attempt_number as number) ?? 0) + 1;
-    evalContext.attemptNumber = attemptNumber;
-
     if (sessionId) {
       await ensureAttemptSession(serviceClient, {
         id: sessionId,
         submissionId,
         questionId,
         attemptNumber,
+        attemptId,
       });
     }
 
@@ -240,6 +228,7 @@ export async function POST(request: NextRequest) {
           attempt_number: attemptNumber,
           answer_text: answerText,
           session_id: sessionId ?? null,
+          attempt_id: attemptId,
         },
         { onConflict: "submission_id,question_id,attempt_number" },
       );
@@ -259,6 +248,7 @@ export async function POST(request: NextRequest) {
             attempt_number: attemptNumber,
             content: answerText,
             session_id: sessionId ?? null,
+            attempt_id: attemptId,
           },
           { onConflict: "submission_id,question_id,attempt_number" },
         );
@@ -301,18 +291,24 @@ export async function POST(request: NextRequest) {
       });
 
     // --- Persist the attempt (displayable grade) + AI audit row ---
+    // The row already exists (created earlier by attempt-start or the
+    // getOrCreateCurrentAttempt fallback above) — grading UPDATEs it rather
+    // than inserting a new one. max_score is re-stamped from the rubric sum
+    // (the authoritative denominator) rather than trusting whatever seed value
+    // the row was created with, so every graded attempt (multimodal and
+    // static/voice alike) carries the identical denominator the rollup relies on.
     const { data: attemptRow, error: attemptError } = await serviceClient
       .from("submission_attempts")
-      .insert({
-        submission_question_id: submissionQuestionId,
-        attempt_number: attemptNumber,
+      .update({
         max_score: maxScore,
-        stale: false,
         score: totalScore,
         feedback: overallFeedback,
         feedback_doc: feedbackDoc,
         rubric_scores: validatedRubricScores,
+        graded_at: new Date().toISOString(),
+        session_id: sessionId ?? null,
       })
+      .eq("id", attemptId)
       .select("id, created_at")
       .single();
 
@@ -323,7 +319,6 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
-    const attemptId = attemptRow.id as string;
     const lastInvocationId = evalHandle.lastInvocationId;
 
     const { error: aiError } = await serviceClient
@@ -339,10 +334,6 @@ export async function POST(request: NextRequest) {
       });
     if (aiError) {
       console.error("Error saving AI evaluation audit row:", aiError);
-    }
-
-    if (lastInvocationId) {
-      await linkInvocationToAttempt(lastInvocationId, attemptId);
     }
 
     // --- Selection (default-last) + release branch ---
