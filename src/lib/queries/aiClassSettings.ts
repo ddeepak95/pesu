@@ -6,8 +6,8 @@ import { DEFAULT_AI_CLASS_OVERRIDE_POLICY } from "@/types/aiSettings";
 
 interface AiClassSettingsRow {
   class_id: string;
-  allow_child_override_providers: boolean;
-  allow_child_override_functions: boolean;
+  allow_child_override_providers: boolean | null;
+  allow_child_override_functions: boolean | null;
 }
 
 function rowToPolicy(row: AiClassSettingsRow | null): AiClassOverridePolicy {
@@ -105,6 +105,29 @@ export async function setClassAiOverride(
     {
       class_id: classId,
       [column]: enabled,
+      updated_by: updatedBy,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "class_id" },
+  );
+  if (error) throw error;
+}
+
+/** Clears this class's explicit override back to inheriting the institution default. */
+export async function clearClassAiOverride(
+  supabase: SupabaseClient,
+  classId: string,
+  section: AiConfigSection,
+  updatedBy: string,
+): Promise<void> {
+  const column =
+    section === "providers"
+      ? "allow_child_override_providers"
+      : "allow_child_override_functions";
+  const { error } = await supabase.from("ai_class_settings").upsert(
+    {
+      class_id: classId,
+      [column]: null,
       updated_by: updatedBy,
       updated_at: new Date().toISOString(),
     },

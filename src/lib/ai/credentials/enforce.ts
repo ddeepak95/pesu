@@ -109,3 +109,48 @@ export function assertCanToggleClassAiOverride(input: {
     );
   }
 }
+
+/**
+ * Clearing a class's explicit override back to inheriting the institution
+ * default is the same authority as setting it — institution admin (when the
+ * admin-edit master lock is on) or super admin.
+ */
+export function assertCanClearClassAiOverride(input: {
+  viewerRole: ViewerRole;
+  section: AiConfigSection;
+  institutionPolicy: AiInstitutionPolicy;
+}): void {
+  const caps = aiConfigCapabilities({
+    viewerRole: input.viewerRole,
+    mode: "class",
+    section: input.section,
+    institutionPolicy: input.institutionPolicy,
+  });
+  if (!caps.canToggleClassAiOverride) {
+    throw new Error("You may not change class override permission");
+  }
+}
+
+/**
+ * Toggling the institution-wide default_allow_child_override_* used as the
+ * fallback for any class with no explicit per-class override: institution
+ * admin (when the admin-edit master lock is on for that section) or super
+ * admin — same authority as granting a single class's override.
+ */
+export function assertCanToggleDefaultChildOverride(input: {
+  viewerRole: ViewerRole;
+  section: AiConfigSection;
+  institutionPolicy: AiInstitutionPolicy;
+}): void {
+  const caps = aiConfigCapabilities({
+    viewerRole: input.viewerRole,
+    mode: "institution",
+    section: input.section,
+    institutionPolicy: input.institutionPolicy,
+  });
+  if (!caps.canToggleDefaultChildOverride) {
+    throw new Error(
+      `Enable "Allow institution admin to edit ${input.section}" before setting a class default`,
+    );
+  }
+}

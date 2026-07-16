@@ -31,6 +31,7 @@ import {
   type AiInstitutionPolicy,
 } from "@/types/aiSettings";
 
+import AiChildOverrideDefaultRow from "./AiChildOverrideDefaultRow";
 import AiConfigLocksRow from "./AiConfigLocksRow";
 import AiFunctionsPanel from "./AiFunctionsPanel";
 import AiModelCatalogDialog from "./AiModelCatalogDialog";
@@ -184,12 +185,20 @@ export default function AiSettingsPageContent({
         </CardHeader>
         <CardContent className="space-y-6">
           {showLocks && institutionPolicy && scope === "institution" && (
-            <AiConfigLocksRow
-              institutionId={scopeId}
-              viewerRole={viewerRole}
-              institutionPolicy={institutionPolicy}
-              section="providers"
-            />
+            <>
+              <AiConfigLocksRow
+                institutionId={scopeId}
+                viewerRole={viewerRole}
+                institutionPolicy={institutionPolicy}
+                section="providers"
+              />
+              <AiChildOverrideDefaultRow
+                institutionId={scopeId}
+                viewerRole={viewerRole}
+                institutionPolicy={institutionPolicy}
+                section="providers"
+              />
+            </>
           )}
 
           {scope === "class" && institutionPolicy && classOverridePolicy && (
@@ -235,12 +244,20 @@ export default function AiSettingsPageContent({
         </CardHeader>
         <CardContent className="space-y-6">
           {showLocks && institutionPolicy && scope === "institution" && (
-            <AiConfigLocksRow
-              institutionId={scopeId}
-              viewerRole={viewerRole}
-              institutionPolicy={institutionPolicy}
-              section="functions"
-            />
+            <>
+              <AiConfigLocksRow
+                institutionId={scopeId}
+                viewerRole={viewerRole}
+                institutionPolicy={institutionPolicy}
+                section="functions"
+              />
+              <AiChildOverrideDefaultRow
+                institutionId={scopeId}
+                viewerRole={viewerRole}
+                institutionPolicy={institutionPolicy}
+                section="functions"
+              />
+            </>
           )}
 
           {scope === "class" && institutionPolicy && classOverridePolicy && (

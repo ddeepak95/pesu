@@ -1,5 +1,6 @@
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
+import { resolveClassOverridePolicy } from "@/types/aiSettings";
 
 /** Which independently-permissioned section of AI config a capability check applies to. */
 export type AiConfigSection = "providers" | "functions";
@@ -19,6 +20,8 @@ export interface AiConfigCapabilities {
   canToggleAllowPlatformDefaults: boolean;
   /** Can the viewer toggle whether a specific class's teachers may edit this section? */
   canToggleClassAiOverride: boolean;
+  /** Can the viewer set the institution-wide default_allow_child_override_* for this section? */
+  canToggleDefaultChildOverride: boolean;
 }
 
 function institutionAdminEditAllowed(
@@ -32,12 +35,18 @@ function institutionAdminEditAllowed(
 
 function classChildOverrideAllowed(
   section: AiConfigSection,
+  institutionPolicy: AiInstitutionPolicy,
   classOverridePolicy: AiClassOverridePolicy | undefined,
 ): boolean {
-  if (!classOverridePolicy) return false;
+  if (!classOverridePolicy) {
+    return section === "providers"
+      ? institutionPolicy.defaultAllowChildOverrideProviders
+      : institutionPolicy.defaultAllowChildOverrideFunctions;
+  }
+  const resolved = resolveClassOverridePolicy(institutionPolicy, classOverridePolicy);
   return section === "providers"
-    ? classOverridePolicy.allowChildOverrideProviders
-    : classOverridePolicy.allowChildOverrideFunctions;
+    ? resolved.allowChildOverrideProviders
+    : resolved.allowChildOverrideFunctions;
 }
 
 export function aiConfigCapabilities(input: {
@@ -58,6 +67,7 @@ export function aiConfigCapabilities(input: {
       canEditPlatform: mode === "platform",
       canToggleAllowPlatformDefaults: mode === "institution",
       canToggleClassAiOverride: mode === "class",
+      canToggleDefaultChildOverride: mode === "institution",
     };
   }
 
@@ -74,6 +84,8 @@ export function aiConfigCapabilities(input: {
       canToggleAllowPlatformDefaults: false,
       canToggleClassAiOverride:
         mode === "class" && institutionAdminEditAllowed(section, institutionPolicy),
+      canToggleDefaultChildOverride:
+        mode === "institution" && institutionAdminEditAllowed(section, institutionPolicy),
     };
   }
 
@@ -88,7 +100,7 @@ export function aiConfigCapabilities(input: {
     const classTeacherEditable =
       mode === "class" &&
       institutionAdminEditAllowed(section, institutionPolicy) &&
-      classChildOverrideAllowed(section, classOverridePolicy);
+      classChildOverrideAllowed(section, institutionPolicy, classOverridePolicy);
     return {
       canEditInstitutionValue: false,
       canToggleAllowAdminEdit: false,
@@ -97,6 +109,7 @@ export function aiConfigCapabilities(input: {
       canEditPlatform: false,
       canToggleAllowPlatformDefaults: false,
       canToggleClassAiOverride: false,
+      canToggleDefaultChildOverride: false,
     };
   }
 
@@ -108,5 +121,6 @@ export function aiConfigCapabilities(input: {
     canEditPlatform: false,
     canToggleAllowPlatformDefaults: false,
     canToggleClassAiOverride: false,
+    canToggleDefaultChildOverride: false,
   };
 }

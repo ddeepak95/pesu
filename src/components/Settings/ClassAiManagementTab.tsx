@@ -5,7 +5,11 @@ import {
   type ViewerRole,
 } from "@/lib/settings/capabilities";
 import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
-import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
+import {
+  resolveClassOverridePolicy,
+  type AiClassOverridePolicy,
+  type AiInstitutionPolicy,
+} from "@/types/aiSettings";
 import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 
 import AiManagementPanels from "./AiConfig/AiManagementPanels";
@@ -48,14 +52,26 @@ export default function ClassAiManagementTab({
   platformWalletSpendMode,
 }: ClassAiManagementTabProps) {
   const isSuperAdmin = viewerRole === "super_admin";
+  // The wallet/credit-limit editing panel (WalletsPanelContainer) is an
+  // admin-only surface — it always renders fully editable
+  // (WalletsPanelContainer.canEditClassWallet is unconditionally true,
+  // relying on the caller to only mount it for admins). Class teachers
+  // (owner/co-owner/admin) only ever get the read-only availability card
+  // below.
+  const isInstitutionOrSuperAdmin =
+    viewerRole === "institution_admin" || viewerRole === "super_admin";
+  const resolvedOverride = resolveClassOverridePolicy(
+    institutionPolicy,
+    classOverridePolicy,
+  );
   const canViewConfiguration =
     canViewClassOverrideSections(
       viewerRole,
-      classOverridePolicy.allowChildOverrideProviders,
+      resolvedOverride.allowChildOverrideProviders,
     ) ||
     canViewClassOverrideSections(
       viewerRole,
-      classOverridePolicy.allowChildOverrideFunctions,
+      resolvedOverride.allowChildOverrideFunctions,
     );
 
   return (
@@ -68,16 +84,18 @@ export default function ClassAiManagementTab({
             spendMode={platformWalletSpendMode}
             balance={platformWalletBalance}
           />
-          <WalletsPanelContainer
-            scope="class"
-            institutionId={institutionId}
-            isSuperAdmin={isSuperAdmin}
-            institutionWallets={[]}
-            classWallets={wallets}
-            classes={[{ id: classDbId, name: className, shortId: classShortId }]}
-            accessEnabled={classAccessEnabled}
-            classAccessEnabled={{ [classDbId]: classAccessEnabled }}
-          />
+          {isInstitutionOrSuperAdmin && (
+            <WalletsPanelContainer
+              scope="class"
+              institutionId={institutionId}
+              isSuperAdmin={isSuperAdmin}
+              institutionWallets={[]}
+              classWallets={wallets}
+              classes={[{ id: classDbId, name: className, shortId: classShortId }]}
+              accessEnabled={classAccessEnabled}
+              classAccessEnabled={{ [classDbId]: classAccessEnabled }}
+            />
+          )}
           {!classAccessEnabled && canViewConfiguration && (
             <p className="text-sm text-muted-foreground">
               This class isn&apos;t using the institution&apos;s AI setup —{" "}
@@ -87,7 +105,7 @@ export default function ClassAiManagementTab({
               below.
             </p>
           )}
-          {canViewConfiguration ? (
+          {canViewConfiguration && (
             <div id="class-ai-provider-config">
               <AiSettingsPageContent
                 scope="class"
@@ -101,11 +119,6 @@ export default function ClassAiManagementTab({
                 classAccessEnabled={classAccessEnabled}
               />
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              AI configuration overrides are not available for your role or
-              institution policy.
-            </p>
           )}
         </div>
       }

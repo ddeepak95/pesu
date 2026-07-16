@@ -31,7 +31,11 @@ import UsageOverview from "@/components/Platform/Usage/UsageOverview";
 import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 import type { UsageBreakdownRow, WalletFundingEntry } from "@/lib/queries/aiUsage";
 import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
-import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
+import {
+  resolveClassOverridePolicy,
+  type AiClassOverridePolicy,
+  type AiInstitutionPolicy,
+} from "@/types/aiSettings";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import { Class } from "@/types/class";
 
@@ -124,17 +128,25 @@ export default function ClassSettingsClient({
   // Decision 4 (dev-docs/ai-usage-metering-phase4-plan.md): the AI
   // management tab shows iff the viewer can manage AI overrides, or the
   // class already has its own wallet to see even without override rights.
+  // "Can manage" is resolved against the institution's default_allow_child_override_*
+  // so a class inheriting an institution-wide "on" default sees the tab too,
+  // not just classes with an explicit per-class override row.
+  const resolvedClassOverride =
+    institutionPolicy && classOverridePolicy
+      ? resolveClassOverridePolicy(institutionPolicy, classOverridePolicy)
+      : undefined;
   const showAiTab =
     !!initialClassData.institution_id &&
     !!institutionPolicy &&
     !!classOverridePolicy &&
+    !!resolvedClassOverride &&
     (canViewClassOverrideSections(
       viewerRole,
-      classOverridePolicy.allowChildOverrideProviders,
+      resolvedClassOverride.allowChildOverrideProviders,
     ) ||
       canViewClassOverrideSections(
         viewerRole,
-        classOverridePolicy.allowChildOverrideFunctions,
+        resolvedClassOverride.allowChildOverrideFunctions,
       ) ||
       aiWallets.length > 0);
 

@@ -6,8 +6,10 @@ import { revalidatePath } from "next/cache";
 
 import { verifySession } from "@/lib/dal";
 import {
+  assertCanClearClassAiOverride,
   assertCanToggleAiLock,
   assertCanToggleClassAiOverride,
+  assertCanToggleDefaultChildOverride,
 } from "@/lib/ai/credentials/enforce";
 import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import {
@@ -24,13 +26,18 @@ import {
   getInstitutionAiPolicy,
   setInstitutionAiPolicyLock,
 } from "@/lib/queries/aiInstitutionSettings";
-import { setClassAiOverride } from "@/lib/queries/aiClassSettings";
+import {
+  clearClassAiOverride,
+  getClassAiOverride,
+  setClassAiOverride,
+} from "@/lib/queries/aiClassSettings";
 import {
   forceProvidersOffPlatformDefault,
   resetCatalogScope,
 } from "@/lib/queries/aiCatalog";
 import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 import type { ViewerRole } from "@/lib/settings/capabilities";
+import { resolveClassOverridePolicy } from "@/types/aiSettings";
 
 export interface AiConfigActionResult {
   ok: boolean;
@@ -125,6 +132,46 @@ export async function setInstitutionAiConfigLocksAction(input: {
   }
 }
 
+export async function setInstitutionAiChildOverrideDefaultAction(input: {
+  institutionId: string;
+  section: AiConfigSection;
+  enabled: boolean;
+}): Promise<AiConfigActionResult> {
+  try {
+    const { user, supabase } = await verifySession();
+    const viewerRole = await resolveViewerForInstitution(
+      supabase,
+      user.id,
+      input.institutionId,
+    );
+    const institutionPolicy = await getInstitutionAiPolicy(
+      supabase,
+      input.institutionId,
+    );
+    assertCanToggleDefaultChildOverride({
+      viewerRole,
+      section: input.section,
+      institutionPolicy,
+    });
+    const lock =
+      input.section === "providers"
+        ? "default_allow_child_override_providers"
+        : "default_allow_child_override_functions";
+    await setInstitutionAiPolicyLock(
+      supabase,
+      input.institutionId,
+      lock,
+      input.enabled,
+      user.id,
+      institutionPolicy,
+    );
+    revalidateInstitution(input.institutionId);
+    return ok();
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
 export async function setClassAiOverrideAction(input: {
   classDbId: string;
   classShortId?: string | null;
@@ -161,6 +208,60 @@ export async function setClassAiOverrideAction(input: {
     // edits would silently keep taking effect even after they lost the
     // ability to change them further. Only the revoked section is reset.
     if (!input.enabled) {
+      await resetCatalogScope(supabase, "class", input.classDbId, input.section);
+    }
+
+    clearModelConfigCache();
+    clearSpeechProviderKeyCache();
+    invalidateModelConfigCache(input.classDbId);
+    await invalidateSpeechProviderKeyCacheForClass(input.classDbId);
+
+    revalidatePath(`/admin/institutions/${institutionId}/classes/${input.classDbId}`);
+    revalidatePath(`/platform/institutions/${institutionId}/classes/${input.classDbId}`);
+    if (input.classShortId) {
+      revalidatePath(`/teacher/classes/${input.classShortId}/settings`);
+    }
+    return ok();
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+/** Resets a class's explicit override back to inheriting the institution default. */
+export async function clearClassAiOverrideAction(input: {
+  classDbId: string;
+  classShortId?: string | null;
+  section: AiConfigSection;
+}): Promise<AiConfigActionResult> {
+  try {
+    const { user, supabase } = await verifySession();
+    const { viewerRole, institutionId } = await resolveClassSettingsViewer(
+      supabase,
+      user.id,
+      input.classDbId,
+    );
+    const institutionPolicy = await getInstitutionAiPolicy(
+      supabase,
+      institutionId,
+    );
+    assertCanClearClassAiOverride({
+      viewerRole,
+      section: input.section,
+      institutionPolicy,
+    });
+    await clearClassAiOverride(supabase, input.classDbId, input.section, user.id);
+
+    // If the institution default resolves to "off" for this section, treat
+    // clearing the same as revoking: reset the section back to inheriting
+    // institution/platform defaults so a teacher's prior edits don't keep
+    // silently taking effect after they lose the ability to change them.
+    const classOverridePolicy = await getClassAiOverride(supabase, input.classDbId);
+    const resolved = resolveClassOverridePolicy(institutionPolicy, classOverridePolicy);
+    const stillAllowed =
+      input.section === "providers"
+        ? resolved.allowChildOverrideProviders
+        : resolved.allowChildOverrideFunctions;
+    if (!stillAllowed) {
       await resetCatalogScope(supabase, "class", input.classDbId, input.section);
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { invalidateAiCatalogCache } from "@/hooks/swr/useAiCatalogSettings";
 import { invalidateClassAiOverride } from "@/hooks/swr/useClassAiOverride";
-import { setClassAiOverrideAction } from "@/lib/ai/credentials/actions";
+import {
+  clearClassAiOverrideAction,
+  setClassAiOverrideAction,
+} from "@/lib/ai/credentials/actions";
 import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import type { ViewerRole } from "@/lib/settings/capabilities";
-import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
+import {
+  resolveClassOverridePolicy,
+  type AiClassOverridePolicy,
+  type AiInstitutionPolicy,
+} from "@/types/aiSettings";
 
 interface ClassAiOverrideRowProps {
   classDbId: string;
@@ -59,16 +66,28 @@ export default function ClassAiOverrideRow({
   section,
 }: ClassAiOverrideRowProps) {
   const overrideField = SECTION_OVERRIDE_FIELD[section];
-  const [allow, setAllow] = useState(classOverridePolicy[overrideField]);
+  const explicitValue = classOverridePolicy[overrideField];
+  const resolvedValue = resolveClassOverridePolicy(
+    institutionPolicy,
+    classOverridePolicy,
+  )[overrideField];
+  const [allow, setAllow] = useState(resolvedValue);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Keep the switch in sync if the institution default (or the explicit
+  // override) changes underneath this row, e.g. after a save elsewhere.
+  useEffect(() => {
+    setAllow(resolvedValue);
+  }, [resolvedValue]);
 
   if (viewerRole !== "institution_admin" && viewerRole !== "super_admin") {
     return null;
   }
 
-  const changed = allow !== classOverridePolicy[overrideField];
+  const changed = allow !== resolvedValue;
   const locked = !institutionPolicy[SECTION_ADMIN_EDIT_FIELD[section]];
+  const hasExplicitOverride = explicitValue !== null;
 
   const handleSave = () => {
     setError(null);
@@ -90,6 +109,23 @@ export default function ClassAiOverrideRow({
     });
   };
 
+  const handleResetToDefault = () => {
+    setError(null);
+    startTransition(async () => {
+      const res = await clearClassAiOverrideAction({
+        classDbId,
+        classShortId,
+        section,
+      });
+      if (!res.ok) {
+        setError(res.error ?? "Failed to reset");
+        return;
+      }
+      invalidateAiCatalogCache("class", classDbId);
+      invalidateClassAiOverride(classDbId);
+    });
+  };
+
   return (
     <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
       <div className="space-y-1">
@@ -106,13 +142,39 @@ export default function ClassAiOverrideRow({
             {SECTION_LOCKED_HINT[section]}
           </p>
         )}
+        {!locked && !hasExplicitOverride && (
+          <p className="text-xs text-muted-foreground">
+            Inheriting the institution default (currently{" "}
+            {resolvedValue ? "on" : "off"}).
+          </p>
+        )}
+        {!locked && hasExplicitOverride && (
+          <p className="text-xs text-muted-foreground">
+            This class has its own explicit setting, overriding the
+            institution default.
+          </p>
+        )}
       </div>
-      {changed && (
-        <Button type="button" size="sm" onClick={handleSave} disabled={pending}>
-          {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save permissions
-        </Button>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {changed && (
+          <Button type="button" size="sm" onClick={handleSave} disabled={pending}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save permissions
+          </Button>
+        )}
+        {!locked && hasExplicitOverride && !changed && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleResetToDefault}
+            disabled={pending}
+          >
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Reset to institution default
+          </Button>
+        )}
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
