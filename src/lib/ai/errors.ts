@@ -70,18 +70,23 @@ function readNumber(obj: Record<string, unknown>, key: string): number | undefin
  * throws; unrecognized errors fall through to `UNKNOWN` (retryable).
  */
 export function classifyAiError(err: unknown): ClassifiedAiError {
+  const obj =
+    err && typeof err === "object" ? (err as Record<string, unknown>) : null;
+
+  // Raw Postgrest/Supabase errors (`throw error` on a query result) are
+  // plain objects with a string `message`, not `Error` instances — without
+  // this they'd all collapse into the unhelpful "Something went wrong".
   const message =
     err instanceof Error
       ? err.message
       : typeof err === "string"
         ? err
-        : "Something went wrong";
+        : obj && typeof obj.message === "string"
+          ? obj.message
+          : "Something went wrong";
 
   const retryAfter = getRetryAfterMs(err);
   const retryAfterMs = retryAfter !== null ? retryAfter : undefined;
-
-  const obj =
-    err && typeof err === "object" ? (err as Record<string, unknown>) : null;
 
   // Recognize the app's existing ad-hoc error-code constants first — these are
   // positively-identified permanent failures.
