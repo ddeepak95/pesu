@@ -15,6 +15,7 @@ import {
 import {
   formatReasoningLabel,
   getProviderEntry,
+  isProviderActive,
   modelHasReasoningConfig,
   modelsEligibleForFunction,
   normalizeFunctionBinding,
@@ -56,6 +57,12 @@ export default function AiFunctionBindingControls({
     ? eligible.filter((m) => m.providerId === selectedProvider)
     : [];
   const hasSelectedModel = Boolean(selectedProvider && selectedModel);
+  const selectedProviderInactive = selectedProvider
+    ? !isProviderActive(state, selectedProvider, scope)
+    : false;
+  const selectedProviderLabel = selectedProvider
+    ? (getProviderEntry(selectedProvider)?.label ?? selectedProvider)
+    : "";
   const normalizedBinding =
     selectedProvider && selectedModel
       ? normalizeFunctionBinding({
@@ -82,6 +89,12 @@ export default function AiFunctionBindingControls({
 
   return (
     <div className="space-y-3">
+      {selectedProviderInactive && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-800 dark:text-amber-300">
+          {selectedProviderLabel} is off — this selection won&apos;t work
+          until it&apos;s reactivated or reassigned.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Provider</Label>

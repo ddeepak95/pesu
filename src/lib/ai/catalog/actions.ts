@@ -42,11 +42,13 @@ import {
   deleteFunctionBinding,
   deleteFunctionBindings,
   getCatalogSettingsForScope,
+  listFunctionBindingsForScope,
   normalizeCatalogScopeId,
   resetCatalogScope,
   upsertFunctionBinding,
   upsertProviderActivation,
 } from "@/lib/queries/aiCatalog";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
@@ -256,6 +258,19 @@ export async function activateCatalogProviderAction(input: {
   }
 }
 
+async function clearFunctionBindingsForProvider(
+  supabase: SupabaseClient,
+  scope: AiSettingsScope,
+  scopeId: string,
+  providerId: ProviderId,
+): Promise<void> {
+  const rows = await listFunctionBindingsForScope(supabase, scope, scopeId);
+  const staleKeys = rows
+    .filter((row) => row.provider_id === providerId)
+    .map((row) => row.binding_key);
+  await deleteFunctionBindings(supabase, scope, scopeId, staleKeys);
+}
+
 export async function deactivateCatalogProviderAction(input: {
   scope: AiSettingsScope;
   scopeId: string;
@@ -282,6 +297,13 @@ export async function deactivateCatalogProviderAction(input: {
       keyHint: null,
       updatedBy: user.id,
     });
+
+    await clearFunctionBindingsForProvider(
+      supabase,
+      input.scope,
+      scopeId,
+      input.providerId,
+    );
 
     await afterCatalogMutation({
       scope: input.scope,
@@ -334,6 +356,13 @@ export async function setCatalogUsePlatformProviderAction(input: {
       keyHint: null,
       updatedBy: user.id,
     });
+
+    await clearFunctionBindingsForProvider(
+      supabase,
+      input.scope,
+      scopeId,
+      input.providerId,
+    );
 
     await afterCatalogMutation({
       scope: input.scope,

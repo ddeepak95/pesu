@@ -136,9 +136,11 @@ export default function AiFunctionGroupCard({
           {showInheritedDefaults ? (
             <AiInstitutionFunctionDefaultSection
               fn={fn}
+              scope={scope}
               scopeState={state}
               platformState={platformState!}
               institutionState={institutionState}
+              catalogState={catalogState}
               inheritLabel={inheritLabel}
               allowUsePlatformDefaults={allowInherit}
               canEdit={canEdit}

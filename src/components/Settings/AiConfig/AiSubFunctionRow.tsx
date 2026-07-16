@@ -8,6 +8,7 @@ import {
   getModelEntry,
   getProviderEntry,
   hasSubFunctionOverride,
+  isProviderActive,
   resolveClassEffectiveFunctionBinding,
   resolveInstitutionEffectiveFunctionBinding,
   resolveFunctionBinding,
@@ -104,6 +105,14 @@ export default function AiSubFunctionRow({
     hasOverride || (isCustomizing && !parentUsesInheritedDefault);
   const effectiveLine = formatBindingLine(effectiveBinding);
   const parentDefaultLine = formatBindingLine(parentBinding);
+  const effectiveProviderInactive = Boolean(
+    effectiveBinding &&
+      !isProviderActive(controlsState, effectiveBinding.providerId, scope),
+  );
+  const parentProviderInactive = Boolean(
+    parentBinding &&
+      !isProviderActive(controlsState, parentBinding.providerId, scope),
+  );
 
   const handleBindingChange = (binding: FunctionBindingState) => {
     onBindingChange(bindingKey, binding);
@@ -144,15 +153,29 @@ export default function AiSubFunctionRow({
           </Button>
         </div>
       ) : parentUsesInheritedDefault ? (
-        <p className="text-xs text-muted-foreground">
-          Using {inheritLabel} default
-          {effectiveLine ? ` · ${effectiveLine}` : ""}
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <span>
+            Using {inheritLabel} default
+            {effectiveLine ? ` · ${effectiveLine}` : ""}
+          </span>
+          {effectiveProviderInactive && (
+            <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-amber-800 dark:text-amber-300">
+              Provider off
+            </span>
+          )}
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-xs text-muted-foreground">
-            Using {parentFn.label} default
-            {parentDefaultLine ? ` · ${parentDefaultLine}` : ""}
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <span>
+              Using {parentFn.label} default
+              {parentDefaultLine ? ` · ${parentDefaultLine}` : ""}
+            </span>
+            {parentProviderInactive && (
+              <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-amber-800 dark:text-amber-300">
+                Provider off
+              </span>
+            )}
           </p>
           <Button
             type="button"

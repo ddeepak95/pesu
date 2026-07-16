@@ -7,19 +7,23 @@ import {
   getModelEntry,
   getProviderEntry,
   institutionUsesPlatformFunctionDefault,
+  isProviderActive,
   resolveClassEffectiveFunctionBinding,
   resolveInstitutionEffectiveFunctionBinding,
 } from "@/lib/ai/catalog/helpers";
 import type {
+  AiSettingsScope,
   AppFunctionCatalogEntry,
   LocalAiSettingsState,
 } from "@/lib/ai/catalog/types";
 
 interface AiInstitutionFunctionDefaultSectionProps {
   fn: AppFunctionCatalogEntry;
+  scope: AiSettingsScope;
   scopeState: LocalAiSettingsState;
   platformState: LocalAiSettingsState;
   institutionState?: LocalAiSettingsState;
+  catalogState?: LocalAiSettingsState;
   inheritLabel?: string;
   allowUsePlatformDefaults: boolean;
   canEdit?: boolean;
@@ -29,9 +33,11 @@ interface AiInstitutionFunctionDefaultSectionProps {
 
 export default function AiInstitutionFunctionDefaultSection({
   fn,
+  scope,
   scopeState,
   platformState,
   institutionState,
+  catalogState,
   inheritLabel = "platform",
   allowUsePlatformDefaults,
   canEdit = true,
@@ -64,6 +70,11 @@ export default function AiInstitutionFunctionDefaultSection({
   const reasoningLabel = effectiveBinding
     ? formatReasoningLabel(effectiveBinding)
     : null;
+  const providerInactive = Boolean(
+    effectiveBinding &&
+      catalogState &&
+      !isProviderActive(catalogState, effectiveBinding.providerId, scope),
+  );
 
   return (
     <div className="space-y-3">
@@ -97,6 +108,11 @@ export default function AiInstitutionFunctionDefaultSection({
             <>
               Using {inheritLabel} assignment: {providerLabel} · {modelLabel}
               {reasoningLabel ? ` · reasoning ${reasoningLabel}` : ""}
+              {providerInactive && (
+                <span className="ml-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-800 dark:text-amber-300">
+                  {providerLabel} is off
+                </span>
+              )}
             </>
           ) : (
             <>

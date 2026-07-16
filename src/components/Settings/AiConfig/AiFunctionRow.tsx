@@ -103,9 +103,11 @@ export default function AiFunctionRow({
         (showInheritedDefaults ? (
           <AiInstitutionFunctionDefaultSection
             fn={fn}
+            scope={scope}
             scopeState={state}
             platformState={platformState!}
             institutionState={institutionState}
+            catalogState={providerCatalogState}
             inheritLabel={inheritLabel}
             allowUsePlatformDefaults={allowInherit}
             canEdit={canEdit}
