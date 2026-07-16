@@ -32,48 +32,28 @@ export default function AiConfigLocksRow({
   const [allowAdminEdit, setAllowAdminEdit] = useState(
     institutionPolicy.allowAdminEdit,
   );
-  const [allowUsePlatformDefaults, setAllowUsePlatformDefaults] = useState(
-    institutionPolicy.allowUsePlatformDefaults,
-  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const adminChanged = allowAdminEdit !== institutionPolicy.allowAdminEdit;
-  const platformChanged =
-    allowUsePlatformDefaults !== institutionPolicy.allowUsePlatformDefaults;
-  const hasChanges = adminChanged || platformChanged;
+  const hasChanges = allowAdminEdit !== institutionPolicy.allowAdminEdit;
 
-  const canSave =
-    caps.canToggleAllowAdminEdit || caps.canToggleAllowPlatformDefaults;
+  const canSave = caps.canToggleAllowAdminEdit;
 
-  if (!canSave && viewerRole !== "super_admin") {
+  if (!canSave) {
     return null;
   }
 
   const handleSave = () => {
     setError(null);
     startTransition(async () => {
-      if (adminChanged) {
-        const res = await setInstitutionAiConfigLocksAction({
-          institutionId,
-          lock: "allow_admin_edit",
-          enabled: allowAdminEdit,
-        });
-        if (!res.ok) {
-          setError(res.error ?? "Failed to save");
-          return;
-        }
-      }
-      if (platformChanged) {
-        const res = await setInstitutionAiConfigLocksAction({
-          institutionId,
-          lock: "allow_use_platform_defaults",
-          enabled: allowUsePlatformDefaults,
-        });
-        if (!res.ok) {
-          setError(res.error ?? "Failed to save");
-          return;
-        }
+      const res = await setInstitutionAiConfigLocksAction({
+        institutionId,
+        lock: "allow_admin_edit",
+        enabled: allowAdminEdit,
+      });
+      if (!res.ok) {
+        setError(res.error ?? "Failed to save");
+        return;
       }
       invalidateInstitutionAiPolicy(institutionId);
     });
@@ -82,30 +62,16 @@ export default function AiConfigLocksRow({
   return (
     <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
       <p className="text-sm font-medium">AI configuration permissions</p>
-      {caps.canToggleAllowAdminEdit && (
-        <div className="flex items-center justify-between gap-4">
-          <Label className="text-sm font-normal">
-            Allow institution admin to edit
-          </Label>
-          <Switch
-            checked={allowAdminEdit}
-            onCheckedChange={setAllowAdminEdit}
-            disabled={pending}
-          />
-        </div>
-      )}
-      {caps.canToggleAllowPlatformDefaults && (
-        <div className="flex items-center justify-between gap-4">
-          <Label className="text-sm font-normal">
-            Allow institution to use platform defaults
-          </Label>
-          <Switch
-            checked={allowUsePlatformDefaults}
-            onCheckedChange={setAllowUsePlatformDefaults}
-            disabled={pending}
-          />
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-4">
+        <Label className="text-sm font-normal">
+          Allow institution admin to edit
+        </Label>
+        <Switch
+          checked={allowAdminEdit}
+          onCheckedChange={setAllowAdminEdit}
+          disabled={pending}
+        />
+      </div>
       {hasChanges && (
         <Button type="button" size="sm" onClick={handleSave} disabled={pending}>
           {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

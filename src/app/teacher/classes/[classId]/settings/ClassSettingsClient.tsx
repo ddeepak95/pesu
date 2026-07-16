@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
 import BackButton from "@/components/ui/back-button";
+import {
+  MutedPrimaryTabsList,
+  MutedPrimaryTabsTrigger,
+} from "@/components/Teacher/Shared/MutedPrimaryTabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import GeneralSettingsSection from "@/components/Teacher/Classes/Settings/GeneralSettingsSection";
 import ManageTeachersSection from "@/components/Teacher/Classes/Settings/ManageTeachersSection";
 import ManageStudentsSection from "@/components/Teacher/Classes/Settings/ManageStudentsSection";
@@ -20,9 +26,21 @@ import DangerZoneSection from "@/components/Teacher/Classes/Settings/DangerZoneS
 import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
 import ClassAiManagementTab from "@/components/Settings/ClassAiManagementTab";
 import ClassInheritedSettingsSection from "@/components/Settings/ClassInheritedSettingsSection";
+import { canViewClassOverrideSections } from "@/lib/settings/capabilities";
+import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
+import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
+import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
 import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import { Class } from "@/types/class";
+
+const SETTINGS_TAB_PARAM = "settingsTab";
+
+type SettingsSubTab = "general" | "ai";
+
+function parseSettingsSubTab(raw: string | null): SettingsSubTab {
+  return raw === "ai" ? "ai" : "general";
+}
 
 interface ClassSettingsClientProps {
   classData: Class;
@@ -46,6 +64,12 @@ interface ClassSettingsClientProps {
    * who isn't a class_teachers member.
    */
   activityTemplatesBasePath?: string;
+  /** This class's own wallets (0-2 rows) — drives both the AI tab's content and its visibility (decision 4). */
+  aiWallets?: AiCreditWallet[];
+  aiClassAccessEnabled?: boolean;
+  aiPlatformWalletBalance?: number;
+  aiUsageBreakdown?: UsageBreakdownRow[];
+  aiFundingHistory?: WalletFundingEntry[];
 }
 
 export default function ClassSettingsClient({
@@ -58,8 +82,14 @@ export default function ClassSettingsClient({
   institutionPolicy,
   classOverridePolicy,
   activityTemplatesBasePath,
+  aiWallets = [],
+  aiClassAccessEnabled = true,
+  aiPlatformWalletBalance = 0,
+  aiUsageBreakdown = [],
+  aiFundingHistory = [],
 }: ClassSettingsClientProps) {
   const router = useTrackedRouter();
+  const searchParams = useSearchParams();
 
   const handleUpdated = useCallback(() => {
     router.refresh();
@@ -85,6 +115,30 @@ export default function ClassSettingsClient({
 
   /** Legacy prop name on settings sections: permitted to change settings here. */
   const sectionMayEdit = canConfigureSettings;
+
+  // Decision 4 (dev-docs/ai-usage-metering-phase4-plan.md): the AI
+  // management tab shows iff the viewer can manage AI overrides, or the
+  // class already has its own wallet to see even without override rights.
+  const showAiTab =
+    !!initialClassData.institution_id &&
+    !!institutionPolicy &&
+    !!classOverridePolicy &&
+    (canViewClassOverrideSections(
+      viewerRole,
+      classOverridePolicy.allowChildOverride,
+    ) ||
+      aiWallets.length > 0);
+
+  const activeSettingsTab = useMemo(() => {
+    const parsed = parseSettingsSubTab(searchParams.get(SETTINGS_TAB_PARAM));
+    return parsed === "ai" && !showAiTab ? "general" : parsed;
+  }, [searchParams, showAiTab]);
+
+  const handleSettingsTabChange = (value: string) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set(SETTINGS_TAB_PARAM, parseSettingsSubTab(value));
+    router.replace(`?${next.toString()}`);
+  };
 
   return (
     <PageLayout>
@@ -121,98 +175,124 @@ export default function ClassSettingsClient({
           </div>
         )}
 
-        <div className="space-y-6">
-          {canConfigureSettings && (
-            <>
-              <GeneralSettingsSection
-                classData={initialClassData}
-                isOwner={sectionMayEdit}
-                onUpdated={handleUpdated}
-              />
+        <Tabs
+          value={activeSettingsTab}
+          onValueChange={handleSettingsTabChange}
+          className="w-full"
+        >
+          <MutedPrimaryTabsList
+            className="mb-4 h-auto w-auto gap-1 rounded-md p-1"
+            hideWhenSingle
+          >
+            <MutedPrimaryTabsTrigger value="general" className="px-4 py-2">
+              General
+            </MutedPrimaryTabsTrigger>
+            {showAiTab && (
+              <MutedPrimaryTabsTrigger value="ai" className="px-4 py-2">
+                AI management
+              </MutedPrimaryTabsTrigger>
+            )}
+          </MutedPrimaryTabsList>
 
-              <ManageTeachersSection
-                classData={initialClassData}
-                canManageRoster={sectionMayEdit}
-                canPromoteCoOwner={canPromoteCoOwner}
-                canTransferPrimaryOwnership={canTransferPrimaryOwnership}
-                onTeachersChanged={handleUpdated}
-              />
+          <TabsContent value="general" className="mt-0 space-y-6">
+            {canConfigureSettings && (
+              <>
+                <GeneralSettingsSection
+                  classData={initialClassData}
+                  isOwner={sectionMayEdit}
+                  onUpdated={handleUpdated}
+                />
 
-              <ManageStudentsSection
-                classData={initialClassData}
-                canManageRoster={sectionMayEdit}
-              />
+                <ManageTeachersSection
+                  classData={initialClassData}
+                  canManageRoster={sectionMayEdit}
+                  canPromoteCoOwner={canPromoteCoOwner}
+                  canTransferPrimaryOwnership={canTransferPrimaryOwnership}
+                  onTeachersChanged={handleUpdated}
+                />
 
-              <GroupSettingsSection
-                classData={initialClassData}
-                isOwner={sectionMayEdit}
-                onUpdated={handleUpdated}
-              />
+                <ManageStudentsSection
+                  classData={initialClassData}
+                  canManageRoster={sectionMayEdit}
+                />
 
-              <ProfileFieldsSection
-                classData={initialClassData}
-                isOwner={sectionMayEdit}
-              />
+                <GroupSettingsSection
+                  classData={initialClassData}
+                  isOwner={sectionMayEdit}
+                  onUpdated={handleUpdated}
+                />
 
-              <ActivityTypesSection
-                classData={initialClassData}
-                classShortId={classId}
-                userId={userId}
-                manageHref={activityTemplatesBasePath}
-              />
+                <ProfileFieldsSection
+                  classData={initialClassData}
+                  isOwner={sectionMayEdit}
+                />
 
-              <ProgressiveUnlockSection
-                classData={initialClassData}
-                isOwner={sectionMayEdit}
-                onUpdated={handleUpdated}
-              />
-            </>
-          )}
+                <ActivityTypesSection
+                  classData={initialClassData}
+                  classShortId={classId}
+                  userId={userId}
+                  manageHref={activityTemplatesBasePath}
+                />
 
-          <ClassInheritedSettingsSection
-            classDbId={initialClassData.id}
-            classShortId={classId}
-            viewerRole={viewerRole}
-          />
+                <ProgressiveUnlockSection
+                  classData={initialClassData}
+                  isOwner={sectionMayEdit}
+                  onUpdated={handleUpdated}
+                />
+              </>
+            )}
 
-          {initialClassData.institution_id &&
-            institutionPolicy &&
-            classOverridePolicy && (
+            <ClassInheritedSettingsSection
+              classDbId={initialClassData.id}
+              classShortId={classId}
+              viewerRole={viewerRole}
+            />
+
+            {canConfigureSettings && (
+              <>
+                <ResetProgressSection
+                  classId={initialClassData.id}
+                  isOwner={sectionMayEdit}
+                />
+
+                <DuplicateClassSection
+                  classData={initialClassData}
+                  isOwner={sectionMayEdit}
+                  onDuplicated={handleUpdated}
+                />
+
+                <ArchiveClassSection
+                  classData={initialClassData}
+                  canArchive={hasFullClassControlView}
+                />
+
+                <DangerZoneSection
+                  classData={initialClassData}
+                  canDeleteClass={hasFullClassControlView}
+                />
+              </>
+            )}
+          </TabsContent>
+
+          {showAiTab && institutionPolicy && classOverridePolicy && (
+            <TabsContent value="ai" className="mt-0">
               <ClassAiManagementTab
                 classDbId={initialClassData.id}
+                className={initialClassData.name}
                 classShortId={classId}
-                institutionId={initialClassData.institution_id}
+                institutionId={initialClassData.institution_id as string}
                 viewerRole={viewerRole}
                 institutionPolicy={institutionPolicy}
                 classOverridePolicy={classOverridePolicy}
+                wallets={aiWallets}
+                classAccessEnabled={aiClassAccessEnabled}
+                platformWalletBalance={aiPlatformWalletBalance}
+                usageBreakdown={aiUsageBreakdown}
+                fundingHistory={aiFundingHistory}
               />
-            )}
-
-          {canConfigureSettings && (
-            <>
-              <ResetProgressSection
-                classId={initialClassData.id}
-                isOwner={sectionMayEdit}
-              />
-
-              <DuplicateClassSection
-                classData={initialClassData}
-                isOwner={sectionMayEdit}
-                onDuplicated={handleUpdated}
-              />
-
-              <ArchiveClassSection
-                classData={initialClassData}
-                canArchive={hasFullClassControlView}
-              />
-
-              <DangerZoneSection
-                classData={initialClassData}
-                canDeleteClass={hasFullClassControlView}
-              />
-            </>
+            </TabsContent>
           )}
-        </div>
+        </Tabs>
       </div>
     </PageLayout>
   );

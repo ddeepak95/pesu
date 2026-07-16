@@ -23,22 +23,10 @@ export interface AiCreditWallet {
 const WALLET_COLUMNS =
   "id, institution_id, class_id, key_owner, monthly_grant, max_balance, class_allocation_capacity, soft_warn_threshold, enforcement, self_manage_enabled, updated_at";
 
-/**
- * All wallets under an institution (institution-level + every class-level
- * row), with balance joined in from ai_credit_balances (0 when never funded).
- * RLS on both tables already scopes this to the viewer's institution.
- */
-export async function listWalletsForInstitution(
+async function attachBalances(
   supabase: SupabaseClient,
-  institutionId: string,
+  rows: Record<string, unknown>[],
 ): Promise<AiCreditWallet[]> {
-  const { data: wallets, error } = await supabase
-    .from("ai_credit_wallets")
-    .select(WALLET_COLUMNS)
-    .eq("institution_id", institutionId)
-    .order("key_owner", { ascending: true });
-  if (error) throw error;
-  const rows = wallets ?? [];
   if (rows.length === 0) return [];
 
   const { data: balances, error: balanceError } = await supabase
@@ -57,23 +45,64 @@ export async function listWalletsForInstitution(
   return rows.map((w) => ({
     ...(w as Omit<AiCreditWallet, "balance">),
     balance: balanceByWallet.get(w.id as string) ?? 0,
-  }));
+  })) as AiCreditWallet[];
 }
 
+/**
+ * All wallets under an institution (institution-level + every class-level
+ * row), with balance joined in from ai_credit_balances (0 when never funded).
+ * RLS on both tables already scopes this to the viewer's institution.
+ */
+export async function listWalletsForInstitution(
+  supabase: SupabaseClient,
+  institutionId: string,
+): Promise<AiCreditWallet[]> {
+  const { data: wallets, error } = await supabase
+    .from("ai_credit_wallets")
+    .select(WALLET_COLUMNS)
+    .eq("institution_id", institutionId)
+    .order("key_owner", { ascending: true });
+  if (error) throw error;
+  return attachBalances(supabase, wallets ?? []);
+}
+
+/** Just one class's own wallets (0-2 rows: platform and/or byok) — the class settings AI tab doesn't need the whole institution's list. */
+export async function listWalletsForClass(
+  supabase: SupabaseClient,
+  classId: string,
+): Promise<AiCreditWallet[]> {
+  const { data: wallets, error } = await supabase
+    .from("ai_credit_wallets")
+    .select(WALLET_COLUMNS)
+    .eq("class_id", classId)
+    .order("key_owner", { ascending: true });
+  if (error) throw error;
+  return attachBalances(supabase, wallets ?? []);
+}
+
+/** Returns the created row (balance always 0 — a brand new wallet has no transactions yet). */
 export async function createWallet(
   supabase: SupabaseClient,
   input: {
     institutionId: string;
     classId: string | null;
     keyOwner: WalletKeyOwner;
+    /** Defaults to the column default ('off'/Unbounded) when omitted. */
+    enforcement?: WalletEnforcement;
   },
-): Promise<void> {
-  const { error } = await supabase.from("ai_credit_wallets").insert({
-    institution_id: input.institutionId,
-    class_id: input.classId,
-    key_owner: input.keyOwner,
-  });
+): Promise<AiCreditWallet> {
+  const { data, error } = await supabase
+    .from("ai_credit_wallets")
+    .insert({
+      institution_id: input.institutionId,
+      class_id: input.classId,
+      key_owner: input.keyOwner,
+      ...(input.enforcement ? { enforcement: input.enforcement } : {}),
+    })
+    .select(WALLET_COLUMNS)
+    .single();
   if (error) throw error;
+  return { ...(data as Omit<AiCreditWallet, "balance">), balance: 0 };
 }
 
 export async function updateWalletPolicy(

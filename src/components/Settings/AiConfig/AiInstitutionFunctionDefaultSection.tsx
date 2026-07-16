@@ -65,6 +65,13 @@ export default function AiInstitutionFunctionDefaultSection({
 
   return (
     <div className="space-y-3">
+      {inheritLabel === "institution" && !allowUsePlatformDefaults && (
+        <p className="text-xs text-muted-foreground">
+          Institution AI access is off for this class — set your own
+          assignment for {fn.label} below.
+        </p>
+      )}
+
       {allowUsePlatformDefaults && (
         <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 px-3 py-2">
           <Label

@@ -160,9 +160,13 @@ create policy "Admins update wallets in their scope" on public.ai_credit_wallets
 -- insert. No write RLS policies on ai_credit_wallet_policy_audit either — only
 -- the lock-and-audit trigger below writes to it.
 
--- ─── Lock-and-audit trigger (D9, D10) ────────────────────────────────────────
+-- ─── Lock-and-audit triggers (D9, D10) ───────────────────────────────────────
+-- Split BEFORE (lock enforcement) / AFTER (audit log): the audit row's
+-- wallet_id FK references ai_credit_wallets(id), which doesn't exist yet on
+-- INSERT until after the row is actually written — a single BEFORE trigger
+-- that tried to audit-log an INSERT would always violate that FK.
 
-create or replace function public.ai_credit_wallets_enforce_locks_and_audit()
+create or replace function public.ai_credit_wallets_enforce_locks()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if not public.is_platform_super_admin() then
@@ -174,6 +178,19 @@ begin
     end if;
   end if;
 
+  return NEW;
+end;
+$$;
+
+alter function public.ai_credit_wallets_enforce_locks() owner to postgres;
+
+create trigger ai_credit_wallets_enforce_locks_trg
+  before insert or update on public.ai_credit_wallets
+  for each row execute function public.ai_credit_wallets_enforce_locks();
+
+create or replace function public.ai_credit_wallets_audit()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
   insert into public.ai_credit_wallet_policy_audit (wallet_id, changed_by, before, after)
   values (
     NEW.id, auth.uid(),
@@ -185,11 +202,11 @@ begin
 end;
 $$;
 
-alter function public.ai_credit_wallets_enforce_locks_and_audit() owner to postgres;
+alter function public.ai_credit_wallets_audit() owner to postgres;
 
-create trigger ai_credit_wallets_enforce_locks_and_audit_trg
-  before insert or update on public.ai_credit_wallets
-  for each row execute function public.ai_credit_wallets_enforce_locks_and_audit();
+create trigger ai_credit_wallets_audit_trg
+  after insert or update on public.ai_credit_wallets
+  for each row execute function public.ai_credit_wallets_audit();
 
 -- ─── allocate_wallet_credits — funding, with capacity + permission checks
 -- (D8, D9) ─────────────────────────────────────────────────────────────────

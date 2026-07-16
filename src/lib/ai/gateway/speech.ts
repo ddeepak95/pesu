@@ -19,6 +19,7 @@ import {
 } from "@/lib/konvo-voice/speech/providers/sarvam/ws-stream";
 import { resolveProviderApiKeyWithSourceForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
 import { withRetry } from "@/lib/ai/retry";
+import { assertClassAiAccessAllowed, assertPlatformAiAccessAllowed } from "@/lib/ai/metering/access";
 import { keyOwnerFromSource } from "@/lib/ai/metering/keyOwner";
 import { assertWithinQuota, resolveWalletId } from "@/lib/ai/metering/quota";
 import { resolveInstitutionId } from "@/lib/logging/appLog";
@@ -445,6 +446,17 @@ export async function resolveMeteredSpeech(input: {
   let walletId: string | null = null;
   if (institutionId && classDbId) {
     const keyOwner = keyOwnerFromSource(keySource);
+
+    // Real-time kill switch (decision 1) — see the matching comment in
+    // resolveMeteredModel (model.ts). Checked on every call that isn't using
+    // the class's own key.
+    if (keyOwner === "platform") {
+      await assertPlatformAiAccessAllowed(institutionId);
+    }
+    if (keySource !== "class") {
+      await assertClassAiAccessAllowed(classDbId);
+    }
+
     walletId = await resolveWalletId({ institutionId, classId: classDbId, keyOwner });
 
     const shouldCheck =

@@ -41,6 +41,8 @@ interface AiSettingsPageContentProps {
   classOverridePolicy?: AiClassOverridePolicy;
   classShortId?: string | null;
   showLocks?: boolean;
+  /** Class scope only — the class's AI-access toggle (ai_class_settings.ai_access_enabled). Gates whether providers may fall back to the institution's key. */
+  classAccessEnabled?: boolean;
 }
 
 export default function AiSettingsPageContent({
@@ -54,6 +56,7 @@ export default function AiSettingsPageContent({
   classOverridePolicy,
   classShortId,
   showLocks = false,
+  classAccessEnabled = true,
 }: AiSettingsPageContentProps) {
   const {
     state,
@@ -195,6 +198,7 @@ export default function AiSettingsPageContent({
           allowUsePlatformDefaults={
             institutionPolicy?.allowUsePlatformDefaults ?? true
           }
+          allowUseInstitutionDefault={classAccessEnabled}
           onActivate={activateProvider}
           onDeactivate={deactivateProvider}
           onUsePlatformChange={setUsePlatformProvider}
@@ -209,6 +213,7 @@ export default function AiSettingsPageContent({
           allowUsePlatformDefaults={
             institutionPolicy?.allowUsePlatformDefaults ?? true
           }
+          allowUseInstitutionDefault={classAccessEnabled}
           onBindingChange={updateFunctionBinding}
           onClearBinding={clearFunctionBinding}
           onUsePlatformFunctionDefault={setUsePlatformFunctionDefault}

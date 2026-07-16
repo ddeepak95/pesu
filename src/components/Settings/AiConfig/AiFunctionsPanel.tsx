@@ -21,6 +21,7 @@ interface AiFunctionsPanelProps {
   platformState?: LocalAiSettingsState;
   institutionState?: LocalAiSettingsState;
   allowUsePlatformDefaults?: boolean;
+  allowUseInstitutionDefault?: boolean;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
   onClearBinding: (fnKey: string) => void;
   onUsePlatformFunctionDefault?: (parentKey: string, usePlatform: boolean) => void;
@@ -33,6 +34,7 @@ export default function AiFunctionsPanel({
   platformState,
   institutionState,
   allowUsePlatformDefaults = true,
+  allowUseInstitutionDefault = true,
   onBindingChange,
   onClearBinding,
   onUsePlatformFunctionDefault,
@@ -66,6 +68,7 @@ export default function AiFunctionsPanel({
               platformState={platformState}
               institutionState={institutionState}
               allowUsePlatformDefaults={allowUsePlatformDefaults}
+              allowUseInstitutionDefault={allowUseInstitutionDefault}
               onBindingChange={onBindingChange}
               onClearBinding={onClearBinding}
               onUsePlatformFunctionDefault={onUsePlatformFunctionDefault}
@@ -80,6 +83,7 @@ export default function AiFunctionsPanel({
               platformState={platformState}
               institutionState={institutionState}
               allowUsePlatformDefaults={allowUsePlatformDefaults}
+              allowUseInstitutionDefault={allowUseInstitutionDefault}
               providerCatalogState={catalogState}
               onBindingChange={onBindingChange}
               onUsePlatformFunctionDefault={onUsePlatformFunctionDefault}

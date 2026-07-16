@@ -12,6 +12,7 @@ interface AiProvidersPanelProps {
   scope: AiSettingsScope;
   state: LocalAiSettingsState;
   allowUsePlatformDefaults?: boolean;
+  allowUseInstitutionDefault?: boolean;
   onActivate: (providerId: ProviderId, apiKey: string) => void;
   onDeactivate: (providerId: ProviderId) => void;
   onUsePlatformChange: (providerId: ProviderId, usePlatform: boolean) => void;
@@ -22,6 +23,7 @@ export default function AiProvidersPanel({
   scope,
   state,
   allowUsePlatformDefaults = true,
+  allowUseInstitutionDefault = true,
   onActivate,
   onDeactivate,
   onUsePlatformChange,
@@ -60,6 +62,7 @@ export default function AiProvidersPanel({
               scope={scope}
               activation={activation}
               allowUsePlatformDefaults={allowUsePlatformDefaults}
+              allowUseInstitutionDefault={allowUseInstitutionDefault}
               onActivate={(key) => onActivate(provider.id, key)}
               onDeactivate={() => onDeactivate(provider.id)}
               onUsePlatformChange={(usePlatform) =>

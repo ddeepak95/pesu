@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -10,6 +9,9 @@ import {
 } from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
+import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
+import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
+import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
@@ -28,6 +30,12 @@ function parseSettingsSubTab(raw: string | null): SettingsSubTab {
   return raw === "ai" ? "ai" : "general";
 }
 
+interface ClassOption {
+  id: string;
+  name: string;
+  shortId?: string | null;
+}
+
 interface InstitutionSettingsTabsProps {
   institutionId: string;
   institution: Institution;
@@ -37,10 +45,16 @@ interface InstitutionSettingsTabsProps {
   adminsSection?: ReactNode;
   /** "Manage Activity Templates" link target for this institution's template library. */
   activityTemplatesManageHref: string;
-  /** "AI credit wallets" link target for this institution's wallet funding/policy page. */
-  walletsManageHref: string;
   /** Super-admin-only Danger Zone (delete/archive/restore institution). */
   dangerZoneSection?: ReactNode;
+  /** AI management tab data — wallets, usage, access. */
+  aiWallets: AiCreditWallet[];
+  aiClasses: ClassOption[];
+  aiClassAccessEnabled: Record<string, boolean>;
+  aiDefaultClassWalletCredits: number | null;
+  aiPlatformWalletBalance: number;
+  aiUsageBreakdown: UsageBreakdownRow[];
+  aiFundingHistory: WalletFundingEntry[];
 }
 
 export default function InstitutionSettingsTabs({
@@ -51,8 +65,14 @@ export default function InstitutionSettingsTabs({
   institutionPolicy,
   adminsSection,
   activityTemplatesManageHref,
-  walletsManageHref,
   dangerZoneSection,
+  aiWallets,
+  aiClasses,
+  aiClassAccessEnabled,
+  aiDefaultClassWalletCredits,
+  aiPlatformWalletBalance,
+  aiUsageBreakdown,
+  aiFundingHistory,
 }: InstitutionSettingsTabsProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -98,19 +118,6 @@ export default function InstitutionSettingsTabs({
           institutionId={institutionId}
           manageHref={activityTemplatesManageHref}
         />
-        <div className="rounded-lg border p-4">
-          <p className="text-sm font-medium">AI credit wallets</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Fund and configure AI usage enforcement for this institution and
-            its classes.
-          </p>
-          <Link
-            href={walletsManageHref}
-            className="mt-2 inline-block text-sm underline underline-offset-2"
-          >
-            Manage wallets
-          </Link>
-        </div>
         {adminsSection}
         {dangerZoneSection}
       </TabsContent>
@@ -120,6 +127,13 @@ export default function InstitutionSettingsTabs({
           institutionId={institutionId}
           viewerRole={viewerRole}
           institutionPolicy={institutionPolicy}
+          wallets={aiWallets}
+          classes={aiClasses}
+          classAccessEnabled={aiClassAccessEnabled}
+          defaultClassWalletCredits={aiDefaultClassWalletCredits}
+          platformWalletBalance={aiPlatformWalletBalance}
+          usageBreakdown={aiUsageBreakdown}
+          fundingHistory={aiFundingHistory}
         />
       </TabsContent>
     </Tabs>

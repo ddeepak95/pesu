@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { verifySession } from "@/lib/dal";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
 import { getClassAiOverride } from "@/lib/queries/aiClassSettings";
+import { getClassAiManagementData } from "@/lib/ai/metering/classAiManagementData";
 import { resolveClassSettingsViewer } from "@/lib/settings/classViewerRole";
 
 import ClassSettingsClient from "./ClassSettingsClient";
@@ -49,12 +50,13 @@ export default async function ClassSettingsPage({
   }
 
   const institutionId = classData.institution_id as string | undefined;
-  const [institutionPolicy, classOverridePolicy] = institutionId
+  const [institutionPolicy, classOverridePolicy, aiData] = institutionId
     ? await Promise.all([
         getInstitutionAiPolicy(supabase, institutionId),
         getClassAiOverride(supabase, classData.id),
+        getClassAiManagementData(supabase, { classId: classData.id, institutionId }),
       ])
-    : [undefined, undefined];
+    : [undefined, undefined, undefined];
 
   return (
     <ClassSettingsClient
@@ -66,6 +68,11 @@ export default async function ClassSettingsPage({
       classOverridePolicy={classOverridePolicy}
       backHref={`/teacher/classes/${classId}`}
       backLabel={`Back to class`}
+      aiWallets={aiData?.wallets}
+      aiClassAccessEnabled={aiData?.classAccessEnabled}
+      aiPlatformWalletBalance={aiData?.platformWalletBalance}
+      aiUsageBreakdown={aiData?.usageBreakdown}
+      aiFundingHistory={aiData?.fundingHistory}
     />
   );
 }

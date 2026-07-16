@@ -18,6 +18,8 @@ interface AiProviderCardProps {
   activation: ProviderActivationState;
   /** Whether this institution may fall back to the platform's key. Class scope is unaffected. */
   allowUsePlatformDefaults?: boolean;
+  /** Whether this class may fall back to the institution's key (the class's AI-access toggle). Institution scope is unaffected. */
+  allowUseInstitutionDefault?: boolean;
   onActivate: (apiKey: string) => void;
   onDeactivate: () => void;
   onUsePlatformChange: (usePlatform: boolean) => void;
@@ -28,6 +30,7 @@ export default function AiProviderCard({
   scope,
   activation,
   allowUsePlatformDefaults = true,
+  allowUseInstitutionDefault = true,
   onActivate,
   onDeactivate,
   onUsePlatformChange,
@@ -35,7 +38,9 @@ export default function AiProviderCard({
   const [draftKey, setDraftKey] = useState("");
 
   const showUsePlatformToggle =
-    scope === "class" || (scope === "institution" && allowUsePlatformDefaults);
+    scope === "class"
+      ? allowUseInstitutionDefault
+      : scope === "institution" && allowUsePlatformDefaults;
   const usingParent = showUsePlatformToggle && activation.usePlatformDefault;
   const isActive = activation.isActive && !usingParent;
   const parentLabel = scope === "class" ? "institution" : "platform";
@@ -63,6 +68,13 @@ export default function AiProviderCard({
               : "Inactive"}
         </span>
       </div>
+
+      {scope === "class" && !allowUseInstitutionDefault && (
+        <p className="text-xs text-muted-foreground">
+          Institution AI access is off for this class — set your own{" "}
+          {provider.label} key below to use this provider.
+        </p>
+      )}
 
       {showUsePlatformToggle && (
         <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 px-3 py-2">

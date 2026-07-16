@@ -4,6 +4,7 @@ import ClassSettingsClient from "@/app/teacher/classes/[classId]/settings/ClassS
 import { requireSuperAdmin } from "@/lib/dal";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
 import { getClassAiOverride } from "@/lib/queries/aiClassSettings";
+import { getClassAiManagementData } from "@/lib/ai/metering/classAiManagementData";
 import { getInstitution } from "@/lib/queries/institutions";
 import type { Class } from "@/types/class";
 
@@ -22,7 +23,7 @@ export default async function PlatformClassSettingsPage({
   const { id, classDbId } = await params;
   const { user, supabase } = await requireSuperAdmin();
 
-  const [institution, classRes, institutionPolicy, classOverridePolicy] =
+  const [institution, classRes, institutionPolicy, classOverridePolicy, aiData] =
     await Promise.all([
       getInstitution(supabase, id),
       supabase
@@ -32,6 +33,7 @@ export default async function PlatformClassSettingsPage({
         .maybeSingle(),
       getInstitutionAiPolicy(supabase, id),
       getClassAiOverride(supabase, classDbId),
+      getClassAiManagementData(supabase, { classId: classDbId, institutionId: id }),
     ]);
 
   if (!institution) notFound();
@@ -49,6 +51,11 @@ export default async function PlatformClassSettingsPage({
       institutionPolicy={institutionPolicy}
       classOverridePolicy={classOverridePolicy}
       activityTemplatesBasePath={`/platform/institutions/${id}/classes/${classDbId}/activity-templates`}
+      aiWallets={aiData.wallets}
+      aiClassAccessEnabled={aiData.classAccessEnabled}
+      aiPlatformWalletBalance={aiData.platformWalletBalance}
+      aiUsageBreakdown={aiData.usageBreakdown}
+      aiFundingHistory={aiData.fundingHistory}
     />
   );
 }

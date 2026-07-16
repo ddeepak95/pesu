@@ -35,6 +35,7 @@ interface AiFunctionGroupCardProps {
   platformState?: LocalAiSettingsState;
   institutionState?: LocalAiSettingsState;
   allowUsePlatformDefaults?: boolean;
+  allowUseInstitutionDefault?: boolean;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
   onClearBinding: (fnKey: string) => void;
   onUsePlatformFunctionDefault?: (parentKey: string, usePlatform: boolean) => void;
@@ -48,6 +49,7 @@ export default function AiFunctionGroupCard({
   platformState,
   institutionState,
   allowUsePlatformDefaults = true,
+  allowUseInstitutionDefault = true,
   onBindingChange,
   onClearBinding,
   onUsePlatformFunctionDefault,
@@ -82,8 +84,11 @@ export default function AiFunctionGroupCard({
       institutionState &&
       platformState &&
       onUsePlatformFunctionDefault);
+  const allowInherit =
+    scope === "class" ? allowUseInstitutionDefault : allowUsePlatformDefaults;
   const parentUsesInheritedDefault =
     showInheritedDefaults &&
+    allowInherit &&
     institutionUsesPlatformFunctionDefault(state, fn.key);
   const inheritLabel = scope === "class" ? "institution" : "platform";
 
@@ -136,7 +141,7 @@ export default function AiFunctionGroupCard({
               platformState={platformState!}
               institutionState={institutionState}
               inheritLabel={inheritLabel}
-              allowUsePlatformDefaults={allowUsePlatformDefaults}
+              allowUsePlatformDefaults={allowInherit}
               onUsePlatformChange={(usePlatform) =>
                 onUsePlatformFunctionDefault!(fn.key, usePlatform)
               }

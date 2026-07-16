@@ -14,6 +14,17 @@ import {
 } from "@/lib/queries/institutions";
 import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
 import { getEffectiveSettingsForInstitution } from "@/lib/queries/settings";
+import {
+  getClassAiAccessEnabledMap,
+} from "@/lib/queries/aiClassSettings";
+import {
+  getDefaultClassWalletCredits,
+  listWalletsForInstitution,
+} from "@/lib/queries/aiCreditWallets";
+import {
+  getMonthlyUsageByModality,
+  getWalletFundingHistory,
+} from "@/lib/queries/aiUsage";
 
 export const metadata = {
   title: "Institution admin",
@@ -39,15 +50,38 @@ export default async function AdminInstitutionPage({
   const institution = await getInstitution(supabase, id);
   if (!institution) notFound();
 
-  const [members, classes, moves, allInstitutions, effectiveSettings, institutionPolicy] =
-    await Promise.all([
-      listInstitutionMembers(supabase, id),
-      listClassesInInstitution(supabase, id),
-      listClassMoves(supabase, { institutionId: id, limit: 25 }),
-      listInstitutions(supabase),
-      getEffectiveSettingsForInstitution(supabase, id),
-      getInstitutionAiPolicy(supabase, id),
-    ]);
+  const [
+    members,
+    classes,
+    moves,
+    allInstitutions,
+    effectiveSettings,
+    institutionPolicy,
+    aiWallets,
+    defaultClassWalletCredits,
+    usageBreakdown,
+  ] = await Promise.all([
+    listInstitutionMembers(supabase, id),
+    listClassesInInstitution(supabase, id),
+    listClassMoves(supabase, { institutionId: id, limit: 25 }),
+    listInstitutions(supabase),
+    getEffectiveSettingsForInstitution(supabase, id),
+    getInstitutionAiPolicy(supabase, id),
+    listWalletsForInstitution(supabase, id),
+    getDefaultClassWalletCredits(supabase, id),
+    getMonthlyUsageByModality(supabase, { institutionId: id }),
+  ]);
+
+  const classAccessEnabled = await getClassAiAccessEnabledMap(
+    supabase,
+    classes.map((c) => c.id),
+  );
+  const platformWallet = aiWallets.find(
+    (w) => w.class_id === null && w.key_owner === "platform",
+  );
+  const fundingHistory = platformWallet
+    ? await getWalletFundingHistory(supabase, platformWallet.id)
+    : [];
 
   const memberIds = members.map((m) => m.user_id);
   const moverIds = moves.map((m) => m.moved_by);
@@ -92,7 +126,12 @@ export default async function AdminInstitutionPage({
         classOverrideHrefBase={`/admin/institutions/${id}/classes`}
         notice={{ ok, error }}
         activityTemplatesManageHref={`/admin/institutions/${id}/activity-templates`}
-        walletsManageHref={`/admin/institutions/${id}/wallets`}
+        aiWallets={aiWallets}
+        aiClassAccessEnabled={classAccessEnabled}
+        aiDefaultClassWalletCredits={defaultClassWalletCredits}
+        aiPlatformWalletBalance={platformWallet?.balance ?? 0}
+        aiUsageBreakdown={usageBreakdown}
+        aiFundingHistory={fundingHistory}
       />
     </PageLayout>
   );

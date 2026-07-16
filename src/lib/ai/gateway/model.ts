@@ -4,6 +4,7 @@ import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRuntime";
 import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
 import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import { assertClassAiAccessAllowed, assertPlatformAiAccessAllowed } from "@/lib/ai/metering/access";
 import { keyOwnerFromSource } from "@/lib/ai/metering/keyOwner";
 import { assertWithinQuota, resolveWalletId } from "@/lib/ai/metering/quota";
 import type { UsageType } from "@/lib/ai/metering/usageTypes";
@@ -176,6 +177,18 @@ export async function resolveMeteredModel(input: {
   let walletId: string | null = null;
   if (institutionId && classDbId) {
     const keyOwner = keyOwnerFromSource(keySource);
+
+    // Real-time kill switch (decision 1) — checked on every call that isn't
+    // using the class's own key, including ones already admitted at session
+    // start: unlike a wallet balance, an admin turning access off is meant
+    // to take effect immediately, not wait for the next session.
+    if (keyOwner === "platform") {
+      await assertPlatformAiAccessAllowed(institutionId);
+    }
+    if (keySource !== "class") {
+      await assertClassAiAccessAllowed(classDbId);
+    }
+
     walletId = await resolveWalletId({ institutionId, classId: classDbId, keyOwner });
 
     const shouldCheck =

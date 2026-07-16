@@ -38,6 +38,9 @@ import type {
 import type { Class } from "@/types/class";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
+import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
+import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
+import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
 
 import {
   addInstitutionAdminRequestAction,
@@ -75,8 +78,13 @@ export interface InstitutionDetailViewProps {
   notice?: { ok?: string; error?: string };
   /** "Manage Activity Templates" link target for this institution's template library. */
   activityTemplatesManageHref: string;
-  /** "AI credit wallets" link target for this institution's wallet funding/policy page. */
-  walletsManageHref: string;
+  /** AI management tab data — wallets, usage, access (see InstitutionSettingsTabs). */
+  aiWallets: AiCreditWallet[];
+  aiClassAccessEnabled: Record<string, boolean>;
+  aiDefaultClassWalletCredits: number | null;
+  aiPlatformWalletBalance: number;
+  aiUsageBreakdown: UsageBreakdownRow[];
+  aiFundingHistory: WalletFundingEntry[];
 }
 
 type ActiveTab = "settings" | "classes";
@@ -111,7 +119,12 @@ export default function InstitutionDetailView({
   classOverrideHrefBase,
   notice,
   activityTemplatesManageHref,
-  walletsManageHref,
+  aiWallets,
+  aiClassAccessEnabled,
+  aiDefaultClassWalletCredits,
+  aiPlatformWalletBalance,
+  aiUsageBreakdown,
+  aiFundingHistory,
 }: InstitutionDetailViewProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -223,7 +236,17 @@ export default function InstitutionDetailView({
             effectiveSettings={effectiveSettings}
             institutionPolicy={institutionPolicy}
             activityTemplatesManageHref={activityTemplatesManageHref}
-            walletsManageHref={walletsManageHref}
+            aiWallets={aiWallets}
+            aiClasses={classes.map((c) => ({
+              id: c.id,
+              name: c.name,
+              shortId: c.class_id,
+            }))}
+            aiClassAccessEnabled={aiClassAccessEnabled}
+            aiDefaultClassWalletCredits={aiDefaultClassWalletCredits}
+            aiPlatformWalletBalance={aiPlatformWalletBalance}
+            aiUsageBreakdown={aiUsageBreakdown}
+            aiFundingHistory={aiFundingHistory}
             adminsSection={
               <AdminsCard
                 institutionId={institution.id}

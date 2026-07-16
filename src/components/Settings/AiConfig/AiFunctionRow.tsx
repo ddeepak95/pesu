@@ -20,6 +20,7 @@ interface AiFunctionRowProps {
   platformState?: LocalAiSettingsState;
   institutionState?: LocalAiSettingsState;
   allowUsePlatformDefaults?: boolean;
+  allowUseInstitutionDefault?: boolean;
   providerCatalogState?: LocalAiSettingsState;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
   onUsePlatformFunctionDefault?: (parentKey: string, usePlatform: boolean) => void;
@@ -34,6 +35,7 @@ export default function AiFunctionRow({
   platformState,
   institutionState,
   allowUsePlatformDefaults = true,
+  allowUseInstitutionDefault = true,
   providerCatalogState,
   onBindingChange,
   onUsePlatformFunctionDefault,
@@ -53,6 +55,8 @@ export default function AiFunctionRow({
       platformState &&
       onUsePlatformFunctionDefault);
   const inheritLabel = scope === "class" ? "institution" : "platform";
+  const allowInherit =
+    scope === "class" ? allowUseInstitutionDefault : allowUsePlatformDefaults;
 
   const bindingControls = (
     <AiFunctionBindingControls
@@ -104,7 +108,7 @@ export default function AiFunctionRow({
             platformState={platformState!}
             institutionState={institutionState}
             inheritLabel={inheritLabel}
-            allowUsePlatformDefaults={allowUsePlatformDefaults}
+            allowUsePlatformDefaults={allowInherit}
             onUsePlatformChange={(usePlatform) =>
               onUsePlatformFunctionDefault!(fn.key, usePlatform)
             }
