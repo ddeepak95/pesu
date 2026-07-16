@@ -3,7 +3,7 @@ import "server-only";
 import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRuntime";
 import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
-import { modelMetaFromResolved } from "@/lib/ai/logging/types";
+import { modelMetaFromResolved, type AiInvocationModelMeta } from "@/lib/ai/logging/types";
 import { assertClassAiAccessAllowed, assertPlatformAiAccessAllowed } from "@/lib/ai/metering/access";
 import { keyOwnerFromSource } from "@/lib/ai/metering/keyOwner";
 import { assertWithinQuota, resolveWalletId } from "@/lib/ai/metering/quota";
@@ -16,10 +16,32 @@ import { createServiceRoleClient } from "@/lib/supabase-server";
 import type { AiConfigSource } from "@/types/aiSettings";
 import type { FlexibleSchema } from "ai";
 import {
+  completeAiInvocation,
+  scheduleAiInvocationStart,
+  scheduleFailAiInvocation,
+} from "@/lib/ai/logging/recordInvocation";
+import type { CompleteAiInvocationInput, StartAiInvocationInput } from "@/lib/ai/logging/types";
+import {
   createMultimodalTurnStream,
   type MultimodalTurnStreamOptions,
 } from "./turnStream";
 import { generateStructuredInternal } from "./structured";
+
+/**
+ * What a `streamTurn` caller supplies to `startInvocation` — everything on
+ * `StartAiInvocationInput` except the fields the handle already resolved
+ * (D2/D5) and binds itself below. Keeping these out of the caller-facing
+ * type is the point: a hand-rolled `scheduleAiInvocationStart` call could
+ * silently omit `institutionId`/`walletId` (as the turn route once did —
+ * dev-docs/ai-usage-metering-phase3-plan.md's wallet-debit gap), but a
+ * caller here has no field to omit them from.
+ */
+type HandleStartInvocationInput = Omit<
+  StartAiInvocationInput,
+  "appFunctionKey" | "usageType" | "institutionId" | "walletId" | "model"
+> & {
+  model?: AiInvocationModelMeta;
+};
 
 /**
  * Shared per-call context, threaded through to every ai_invocations row
@@ -72,6 +94,28 @@ export interface MeteredTextModel {
   streamTurn(
     opts: Omit<MultimodalTurnStreamOptions, "model" | "providerOptions">,
   ): ReturnType<typeof createMultimodalTurnStream>;
+  /**
+   * For `streamTurn` callers only — `generateStructured` logs its own row
+   * automatically and never needs this. Fire-and-forget row creation with
+   * this handle's `appFunctionKey`/`usageType`/`institutionId`/`walletId`
+   * baked in, so a caller managing its own retry loop (as the turn route
+   * does) can't drop metering attribution the way a hand-rolled
+   * `scheduleAiInvocationStart` call once did.
+   */
+  startInvocation(input: HandleStartInvocationInput): string | null;
+  /** Thin pass-through so `streamTurn` callers never need their own import of recordInvocation.ts. */
+  completeInvocation(
+    invocationId: string,
+    input: CompleteAiInvocationInput,
+    startedAtMs?: number,
+  ): Promise<void>;
+  /** Thin pass-through — see `completeInvocation`. */
+  scheduleFailInvocation(
+    invocationId: string,
+    error: unknown,
+    startedAtMs?: number,
+    partialSdkResponse?: unknown,
+  ): void;
 }
 
 class MeteredTextModelImpl implements MeteredTextModel {
@@ -139,6 +183,34 @@ class MeteredTextModelImpl implements MeteredTextModel {
       model: this.runtime,
       providerOptions: this.providerOptions,
     });
+  }
+
+  startInvocation(input: HandleStartInvocationInput): string | null {
+    return scheduleAiInvocationStart({
+      ...input,
+      appFunctionKey: this.appFunctionKey,
+      usageType: this.usageType,
+      institutionId: this.institutionId,
+      walletId: this.walletId,
+      model: input.model ?? this.meta,
+    });
+  }
+
+  completeInvocation(
+    invocationId: string,
+    input: CompleteAiInvocationInput,
+    startedAtMs?: number,
+  ): Promise<void> {
+    return completeAiInvocation(invocationId, input, startedAtMs);
+  }
+
+  scheduleFailInvocation(
+    invocationId: string,
+    error: unknown,
+    startedAtMs?: number,
+    partialSdkResponse?: unknown,
+  ): void {
+    scheduleFailAiInvocation(invocationId, error, startedAtMs, partialSdkResponse);
   }
 }
 

@@ -16,6 +16,20 @@ const RESTRICTED_SPEECH_PATTERNS: RegExp[] = [
   /^@\/lib\/konvo-voice\/speech\/registry$/,
   /^@\/lib\/konvo-voice\/speech\/resolveProviderKey$/,
 ];
+/**
+ * These write ai_invocations rows directly and expect the caller to supply
+ * institutionId/walletId itself — the exact shape that let the turn route
+ * silently omit them for text.chat_tutoring (dev-docs/ai-usage-metering-
+ * phase3-plan.md's wallet-debit gap). Mirrors the eslint.config.mjs
+ * restriction on the same module; this is the build-time backstop (§7.3).
+ */
+const RESTRICTED_RECORD_INVOCATION_NAMES = new Set([
+  "startAiInvocation",
+  "scheduleAiInvocationStart",
+  "completeAiInvocation",
+  "failAiInvocation",
+  "scheduleFailAiInvocation",
+]);
 
 function listSourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -79,6 +93,20 @@ export function assertGatewayImportBoundaryHolds(): void {
             `Speech provider client/key modules may only be imported inside the gateway — ` +
             `use resolveMeteredSpeech() instead (see dev-docs/ai-usage-metering-plan.md §7.2, §7.3).`,
         );
+      }
+
+      if (source === "@/lib/ai/logging/recordInvocation") {
+        const names = namedImportsFrom(clause);
+        const restricted = names.filter((n) => RESTRICTED_RECORD_INVOCATION_NAMES.has(n));
+        if (restricted.length > 0) {
+          throw new Error(
+            `AI usage metering: ${relPath} imports "${restricted.join(", ")}" from recordInvocation.ts outside ` +
+              `src/lib/ai/gateway/**. These write ai_invocations rows directly and expect the caller to supply ` +
+              `institutionId/walletId itself — use the resolveMeteredModel()/resolveMeteredSpeech() handle's ` +
+              `startInvocation/completeInvocation/scheduleFailInvocation instead, which bind those fields for you ` +
+              `(see dev-docs/ai-usage-metering-plan.md §7.2, §7.3).`,
+          );
+        }
       }
     }
   }

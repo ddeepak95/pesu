@@ -83,6 +83,26 @@ const eslintConfig = defineConfig([
               message:
                 "The `ai` package may only be imported inside src/lib/ai/gateway/** (dev-docs/ai-usage-metering-plan.md §7.2). Obtain a metered handle via resolveMeteredModel instead.",
             },
+            {
+              // These write ai_invocations rows directly and expect the
+              // caller to supply institutionId/walletId itself — the exact
+              // shape that let the turn route silently omit them for
+              // text.chat_tutoring (dev-docs/ai-usage-metering-phase3-plan.md's
+              // wallet-debit gap). A resolveMeteredModel()/resolveMeteredSpeech()
+              // handle's own startInvocation/completeInvocation/
+              // scheduleFailInvocation bind those fields for you and are the
+              // only sanctioned way to log a row outside the gateway.
+              name: "@/lib/ai/logging/recordInvocation",
+              importNames: [
+                "startAiInvocation",
+                "scheduleAiInvocationStart",
+                "completeAiInvocation",
+                "failAiInvocation",
+                "scheduleFailAiInvocation",
+              ],
+              message:
+                "startAiInvocation/completeAiInvocation/failAiInvocation (and their schedule* variants) may only be called inside src/lib/ai/gateway/**. Outside the gateway, use the resolveMeteredModel()/resolveMeteredSpeech() handle's startInvocation/completeInvocation/scheduleFailInvocation instead — those bind institutionId/walletId for you.",
+            },
           ],
           patterns: [
             {

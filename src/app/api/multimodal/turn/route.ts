@@ -36,10 +36,7 @@ import {
 import { classifyAiError } from "@/lib/ai/errors";
 import { logAppEvent } from "@/lib/logging/appLog";
 import {
-  completeAiInvocation,
   linkInvocationToChatMessage,
-  scheduleAiInvocationStart,
-  scheduleFailAiInvocation,
   setChatMessageInvocationId,
   usageFromAiSdkResult,
   tokenDetailsFromAiSdkResult,
@@ -650,8 +647,7 @@ export async function POST(request: NextRequest) {
 
             const startedAtMs = Date.now();
             const resolvedCall = resolveMultimodalTurnCall(streamCallBase);
-            const invocationId = scheduleAiInvocationStart({
-              appFunctionKey: "text.chat_tutoring",
+            const invocationId = handle.startInvocation({
               classId: classDbId,
               assignmentId,
               submissionId: submissionId ?? null,
@@ -660,7 +656,6 @@ export async function POST(request: NextRequest) {
               attemptNumber: attemptNumber ?? null,
               attemptId: attemptId ?? null,
               sessionId: sessionId ?? null,
-              model: handle.meta,
               sdkRequest: buildLoggedStreamObjectRequest({
                 system: resolvedCall.system,
                 // Audio parts aren't loggable text — and shouldn't be persisted
@@ -855,7 +850,7 @@ export async function POST(request: NextRequest) {
                 attempt < INTERACTIVE_MAX_ATTEMPTS - 1
               ) {
                 if (invocationId) {
-                  scheduleFailAiInvocation(invocationId, err, startedAtMs);
+                  handle.scheduleFailInvocation(invocationId, err, startedAtMs);
                 }
                 // Tell the client we're reconnecting so BotStatusPanel can show
                 // "Reconnecting…" instead of silent dead air during the backoff.
@@ -882,7 +877,7 @@ export async function POST(request: NextRequest) {
                 continue attemptLoop;
               }
               if (invocationId) {
-                scheduleFailAiInvocation(invocationId, err, startedAtMs);
+                handle.scheduleFailInvocation(invocationId, err, startedAtMs);
               }
               if (!deliveredToClient) {
                 const classified = classifyAiError(err);
@@ -1117,7 +1112,7 @@ export async function POST(request: NextRequest) {
                   "finishReason" in sdkResponse
                     ? (sdkResponse.finishReason as string | null)
                     : null;
-                await completeAiInvocation(
+                await handle.completeInvocation(
                   invId,
                   {
                     sdkResponse: sdkResponse ?? {
