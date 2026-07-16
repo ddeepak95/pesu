@@ -35,7 +35,7 @@ const BYOK_LEGEND_HATCH_STYLE = {
 
 interface ModalityBreakdownCardProps {
   title: string;
-  /** "Credits" | "Requests" */
+  /** "AI Credits" | "Requests" */
   unitLabel: string;
   rows: UsageBreakdownRow[];
   valueKey: "credits" | "calls";
@@ -43,7 +43,7 @@ interface ModalityBreakdownCardProps {
 }
 
 /**
- * "By Credits" / "By API Requests" card — a hero total (split platform vs
+ * "By AI Credits" / "By API Requests" card — a hero total (split platform vs
  * BYOK) plus a per-modality horizontal bar comparison. Bar length is
  * proportional to the row's share of this card's own max value (credits and
  * calls are different scales, so each card scales independently) — the point
@@ -95,7 +95,7 @@ export default function ModalityBreakdownCard({
               </span>
             </p>
             <p className="text-xs text-muted-foreground">
-              {formatValue(totalPlatform)} platform · {formatValue(totalByok)} BYOK
+              {formatValue(totalPlatform)} Platform · {formatValue(totalByok)} BYOK
             </p>
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function ModalityBreakdownCard({
                     <span className="text-foreground">{row.dimension}</span>
                     <span
                       className="text-muted-foreground tabular-nums"
-                      title={`${formatValue(row.platform)} platform · ${formatValue(row.byok)} BYOK`}
+                      title={`${formatValue(row.platform)} Platform · ${formatValue(row.byok)} BYOK`}
                     >
                       {formatValue(row.total)}
                     </span>

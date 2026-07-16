@@ -25,10 +25,10 @@ function creditAvailabilityDescription(
   const child = scope === "class" ? "class" : "institution";
   const parent = scope === "class" ? "institution" : "platform";
   if (!accessEnabled) {
-    return `This ${child} is using its own AI configuration, not the ${parent}'s credits.`;
+    return `This ${child} is using its own AI configuration, not ${parent}'s AI credits.`;
   }
   if (spendMode === "unbounded") {
-    return `Your ${child} has unbounded access to the AI credits available to the ${parent}.`;
+    return `Your ${child} has unbounded access to ${parent}'s AI credits.`;
   }
   return null;
 }
@@ -57,14 +57,14 @@ export default function CreditAvailabilityCard({
             <>
               Unbounded{" "}
               <span className="text-base font-normal text-muted-foreground">
-                Credits Available
+                AI Credits Available
               </span>
             </>
           ) : (
             <>
               {balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
               <span className="text-base font-normal text-muted-foreground">
-                Credits Available
+                AI Credits Available
               </span>
             </>
           )}

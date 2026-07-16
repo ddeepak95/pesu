@@ -94,7 +94,7 @@ export default function DefaultClassWalletCreditsForm({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-        <CardTitle>Class Default AI Credit Limit</CardTitle>
+        <CardTitle>Class Default Platform Credit Limit</CardTitle>
         <Select
           value={mode}
           onValueChange={(v) => handleModeChange(v as AiSpendMode)}
@@ -113,7 +113,7 @@ export default function DefaultClassWalletCreditsForm({
         <CardContent className="space-y-2">
           {mode === "limited" && (
             <div className="flex items-center justify-between gap-4">
-              <Label className="text-sm font-normal">Available Credits</Label>
+              <Label className="text-sm font-normal">Available Platform Credits</Label>
               <div className="flex items-center gap-2">
                 <div className="w-28 rounded-md border px-3 py-1.5 text-sm">
                   {credits.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -137,7 +137,7 @@ export default function DefaultClassWalletCreditsForm({
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Default credit limit</DialogTitle>
+            <DialogTitle>Default platform credit limit</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-2">

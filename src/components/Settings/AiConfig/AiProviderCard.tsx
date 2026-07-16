@@ -54,7 +54,6 @@ export default function AiProviderCard({
       : scope === "institution" && allowUsePlatformDefaults;
   const usingParent = canUseCredits && activation.usePlatformDefault;
   const isActive = activation.isActive && !usingParent;
-  const parentLabel = scope === "class" ? "institution" : "platform";
 
   const derivedMode: ProviderMode = usingParent
     ? "credits"
@@ -99,11 +98,9 @@ export default function AiProviderCard({
           <SelectContent>
             <SelectItem value="off">Off</SelectItem>
             {canUseCredits && (
-              <SelectItem value="credits">
-                Use {parentLabel} AI credits
-              </SelectItem>
+              <SelectItem value="credits">AI Credits</SelectItem>
             )}
-            <SelectItem value="own_key">Use own API key</SelectItem>
+            <SelectItem value="own_key">BYOK</SelectItem>
           </SelectContent>
         </Select>
       </div>

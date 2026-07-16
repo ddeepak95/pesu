@@ -60,15 +60,15 @@ export default function AiAccessAndLimitCard({
     <Card>
       <CardHeader>
         <CardTitle>
-          {scope === "institution" ? "Institution AI Credits" : "Class AI Credits"}
+          {scope === "institution" ? "Institution Platform Credits" : "Class Platform Credits"}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <Label className="text-sm font-normal">
             {scope === "institution"
-              ? "Allow Institution to use Platform's AI Credits"
-              : "Allow Class to use Institution's AI Credits"}
+              ? "Allow Institution to use Platform Credits"
+              : "Allow Class to use Institution's Platform Credits"}
           </Label>
           <Switch
             checked={accessEnabled}
@@ -79,7 +79,7 @@ export default function AiAccessAndLimitCard({
 
         {accessEnabled && (
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-sm font-normal">Credit Limits</Label>
+            <Label className="text-sm font-normal">Platform Credit Limits</Label>
             <Select
               value={spendMode}
               onValueChange={(v) => onSpendModeChange(v as AiSpendMode)}
@@ -98,7 +98,7 @@ export default function AiAccessAndLimitCard({
 
         {accessEnabled && spendMode === "limited" && (
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-sm font-normal">Available Credits</Label>
+            <Label className="text-sm font-normal">Available Platform Credits</Label>
             <CreditAdjustControl
               balance={balance}
               disabled={readOnly}

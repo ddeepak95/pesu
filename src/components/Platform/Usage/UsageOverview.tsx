@@ -82,8 +82,8 @@ export default function UsageOverview({
 
         <div className={`space-y-4 ${isPending ? "opacity-60" : ""}`}>
           <ModalityBreakdownCard
-            title="By Credits"
-            unitLabel="Credits"
+            title="By AI Credits"
+            unitLabel="AI Credits"
             rows={breakdown}
             valueKey="credits"
           />
