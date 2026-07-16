@@ -4,15 +4,14 @@ import {
   canViewInstitutionOverrideSections,
   type ViewerRole,
 } from "@/lib/settings/capabilities";
-import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
-import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
 import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
+import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 
 import AiManagementPanels from "./AiConfig/AiManagementPanels";
 import AiSettingsPageContent from "./AiConfig/AiSettingsPageContent";
 import WalletsPanelContainer from "./AiConfig/Wallet/WalletsPanelContainer";
-import UsageOverview from "@/components/Platform/Usage/UsageOverview";
+import CreditAvailabilityCard from "@/components/Platform/Usage/CreditAvailabilityCard";
 
 interface ClassOption {
   id: string;
@@ -29,8 +28,7 @@ interface InstitutionAiManagementTabProps {
   classAccessEnabled: Record<string, boolean>;
   defaultClassWalletCredits: number | null;
   platformWalletBalance: number;
-  usageBreakdown: UsageBreakdownRow[];
-  fundingHistory: WalletFundingEntry[];
+  platformWalletSpendMode: AiSpendMode;
 }
 
 export default function InstitutionAiManagementTab({
@@ -42,8 +40,7 @@ export default function InstitutionAiManagementTab({
   classAccessEnabled,
   defaultClassWalletCredits,
   platformWalletBalance,
-  usageBreakdown,
-  fundingHistory,
+  platformWalletSpendMode,
 }: InstitutionAiManagementTabProps) {
   const isSuperAdmin = viewerRole === "super_admin";
   const canViewConfiguration = canViewInstitutionOverrideSections(
@@ -55,6 +52,12 @@ export default function InstitutionAiManagementTab({
     <AiManagementPanels
       configuration={
         <div className="space-y-6">
+          <CreditAvailabilityCard
+            scope="institution"
+            accessEnabled={institutionPolicy.allowUsePlatformDefaults}
+            spendMode={platformWalletSpendMode}
+            balance={platformWalletBalance}
+          />
           <WalletsPanelContainer
             scope="institution"
             institutionId={institutionId}
@@ -83,13 +86,6 @@ export default function InstitutionAiManagementTab({
             </p>
           )}
         </div>
-      }
-      usage={
-        <UsageOverview
-          balance={platformWalletBalance}
-          breakdown={usageBreakdown}
-          fundingHistory={fundingHistory}
-        />
       }
     />
   );

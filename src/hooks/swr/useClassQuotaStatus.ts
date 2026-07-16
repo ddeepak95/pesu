@@ -1,0 +1,36 @@
+"use client";
+
+import useSWR from "swr";
+
+export interface QuotaStatusEntry {
+  kind: "unrestricted" | "wallet";
+  enforcement?: "off" | "warn" | "block";
+  balance?: number;
+  belowWarnThreshold?: boolean;
+}
+
+export interface ClassQuotaStatusResponse {
+  platform: QuotaStatusEntry;
+  byok: QuotaStatusEntry;
+}
+
+async function fetchClassQuotaStatus(
+  classDbId: string,
+): Promise<ClassQuotaStatusResponse> {
+  const res = await fetch(
+    `/api/ai/quota-status?classId=${encodeURIComponent(classDbId)}`,
+  );
+  if (!res.ok) {
+    throw new Error("Failed to load quota status");
+  }
+  return res.json();
+}
+
+/** Teacher/admin-only (the endpoint 403s for students) — used for proactive class-credits banners. */
+export function useClassQuotaStatus(classDbId: string | null) {
+  return useSWR<ClassQuotaStatusResponse>(
+    classDbId ? `class-quota-status:${classDbId}` : null,
+    () => fetchClassQuotaStatus(classDbId!),
+    { shouldRetryOnError: false },
+  );
+}

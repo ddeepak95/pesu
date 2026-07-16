@@ -54,6 +54,7 @@ export default async function PlatformClassSettingsPage({
       aiWallets={aiData.wallets}
       aiClassAccessEnabled={aiData.classAccessEnabled}
       aiPlatformWalletBalance={aiData.platformWalletBalance}
+      aiPlatformWalletSpendMode={aiData.platformWalletSpendMode}
       aiUsageBreakdown={aiData.usageBreakdown}
       aiFundingHistory={aiData.fundingHistory}
     />

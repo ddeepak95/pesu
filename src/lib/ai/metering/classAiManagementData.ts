@@ -4,14 +4,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getClassAiAccessEnabled } from "@/lib/queries/aiClassSettings";
 import { listWalletsForClass, type AiCreditWallet } from "@/lib/queries/aiCreditWallets";
-import { getMonthlyUsageByModality, getWalletFundingHistory } from "@/lib/queries/aiUsage";
-import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
-import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
+import {
+  getMonthlyUsageByModality,
+  getWalletFundingHistory,
+  type UsageBreakdownRow,
+  type WalletFundingEntry,
+} from "@/lib/queries/aiUsage";
+import { spendModeForWallet } from "@/lib/ai/metering/spendMode";
+import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 
 export interface ClassAiManagementData {
   wallets: AiCreditWallet[];
   classAccessEnabled: boolean;
   platformWalletBalance: number;
+  platformWalletSpendMode: AiSpendMode;
   usageBreakdown: UsageBreakdownRow[];
   fundingHistory: WalletFundingEntry[];
 }
@@ -44,6 +50,7 @@ export async function getClassAiManagementData(
     wallets,
     classAccessEnabled,
     platformWalletBalance: platformWallet?.balance ?? 0,
+    platformWalletSpendMode: spendModeForWallet(platformWallet),
     usageBreakdown,
     fundingHistory,
   };

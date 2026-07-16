@@ -9,12 +9,11 @@ import {
 } from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
-import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
-import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
 import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
+import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 
 import InstitutionAiManagementTab from "./InstitutionAiManagementTab";
 import InstitutionSettingsForm from "./InstitutionSettingsForm";
@@ -47,14 +46,14 @@ interface InstitutionSettingsTabsProps {
   activityTemplatesManageHref: string;
   /** Super-admin-only Danger Zone (delete/archive/restore institution). */
   dangerZoneSection?: ReactNode;
-  /** AI management tab data — wallets, usage, access. */
+  /** AI management tab data — wallets, access. */
   aiWallets: AiCreditWallet[];
   aiClasses: ClassOption[];
   aiClassAccessEnabled: Record<string, boolean>;
   aiDefaultClassWalletCredits: number | null;
+  /** Feeds the "AI Credit Availability" card at the top of the AI management tab. */
   aiPlatformWalletBalance: number;
-  aiUsageBreakdown: UsageBreakdownRow[];
-  aiFundingHistory: WalletFundingEntry[];
+  aiPlatformWalletSpendMode: AiSpendMode;
 }
 
 export default function InstitutionSettingsTabs({
@@ -71,8 +70,7 @@ export default function InstitutionSettingsTabs({
   aiClassAccessEnabled,
   aiDefaultClassWalletCredits,
   aiPlatformWalletBalance,
-  aiUsageBreakdown,
-  aiFundingHistory,
+  aiPlatformWalletSpendMode,
 }: InstitutionSettingsTabsProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -132,8 +130,7 @@ export default function InstitutionSettingsTabs({
           classAccessEnabled={aiClassAccessEnabled}
           defaultClassWalletCredits={aiDefaultClassWalletCredits}
           platformWalletBalance={aiPlatformWalletBalance}
-          usageBreakdown={aiUsageBreakdown}
-          fundingHistory={aiFundingHistory}
+          platformWalletSpendMode={aiPlatformWalletSpendMode}
         />
       </TabsContent>
     </Tabs>

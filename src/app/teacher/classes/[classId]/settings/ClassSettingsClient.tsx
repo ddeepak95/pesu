@@ -27,8 +27,9 @@ import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisc
 import ClassAiManagementTab from "@/components/Settings/ClassAiManagementTab";
 import ClassInheritedSettingsSection from "@/components/Settings/ClassInheritedSettingsSection";
 import { canViewClassOverrideSections } from "@/lib/settings/capabilities";
-import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
-import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
+import UsageOverview from "@/components/Platform/Usage/UsageOverview";
+import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
+import type { UsageBreakdownRow, WalletFundingEntry } from "@/lib/queries/aiUsage";
 import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
 import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
 import type { ViewerRole } from "@/lib/settings/capabilities";
@@ -36,10 +37,12 @@ import { Class } from "@/types/class";
 
 const SETTINGS_TAB_PARAM = "settingsTab";
 
-type SettingsSubTab = "general" | "ai";
+type SettingsSubTab = "general" | "ai" | "analytics";
 
 function parseSettingsSubTab(raw: string | null): SettingsSubTab {
-  return raw === "ai" ? "ai" : "general";
+  if (raw === "ai") return "ai";
+  if (raw === "analytics") return "analytics";
+  return "general";
 }
 
 interface ClassSettingsClientProps {
@@ -68,6 +71,7 @@ interface ClassSettingsClientProps {
   aiWallets?: AiCreditWallet[];
   aiClassAccessEnabled?: boolean;
   aiPlatformWalletBalance?: number;
+  aiPlatformWalletSpendMode?: AiSpendMode;
   aiUsageBreakdown?: UsageBreakdownRow[];
   aiFundingHistory?: WalletFundingEntry[];
 }
@@ -85,6 +89,7 @@ export default function ClassSettingsClient({
   aiWallets = [],
   aiClassAccessEnabled = true,
   aiPlatformWalletBalance = 0,
+  aiPlatformWalletSpendMode = "unbounded",
   aiUsageBreakdown = [],
   aiFundingHistory = [],
 }: ClassSettingsClientProps) {
@@ -131,7 +136,9 @@ export default function ClassSettingsClient({
 
   const activeSettingsTab = useMemo(() => {
     const parsed = parseSettingsSubTab(searchParams.get(SETTINGS_TAB_PARAM));
-    return parsed === "ai" && !showAiTab ? "general" : parsed;
+    return (parsed === "ai" || parsed === "analytics") && !showAiTab
+      ? "general"
+      : parsed;
   }, [searchParams, showAiTab]);
 
   const handleSettingsTabChange = (value: string) => {
@@ -190,6 +197,11 @@ export default function ClassSettingsClient({
             {showAiTab && (
               <MutedPrimaryTabsTrigger value="ai" className="px-4 py-2">
                 AI management
+              </MutedPrimaryTabsTrigger>
+            )}
+            {showAiTab && (
+              <MutedPrimaryTabsTrigger value="analytics" className="px-4 py-2">
+                Analytics and Logs
               </MutedPrimaryTabsTrigger>
             )}
           </MutedPrimaryTabsList>
@@ -287,7 +299,17 @@ export default function ClassSettingsClient({
                 wallets={aiWallets}
                 classAccessEnabled={aiClassAccessEnabled}
                 platformWalletBalance={aiPlatformWalletBalance}
-                usageBreakdown={aiUsageBreakdown}
+                platformWalletSpendMode={aiPlatformWalletSpendMode}
+              />
+            </TabsContent>
+          )}
+
+          {showAiTab && (
+            <TabsContent value="analytics" className="mt-0">
+              <UsageOverview
+                institutionId={initialClassData.institution_id as string}
+                classId={initialClassData.id}
+                initialBreakdown={aiUsageBreakdown}
                 fundingHistory={aiFundingHistory}
               />
             </TabsContent>

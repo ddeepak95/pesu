@@ -2,7 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
+export interface UsageBreakdownRow {
+  dimension: string;
+  credits: number;
+  calls: number;
+  keyOwner: "platform" | "byok";
+}
 
 const SENTINEL_CLASS_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -16,7 +21,7 @@ const USAGE_TYPE_LABELS: Record<string, string> = {
   embedding: "Embedding",
 };
 
-function currentMonthStart(): string {
+export function currentMonthStart(): string {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
     .toISOString()
@@ -24,22 +29,24 @@ function currentMonthStart(): string {
 }
 
 /**
- * This calendar month's spend by modality (`usage_type`), for the
+ * A calendar month's spend by modality (`usage_type`), for the
  * institution-wide sentinel row or a specific class — cheap, O(1)-ish reads
  * off `ai_usage_counters` (analytics-only rollup, dev-docs/ai-usage-metering-plan.md
  * §4.5), not a scan over `ai_invocations`. `usage_type='all'` is excluded —
- * that's the cross-modality total, not a breakdown row.
+ * that's the cross-modality total, not a breakdown row. `periodStart`
+ * defaults to the current month; pass an explicit first-of-month date
+ * (see src/lib/ai/metering/usageMonths.ts) to browse a past month.
  */
 export async function getMonthlyUsageByModality(
   supabase: SupabaseClient,
-  input: { institutionId: string; classId?: string | null },
+  input: { institutionId: string; classId?: string | null; periodStart?: string },
 ): Promise<UsageBreakdownRow[]> {
   const { data, error } = await supabase
     .from("ai_usage_counters")
     .select("usage_type, key_owner, credits, events")
     .eq("institution_id", input.institutionId)
     .eq("class_id", input.classId ?? SENTINEL_CLASS_ID)
-    .eq("period_start", currentMonthStart())
+    .eq("period_start", input.periodStart ?? currentMonthStart())
     .neq("usage_type", "all");
   if (error) throw error;
   return (data ?? []).map((row) => ({

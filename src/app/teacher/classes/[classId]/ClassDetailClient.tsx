@@ -7,6 +7,7 @@ import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import AiConfigMisconfigBanner from "@/components/Settings/AiConfig/AiConfigMisconfigBanner";
 import { ArchivedClassBanner } from "@/components/Shared/ArchivedClassBanner";
+import { ClassCreditsBanner } from "@/components/Shared/ClassCreditsBanner";
 import Content from "@/components/Teacher/Classes/Content";
 import Students from "@/components/Teacher/Classes/Students";
 import { Button } from "@/components/ui/button";
@@ -118,6 +119,13 @@ export default function ClassDetailClient({
               />
             </div>
           )}
+
+          <div className="mb-6">
+            <ClassCreditsBanner
+              classDbId={classData.id}
+              settingsHref={`/teacher/classes/${classId}/settings?settingsTab=ai`}
+            />
+          </div>
 
           <Tabs
             value={activeTab}

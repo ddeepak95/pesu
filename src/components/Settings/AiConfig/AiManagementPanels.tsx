@@ -10,24 +10,29 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 interface AiManagementPanelsProps {
   configuration: ReactNode;
-  usage: ReactNode;
+  /** Omit to render configuration alone with no sub-tab shell (institution scope — Usage now lives in the top-level "Analytics and Logs" tab). */
+  usage?: ReactNode;
   defaultSubTab?: "configuration" | "usage";
 }
 
 /**
- * Nested sub-tab shell for both InstitutionAiManagementTab and
- * ClassAiManagementTab (see dev-docs/ai-usage-metering-phase4-plan.md
- * decision 2/3) — Configuration is AiSettingsPageContent (provider
- * activation + model bindings) plus the platform-credits access/spend card;
- * Usage is new. Wallets & limits used to be a separate sub-tab but was
- * folded into Configuration since the credits toggle and the model-config
- * locks are the same "how is AI provisioned for this scope" concern.
+ * Nested sub-tab shell for ClassAiManagementTab (see
+ * dev-docs/ai-usage-metering-phase4-plan.md decision 2/3) — Configuration is
+ * AiSettingsPageContent (provider activation + model bindings) plus the
+ * platform-credits access/spend card; Usage is new. Wallets & limits used to
+ * be a separate sub-tab but was folded into Configuration since the credits
+ * toggle and the model-config locks are the same "how is AI provisioned for
+ * this scope" concern.
  */
 export default function AiManagementPanels({
   configuration,
   usage,
   defaultSubTab = "configuration",
 }: AiManagementPanelsProps) {
+  if (!usage) {
+    return configuration;
+  }
+
   return (
     <Tabs defaultValue={defaultSubTab} className="w-full">
       <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">

@@ -14,6 +14,10 @@ import {
   type WalletEnforcement,
   type WalletKeyOwner,
 } from "@/lib/queries/aiCreditWallets";
+import {
+  getMonthlyUsageByModality,
+  type UsageBreakdownRow,
+} from "@/lib/queries/aiUsage";
 
 /**
  * Wallet funding/policy writes (dev-docs/ai-usage-metering-phase3-plan.md
@@ -205,6 +209,34 @@ export async function setClassAiAccessEnabledAction(input: {
     await setClassAiAccessEnabled(supabase, input.classDbId, input.enabled, user.id);
     revalidateClassAiTab(institutionId, input.classDbId, input.classShortId);
     return ok();
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export interface UsageForMonthActionResult extends WalletActionResult {
+  breakdown?: UsageBreakdownRow[];
+}
+
+/**
+ * Backs the Analytics and Logs tab's month picker (UsageOverview) — a plain
+ * read, so authorization is just "has a session"; RLS on ai_usage_counters
+ * (super admin / institution admin / class teacher-admin) does the actual
+ * scoping, same as every other reader of this table.
+ */
+export async function getUsageForMonthAction(input: {
+  institutionId: string;
+  classId?: string | null;
+  periodStart: string;
+}): Promise<UsageForMonthActionResult> {
+  try {
+    const { supabase } = await verifySession();
+    const breakdown = await getMonthlyUsageByModality(supabase, {
+      institutionId: input.institutionId,
+      classId: input.classId ?? null,
+      periodStart: input.periodStart,
+    });
+    return { ok: true, breakdown };
   } catch (err) {
     return fail(err);
   }

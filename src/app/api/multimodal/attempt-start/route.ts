@@ -7,6 +7,8 @@ import {
 } from "@/lib/submissions/attempts";
 import { ensureAttemptSession } from "@/lib/submissions/attemptSessions";
 import { assertSessionCanStart, QuotaExceededError, quotaExceededResponse } from "@/lib/ai/metering/quota";
+import { logAppEvent } from "@/lib/logging/appLog";
+import { classifyAiError } from "@/lib/ai/errors";
 
 interface AttemptStartRequestBody {
   sessionId: string;
@@ -29,9 +31,27 @@ interface AttemptStartRequestBody {
  * row written) if any is block-enforced and exhausted.
  */
 export async function POST(request: NextRequest) {
+  // Populated as the handler progresses so the catch-all below can attach
+  // whatever request context was resolved before the failure, for app_logs.
+  const logContext: {
+    classId: string | null;
+    activityId: string | null;
+    submissionId: string | null;
+    questionOrder: number | null;
+    questionId: string | null;
+  } = {
+    classId: null,
+    activityId: null,
+    submissionId: null,
+    questionOrder: null,
+    questionId: null,
+  };
   try {
     const body = (await request.json()) as AttemptStartRequestBody;
     const { sessionId, submissionId, questionOrder, questionId, maxScore } = body;
+    logContext.submissionId = submissionId ?? null;
+    logContext.questionOrder = questionOrder ?? null;
+    logContext.questionId = questionId ?? null;
 
     if (
       !sessionId ||
@@ -60,6 +80,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const assignmentId = submissionRow.assignment_id as string;
+    logContext.activityId = assignmentId;
 
     const classDbId = await getClassDbIdForAssignment(supabase, assignmentId);
     if (!classDbId) {
@@ -68,6 +89,7 @@ export async function POST(request: NextRequest) {
         { status: 404 },
       );
     }
+    logContext.classId = classDbId;
 
     try {
       await assertSessionCanStart({ classDbId, assignmentId });
@@ -75,6 +97,14 @@ export async function POST(request: NextRequest) {
       if (error instanceof QuotaExceededError) {
         const quotaBlocked = quotaExceededResponse(error);
         if (quotaBlocked) {
+          logAppEvent({
+            level: "warn",
+            source: "multimodal_attempt_start",
+            event: "quota_exceeded",
+            errorCode: "QUOTA_EXCEEDED",
+            message: error.message,
+            ...logContext,
+          });
           return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
         }
       }
@@ -104,6 +134,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[multimodal/attempt-start]", error);
+    const classified = classifyAiError(error);
+    logAppEvent({
+      level: "error",
+      source: "multimodal_attempt_start",
+      event: "attempt_start_failure",
+      errorCode: classified.code,
+      message: classified.message,
+      ...logContext,
+    });
     return NextResponse.json(
       {
         error: "Failed to start attempt",

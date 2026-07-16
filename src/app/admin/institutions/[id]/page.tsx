@@ -25,6 +25,7 @@ import {
   getMonthlyUsageByModality,
   getWalletFundingHistory,
 } from "@/lib/queries/aiUsage";
+import { spendModeForWallet } from "@/lib/ai/metering/spendMode";
 
 export const metadata = {
   title: "Institution admin",
@@ -130,6 +131,7 @@ export default async function AdminInstitutionPage({
         aiClassAccessEnabled={classAccessEnabled}
         aiDefaultClassWalletCredits={defaultClassWalletCredits}
         aiPlatformWalletBalance={platformWallet?.balance ?? 0}
+        aiPlatformWalletSpendMode={spendModeForWallet(platformWallet)}
         aiUsageBreakdown={usageBreakdown}
         aiFundingHistory={fundingHistory}
       />

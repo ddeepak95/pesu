@@ -8,6 +8,7 @@ import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
 import { useMultimodalSpeechModels } from "@/hooks/swr/useMultimodalSpeechModels";
 import { useInteractionSupportByAssignment } from "@/hooks/swr/useAudioInputSupport";
 import { Button } from "@/components/ui/button";
+import { InfoBanner } from "@/components/ui/info-banner";
 import { getLocaleRegistryMap } from "@/lib/locales/registry";
 import { showErrorToast, showWarningToast } from "@/lib/toast";
 import { EvaluatingIndicator } from "@/components/Shared/EvaluatingIndicator";
@@ -434,10 +435,51 @@ export function MultimodalInputArea({
     id: string;
     number: number;
   } | null> | null>(null);
-  // Set when attempt-start refused the session for being out of AI credits
-  // (dev-docs/ai-usage-metering-phase3-plan.md D12) — handleStart surfaces
-  // this specific message instead of the generic "couldn't start" fallback.
-  const quotaExceededMessageRef = React.useRef<string | null>(null);
+  // True once starting the attempt has failed — disables "Start Activity"
+  // (there's no retry path: attemptStartPromiseRef never re-invokes startAttempt
+  // once it has settled, so a fresh click can't succeed where the first didn't).
+  const [attemptBlocked, setAttemptBlocked] = React.useState(false);
+  // Latest attempt-start failure message. A ref (not state) so handleStart can
+  // read it synchronously right after startAttempt settles without waiting on
+  // a re-render — `error` itself may not have flushed yet at that point.
+  const startErrorMessageRef = React.useRef<string | null>(null);
+
+  const ATTEMPT_START_FAILURE_MESSAGES: Record<
+    "quota_exceeded" | "server_error" | "network_error",
+    (detail?: string) => string
+  > = {
+    quota_exceeded: (detail) =>
+      `${detail || "This class is out of AI credits."} Contact your instructor.`,
+    server_error: (detail) =>
+      detail || "Couldn't start this activity. Please refresh and try again.",
+    network_error: () =>
+      "Couldn't start this activity. Please refresh and try again.",
+  };
+
+  // Single funnel for every attempt-start failure: derives the user-facing
+  // message, logs unexpected ones (quota-exceeded is an expected business
+  // state, not a bug — already logged to app_logs server-side), and blocks
+  // the Start button. Adding a new failure mode is one map entry + one call
+  // site, instead of a new setError/console.error pair.
+  const reportAttemptStartFailure = React.useCallback(
+    (
+      kind: "quota_exceeded" | "server_error" | "network_error",
+      detail?: string,
+      logDetail?: unknown,
+    ) => {
+      const message = ATTEMPT_START_FAILURE_MESSAGES[kind](detail);
+      if (kind !== "quota_exceeded") {
+        console.error("Failed to start attempt", logDetail ?? detail ?? kind);
+      }
+      startErrorMessageRef.current = message;
+      setError(message);
+      setAttemptBlocked(true);
+    },
+    // ATTEMPT_START_FAILURE_MESSAGES is a fresh object each render but its
+    // shape never changes — safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const startAttempt = React.useCallback(async (): Promise<{
     id: string;
@@ -460,14 +502,16 @@ export function MultimodalInputArea({
           error?: string;
           code?: string;
         };
-        if (res.status === 402 && errorData.code === QUOTA_EXCEEDED_ERROR_CODE) {
-          quotaExceededMessageRef.current =
-            errorData.error ||
-            "This class is out of AI credits. Contact your instructor.";
-        }
-        throw new Error(errorData.error || "Failed to start attempt");
+        const isQuotaExceeded =
+          res.status === 402 && errorData.code === QUOTA_EXCEEDED_ERROR_CODE;
+        reportAttemptStartFailure(
+          isQuotaExceeded ? "quota_exceeded" : "server_error",
+          errorData.error,
+        );
+        return null;
       }
-      quotaExceededMessageRef.current = null;
+      startErrorMessageRef.current = null;
+      setAttemptBlocked(false);
       const data = (await res.json()) as {
         attemptId: string;
         attemptNumber: number;
@@ -476,10 +520,17 @@ export function MultimodalInputArea({
       setAttempt(resolved);
       return resolved;
     } catch (startError) {
-      console.error("Failed to start attempt", startError);
+      reportAttemptStartFailure("network_error", undefined, startError);
       return null;
     }
-  }, [sessionId, submissionId, question.order, question.id, question.total_points]);
+  }, [
+    sessionId,
+    submissionId,
+    question.order,
+    question.id,
+    question.total_points,
+    reportAttemptStartFailure,
+  ]);
 
   React.useEffect(() => {
     attemptStartPromiseRef.current = startAttempt();
@@ -1346,11 +1397,10 @@ export function MultimodalInputArea({
     const resolvedAttempt = await ensureAttemptStarted();
     if (!resolvedAttempt) {
       setIsStarting(false);
-      const message =
-        quotaExceededMessageRef.current ??
-        "Couldn't start this activity. Please refresh and try again.";
-      setError(message);
-      showErrorToast(message);
+      showErrorToast(
+        startErrorMessageRef.current ??
+          "Couldn't start this activity. Please refresh and try again.",
+      );
       return;
     }
     sessionStartedAtRef.current = new Date().toISOString();
@@ -2184,6 +2234,11 @@ export function MultimodalInputArea({
     <div className="relative space-y-4">
       {!hasStarted ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/20 p-6">
+          {error ? (
+            <InfoBanner variant="error" className="w-full">
+              {error}
+            </InfoBanner>
+          ) : null}
           <p className="text-sm text-muted-foreground text-center">
             {audioInputEnabled ? (
               <>
@@ -2201,7 +2256,12 @@ export function MultimodalInputArea({
               </>
             )}
           </p>
-          <Button type="button" className="gap-2" onClick={handleStart}>
+          <Button
+            type="button"
+            className="gap-2"
+            onClick={handleStart}
+            disabled={isStarting || attemptBlocked}
+          >
             <Play className="h-4 w-4" />
             {isStarting ? "Starting..." : "Start Activity"}
           </Button>
@@ -2214,12 +2274,9 @@ export function MultimodalInputArea({
           )}
         >
           {error ? (
-            <div
-              role="alert"
-              className="shrink-0 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive"
-            >
+            <InfoBanner variant="error" className="shrink-0">
               {error}
-            </div>
+            </InfoBanner>
           ) : null}
 
           {audioInputEnabled && micPermission !== "granted" ? (

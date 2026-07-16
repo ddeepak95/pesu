@@ -4,15 +4,14 @@ import {
   canViewClassOverrideSections,
   type ViewerRole,
 } from "@/lib/settings/capabilities";
-import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
-import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
 import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
 import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
+import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 
 import AiManagementPanels from "./AiConfig/AiManagementPanels";
 import AiSettingsPageContent from "./AiConfig/AiSettingsPageContent";
-import UsageOverview from "@/components/Platform/Usage/UsageOverview";
 import WalletsPanelContainer from "./AiConfig/Wallet/WalletsPanelContainer";
+import CreditAvailabilityCard from "@/components/Platform/Usage/CreditAvailabilityCard";
 
 interface ClassAiManagementTabProps {
   classDbId: string;
@@ -25,16 +24,15 @@ interface ClassAiManagementTabProps {
   wallets: AiCreditWallet[];
   classAccessEnabled: boolean;
   platformWalletBalance: number;
-  usageBreakdown: UsageBreakdownRow[];
-  fundingHistory: WalletFundingEntry[];
+  platformWalletSpendMode: AiSpendMode;
 }
 
 /**
  * The class's "AI management" tab content — visibility of the *tab itself*
  * (decision 4: override rights OR the class has its own wallet) is decided
  * one level up, in ClassSettingsClient; this component only gates its
- * Configuration sub-tab on override rights, since Wallets & limits/Usage are
- * relevant whenever the tab is shown at all.
+ * Configuration content on override rights. Usage now lives in the
+ * sibling top-level "Analytics and Logs" tab.
  */
 export default function ClassAiManagementTab({
   classDbId,
@@ -47,8 +45,7 @@ export default function ClassAiManagementTab({
   wallets,
   classAccessEnabled,
   platformWalletBalance,
-  usageBreakdown,
-  fundingHistory,
+  platformWalletSpendMode,
 }: ClassAiManagementTabProps) {
   const isSuperAdmin = viewerRole === "super_admin";
   const canViewConfiguration = canViewClassOverrideSections(
@@ -60,6 +57,12 @@ export default function ClassAiManagementTab({
     <AiManagementPanels
       configuration={
         <div className="space-y-6">
+          <CreditAvailabilityCard
+            scope="class"
+            accessEnabled={classAccessEnabled}
+            spendMode={platformWalletSpendMode}
+            balance={platformWalletBalance}
+          />
           <WalletsPanelContainer
             scope="class"
             institutionId={institutionId}
@@ -101,13 +104,6 @@ export default function ClassAiManagementTab({
             </p>
           )}
         </div>
-      }
-      usage={
-        <UsageOverview
-          balance={platformWalletBalance}
-          breakdown={usageBreakdown}
-          fundingHistory={fundingHistory}
-        />
       }
     />
   );

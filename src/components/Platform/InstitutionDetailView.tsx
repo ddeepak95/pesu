@@ -38,9 +38,10 @@ import type {
 import type { Class } from "@/types/class";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
-import type { UsageBreakdownRow } from "@/components/Platform/Usage/UsageBreakdownTable";
-import type { WalletFundingEntry } from "@/lib/queries/aiUsage";
+import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
+import type { UsageBreakdownRow, WalletFundingEntry } from "@/lib/queries/aiUsage";
 import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
+import UsageOverview from "@/components/Platform/Usage/UsageOverview";
 
 import {
   addInstitutionAdminRequestAction,
@@ -78,19 +79,23 @@ export interface InstitutionDetailViewProps {
   notice?: { ok?: string; error?: string };
   /** "Manage Activity Templates" link target for this institution's template library. */
   activityTemplatesManageHref: string;
-  /** AI management tab data — wallets, usage, access (see InstitutionSettingsTabs). */
+  /** AI management tab data — wallets, access (see InstitutionSettingsTabs). */
   aiWallets: AiCreditWallet[];
   aiClassAccessEnabled: Record<string, boolean>;
   aiDefaultClassWalletCredits: number | null;
+  /** Analytics and Logs tab data — AI usage/spend for this institution. */
   aiPlatformWalletBalance: number;
+  aiPlatformWalletSpendMode: AiSpendMode;
   aiUsageBreakdown: UsageBreakdownRow[];
   aiFundingHistory: WalletFundingEntry[];
 }
 
-type ActiveTab = "settings" | "classes";
+type ActiveTab = "settings" | "classes" | "analytics";
 
 function parseTab(raw: string | null): ActiveTab {
-  return raw === "classes" ? "classes" : "settings";
+  if (raw === "classes") return "classes";
+  if (raw === "analytics") return "analytics";
+  return "settings";
 }
 
 /**
@@ -123,6 +128,7 @@ export default function InstitutionDetailView({
   aiClassAccessEnabled,
   aiDefaultClassWalletCredits,
   aiPlatformWalletBalance,
+  aiPlatformWalletSpendMode,
   aiUsageBreakdown,
   aiFundingHistory,
 }: InstitutionDetailViewProps) {
@@ -147,7 +153,7 @@ export default function InstitutionDetailView({
   // Canonicalize the tab into the URL on mount (matches ClassDetailClient).
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t === "settings" || t === "classes") return;
+    if (t === "settings" || t === "classes" || t === "analytics") return;
     const next = new URLSearchParams(searchParams.toString());
     next.set("tab", "settings");
     router.replace(`?${next.toString()}`);
@@ -226,6 +232,12 @@ export default function InstitutionDetailView({
           >
             Classes
           </TabsTrigger>
+          <TabsTrigger
+            value="analytics"
+            className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
+          >
+            Analytics and Logs
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="settings" className="space-y-6 pt-6">
@@ -245,8 +257,7 @@ export default function InstitutionDetailView({
             aiClassAccessEnabled={aiClassAccessEnabled}
             aiDefaultClassWalletCredits={aiDefaultClassWalletCredits}
             aiPlatformWalletBalance={aiPlatformWalletBalance}
-            aiUsageBreakdown={aiUsageBreakdown}
-            aiFundingHistory={aiFundingHistory}
+            aiPlatformWalletSpendMode={aiPlatformWalletSpendMode}
             adminsSection={
               <AdminsCard
                 institutionId={institution.id}
@@ -304,6 +315,14 @@ export default function InstitutionDetailView({
             moves={moves}
             userEmails={userEmails}
             institutionNameById={institutionNameById}
+          />
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6 pt-6">
+          <UsageOverview
+            institutionId={institution.id}
+            initialBreakdown={aiUsageBreakdown}
+            fundingHistory={aiFundingHistory}
           />
         </TabsContent>
       </Tabs>
