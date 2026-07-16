@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { modelsEligibleForFunction } from "@/lib/ai/catalog/helpers";
 import type {
   AiSettingsScope,
@@ -22,6 +23,7 @@ interface AiFunctionRowProps {
   allowUsePlatformDefaults?: boolean;
   allowUseInstitutionDefault?: boolean;
   providerCatalogState?: LocalAiSettingsState;
+  canEdit?: boolean;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
   onUsePlatformFunctionDefault?: (parentKey: string, usePlatform: boolean) => void;
   onBrowseCatalogForTask: (task: ModelTask) => void;
@@ -37,6 +39,7 @@ export default function AiFunctionRow({
   allowUsePlatformDefaults = true,
   allowUseInstitutionDefault = true,
   providerCatalogState,
+  canEdit = true,
   onBindingChange,
   onUsePlatformFunctionDefault,
   onBrowseCatalogForTask,
@@ -64,6 +67,7 @@ export default function AiFunctionRow({
       scope={scope}
       state={providerCatalogState ?? state}
       binding={state.functions[fn.key]}
+      canEdit={canEdit}
       onBindingChange={(binding) => onBindingChange(fn.key, binding)}
     />
   );
@@ -78,16 +82,11 @@ export default function AiFunctionRow({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="font-medium">{fn.label}</h4>
+            <InfoTooltip text={fn.description} />
             <AiFunctionBrowseModelsButton
               onClick={() => onBrowseCatalogForTask(fn.requiredTasks[0]!)}
             />
           </div>
-          <p className="text-sm text-muted-foreground">{fn.description}</p>
-          {fn.consumers && fn.consumers.length > 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Used by: {fn.consumers.join(", ")}
-            </p>
-          )}
         </div>
         {comingSoon ? (
           <span className="rounded-md border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
@@ -109,6 +108,7 @@ export default function AiFunctionRow({
             institutionState={institutionState}
             inheritLabel={inheritLabel}
             allowUsePlatformDefaults={allowInherit}
+            canEdit={canEdit}
             onUsePlatformChange={(usePlatform) =>
               onUsePlatformFunctionDefault!(fn.key, usePlatform)
             }

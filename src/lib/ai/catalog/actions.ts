@@ -24,6 +24,7 @@ import {
   assertCanEditInstitutionAiConfig,
   assertCanUsePlatformDefault,
 } from "@/lib/ai/credentials/enforce";
+import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import {
   clearModelConfigCache,
   invalidateModelConfigCache,
@@ -124,6 +125,7 @@ async function assertCatalogEditAccess(input: {
   userId: string;
   scope: AiSettingsScope;
   scopeId: string;
+  section: AiConfigSection;
 }): Promise<{
   institutionId?: string;
   classShortId?: string;
@@ -146,7 +148,11 @@ async function assertCatalogEditAccess(input: {
       input.supabase,
       scopeId,
     );
-    assertCanEditInstitutionAiConfig({ viewerRole, institutionPolicy });
+    assertCanEditInstitutionAiConfig({
+      viewerRole,
+      section: input.section,
+      institutionPolicy,
+    });
     return { institutionId: scopeId, institutionPolicy };
   }
 
@@ -159,7 +165,12 @@ async function assertCatalogEditAccess(input: {
     getInstitutionAiPolicy(input.supabase, classMeta.institutionId),
     getClassAiOverride(input.supabase, scopeId),
   ]);
-  assertCanEditClassAiConfig({ viewerRole, institutionPolicy, classOverridePolicy });
+  assertCanEditClassAiConfig({
+    viewerRole,
+    section: input.section,
+    institutionPolicy,
+    classOverridePolicy,
+  });
   return {
     institutionId: classMeta.institutionId,
     classShortId: classMeta.classShortId,
@@ -215,6 +226,7 @@ export async function activateCatalogProviderAction(input: {
       userId: user.id,
       scope: input.scope,
       scopeId,
+      section: "providers",
     });
 
     const trimmed = input.apiKey.trim();
@@ -257,6 +269,7 @@ export async function deactivateCatalogProviderAction(input: {
       userId: user.id,
       scope: input.scope,
       scopeId,
+      section: "providers",
     });
 
     await upsertProviderActivation(supabase, {
@@ -300,6 +313,7 @@ export async function setCatalogUsePlatformProviderAction(input: {
       userId: user.id,
       scope: input.scope,
       scopeId,
+      section: "providers",
     });
 
     if (ctx.institutionPolicy) {
@@ -347,6 +361,7 @@ export async function saveCatalogFunctionBindingAction(input: {
       userId: user.id,
       scope: input.scope,
       scopeId,
+      section: "functions",
     });
 
     await upsertFunctionBinding(supabase, {
@@ -397,6 +412,7 @@ export async function setCatalogUsePlatformFunctionDefaultAction(input: {
       userId: user.id,
       scope: input.scope,
       scopeId,
+      section: "functions",
     });
 
     if (input.usePlatform) {
@@ -469,6 +485,7 @@ export async function clearCatalogFunctionBindingAction(input: {
       userId: user.id,
       scope: input.scope,
       scopeId,
+      section: "functions",
     });
 
     await deleteFunctionBinding(
@@ -492,18 +509,36 @@ export async function clearCatalogFunctionBindingAction(input: {
 export async function resetCatalogScopeAction(input: {
   scope: AiSettingsScope;
   scopeId: string;
+  section?: AiConfigSection;
 }): Promise<CatalogActionResult> {
   try {
     const { user, supabase } = await verifySession();
     const scopeId = normalizeCatalogScopeId(input.scope, input.scopeId);
-    const ctx = await assertCatalogEditAccess({
-      supabase,
-      userId: user.id,
-      scope: input.scope,
-      scopeId,
-    });
+    // Resetting wipes only the requested section (or both, when omitted), so
+    // the viewer only needs edit rights to the section(s) actually being
+    // wiped — a partial-rights viewer must not be able to use this to wipe
+    // the section they can't otherwise edit.
+    let ctx: { institutionId?: string } = {};
+    if (!input.section || input.section === "providers") {
+      ctx = await assertCatalogEditAccess({
+        supabase,
+        userId: user.id,
+        scope: input.scope,
+        scopeId,
+        section: "providers",
+      });
+    }
+    if (!input.section || input.section === "functions") {
+      ctx = await assertCatalogEditAccess({
+        supabase,
+        userId: user.id,
+        scope: input.scope,
+        scopeId,
+        section: "functions",
+      });
+    }
 
-    await resetCatalogScope(supabase, input.scope, scopeId);
+    await resetCatalogScope(supabase, input.scope, scopeId, input.section);
 
     await afterCatalogMutation({
       scope: input.scope,

@@ -48,10 +48,15 @@ export default function ClassAiManagementTab({
   platformWalletSpendMode,
 }: ClassAiManagementTabProps) {
   const isSuperAdmin = viewerRole === "super_admin";
-  const canViewConfiguration = canViewClassOverrideSections(
-    viewerRole,
-    classOverridePolicy.allowChildOverride,
-  );
+  const canViewConfiguration =
+    canViewClassOverrideSections(
+      viewerRole,
+      classOverridePolicy.allowChildOverrideProviders,
+    ) ||
+    canViewClassOverrideSections(
+      viewerRole,
+      classOverridePolicy.allowChildOverrideFunctions,
+    );
 
   return (
     <AiManagementPanels
@@ -90,7 +95,6 @@ export default function ClassAiManagementTab({
                 classShortId={classShortId}
                 institutionId={institutionId}
                 title="Class AI configuration"
-                description="Override institution model assignments for this class, or inherit institution defaults per provider and app function."
                 viewerRole={viewerRole}
                 institutionPolicy={institutionPolicy}
                 classOverridePolicy={classOverridePolicy}

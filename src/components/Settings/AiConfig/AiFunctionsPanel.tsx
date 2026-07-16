@@ -22,6 +22,8 @@ interface AiFunctionsPanelProps {
   institutionState?: LocalAiSettingsState;
   allowUsePlatformDefaults?: boolean;
   allowUseInstitutionDefault?: boolean;
+  /** Whether the viewer may edit app-function bindings. When false, all controls render read-only. */
+  canEdit?: boolean;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
   onClearBinding: (fnKey: string) => void;
   onUsePlatformFunctionDefault?: (parentKey: string, usePlatform: boolean) => void;
@@ -35,6 +37,7 @@ export default function AiFunctionsPanel({
   institutionState,
   allowUsePlatformDefaults = true,
   allowUseInstitutionDefault = true,
+  canEdit = true,
   onBindingChange,
   onClearBinding,
   onUsePlatformFunctionDefault,
@@ -49,14 +52,6 @@ export default function AiFunctionsPanel({
 
   return (
     <section className="space-y-4">
-      <div>
-        <h3 className="text-base font-medium">App functions</h3>
-        <p className="text-sm text-muted-foreground">
-          Set a default provider and model for each feature group. Expand
-          &ldquo;Customize per feature&rdquo; only when a specific feature needs
-          its own model.
-        </p>
-      </div>
       <div className="flex flex-col gap-4">
         {CATALOG_FUNCTIONS.map((fn) =>
           fn.subFunctions?.length ? (
@@ -69,6 +64,7 @@ export default function AiFunctionsPanel({
               institutionState={institutionState}
               allowUsePlatformDefaults={allowUsePlatformDefaults}
               allowUseInstitutionDefault={allowUseInstitutionDefault}
+              canEdit={canEdit}
               onBindingChange={onBindingChange}
               onClearBinding={onClearBinding}
               onUsePlatformFunctionDefault={onUsePlatformFunctionDefault}
@@ -85,6 +81,7 @@ export default function AiFunctionsPanel({
               allowUsePlatformDefaults={allowUsePlatformDefaults}
               allowUseInstitutionDefault={allowUseInstitutionDefault}
               providerCatalogState={catalogState}
+              canEdit={canEdit}
               onBindingChange={onBindingChange}
               onUsePlatformFunctionDefault={onUsePlatformFunctionDefault}
               onBrowseCatalogForTask={onBrowseCatalogForTask}

@@ -314,9 +314,9 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
 export const CATALOG_FUNCTIONS: AppFunctionCatalogEntry[] = [
   {
     key: TEXT_CAPABILITY_KEY,
-    label: "Text-based features",
+    label: "Foundation model",
     description:
-      "Default provider and model for all text-powered product features.",
+      "A language model that reads and generates text — used for conversation, reasoning, and writing tasks.",
     requiredTasks: ["text_generation"],
     status: "available",
     subFunctions: [
@@ -370,16 +370,16 @@ export const CATALOG_FUNCTIONS: AppFunctionCatalogEntry[] = [
   },
   {
     key: "speech_to_text",
-    label: "Speech-to-text",
-    description: "Transcribe student audio responses.",
+    label: "Speech-to-text model",
+    description: "A model that converts spoken audio into written text.",
     requiredTasks: ["speech_to_text"],
     consumers: ["Voice assessment", "Multimodal assessment"],
     status: "available",
   },
   {
     key: "text_to_speech",
-    label: "Text-to-speech",
-    description: "Read questions and feedback aloud.",
+    label: "Text-to-speech model",
+    description: "A model that converts written text into spoken audio.",
     requiredTasks: ["text_to_speech"],
     consumers: ["Voice assessment", "Multimodal assessment"],
     status: "available",

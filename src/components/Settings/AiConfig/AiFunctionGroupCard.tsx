@@ -8,6 +8,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   countSubFunctionOverrides,
   institutionUsesPlatformFunctionDefault,
@@ -36,6 +37,7 @@ interface AiFunctionGroupCardProps {
   institutionState?: LocalAiSettingsState;
   allowUsePlatformDefaults?: boolean;
   allowUseInstitutionDefault?: boolean;
+  canEdit?: boolean;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
   onClearBinding: (fnKey: string) => void;
   onUsePlatformFunctionDefault?: (parentKey: string, usePlatform: boolean) => void;
@@ -50,6 +52,7 @@ export default function AiFunctionGroupCard({
   institutionState,
   allowUsePlatformDefaults = true,
   allowUseInstitutionDefault = true,
+  canEdit = true,
   onBindingChange,
   onClearBinding,
   onUsePlatformFunctionDefault,
@@ -98,6 +101,7 @@ export default function AiFunctionGroupCard({
       scope={scope}
       state={catalogState}
       binding={state.functions[fn.key]}
+      canEdit={canEdit}
       onBindingChange={(binding) => onBindingChange(fn.key, binding)}
     />
   );
@@ -112,14 +116,9 @@ export default function AiFunctionGroupCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="font-medium">{fn.label}</h4>
+            <InfoTooltip text={fn.description} />
             <AiFunctionBrowseModelsButton onClick={browseCatalog} />
           </div>
-          <p className="text-sm text-muted-foreground">{fn.description}</p>
-          {fn.consumers && fn.consumers.length > 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Used by: {fn.consumers.join(", ")}
-            </p>
-          )}
         </div>
         {comingSoon ? (
           <span className="rounded-md border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
@@ -142,6 +141,7 @@ export default function AiFunctionGroupCard({
               institutionState={institutionState}
               inheritLabel={inheritLabel}
               allowUsePlatformDefaults={allowInherit}
+              canEdit={canEdit}
               onUsePlatformChange={(usePlatform) =>
                 onUsePlatformFunctionDefault!(fn.key, usePlatform)
               }
@@ -181,6 +181,7 @@ export default function AiFunctionGroupCard({
                         catalogState={catalogState}
                         parentUsesInheritedDefault={parentUsesInheritedDefault}
                         inheritLabel={inheritLabel}
+                        canEdit={canEdit}
                         onBindingChange={onBindingChange}
                         onClearBinding={onClearBinding}
                       />

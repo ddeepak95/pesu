@@ -1,17 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import type { AiClassOverridePolicy } from "@/types/aiSettings";
 import { DEFAULT_AI_CLASS_OVERRIDE_POLICY } from "@/types/aiSettings";
 
 interface AiClassSettingsRow {
   class_id: string;
-  allow_child_override: boolean;
+  allow_child_override_providers: boolean;
+  allow_child_override_functions: boolean;
 }
 
 function rowToPolicy(row: AiClassSettingsRow | null): AiClassOverridePolicy {
   if (!row) return { ...DEFAULT_AI_CLASS_OVERRIDE_POLICY };
   return {
-    allowChildOverride: row.allow_child_override,
+    allowChildOverrideProviders: row.allow_child_override_providers,
+    allowChildOverrideFunctions: row.allow_child_override_functions,
   };
 }
 
@@ -78,7 +81,9 @@ export async function getClassAiOverride(
 ): Promise<AiClassOverridePolicy> {
   const { data, error } = await supabase
     .from("ai_class_settings")
-    .select("class_id, allow_child_override")
+    .select(
+      "class_id, allow_child_override_providers, allow_child_override_functions",
+    )
     .eq("class_id", classId)
     .maybeSingle();
   if (error) throw error;
@@ -88,13 +93,18 @@ export async function getClassAiOverride(
 export async function setClassAiOverride(
   supabase: SupabaseClient,
   classId: string,
-  allowChildOverride: boolean,
+  section: AiConfigSection,
+  enabled: boolean,
   updatedBy: string,
 ): Promise<void> {
+  const column =
+    section === "providers"
+      ? "allow_child_override_providers"
+      : "allow_child_override_functions";
   const { error } = await supabase.from("ai_class_settings").upsert(
     {
       class_id: classId,
-      allow_child_override: allowChildOverride,
+      [column]: enabled,
       updated_by: updatedBy,
       updated_at: new Date().toISOString(),
     },

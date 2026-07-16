@@ -21,6 +21,7 @@ import type {
   ProviderId,
 } from "@/lib/ai/catalog/types";
 import { createDefaultLocalAiSettings } from "@/lib/ai/catalog/defaults";
+import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 
 export const aiCatalogKeys = {
   scope: (scope: AiSettingsScope, scopeId: string) =>
@@ -177,11 +178,16 @@ export function useAiCatalogSettings(
     [scope, scopeId, runMutation],
   );
 
-  const resetToDefaults = useCallback(() => {
-    startTransition(async () => {
-      await runMutation(() => resetCatalogScopeAction({ scope, scopeId }));
-    });
-  }, [scope, scopeId, runMutation]);
+  const resetToDefaults = useCallback(
+    (section?: AiConfigSection) => {
+      startTransition(async () => {
+        await runMutation(() =>
+          resetCatalogScopeAction({ scope, scopeId, section }),
+        );
+      });
+    },
+    [scope, scopeId, runMutation],
+  );
 
   return {
     state,

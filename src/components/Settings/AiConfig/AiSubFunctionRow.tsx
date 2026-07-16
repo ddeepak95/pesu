@@ -33,6 +33,7 @@ interface AiSubFunctionRowProps {
   catalogState?: LocalAiSettingsState;
   parentUsesInheritedDefault?: boolean;
   inheritLabel?: string;
+  canEdit?: boolean;
   onBindingChange: (fnKey: string, binding: FunctionBindingState) => void;
   onClearBinding: (fnKey: string) => void;
 }
@@ -56,6 +57,7 @@ export default function AiSubFunctionRow({
   catalogState,
   parentUsesInheritedDefault = false,
   inheritLabel = "platform",
+  canEdit = true,
   onBindingChange,
   onClearBinding,
 }: AiSubFunctionRowProps) {
@@ -118,11 +120,6 @@ export default function AiSubFunctionRow({
       <div>
         <h5 className="text-sm font-medium">{subFn.label}</h5>
         <p className="text-xs text-muted-foreground">{subFn.description}</p>
-        {subFn.consumers && subFn.consumers.length > 0 && (
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Used by: {subFn.consumers.join(", ")}
-          </p>
-        )}
       </div>
 
       {showControls ? (
@@ -132,6 +129,7 @@ export default function AiSubFunctionRow({
             scope={scope}
             state={controlsState}
             binding={state.functions[bindingKey]}
+            canEdit={canEdit}
             onBindingChange={handleBindingChange}
           />
           <Button
@@ -139,6 +137,7 @@ export default function AiSubFunctionRow({
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs"
+            disabled={!canEdit}
             onClick={handleReset}
           >
             Reset to default

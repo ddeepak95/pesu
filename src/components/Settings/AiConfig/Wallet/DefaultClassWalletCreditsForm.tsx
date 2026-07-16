@@ -1,16 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -34,7 +35,8 @@ interface DefaultClassWalletCreditsFormProps {
  * (seed_class_ai_credit_wallet trigger). Null = unbounded — new classes get
  * an explicit `enforcement='off'` wallet instead. Unlike the wallet cards,
  * "Available Credits" here is just a plain settable number (there's no real
- * wallet/balance to add to yet — the class doesn't exist).
+ * wallet/balance to add to yet — the class doesn't exist), so edits go
+ * through a dialog that sets an absolute value rather than a delta.
  */
 export default function DefaultClassWalletCreditsForm({
   institutionId,
@@ -44,19 +46,21 @@ export default function DefaultClassWalletCreditsForm({
   const [mode, setMode] = useState<AiSpendMode>(
     defaultCredits == null ? "unbounded" : "limited",
   );
-  const [credits, setCredits] = useState(defaultCredits?.toString() ?? "");
+  const [credits, setCredits] = useState(defaultCredits ?? 0);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editValue, setEditValue] = useState("");
 
-  const handleSave = () => {
+  const save = (value: number | null, onFail: () => void) => {
     setError(null);
-    const value = mode === "unbounded" ? null : Number(credits) || 0;
     startTransition(async () => {
       const result = await setDefaultClassWalletCreditsResultAction({
         institutionId,
         credits: value,
       });
       if (!result.ok) {
+        onFail();
         setError(result.error ?? "Failed to save");
         return;
       }
@@ -64,49 +68,104 @@ export default function DefaultClassWalletCreditsForm({
     });
   };
 
+  const handleModeChange = (next: AiSpendMode) => {
+    const previous = mode;
+    setMode(next);
+    save(next === "unbounded" ? null : credits, () => setMode(previous));
+    if (next === "limited" && credits === 0) {
+      setEditValue("0");
+      setEditOpen(true);
+    }
+  };
+
+  const openEdit = () => {
+    setEditValue(credits.toString());
+    setEditOpen(true);
+  };
+
+  const confirmEdit = () => {
+    const value = Number(editValue) || 0;
+    const previous = credits;
+    setCredits(value);
+    save(value, () => setCredits(previous));
+    setEditOpen(false);
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Class Default AI Credits</CardTitle>
-        <CardDescription>Default settings for the class when it is created.</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+        <CardTitle>Class Default AI Credit Limit</CardTitle>
+        <Select
+          value={mode}
+          onValueChange={(v) => handleModeChange(v as AiSpendMode)}
+          disabled={pending}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unbounded">Unbounded</SelectItem>
+            <SelectItem value="limited">Limited</SelectItem>
+          </SelectContent>
+        </Select>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <Label className="text-sm font-normal">Credit Limits</Label>
-          <Select
-            value={mode}
-            onValueChange={(v) => setMode(v as AiSpendMode)}
-            disabled={pending}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="unbounded">Unbounded</SelectItem>
-              <SelectItem value="limited">Limited</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {mode === "limited" && (
-          <div className="flex items-center justify-between gap-4">
-            <Label className="text-sm font-normal">Available Credits</Label>
+      {(mode === "limited" || error) && (
+        <CardContent className="space-y-2">
+          {mode === "limited" && (
+            <div className="flex items-center justify-between gap-4">
+              <Label className="text-sm font-normal">Available Credits</Label>
+              <div className="flex items-center gap-2">
+                <div className="w-28 rounded-md border px-3 py-1.5 text-sm">
+                  {credits.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={openEdit}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </CardContent>
+      )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Default credit limit</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="default-class-credits-amount">Amount</Label>
             <Input
+              id="default-class-credits-amount"
               type="number"
-              step="any"
               min="0"
-              value={credits}
-              onChange={(e) => setCredits(e.target.value)}
-              disabled={pending}
-              className="w-32"
+              step="any"
+              autoFocus
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmEdit();
+              }}
             />
           </div>
-        )}
-        <Button type="button" size="sm" onClick={handleSave} disabled={pending}>
-          {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save
-        </Button>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </CardContent>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={confirmEdit}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

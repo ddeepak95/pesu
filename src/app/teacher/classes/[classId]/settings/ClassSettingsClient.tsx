@@ -130,8 +130,12 @@ export default function ClassSettingsClient({
     !!classOverridePolicy &&
     (canViewClassOverrideSections(
       viewerRole,
-      classOverridePolicy.allowChildOverride,
+      classOverridePolicy.allowChildOverrideProviders,
     ) ||
+      canViewClassOverrideSections(
+        viewerRole,
+        classOverridePolicy.allowChildOverrideFunctions,
+      ) ||
       aiWallets.length > 0);
 
   const activeSettingsTab = useMemo(() => {

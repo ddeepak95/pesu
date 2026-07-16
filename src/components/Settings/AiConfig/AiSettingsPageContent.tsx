@@ -1,18 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { List } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { useAiCatalogSettings } from "@/hooks/swr/useAiCatalogSettings";
 import {
-  buildEffectiveSummary,
   mergeClassProviderStateForCatalog,
   mergeInstitutionProviderStateForCatalog,
 } from "@/lib/ai/catalog/helpers";
@@ -21,8 +20,16 @@ import type {
   ModelTask,
   ProviderId,
 } from "@/lib/ai/catalog/types";
+import {
+  aiConfigCapabilities,
+  type AiConfigCapabilities,
+} from "@/lib/ai/credentials/capabilities";
 import type { ViewerRole } from "@/lib/settings/capabilities";
-import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
+import {
+  DEFAULT_AI_INSTITUTION_POLICY,
+  type AiClassOverridePolicy,
+  type AiInstitutionPolicy,
+} from "@/types/aiSettings";
 
 import AiConfigLocksRow from "./AiConfigLocksRow";
 import AiFunctionsPanel from "./AiFunctionsPanel";
@@ -35,7 +42,6 @@ interface AiSettingsPageContentProps {
   scopeId: string;
   institutionId?: string;
   title: string;
-  description: string;
   viewerRole?: ViewerRole;
   institutionPolicy?: AiInstitutionPolicy;
   classOverridePolicy?: AiClassOverridePolicy;
@@ -50,7 +56,6 @@ export default function AiSettingsPageContent({
   scopeId,
   institutionId,
   title,
-  description,
   viewerRole = "super_admin",
   institutionPolicy,
   classOverridePolicy,
@@ -113,123 +118,169 @@ export default function AiSettingsPageContent({
     return state;
   }, [scope, state, platformState, institutionState]);
 
-  const summary = useMemo(
-    () =>
-      buildEffectiveSummary(state, scope, {
-        platform: platformState,
-        institution: institutionState,
-      }),
-    [state, scope, platformState, institutionState],
-  );
-
   const highlightModelId =
     state.functions.text?.modelId ??
     institutionState?.functions.text?.modelId ??
     platformState?.functions.text?.modelId ??
     null;
 
+  const canEditForScope = (caps: AiConfigCapabilities): boolean => {
+    if (scope === "platform") return caps.canEditPlatform;
+    if (scope === "institution") return caps.canEditInstitutionValue;
+    return caps.canEditClassOverride;
+  };
+
+  const capabilityInput = {
+    viewerRole,
+    mode: scope,
+    institutionPolicy: institutionPolicy ?? DEFAULT_AI_INSTITUTION_POLICY,
+    classOverridePolicy,
+  };
+  const canEditProviders = canEditForScope(
+    aiConfigCapabilities({ ...capabilityInput, section: "providers" }),
+  );
+  const canEditFunctions = canEditForScope(
+    aiConfigCapabilities({ ...capabilityInput, section: "functions" }),
+  );
+
   if (!hydrated) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        </CardContent>
-      </Card>
+      <div>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Settings are saved to the database.
-              {isPending ? " Saving…" : null}
-              {error ? (
-                <span className="text-destructive"> {error.message}</span>
-              ) : null}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isPending}
-            onClick={resetToDefaults}
-          >
-            Reset to default
-          </Button>
-        </div>
-        {summary && (
-          <p className="mt-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-            <span className="font-medium">Effective: </span>
-            {summary}
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {(isPending || error) && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {isPending ? "Saving…" : null}
+            {error ? (
+              <span className="text-destructive">{error.message}</span>
+            ) : null}
           </p>
         )}
-      </CardHeader>
-      <CardContent className="space-y-10">
-        {showLocks && institutionPolicy && scope === "institution" && (
-          <AiConfigLocksRow
-            institutionId={scopeId}
-            viewerRole={viewerRole}
-            institutionPolicy={institutionPolicy}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle>Providers</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0"
+              onClick={() => openCatalog({})}
+            >
+              <List className="mr-1.5 h-3.5 w-3.5" />
+              View models
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {showLocks && institutionPolicy && scope === "institution" && (
+            <AiConfigLocksRow
+              institutionId={scopeId}
+              viewerRole={viewerRole}
+              institutionPolicy={institutionPolicy}
+              section="providers"
+            />
+          )}
+
+          {scope === "class" && institutionPolicy && classOverridePolicy && (
+            <ClassAiOverrideRow
+              classDbId={scopeId}
+              classShortId={classShortId}
+              viewerRole={viewerRole}
+              institutionPolicy={institutionPolicy}
+              classOverridePolicy={classOverridePolicy}
+              section="providers"
+            />
+          )}
+
+          <AiProvidersPanel
+            scope={scope}
+            state={state}
+            allowUsePlatformDefaults={
+              institutionPolicy?.allowUsePlatformDefaults ?? true
+            }
+            allowUseInstitutionDefault={classAccessEnabled}
+            canEdit={canEditProviders}
+            onActivate={activateProvider}
+            onDeactivate={deactivateProvider}
+            onUsePlatformChange={setUsePlatformProvider}
           />
-        )}
+        </CardContent>
+      </Card>
 
-        {scope === "class" && institutionPolicy && classOverridePolicy && (
-          <ClassAiOverrideRow
-            classDbId={scopeId}
-            classShortId={classShortId}
-            viewerRole={viewerRole}
-            institutionPolicy={institutionPolicy}
-            classOverridePolicy={classOverridePolicy}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle>Model Selections</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isPending || !canEditFunctions}
+              onClick={() => resetToDefaults("functions")}
+            >
+              Reset to default
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {showLocks && institutionPolicy && scope === "institution" && (
+            <AiConfigLocksRow
+              institutionId={scopeId}
+              viewerRole={viewerRole}
+              institutionPolicy={institutionPolicy}
+              section="functions"
+            />
+          )}
+
+          {scope === "class" && institutionPolicy && classOverridePolicy && (
+            <ClassAiOverrideRow
+              classDbId={scopeId}
+              classShortId={classShortId}
+              viewerRole={viewerRole}
+              institutionPolicy={institutionPolicy}
+              classOverridePolicy={classOverridePolicy}
+              section="functions"
+            />
+          )}
+
+          <AiFunctionsPanel
+            scope={scope}
+            state={state}
+            platformState={platformState}
+            institutionState={institutionState}
+            canEdit={canEditFunctions}
+            allowUsePlatformDefaults={
+              institutionPolicy?.allowUsePlatformDefaults ?? true
+            }
+            allowUseInstitutionDefault={classAccessEnabled}
+            onBindingChange={updateFunctionBinding}
+            onClearBinding={clearFunctionBinding}
+            onUsePlatformFunctionDefault={setUsePlatformFunctionDefault}
+            onBrowseCatalogForTask={(task) => openCatalog({ task })}
           />
-        )}
+        </CardContent>
+      </Card>
 
-        <AiProvidersPanel
-          scope={scope}
-          state={state}
-          allowUsePlatformDefaults={
-            institutionPolicy?.allowUsePlatformDefaults ?? true
-          }
-          allowUseInstitutionDefault={classAccessEnabled}
-          onActivate={activateProvider}
-          onDeactivate={deactivateProvider}
-          onUsePlatformChange={setUsePlatformProvider}
-          onViewModels={() => openCatalog({})}
-        />
-
-        <AiFunctionsPanel
-          scope={scope}
-          state={state}
-          platformState={platformState}
-          institutionState={institutionState}
-          allowUsePlatformDefaults={
-            institutionPolicy?.allowUsePlatformDefaults ?? true
-          }
-          allowUseInstitutionDefault={classAccessEnabled}
-          onBindingChange={updateFunctionBinding}
-          onClearBinding={clearFunctionBinding}
-          onUsePlatformFunctionDefault={setUsePlatformFunctionDefault}
-          onBrowseCatalogForTask={(task) => openCatalog({ task })}
-        />
-
-        <AiModelCatalogDialog
-          open={catalogOpen}
-          onOpenChange={handleCatalogOpenChange}
-          scope={scope}
-          state={catalogState}
-          providerId={catalogProviderId}
-          catalogFilterTask={catalogFilterTask}
-          highlightModelId={highlightModelId}
-        />
-      </CardContent>
-    </Card>
+      <AiModelCatalogDialog
+        open={catalogOpen}
+        onOpenChange={handleCatalogOpenChange}
+        scope={scope}
+        state={catalogState}
+        providerId={catalogProviderId}
+        catalogFilterTask={catalogFilterTask}
+        highlightModelId={highlightModelId}
+      />
+    </div>
   );
 }

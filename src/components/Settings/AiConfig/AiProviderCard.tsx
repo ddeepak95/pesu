@@ -5,7 +5,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type {
   AiSettingsScope,
   ProviderActivationState,
@@ -20,10 +26,14 @@ interface AiProviderCardProps {
   allowUsePlatformDefaults?: boolean;
   /** Whether this class may fall back to the institution's key (the class's AI-access toggle). Institution scope is unaffected. */
   allowUseInstitutionDefault?: boolean;
+  /** Whether the viewer may edit provider config. When false, controls render read-only. */
+  canEdit?: boolean;
   onActivate: (apiKey: string) => void;
   onDeactivate: () => void;
   onUsePlatformChange: (usePlatform: boolean) => void;
 }
+
+type ProviderMode = "off" | "credits" | "own_key";
 
 export default function AiProviderCard({
   provider,
@@ -31,42 +41,71 @@ export default function AiProviderCard({
   activation,
   allowUsePlatformDefaults = true,
   allowUseInstitutionDefault = true,
+  canEdit = true,
   onActivate,
   onDeactivate,
   onUsePlatformChange,
 }: AiProviderCardProps) {
   const [draftKey, setDraftKey] = useState("");
 
-  const showUsePlatformToggle =
+  const canUseCredits =
     scope === "class"
       ? allowUseInstitutionDefault
       : scope === "institution" && allowUsePlatformDefaults;
-  const usingParent = showUsePlatformToggle && activation.usePlatformDefault;
+  const usingParent = canUseCredits && activation.usePlatformDefault;
   const isActive = activation.isActive && !usingParent;
   const parentLabel = scope === "class" ? "institution" : "platform";
 
+  const derivedMode: ProviderMode = usingParent
+    ? "credits"
+    : isActive
+      ? "own_key"
+      : "off";
+  const [keyEntryMode, setKeyEntryMode] = useState(derivedMode === "own_key");
+  const mode: ProviderMode = keyEntryMode ? "own_key" : derivedMode;
+
+  const handleModeChange = (next: ProviderMode) => {
+    if (next === "own_key") {
+      setKeyEntryMode(true);
+      return;
+    }
+    setKeyEntryMode(false);
+    if (next === "credits") {
+      onUsePlatformChange(true);
+      return;
+    }
+    if (scope === "platform") {
+      onDeactivate();
+    } else {
+      onUsePlatformChange(false);
+    }
+  };
+
   return (
     <div className="w-full rounded-lg border p-4 space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
-          <h4 className="font-medium">{provider.label}</h4>
-          <p className="text-sm text-muted-foreground">{provider.description}</p>
-        </div>
-        <span
-          className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs ${
-            usingParent
-              ? "border-transparent bg-secondary text-secondary-foreground"
-              : isActive
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                : "border-transparent bg-muted text-muted-foreground"
-          }`}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h4 className="font-medium">{provider.label}</h4>
+        <Select
+          value={mode}
+          onValueChange={(value) => handleModeChange(value as ProviderMode)}
+          disabled={!canEdit}
         >
-          {usingParent
-            ? `Using ${parentLabel} key`
-            : isActive
-              ? "Active"
-              : "Inactive"}
-        </span>
+          <SelectTrigger
+            id={`mode-${provider.id}`}
+            className="w-auto min-w-[180px] shrink-0"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="off">Off</SelectItem>
+            {canUseCredits && (
+              <SelectItem value="credits">
+                Use {parentLabel} AI credits
+              </SelectItem>
+            )}
+            <SelectItem value="own_key">Use own API key</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {scope === "class" && !allowUseInstitutionDefault && (
@@ -76,23 +115,7 @@ export default function AiProviderCard({
         </p>
       )}
 
-      {showUsePlatformToggle && (
-        <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 px-3 py-2">
-          <Label
-            htmlFor={`use-platform-${provider.id}`}
-            className="text-sm font-normal"
-          >
-            Use {parentLabel} {provider.label} key
-          </Label>
-          <Switch
-            id={`use-platform-${provider.id}`}
-            checked={activation.usePlatformDefault}
-            onCheckedChange={onUsePlatformChange}
-          />
-        </div>
-      )}
-
-      {!usingParent && (
+      {mode === "own_key" && (
         <div className="space-y-2">
           <Label htmlFor={`key-${provider.id}`}>{provider.activationLabel}</Label>
           <Input
@@ -105,7 +128,7 @@ export default function AiProviderCard({
             }
             value={draftKey}
             onChange={(e) => setDraftKey(e.target.value)}
-            disabled={provider.comingSoon}
+            disabled={provider.comingSoon || !canEdit}
           />
           {provider.comingSoon && (
             <p className="text-xs text-muted-foreground">
@@ -116,7 +139,7 @@ export default function AiProviderCard({
             <Button
               type="button"
               size="sm"
-              disabled={!draftKey.trim() || provider.comingSoon}
+              disabled={!draftKey.trim() || provider.comingSoon || !canEdit}
               onClick={() => {
                 onActivate(draftKey);
                 setDraftKey("");
@@ -124,19 +147,6 @@ export default function AiProviderCard({
             >
               {isActive ? "Update key" : "Activate"}
             </Button>
-            {isActive && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  onDeactivate();
-                  setDraftKey("");
-                }}
-              >
-                Deactivate
-              </Button>
-            )}
           </div>
         </div>
       )}

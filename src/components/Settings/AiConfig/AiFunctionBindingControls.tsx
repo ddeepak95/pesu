@@ -33,6 +33,7 @@ interface AiFunctionBindingControlsProps {
   scope: AiSettingsScope;
   state: LocalAiSettingsState;
   binding: FunctionBindingState | undefined;
+  canEdit?: boolean;
   onBindingChange: (binding: FunctionBindingState) => void;
 }
 
@@ -41,6 +42,7 @@ export default function AiFunctionBindingControls({
   scope,
   state,
   binding,
+  canEdit = true,
   onBindingChange,
 }: AiFunctionBindingControlsProps) {
   const [configureOpen, setConfigureOpen] = useState(false);
@@ -92,7 +94,7 @@ export default function AiFunctionBindingControls({
                 modelId: "",
               });
             }}
-            disabled={eligible.length === 0}
+            disabled={eligible.length === 0 || !canEdit}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select provider" />
@@ -118,7 +120,9 @@ export default function AiFunctionBindingControls({
                   modelId,
                 });
               }}
-              disabled={!selectedProvider || modelsForProvider.length === 0}
+              disabled={
+                !selectedProvider || modelsForProvider.length === 0 || !canEdit
+              }
             >
               <SelectTrigger className="min-w-0 flex-1">
                 <SelectValue placeholder="Select model" />
@@ -136,8 +140,8 @@ export default function AiFunctionBindingControls({
               variant="outline"
               size="sm"
               className="h-9 shrink-0 gap-1.5 px-2.5"
-              disabled={!canConfigure}
-              aria-disabled={!canConfigure}
+              disabled={!canConfigure || !canEdit}
+              aria-disabled={!canConfigure || !canEdit}
               onClick={openConfigure}
             >
               <Settings className="h-3.5 w-3.5" />

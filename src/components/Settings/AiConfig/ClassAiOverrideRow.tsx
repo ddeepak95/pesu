@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { invalidateAiCatalogCache } from "@/hooks/swr/useAiCatalogSettings";
 import { invalidateClassAiOverride } from "@/hooks/swr/useClassAiOverride";
 import { setClassAiOverrideAction } from "@/lib/ai/credentials/actions";
+import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
 
@@ -18,7 +19,36 @@ interface ClassAiOverrideRowProps {
   viewerRole: ViewerRole;
   institutionPolicy: AiInstitutionPolicy;
   classOverridePolicy: AiClassOverridePolicy;
+  section: AiConfigSection;
 }
+
+const SECTION_LABEL: Record<AiConfigSection, string> = {
+  providers: "Allow this class's teachers to edit providers",
+  functions: "Allow this class's teachers to edit model selections",
+};
+
+const SECTION_LOCKED_HINT: Record<AiConfigSection, string> = {
+  providers:
+    "Enable “Allow institution admin to edit providers” for this institution first.",
+  functions:
+    "Enable “Allow institution admin to edit model selections” for this institution first.",
+};
+
+const SECTION_OVERRIDE_FIELD: Record<
+  AiConfigSection,
+  "allowChildOverrideProviders" | "allowChildOverrideFunctions"
+> = {
+  providers: "allowChildOverrideProviders",
+  functions: "allowChildOverrideFunctions",
+};
+
+const SECTION_ADMIN_EDIT_FIELD: Record<
+  AiConfigSection,
+  "allowAdminEditProviders" | "allowAdminEditFunctions"
+> = {
+  providers: "allowAdminEditProviders",
+  functions: "allowAdminEditFunctions",
+};
 
 export default function ClassAiOverrideRow({
   classDbId,
@@ -26,10 +56,10 @@ export default function ClassAiOverrideRow({
   viewerRole,
   institutionPolicy,
   classOverridePolicy,
+  section,
 }: ClassAiOverrideRowProps) {
-  const [allowChildOverride, setAllowChildOverride] = useState(
-    classOverridePolicy.allowChildOverride,
-  );
+  const overrideField = SECTION_OVERRIDE_FIELD[section];
+  const [allow, setAllow] = useState(classOverridePolicy[overrideField]);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -37,8 +67,8 @@ export default function ClassAiOverrideRow({
     return null;
   }
 
-  const changed = allowChildOverride !== classOverridePolicy.allowChildOverride;
-  const locked = !institutionPolicy.allowAdminEdit;
+  const changed = allow !== classOverridePolicy[overrideField];
+  const locked = !institutionPolicy[SECTION_ADMIN_EDIT_FIELD[section]];
 
   const handleSave = () => {
     setError(null);
@@ -46,39 +76,34 @@ export default function ClassAiOverrideRow({
       const res = await setClassAiOverrideAction({
         classDbId,
         classShortId,
-        enabled: allowChildOverride,
+        section,
+        enabled: allow,
       });
       if (!res.ok) {
         setError(res.error ?? "Failed to save");
         return;
       }
-      invalidateClassAiOverride(classDbId);
-      if (!allowChildOverride) {
-        // Revoking permission resets the class's AI config server-side —
-        // refresh the catalog panels so they show the reverted state.
+      if (!allow) {
         invalidateAiCatalogCache("class", classDbId);
       }
+      invalidateClassAiOverride(classDbId);
     });
   };
 
   return (
     <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-      <p className="text-sm font-medium">Class AI configuration permissions</p>
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-4">
-          <Label className="text-sm font-normal">
-            Allow this class&apos;s teachers to edit AI configuration
-          </Label>
+          <Label className="text-sm font-normal">{SECTION_LABEL[section]}</Label>
           <Switch
-            checked={allowChildOverride}
-            onCheckedChange={setAllowChildOverride}
+            checked={allow}
+            onCheckedChange={setAllow}
             disabled={locked || pending}
           />
         </div>
         {locked && (
           <p className="text-xs text-muted-foreground">
-            Enable &ldquo;Allow institution admin to edit&rdquo; for this
-            institution first.
+            {SECTION_LOCKED_HINT[section]}
           </p>
         )}
       </div>

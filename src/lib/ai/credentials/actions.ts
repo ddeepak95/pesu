@@ -9,6 +9,7 @@ import {
   assertCanToggleAiLock,
   assertCanToggleClassAiOverride,
 } from "@/lib/ai/credentials/enforce";
+import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import {
   clearModelConfigCache,
   invalidateModelConfigCache,
@@ -76,7 +77,10 @@ function revalidateInstitution(institutionId: string) {
 
 export async function setInstitutionAiConfigLocksAction(input: {
   institutionId: string;
-  lock: "allow_admin_edit" | "allow_use_platform_defaults";
+  lock:
+    | "allow_admin_edit_providers"
+    | "allow_admin_edit_functions"
+    | "allow_use_platform_defaults";
   enabled: boolean;
 }): Promise<AiConfigActionResult> {
   try {
@@ -124,6 +128,7 @@ export async function setInstitutionAiConfigLocksAction(input: {
 export async function setClassAiOverrideAction(input: {
   classDbId: string;
   classShortId?: string | null;
+  section: AiConfigSection;
   enabled: boolean;
 }): Promise<AiConfigActionResult> {
   try {
@@ -139,17 +144,24 @@ export async function setClassAiOverrideAction(input: {
     );
     assertCanToggleClassAiOverride({
       viewerRole,
+      section: input.section,
       enabled: input.enabled,
       institutionPolicy,
     });
-    await setClassAiOverride(supabase, input.classDbId, input.enabled, user.id);
+    await setClassAiOverride(
+      supabase,
+      input.classDbId,
+      input.section,
+      input.enabled,
+      user.id,
+    );
 
-    // Revoking override permission also resets the class back to inheriting
-    // institution/platform defaults — otherwise a teacher's prior edits would
-    // silently keep taking effect even after they lost the ability to change
-    // them further.
+    // Revoking override permission also resets this section back to
+    // inheriting institution/platform defaults — otherwise a teacher's prior
+    // edits would silently keep taking effect even after they lost the
+    // ability to change them further. Only the revoked section is reset.
     if (!input.enabled) {
-      await resetCatalogScope(supabase, "class", input.classDbId);
+      await resetCatalogScope(supabase, "class", input.classDbId, input.section);
     }
 
     clearModelConfigCache();

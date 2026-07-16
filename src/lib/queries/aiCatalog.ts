@@ -12,6 +12,7 @@ import type {
   SavedModelReasoningConfig,
 } from "@/lib/ai/catalog/types";
 import { PLATFORM_SCOPE_ID, type AiConfigScope } from "@/lib/ai/credentials/constants";
+import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import type {
   AiFunctionBindingRow,
   AiProviderActivationRow,
@@ -286,21 +287,31 @@ export async function resetCatalogScope(
   supabase: SupabaseClient,
   scope: AiSettingsScope,
   scopeId: string,
+  section?: AiConfigSection,
 ): Promise<void> {
   const normalizedId = normalizeCatalogScopeId(scope, scopeId);
   const dbScope = catalogScopeToDbScope(scope);
-  const [pErr, bErr] = await Promise.all([
-    supabase
-      .from("ai_provider_activations")
-      .delete()
-      .eq("scope", dbScope)
-      .eq("scope_id", normalizedId),
-    supabase
-      .from("ai_function_bindings")
-      .delete()
-      .eq("scope", dbScope)
-      .eq("scope_id", normalizedId),
-  ]);
-  if (pErr.error) throw pErr.error;
-  if (bErr.error) throw bErr.error;
+  const tasks: PromiseLike<{ error: { message: string } | null }>[] = [];
+  if (!section || section === "providers") {
+    tasks.push(
+      supabase
+        .from("ai_provider_activations")
+        .delete()
+        .eq("scope", dbScope)
+        .eq("scope_id", normalizedId),
+    );
+  }
+  if (!section || section === "functions") {
+    tasks.push(
+      supabase
+        .from("ai_function_bindings")
+        .delete()
+        .eq("scope", dbScope)
+        .eq("scope_id", normalizedId),
+    );
+  }
+  const results = await Promise.all(tasks);
+  for (const result of results) {
+    if (result.error) throw result.error;
+  }
 }

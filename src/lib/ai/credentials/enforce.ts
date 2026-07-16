@@ -1,6 +1,7 @@
 import "server-only";
 
 import { aiConfigCapabilities } from "@/lib/ai/credentials/capabilities";
+import type { AiConfigSection } from "@/lib/ai/credentials/capabilities";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type { AiClassOverridePolicy, AiInstitutionPolicy } from "@/types/aiSettings";
 import type { InstitutionAiPolicyLockKey } from "@/lib/queries/aiInstitutionSettings";
@@ -13,31 +14,39 @@ export function assertCanEditPlatform(viewerRole: ViewerRole): void {
 
 export function assertCanEditInstitutionAiConfig(input: {
   viewerRole: ViewerRole;
+  section: AiConfigSection;
   institutionPolicy: AiInstitutionPolicy;
 }): void {
   const caps = aiConfigCapabilities({
     viewerRole: input.viewerRole,
     mode: "institution",
+    section: input.section,
     institutionPolicy: input.institutionPolicy,
   });
   if (!caps.canEditInstitutionValue) {
-    throw new Error("You may not edit AI configuration for this institution");
+    throw new Error(
+      `You may not edit AI ${input.section} configuration for this institution`,
+    );
   }
 }
 
 export function assertCanEditClassAiConfig(input: {
   viewerRole: ViewerRole;
+  section: AiConfigSection;
   institutionPolicy: AiInstitutionPolicy;
   classOverridePolicy: AiClassOverridePolicy;
 }): void {
   const caps = aiConfigCapabilities({
     viewerRole: input.viewerRole,
     mode: "class",
+    section: input.section,
     institutionPolicy: input.institutionPolicy,
     classOverridePolicy: input.classOverridePolicy,
   });
   if (!caps.canEditClassOverride) {
-    throw new Error("You may not override AI configuration for this class");
+    throw new Error(
+      `You may not override AI ${input.section} configuration for this class`,
+    );
   }
 }
 
@@ -45,7 +54,7 @@ export function assertCanEditClassAiConfig(input: {
  * Institution-scope providers may only fall back to the platform key when the
  * platform has granted `allow_use_platform_defaults`. Class scope is exempt —
  * a class inheriting its *institution's* key is governed by
- * `allow_child_override`, not this lock.
+ * `allow_child_override_providers`, not this lock.
  */
 export function assertCanUsePlatformDefault(input: {
   scope: "institution" | "class";
@@ -70,27 +79,33 @@ export function assertCanToggleAiLock(input: {
 }
 
 /**
- * Toggling "allow this class's teachers to edit AI configuration": role
- * authority first, then the hierarchy rule. Turning it ON requires the
- * institution's admin-edit master lock — this applies to super admins too,
- * not just institution admins.
+ * Toggling "allow this class's teachers to edit AI configuration" for a
+ * given section: role authority first, then the hierarchy rule. Turning it
+ * ON requires the institution's admin-edit master lock for that same
+ * section — this applies to super admins too, not just institution admins.
  */
 export function assertCanToggleClassAiOverride(input: {
   viewerRole: ViewerRole;
+  section: AiConfigSection;
   enabled: boolean;
   institutionPolicy: AiInstitutionPolicy;
 }): void {
   const caps = aiConfigCapabilities({
     viewerRole: input.viewerRole,
     mode: "class",
+    section: input.section,
     institutionPolicy: input.institutionPolicy,
   });
   if (!caps.canToggleClassAiOverride) {
     throw new Error("You may not change class override permission");
   }
-  if (input.enabled && !input.institutionPolicy.allowAdminEdit) {
+  const institutionAdminEditAllowed =
+    input.section === "providers"
+      ? input.institutionPolicy.allowAdminEditProviders
+      : input.institutionPolicy.allowAdminEditFunctions;
+  if (input.enabled && !institutionAdminEditAllowed) {
     throw new Error(
-      'Enable "Allow institution admin to edit" before granting class teacher overrides',
+      `Enable "Allow institution admin to edit ${input.section}" before granting class teacher overrides`,
     );
   }
 }

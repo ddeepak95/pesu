@@ -22,6 +22,7 @@ interface AiInstitutionFunctionDefaultSectionProps {
   institutionState?: LocalAiSettingsState;
   inheritLabel?: string;
   allowUsePlatformDefaults: boolean;
+  canEdit?: boolean;
   onUsePlatformChange: (usePlatform: boolean) => void;
   children: React.ReactNode;
 }
@@ -33,6 +34,7 @@ export default function AiInstitutionFunctionDefaultSection({
   institutionState,
   inheritLabel = "platform",
   allowUsePlatformDefaults,
+  canEdit = true,
   onUsePlatformChange,
   children,
 }: AiInstitutionFunctionDefaultSectionProps) {
@@ -84,6 +86,7 @@ export default function AiInstitutionFunctionDefaultSection({
             id={`use-platform-fn-${fn.key}`}
             checked={usesInherited}
             onCheckedChange={onUsePlatformChange}
+            disabled={!canEdit}
           />
         </div>
       )}

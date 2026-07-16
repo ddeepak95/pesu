@@ -43,10 +43,15 @@ export default function InstitutionAiManagementTab({
   platformWalletSpendMode,
 }: InstitutionAiManagementTabProps) {
   const isSuperAdmin = viewerRole === "super_admin";
-  const canViewConfiguration = canViewInstitutionOverrideSections(
-    viewerRole,
-    institutionPolicy.allowAdminEdit,
-  );
+  const canViewConfiguration =
+    canViewInstitutionOverrideSections(
+      viewerRole,
+      institutionPolicy.allowAdminEditProviders,
+    ) ||
+    canViewInstitutionOverrideSections(
+      viewerRole,
+      institutionPolicy.allowAdminEditFunctions,
+    );
 
   return (
     <AiManagementPanels
@@ -74,7 +79,6 @@ export default function InstitutionAiManagementTab({
               scope="institution"
               scopeId={institutionId}
               title="AI configuration"
-              description="Activate providers with institution keys or use platform keys per provider. App functions inherit platform model assignments unless you customize them."
               viewerRole={viewerRole}
               institutionPolicy={institutionPolicy}
               showLocks

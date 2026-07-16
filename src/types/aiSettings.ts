@@ -6,20 +6,24 @@ export type AiConfigSource =
   | "unconfigured";
 
 export interface AiInstitutionPolicy {
-  allowAdminEdit: boolean;
+  allowAdminEditProviders: boolean;
+  allowAdminEditFunctions: boolean;
   /** When false, institution cannot use platform defaults; must set custom API keys. */
   allowUsePlatformDefaults: boolean;
 }
 
 export const DEFAULT_AI_INSTITUTION_POLICY: AiInstitutionPolicy = {
-  allowAdminEdit: false,
+  allowAdminEditProviders: false,
+  allowAdminEditFunctions: false,
   allowUsePlatformDefaults: true,
 };
 
 export interface AiClassOverridePolicy {
-  allowChildOverride: boolean;
+  allowChildOverrideProviders: boolean;
+  allowChildOverrideFunctions: boolean;
 }
 
 export const DEFAULT_AI_CLASS_OVERRIDE_POLICY: AiClassOverridePolicy = {
-  allowChildOverride: false,
+  allowChildOverrideProviders: false,
+  allowChildOverrideFunctions: false,
 };
