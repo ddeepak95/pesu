@@ -128,6 +128,29 @@ function isMissingTableError(error: { code?: string; message: string }): boolean
   return error.code === "PGRST205" || /could not find the table/i.test(error.message);
 }
 
+/** The PostgREST error shape these scripts inspect. */
+type PgError = { code?: string; message: string };
+
+/**
+ * The chainable PostgREST filter methods used across these scripts, generic
+ * over the concrete builder type so the same helper works on both `.select()`
+ * and `.delete()` builders (each returns itself from a filter call).
+ */
+interface Filterable<Q> {
+  eq(column: string, value: unknown): Q;
+  in(column: string, values: readonly unknown[]): Q;
+  like(column: string, pattern: string): Q;
+}
+
+/** A `.select()` builder: filterable, orderable, range-paginated, awaitable. */
+interface SelectQuery extends Filterable<SelectQuery> {
+  order(column: string, opts: { ascending: boolean }): SelectQuery;
+  range(
+    from: number,
+    to: number,
+  ): PromiseLike<{ data: Record<string, unknown>[] | null; error: PgError | null }>;
+}
+
 function noteMissingTable(table: string): void {
   if (!missingTables.has(table)) {
     missingTables.add(table);
@@ -139,7 +162,7 @@ async function pagedSelect(
   supabase: SupabaseClient,
   table: string,
   columns: string,
-  apply: (q: any) => any,
+  apply: (q: SelectQuery) => SelectQuery,
   orderCols?: string[]
 ): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = [];
@@ -153,7 +176,7 @@ async function pagedSelect(
   if (order.length === 0)
     throw new Error(`pagedSelect(${table}): stable pagination requires explicit order columns`);
   for (let from = 0; ; from += PAGE_SIZE) {
-    let q = supabase.from(table).select(columns);
+    let q = supabase.from(table).select(columns) as unknown as SelectQuery;
     q = apply(q);
     for (const col of order) q = q.order(col, { ascending: true });
     const { data, error } = await q.range(from, from + PAGE_SIZE - 1);
@@ -209,7 +232,7 @@ export async function buildClosure(
   cls: { id: string; class_id: string; institution_id: string | null }
 ): Promise<ClassClosure> {
   const classUuid = cls.id;
-  const eqClass = (q: any) => q.eq("class_id", classUuid);
+  const eqClass = (q: SelectQuery) => q.eq("class_id", classUuid);
 
   const assignments = await pagedSelect(supabase, "assignments", "assignment_id", eqClass);
   const assignmentIds = [...new Set(assignments.map((r) => String(r.assignment_id)))];
@@ -652,7 +675,11 @@ if (new Set(RESTORE_ORDER).size !== Object.keys(TABLE_SPECS).length)
 // Clause execution
 // ---------------------------------------------------------------------------
 
-function applyClauseFilters(q: any, clause: Clause, inValues?: string[]): any {
+function applyClauseFilters<Q extends Filterable<Q>>(
+  q: Q,
+  clause: Clause,
+  inValues?: string[],
+): Q {
   for (const eq of clause.eqs ?? []) q = q.eq(eq.column, eq.value);
   if (clause.in && inValues) q = q.in(clause.in.column, inValues);
   if (clause.like) q = q.like(clause.like.column, clause.like.pattern);

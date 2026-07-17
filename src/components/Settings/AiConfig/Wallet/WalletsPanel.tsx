@@ -114,25 +114,34 @@ export default function WalletsPanel({
 
   const institutionPlatformWallet = institutionWallets[0];
 
+  // The institution's platform-credit pool is a platform-level concern:
+  // only super admins may view or manage it. Institution admins still see
+  // read-only availability via CreditAvailabilityCard higher up the tab.
+  const canManageInstitutionWallet = canEditInstitutionWallet(
+    institutionPlatformWallet,
+  );
+
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <AiAccessAndLimitCard
-          scope="institution"
-          accessEnabled={accessEnabled}
-          onAccessEnabledChange={onAccessEnabledChange}
-          spendMode={spendModeForWallet(institutionPlatformWallet)}
-          onSpendModeChange={(mode) =>
-            onSpendModeChange(institutionPlatformWallet, null, mode)
-          }
-          balance={institutionPlatformWallet?.balance ?? 0}
-          onAdjustCredits={
-            institutionPlatformWallet
-              ? (delta) => onAdjustCredits(institutionPlatformWallet.id, delta)
-              : undefined
-          }
-          readOnly={!canEditInstitutionWallet(institutionPlatformWallet)}
-        />
+        {canManageInstitutionWallet && (
+          <AiAccessAndLimitCard
+            scope="institution"
+            accessEnabled={accessEnabled}
+            onAccessEnabledChange={onAccessEnabledChange}
+            spendMode={spendModeForWallet(institutionPlatformWallet)}
+            onSpendModeChange={(mode) =>
+              onSpendModeChange(institutionPlatformWallet, null, mode)
+            }
+            balance={institutionPlatformWallet?.balance ?? 0}
+            onAdjustCredits={
+              institutionPlatformWallet
+                ? (delta) => onAdjustCredits(institutionPlatformWallet.id, delta)
+                : undefined
+            }
+            readOnly={!canManageInstitutionWallet}
+          />
+        )}
         {institutionId && (
           <DefaultClassWalletCreditsForm
             institutionId={institutionId}
