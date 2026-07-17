@@ -11,7 +11,10 @@
     "validate:locales": "npx tsx scripts/validate-locales.ts",
     "validate:ai-metering": "npx tsx scripts/validate-ai-metering.ts",
     "seed:platform-ai": "npx tsx scripts/seed-platform-ai-catalog.ts",
-    "generate:system-template-seed": "npx tsx scripts/generate-system-template-seed.ts"
+    "generate:system-template-seed": "npx tsx scripts/generate-system-template-seed.ts",
+    "backup:class": "npx tsx scripts/backup-class.ts",
+    "delete:class": "npx tsx scripts/delete-class.ts",
+    "restore:class": "npx tsx scripts/restore-class.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.59",
