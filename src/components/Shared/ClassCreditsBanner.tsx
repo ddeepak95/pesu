@@ -47,7 +47,7 @@ export function ClassCreditsBanner({
   const { data } = useClassQuotaStatus(classDbId);
   if (!data) return null;
 
-  const entries = [data.platform, data.byok];
+  const entries = [data.pool, data.classCap];
   const exhausted = entries.some(isExhausted);
   const low = !exhausted && entries.some(isLow);
   if (!exhausted && !low) return null;

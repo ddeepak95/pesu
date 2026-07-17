@@ -3,16 +3,20 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WalletEnforcement = "off" | "warn" | "block";
-export type WalletKeyOwner = "platform" | "byok";
 
+/**
+ * Dual-debit cap model: an institution-level row (class_id null) is the
+ * institution's credit pool — the only real money; its balance is debited by
+ * every platform-key invocation under the institution. A class-level row is a
+ * spending cap; its balance is the class's remaining allowance, debited in
+ * lockstep with the pool. BYOK usage has no wallet at all.
+ */
 export interface AiCreditWallet {
   id: string;
   institution_id: string;
   class_id: string | null;
-  key_owner: WalletKeyOwner;
   monthly_grant: number | null;
   max_balance: number | null;
-  class_allocation_capacity: number | null;
   soft_warn_threshold: number | null;
   enforcement: WalletEnforcement;
   self_manage_enabled: boolean;
@@ -21,7 +25,7 @@ export interface AiCreditWallet {
 }
 
 const WALLET_COLUMNS =
-  "id, institution_id, class_id, key_owner, monthly_grant, max_balance, class_allocation_capacity, soft_warn_threshold, enforcement, self_manage_enabled, updated_at";
+  "id, institution_id, class_id, monthly_grant, max_balance, soft_warn_threshold, enforcement, self_manage_enabled, updated_at";
 
 async function attachBalances(
   supabase: SupabaseClient,
@@ -60,13 +64,12 @@ export async function listWalletsForInstitution(
   const { data: wallets, error } = await supabase
     .from("ai_credit_wallets")
     .select(WALLET_COLUMNS)
-    .eq("institution_id", institutionId)
-    .order("key_owner", { ascending: true });
+    .eq("institution_id", institutionId);
   if (error) throw error;
   return attachBalances(supabase, wallets ?? []);
 }
 
-/** Just one class's own wallets (0-2 rows: platform and/or byok) — the class settings AI tab doesn't need the whole institution's list. */
+/** Just one class's own cap wallet (0-1 rows) — the class settings AI tab doesn't need the whole institution's list. */
 export async function listWalletsForClass(
   supabase: SupabaseClient,
   classId: string,
@@ -74,8 +77,7 @@ export async function listWalletsForClass(
   const { data: wallets, error } = await supabase
     .from("ai_credit_wallets")
     .select(WALLET_COLUMNS)
-    .eq("class_id", classId)
-    .order("key_owner", { ascending: true });
+    .eq("class_id", classId);
   if (error) throw error;
   return attachBalances(supabase, wallets ?? []);
 }
@@ -86,7 +88,6 @@ export async function createWallet(
   input: {
     institutionId: string;
     classId: string | null;
-    keyOwner: WalletKeyOwner;
     /** Defaults to the column default ('off'/Unbounded) when omitted. */
     enforcement?: WalletEnforcement;
   },
@@ -96,7 +97,6 @@ export async function createWallet(
     .insert({
       institution_id: input.institutionId,
       class_id: input.classId,
-      key_owner: input.keyOwner,
       ...(input.enforcement ? { enforcement: input.enforcement } : {}),
     })
     .select(WALLET_COLUMNS)
@@ -112,7 +112,6 @@ export async function updateWalletPolicy(
     enforcement: WalletEnforcement;
     maxBalance: number | null;
     softWarnThreshold: number | null;
-    classAllocationCapacity: number | null;
   },
 ): Promise<void> {
   const { error } = await supabase
@@ -121,7 +120,6 @@ export async function updateWalletPolicy(
       enforcement: input.enforcement,
       max_balance: input.maxBalance,
       soft_warn_threshold: input.softWarnThreshold,
-      class_allocation_capacity: input.classAllocationCapacity,
     })
     .eq("id", input.walletId);
   if (error) throw error;

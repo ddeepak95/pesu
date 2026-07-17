@@ -40,7 +40,7 @@ begin
   -- only clears it at transaction end).
   drop table if exists _counter_snapshot;
   create temporary table _counter_snapshot on commit drop as
-  select institution_id, key_owner, period_start, credits
+  select institution_id, key_source, period_start, credits
   from public.ai_usage_counters
   where class_id = v_sentinel and usage_type = 'all' and period_start >= v_cutoff;
 
@@ -52,13 +52,13 @@ begin
   delete from public.ai_usage_counters where period_start >= v_cutoff;
 
   insert into public.ai_usage_counters
-    (institution_id, class_id, key_owner, period_start, usage_type, credits, events)
-  select institution_id, class_id, key_owner, period_start, usage_type,
+    (institution_id, class_id, key_source, period_start, usage_type, credits, events)
+  select institution_id, class_id, key_source, period_start, usage_type,
          sum(credits) as credits, sum(events) as events
   from (
     -- class-level rows (only for invocations with a real, non-null class_id —
     -- otherwise this would double-count against the sentinel branches below).
-    select institution_id, class_id, public.key_owner_from_source(ai_key_source) as key_owner,
+    select institution_id, class_id, public.normalize_key_source(ai_key_source) as key_source,
            date_trunc('month', started_at at time zone 'UTC')::date as period_start,
            usage_type, credits, 1 as events
     from public.ai_invocations
@@ -67,7 +67,7 @@ begin
 
     union all
 
-    select institution_id, class_id, public.key_owner_from_source(ai_key_source),
+    select institution_id, class_id, public.normalize_key_source(ai_key_source),
            date_trunc('month', started_at at time zone 'UTC')::date, 'all', credits, 1
     from public.ai_invocations
     where started_at >= v_cutoff and status = 'completed' and credits is not null
@@ -76,7 +76,7 @@ begin
     union all
 
     -- institution-wide sentinel rows, always (regardless of class_id).
-    select institution_id, v_sentinel, public.key_owner_from_source(ai_key_source),
+    select institution_id, v_sentinel, public.normalize_key_source(ai_key_source),
            date_trunc('month', started_at at time zone 'UTC')::date, usage_type, credits, 1
     from public.ai_invocations
     where started_at >= v_cutoff and status = 'completed' and credits is not null
@@ -84,36 +84,36 @@ begin
 
     union all
 
-    select institution_id, v_sentinel, public.key_owner_from_source(ai_key_source),
+    select institution_id, v_sentinel, public.normalize_key_source(ai_key_source),
            date_trunc('month', started_at at time zone 'UTC')::date, 'all', credits, 1
     from public.ai_invocations
     where started_at >= v_cutoff and status = 'completed' and credits is not null
       and institution_id is not null
   ) fanned
-  group by institution_id, class_id, key_owner, period_start, usage_type;
+  group by institution_id, class_id, key_source, period_start, usage_type;
 
   -- 3. Both rebuild steps ran inside this one function invocation, so no
   -- reader ever observes a gap between the delete and the re-insert.
 
-  -- 4. Drift check: an institution/key_owner pair that moved by more than
+  -- 4. Drift check: an institution/key_source pair that moved by more than
   -- $0.01 worth of credits is the signal that the per-invocation upsert
   -- (record_usage_counter, called from completeAiInvocation) exhausted its
   -- after() retries and silently failed at least once since the last run.
   for v_drift_row in
     select
       coalesce(s.institution_id, n.institution_id) as institution_id,
-      coalesce(s.key_owner, n.key_owner) as key_owner,
+      coalesce(s.key_source, n.key_source) as key_source,
       coalesce(s.period_start, n.period_start) as period_start,
       coalesce(s.credits, 0) as before_credits,
       coalesce(n.credits, 0) as after_credits
     from _counter_snapshot s
     full outer join (
-      select institution_id, key_owner, period_start, credits
+      select institution_id, key_source, period_start, credits
       from public.ai_usage_counters
       where class_id = v_sentinel and usage_type = 'all' and period_start >= v_cutoff
     ) n
       on s.institution_id = n.institution_id
-     and s.key_owner = n.key_owner
+     and s.key_source = n.key_source
      and s.period_start = n.period_start
     where abs(coalesce(s.credits, 0) - coalesce(n.credits, 0)) > 0.01
   loop
@@ -121,12 +121,12 @@ begin
     values (
       'warn', 'usage_metering', 'counter_drift', v_drift_row.institution_id,
       format(
-        'ai_usage_counters drift for institution %s / key_owner %s / period %s: %s -> %s credits',
-        v_drift_row.institution_id, v_drift_row.key_owner, v_drift_row.period_start,
+        'ai_usage_counters drift for institution %s / key_source %s / period %s: %s -> %s credits',
+        v_drift_row.institution_id, v_drift_row.key_source, v_drift_row.period_start,
         v_drift_row.before_credits, v_drift_row.after_credits
       ),
       jsonb_build_object(
-        'key_owner', v_drift_row.key_owner,
+        'key_source', v_drift_row.key_source,
         'period_start', v_drift_row.period_start,
         'before_credits', v_drift_row.before_credits,
         'after_credits', v_drift_row.after_credits
@@ -161,7 +161,7 @@ begin
     );
   end if;
 
-  -- Fires when key_owner_from_source's fail-safe ELSE branch fired (an
+  -- Fires when normalize_key_source's fail-safe ELSE branch fired (an
   -- ai_key_source outside the known platform/env/institution/class values —
   -- including the legitimate-but-rare 'unconfigured', or anything unmapped).
   select count(*) into v_unmapped_count
@@ -220,7 +220,10 @@ begin
 end;
 $$;
 
-revoke execute on function public.reconcile_ai_usage_counters(date) from anon, authenticated;
+-- Revoke from PUBLIC too — Postgres grants EXECUTE on new functions to PUBLIC
+-- by default, so named-role revokes alone don't actually restrict anything.
+revoke all on function public.reconcile_ai_usage_counters(date) from public, anon, authenticated;
+grant execute on function public.reconcile_ai_usage_counters(date) to service_role;
 
 -- Daily 08:00 UTC (low-traffic window for a US-institution-heavy base) —
 -- revisit once real traffic is observed.

@@ -5,8 +5,8 @@ import { resolveCatalogModelConfigForPlatform } from "@/lib/ai/catalog/resolveRu
 import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCache";
 import { modelMetaFromResolved, type AiInvocationModelMeta } from "@/lib/ai/logging/types";
 import { assertClassAiAccessAllowed, assertPlatformAiAccessAllowed } from "@/lib/ai/metering/access";
-import { keyOwnerFromSource } from "@/lib/ai/metering/keyOwner";
-import { assertWithinQuota, resolveWalletId } from "@/lib/ai/metering/quota";
+import { isByokSource } from "@/lib/ai/metering/keyOwner";
+import { assertWithinQuota, resolveCapWalletId } from "@/lib/ai/metering/quota";
 import type { UsageType } from "@/lib/ai/metering/usageTypes";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
@@ -248,26 +248,30 @@ export async function resolveMeteredModel(input: {
 
   let walletId: string | null = null;
   if (institutionId && classDbId) {
-    const keyOwner = keyOwnerFromSource(keySource);
+    const byok = isByokSource(keySource);
 
     // Real-time kill switch (decision 1) — checked on every call that isn't
     // using the class's own key, including ones already admitted at session
     // start: unlike a wallet balance, an admin turning access off is meant
     // to take effect immediately, not wait for the next session.
-    if (keyOwner === "platform") {
+    if (!byok) {
       await assertPlatformAiAccessAllowed(institutionId);
     }
     if (keySource !== "class") {
       await assertClassAiAccessAllowed(classDbId);
     }
 
-    walletId = await resolveWalletId({ institutionId, classId: classDbId, keyOwner });
+    // BYOK is fully unmetered (product decision 2026-07-16): no wallet
+    // attribution, no quota check — the provider bills the key owner.
+    if (!byok) {
+      walletId = await resolveCapWalletId(institutionId, classDbId);
 
-    const shouldCheck =
-      input.context.admittedAtSessionStart !== true &&
-      input.context.quotaPolicy !== "ride-through";
-    if (shouldCheck) {
-      await assertWithinQuota({ institutionId, classId: classDbId, keyOwner });
+      const shouldCheck =
+        input.context.admittedAtSessionStart !== true &&
+        input.context.quotaPolicy !== "ride-through";
+      if (shouldCheck) {
+        await assertWithinQuota({ institutionId, classId: classDbId });
+      }
     }
   }
 

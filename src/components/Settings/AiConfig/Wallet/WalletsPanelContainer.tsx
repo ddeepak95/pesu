@@ -46,10 +46,10 @@ interface WalletsPanelContainerProps {
  * setInstitutionAiConfigLocksAction. Holds an optimistic local copy of the
  * wallet/access state, resynced from props whenever the server parent
  * re-renders with fresh data (router.refresh() after a successful action).
- * Only the platform-key_owner wallet is surfaced — BYOK wallets aren't
- * managed through this UI. No wallet needs to exist ahead of time: switching
- * Credit Limits to "Limited" with no wallet yet creates one transparently
- * (D5: no wallet = unrestricted, same as Unbounded).
+ * BYOK usage is unmetered and has no wallets to manage here. No wallet needs
+ * to exist ahead of time: switching Credit Limits to "Limited" with no wallet
+ * yet creates one transparently (no wallet = unrestricted, same as
+ * Unbounded).
  */
 export default function WalletsPanelContainer({
   scope,
@@ -162,7 +162,6 @@ export default function WalletsPanelContainer({
         const result = await createWalletResultAction({
           institutionId,
           classId,
-          keyOwner: "platform",
           enforcement,
           classShortId: classId ? classById.get(classId)?.shortId : undefined,
         });
@@ -185,7 +184,6 @@ export default function WalletsPanelContainer({
         enforcement,
         maxBalance: wallet.max_balance,
         softWarnThreshold: wallet.soft_warn_threshold,
-        classAllocationCapacity: wallet.class_allocation_capacity,
         classId,
         classShortId: classId ? classById.get(classId)?.shortId : undefined,
       });

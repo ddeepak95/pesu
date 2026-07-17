@@ -1,5 +1,5 @@
 -- AI usage metering — auto-provision default wallets on institution/class
--- creation, per product decision 2026-07-15 (post-Phase-3, follow-up to
+-- creation, per product decisions 2026-07-15/16 (post-Phase-3, follow-up to
 -- dev-docs/ai-usage-metering-phase3-plan.md). Applies going forward only
 -- (AFTER INSERT triggers) — existing institutions/classes are not backfilled.
 
@@ -10,10 +10,10 @@
 -- RLS/trigger work is needed to let admins configure it.
 alter table public.ai_institution_settings
   add column if not exists default_class_wallet_credits numeric(14,4);
-  -- null = unbounded: a newly created class gets an explicit
-  -- enforcement='off' wallet (unmetered) rather than falling through to the
-  -- institution wallet's own balance (which would silently meter it after
-  -- all, contradicting "unbounded").
+  -- Default spending cap seeded onto every newly created class's wallet.
+  -- null = uncapped: the new class gets no wallet row at all and simply draws
+  -- from the institution pool (which is always debited and gated regardless
+  -- under the dual-debit model).
 
 create or replace function public.seed_institution_ai_credit_wallet()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -24,8 +24,8 @@ declare
   -- 2026-07-15: "10,000, we will change it later").
   v_default_credits constant numeric(14,4) := 10000;
 begin
-  insert into public.ai_credit_wallets (institution_id, class_id, key_owner, enforcement)
-  values (NEW.id, null, 'platform', 'block')
+  insert into public.ai_credit_wallets (institution_id, class_id, enforcement)
+  values (NEW.id, null, 'block')
   returning id into v_wallet_id;
 
   insert into public.ai_credit_transactions (wallet_id, type, credits, note)
@@ -44,11 +44,12 @@ create trigger institutions_seed_ai_credit_wallet_trg
   after insert on public.institutions
   for each row execute function public.seed_institution_ai_credit_wallet();
 
--- Every new class gets an explicit platform-key_owner wallet — even when the
--- institution's default is "unbounded" (null), a real enforcement='off' row is
--- created rather than none at all, so the class stays genuinely unrestricted
--- (most-specific-first lookup, D5) instead of falling through to whatever the
--- institution's own wallet balance/enforcement happens to be.
+-- A new class gets a cap wallet only when the institution has configured a
+-- default cap. The 'allocation' transaction sets the class's allowance — it is
+-- NOT money moving out of the institution pool (dual-debit model: usage debits
+-- the class cap and the institution pool in lockstep). An uncapped class gets
+-- no wallet row: it draws from the institution pool, which gates and meters it
+-- on its own.
 create or replace function public.seed_class_ai_credit_wallet()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -64,18 +65,15 @@ begin
   where institution_id = NEW.institution_id;
 
   if v_default_credits is not null then
-    insert into public.ai_credit_wallets (institution_id, class_id, key_owner, enforcement)
-    values (NEW.institution_id, NEW.id, 'platform', 'block')
+    insert into public.ai_credit_wallets (institution_id, class_id, enforcement)
+    values (NEW.institution_id, NEW.id, 'block')
     returning id into v_wallet_id;
 
     insert into public.ai_credit_transactions (wallet_id, type, credits, note)
-    values (v_wallet_id, 'allocation', v_default_credits, 'Default class wallet grant on class creation');
+    values (v_wallet_id, 'allocation', v_default_credits, 'Default class spending cap on class creation');
 
     insert into public.ai_credit_balances (wallet_id, balance)
     values (v_wallet_id, v_default_credits);
-  else
-    insert into public.ai_credit_wallets (institution_id, class_id, key_owner, enforcement)
-    values (NEW.institution_id, NEW.id, 'platform', 'off');
   end if;
 
   return NEW;

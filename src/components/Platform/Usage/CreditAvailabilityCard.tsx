@@ -15,7 +15,9 @@ interface CreditAvailabilityCardProps {
 
 /**
  * Only Unbounded and the access-disabled case get explanatory copy — Limited
- * is fully explained by the balance figure itself.
+ * is fully explained by the balance figure itself. Dual-debit cap model: a
+ * class's balance is its remaining spending limit (usage also draws down the
+ * institution's credit pool); an uncapped class draws from the pool directly.
  */
 function creditAvailabilityDescription(
   scope: "institution" | "class",
@@ -28,6 +30,9 @@ function creditAvailabilityDescription(
     return `This ${child} is using its own AI configuration, not ${parent}'s AI credits.`;
   }
   if (spendMode === "unbounded") {
+    if (scope === "class") {
+      return "This class draws from the institution's credit pool without a class-specific limit.";
+    }
     return `Your ${child} has unbounded access to ${parent}'s AI credits.`;
   }
   return null;

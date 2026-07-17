@@ -41,10 +41,12 @@ interface AiAccessAndLimitCardProps {
  * The single place platform AI credits are configured for a scope
  * (institution or class): access toggle, then (while on) a Credit Limits
  * select, then (while Limited) the balance + add/reduce control. No wallet
- * row needs to exist ahead of time — D5 already treats "no wallet" as
- * unrestricted, so one is created transparently the first time the admin
- * switches to Limited (see createWalletResultAction). BYOK wallets aren't
- * managed through this UI.
+ * row needs to exist ahead of time — "no wallet" is treated as unrestricted,
+ * so one is created transparently the first time the admin switches to
+ * Limited (see createWalletResultAction). Dual-debit cap model: at
+ * institution scope the balance is the pool of real credits; at class scope
+ * it is the class's remaining spending limit, drawn down in lockstep with the
+ * pool. BYOK usage is unmetered and isn't managed through this UI.
  */
 export default function AiAccessAndLimitCard({
   scope,
@@ -98,7 +100,11 @@ export default function AiAccessAndLimitCard({
 
         {accessEnabled && spendMode === "limited" && (
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-sm font-normal">Available Platform Credits</Label>
+            <Label className="text-sm font-normal">
+              {scope === "institution"
+                ? "Available Platform Credits"
+                : "Remaining Spending Limit"}
+            </Label>
             <CreditAdjustControl
               balance={balance}
               disabled={readOnly}

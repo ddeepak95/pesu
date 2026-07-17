@@ -20,8 +20,8 @@ import {
 import { resolveProviderApiKeyWithSourceForAssignment } from "@/lib/konvo-voice/speech/resolveProviderKey";
 import { withRetry } from "@/lib/ai/retry";
 import { assertClassAiAccessAllowed, assertPlatformAiAccessAllowed } from "@/lib/ai/metering/access";
-import { keyOwnerFromSource } from "@/lib/ai/metering/keyOwner";
-import { assertWithinQuota, resolveWalletId } from "@/lib/ai/metering/quota";
+import { isByokSource } from "@/lib/ai/metering/keyOwner";
+import { assertWithinQuota, resolveCapWalletId } from "@/lib/ai/metering/quota";
 import { resolveInstitutionId } from "@/lib/logging/appLog";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import type { AiConfigSource } from "@/types/aiSettings";
@@ -445,25 +445,29 @@ export async function resolveMeteredSpeech(input: {
 
   let walletId: string | null = null;
   if (institutionId && classDbId) {
-    const keyOwner = keyOwnerFromSource(keySource);
+    const byok = isByokSource(keySource);
 
     // Real-time kill switch (decision 1) — see the matching comment in
     // resolveMeteredModel (model.ts). Checked on every call that isn't using
     // the class's own key.
-    if (keyOwner === "platform") {
+    if (!byok) {
       await assertPlatformAiAccessAllowed(institutionId);
     }
     if (keySource !== "class") {
       await assertClassAiAccessAllowed(classDbId);
     }
 
-    walletId = await resolveWalletId({ institutionId, classId: classDbId, keyOwner });
+    // BYOK is fully unmetered (product decision 2026-07-16): no wallet
+    // attribution, no quota check — the provider bills the key owner.
+    if (!byok) {
+      walletId = await resolveCapWalletId(institutionId, classDbId);
 
-    const shouldCheck =
-      input.context.admittedAtSessionStart !== true &&
-      input.context.quotaPolicy !== "ride-through";
-    if (shouldCheck) {
-      await assertWithinQuota({ institutionId, classId: classDbId, keyOwner });
+      const shouldCheck =
+        input.context.admittedAtSessionStart !== true &&
+        input.context.quotaPolicy !== "ride-through";
+      if (shouldCheck) {
+        await assertWithinQuota({ institutionId, classId: classDbId });
+      }
     }
   }
 
@@ -494,10 +498,10 @@ export async function resolveMeteredSpeech(input: {
 }
 
 /**
- * Resolves only the key_owner-determining keySource for a speech provider —
- * never the decrypted API key itself. Exists so session-start admission
- * (assertSessionCanStart, dev-docs/ai-usage-metering-phase3-plan.md D6) can
- * learn which wallet an STT/TTS surface would debit without importing the
+ * Resolves only the keySource for a speech provider — never the decrypted
+ * API key itself. Exists so session-start admission (assertSessionCanStart,
+ * dev-docs/ai-usage-metering-phase3-plan.md D6) can learn whether an STT/TTS
+ * surface spends platform credits (vs unmetered BYOK) without importing the
  * restricted speech-provider-key module directly (§7.2 import boundary) —
  * that module may only be touched inside src/lib/ai/gateway/**.
  */

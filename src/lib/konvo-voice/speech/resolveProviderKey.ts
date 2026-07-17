@@ -160,9 +160,9 @@ function getSourceStore(): SpeechProviderKeySourceCacheStore {
 
 /**
  * Same resolution as resolveProviderApiKeyForAssignment, but also reports
- * which scope supplied the key (class/institution -> BYOK; platform/env ->
- * platform-paid) — needed by the gateway to derive ai_key_source /
- * key_owner for metering (§5.0, §7.1, §7.2). Gateway-internal only.
+ * which scope supplied the key (class/institution -> BYOK, unmetered;
+ * platform/env -> platform-paid) — needed by the gateway to derive
+ * ai_key_source for metering (§5.0, §7.1, §7.2). Gateway-internal only.
  */
 export async function resolveProviderApiKeyWithSourceForAssignment(
   assignmentId: string,

@@ -68,9 +68,7 @@ export default async function InstitutionDetailPage({
     supabase,
     classes.map((c) => c.id),
   );
-  const platformWallet = aiWallets.find(
-    (w) => w.class_id === null && w.key_owner === "platform",
-  );
+  const platformWallet = aiWallets.find((w) => w.class_id === null);
   const fundingHistory = platformWallet
     ? await getWalletFundingHistory(supabase, platformWallet.id)
     : [];

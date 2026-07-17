@@ -41,7 +41,7 @@ export async function getClassAiManagementData(
     }),
   ]);
 
-  const platformWallet = wallets.find((w) => w.key_owner === "platform");
+  const platformWallet = wallets[0];
   const fundingHistory = platformWallet
     ? await getWalletFundingHistory(supabase, platformWallet.id)
     : [];

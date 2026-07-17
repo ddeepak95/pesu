@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase-server";
 import { resolveInstitutionId } from "@/lib/logging/appLog";
-import { getQuotaStatus, type QuotaStatus } from "@/lib/ai/metering/quota";
+import { getQuotaStatus, type WalletStatus } from "@/lib/ai/metering/quota";
 
 /**
  * dev-docs/ai-usage-metering-phase3-plan.md §9 (D12) — a read-only quota
@@ -9,6 +9,10 @@ import { getQuotaStatus, type QuotaStatus } from "@/lib/ai/metering/quota";
  * yet. Auth'd to the class's teacher/admin, its institution's admin, or a
  * platform super admin; the actual wallet read runs through the service-role
  * getQuotaStatus (D4) once that's established.
+ *
+ * Dual-debit cap model: `pool` is the institution's credit pool, `classCap`
+ * the class's own spending cap (unrestricted when the class has none). BYOK
+ * usage is unmetered and has no status to report.
  */
 
 interface PublicQuotaStatus {
@@ -18,7 +22,7 @@ interface PublicQuotaStatus {
   belowWarnThreshold?: boolean;
 }
 
-function toPublicStatus(status: QuotaStatus): PublicQuotaStatus {
+function toPublicStatus(status: WalletStatus): PublicQuotaStatus {
   if (status.kind === "unrestricted") return { kind: "unrestricted" };
   return {
     kind: "wallet",
@@ -64,18 +68,15 @@ export async function GET(request: NextRequest) {
 
   if (!institutionId) {
     return NextResponse.json({
-      platform: { kind: "unrestricted" } satisfies PublicQuotaStatus,
-      byok: { kind: "unrestricted" } satisfies PublicQuotaStatus,
+      pool: { kind: "unrestricted" } satisfies PublicQuotaStatus,
+      classCap: { kind: "unrestricted" } satisfies PublicQuotaStatus,
     });
   }
 
-  const [platform, byok] = await Promise.all([
-    getQuotaStatus({ institutionId, classId, keyOwner: "platform" }),
-    getQuotaStatus({ institutionId, classId, keyOwner: "byok" }),
-  ]);
+  const status = await getQuotaStatus({ institutionId, classId });
 
   return NextResponse.json({
-    platform: toPublicStatus(platform),
-    byok: toPublicStatus(byok),
+    pool: toPublicStatus(status.pool),
+    classCap: toPublicStatus(status.classCap),
   });
 }

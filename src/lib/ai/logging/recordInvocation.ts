@@ -98,15 +98,22 @@ async function upsertUsageCounter(rpcArgs: UsageCounterRpcArgs): Promise<boolean
 /**
  * Isolated, retried write to the ai_credit_balances wallet debit (D1). Same
  * shape as upsertUsageCounter — never allowed to fail the caller's AI
- * response. No floor at zero (decision #7): a session already admitted at
- * attempt-start may legitimately drive its wallet negative.
+ * response. Dual-debit cap model: one atomic RPC debits the class cap (when
+ * the invocation carries one) and the institution pool in lockstep. No floor
+ * at zero (decision #7): a session already admitted at attempt-start may
+ * legitimately drive its wallet negative.
  */
-async function debitWalletBalance(walletId: string, credits: number): Promise<boolean> {
+async function debitUsageWallets(input: {
+  institutionId: string;
+  capWalletId: string | null;
+  credits: number;
+}): Promise<boolean> {
   try {
     const service = createServiceRoleClient();
-    const { error } = await service.rpc("debit_wallet_balance", {
-      p_wallet_id: walletId,
-      p_credits: credits,
+    const { error } = await service.rpc("debit_usage_wallets", {
+      p_institution_id: input.institutionId,
+      p_class_wallet_id: input.capWalletId,
+      p_credits: input.credits,
     });
     if (error) {
       logAppEvent({
@@ -570,23 +577,34 @@ export async function completeAiInvocation(
     }
   }
 
-  // Wallet debit (D1) — gated on wallet_id being non-null (D5: no wallet ->
-  // nothing to debit). No floor at zero (decision #7): a session admitted at
-  // attempt-start may legitimately drive its wallet negative mid-session.
-  const walletId = (startedRow?.wallet_id as string | null) ?? null;
-  if (computed.credits != null && walletId) {
-    const firstDebitSucceeded = await debitWalletBalance(walletId, computed.credits);
+  // Wallet debit (D1), dual-debit cap model: every completed platform-key
+  // invocation under an institution debits the institution pool, plus the
+  // class cap when the invocation carries one (wallet_id). BYOK invocations
+  // (institution/class own key) are unmetered — no debit at all. No floor at
+  // zero (decision #7): a session admitted at attempt-start may legitimately
+  // drive its wallet negative mid-session.
+  const debitInstitutionId = (startedRow?.institution_id as string | null) ?? null;
+  const capWalletId = (startedRow?.wallet_id as string | null) ?? null;
+  const keySource = (startedRow?.ai_key_source as string | null) ?? null;
+  const isByok = keySource === "institution" || keySource === "class";
+  if (computed.credits != null && debitInstitutionId && !isByok) {
+    const debitInput = {
+      institutionId: debitInstitutionId,
+      capWalletId,
+      credits: computed.credits,
+    };
+    const firstDebitSucceeded = await debitUsageWallets(debitInput);
     if (!firstDebitSucceeded) {
       after(async () => {
         for (const delayMs of COUNTER_RETRY_DELAYS_MS) {
           await sleep(delayMs);
-          if (await debitWalletBalance(walletId, computed.credits!)) return;
+          if (await debitUsageWallets(debitInput)) return;
         }
         logAppEvent({
           level: "error",
           source: "usage_metering",
           event: "wallet_debit_exhausted",
-          message: `debit_wallet_balance failed after ${COUNTER_RETRY_DELAYS_MS.length} retries.`,
+          message: `debit_usage_wallets failed after ${COUNTER_RETRY_DELAYS_MS.length} retries.`,
           aiInvocationId: invocationId,
         });
       });

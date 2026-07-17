@@ -2,11 +2,18 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * `keySource` is whose API key served the calls: 'platform' (platform-managed
+ * key, spends institution credits), 'institution' (the institution's own BYOK
+ * key), or 'class' (the class's own BYOK key). Kept at this granularity so a
+ * class's usage card can tell an institution-provided key apart from the
+ * class bringing its own.
+ */
 export interface UsageBreakdownRow {
   dimension: string;
   credits: number;
   calls: number;
-  keyOwner: "platform" | "byok";
+  keySource: "platform" | "institution" | "class";
 }
 
 const SENTINEL_CLASS_ID = "00000000-0000-0000-0000-000000000000";
@@ -43,7 +50,7 @@ export async function getMonthlyUsageByModality(
 ): Promise<UsageBreakdownRow[]> {
   const { data, error } = await supabase
     .from("ai_usage_counters")
-    .select("usage_type, key_owner, credits, events")
+    .select("usage_type, key_source, credits, events")
     .eq("institution_id", input.institutionId)
     .eq("class_id", input.classId ?? SENTINEL_CLASS_ID)
     .eq("period_start", input.periodStart ?? currentMonthStart())
@@ -51,7 +58,7 @@ export async function getMonthlyUsageByModality(
   if (error) throw error;
   return (data ?? []).map((row) => ({
     dimension: USAGE_TYPE_LABELS[row.usage_type as string] ?? (row.usage_type as string),
-    keyOwner: row.key_owner as "platform" | "byok",
+    keySource: row.key_source as "platform" | "institution" | "class",
     credits: Number(row.credits),
     calls: Number(row.events),
   }));

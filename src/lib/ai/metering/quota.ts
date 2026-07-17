@@ -8,7 +8,7 @@ import { getModelEntry } from "@/lib/ai/catalog/helpers";
 import { resolveSpeechKeySource } from "@/lib/ai/gateway";
 import type { BotPromptConfig } from "@/types/assignment";
 import { QUOTA_EXCEEDED_ERROR_CODE } from "./constants";
-import { keyOwnerFromSource, type KeyOwner } from "./keyOwner";
+import { isByokSource } from "./keyOwner";
 
 /**
  * dev-docs/ai-usage-metering-phase3-plan.md D11 — mirrors AiNotConfiguredError's
@@ -43,7 +43,7 @@ interface ResolvedWalletInfo {
   softWarnThreshold: number | null;
 }
 
-export type QuotaStatus =
+export type WalletStatus =
   | { kind: "unrestricted" }
   | {
       kind: "wallet";
@@ -53,84 +53,106 @@ export type QuotaStatus =
       belowWarnThreshold: boolean;
     };
 
+/**
+ * Dual-debit cap model (product decision 2026-07-16): platform-key usage is
+ * gated at two levels at once — the institution pool (the only real money)
+ * and, when the class has one, the class's own spending cap.
+ */
+export interface QuotaStatus {
+  pool: WalletStatus;
+  classCap: WalletStatus;
+}
+
 export interface QuotaScopeInput {
   institutionId: string;
   classId: string | null;
-  keyOwner: KeyOwner;
 }
 
-/**
- * Most-specific-first lookup (D5, D6 step 2): the class-level wallet for this
- * institution+key_owner if one exists, else the institution-level wallet, else
- * no wallet at all (unrestricted). No wallet row is treated identically to
- * `enforcement = 'off'` on an existing one.
- */
-async function resolveWallet(
+async function loadBalance(
   service: ReturnType<typeof createServiceRoleClient>,
-  input: QuotaScopeInput,
-): Promise<ResolvedWalletInfo | null> {
-  const baseSelect = "id, enforcement, soft_warn_threshold";
-
-  let walletRow: Record<string, unknown> | null = null;
-
-  if (input.classId) {
-    const { data } = await service
-      .from("ai_credit_wallets")
-      .select(baseSelect)
-      .eq("institution_id", input.institutionId)
-      .eq("class_id", input.classId)
-      .eq("key_owner", input.keyOwner)
-      .maybeSingle();
-    walletRow = data as Record<string, unknown> | null;
-  }
-
-  if (!walletRow) {
-    const { data } = await service
-      .from("ai_credit_wallets")
-      .select(baseSelect)
-      .eq("institution_id", input.institutionId)
-      .is("class_id", null)
-      .eq("key_owner", input.keyOwner)
-      .maybeSingle();
-    walletRow = data as Record<string, unknown> | null;
-  }
-
-  if (!walletRow) return null;
-
-  const walletId = walletRow.id as string;
-
-  const { data: balanceRow } = await service
+  walletId: string,
+): Promise<number> {
+  const { data } = await service
     .from("ai_credit_balances")
     .select("balance")
     .eq("wallet_id", walletId)
     .maybeSingle();
+  return (data?.balance as number | undefined) ?? 0;
+}
 
+const WALLET_SELECT = "id, enforcement, soft_warn_threshold";
+
+function toResolvedInfo(
+  walletRow: Record<string, unknown>,
+  balance: number,
+): ResolvedWalletInfo {
   return {
-    walletId,
+    walletId: walletRow.id as string,
     enforcement: walletRow.enforcement as WalletEnforcement,
-    balance: (balanceRow?.balance as number | undefined) ?? 0,
+    balance,
     softWarnThreshold: (walletRow.soft_warn_threshold as number | null) ?? null,
   };
 }
 
 /**
- * Resolves the wallet id a call should be attributed to, independent of
- * whether its balance is checked (D2 gateway step: the debit needs a
- * wallet_id regardless of the admission decision). Returns null when no
- * wallet exists for this scope (D5) — the invocation is simply left
- * unattributed to any wallet.
+ * The class's spending cap, if it has an active one. An `enforcement = 'off'`
+ * row means "no cap" and is treated identically to no row at all — such a
+ * class draws from the institution pool alone (which is debited and gated
+ * regardless).
  */
-export async function resolveWalletId(input: QuotaScopeInput): Promise<string | null> {
+async function resolveClassCapWallet(
+  service: ReturnType<typeof createServiceRoleClient>,
+  institutionId: string,
+  classId: string,
+): Promise<ResolvedWalletInfo | null> {
+  const { data } = await service
+    .from("ai_credit_wallets")
+    .select(WALLET_SELECT)
+    .eq("institution_id", institutionId)
+    .eq("class_id", classId)
+    .neq("enforcement", "off")
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  return toResolvedInfo(row, await loadBalance(service, row.id as string));
+}
+
+/** The institution's credit pool — the only wallet holding real money. */
+async function resolveInstitutionPoolWallet(
+  service: ReturnType<typeof createServiceRoleClient>,
+  institutionId: string,
+): Promise<ResolvedWalletInfo | null> {
+  const { data } = await service
+    .from("ai_credit_wallets")
+    .select(WALLET_SELECT)
+    .eq("institution_id", institutionId)
+    .is("class_id", null)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  return toResolvedInfo(row, await loadBalance(service, row.id as string));
+}
+
+/**
+ * Resolves the class-cap wallet id a platform-key call should be attributed
+ * to (D2 gateway step: the debit needs it regardless of the admission
+ * decision). Returns null when the class has no active cap — the invocation's
+ * wallet_id stays null and only the institution pool is debited (which
+ * debit_usage_wallets resolves by institution_id on its own). Callers must
+ * not call this for BYOK key sources at all (BYOK is unmetered).
+ */
+export async function resolveCapWalletId(
+  institutionId: string,
+  classId: string | null,
+): Promise<string | null> {
+  if (!classId) return null;
   const service = createServiceRoleClient();
-  const wallet = await resolveWallet(service, input);
+  const wallet = await resolveClassCapWallet(service, institutionId, classId);
   return wallet?.walletId ?? null;
 }
 
-/** Read path for the quota-status endpoint (§9) and the checks below. */
-export async function getQuotaStatus(input: QuotaScopeInput): Promise<QuotaStatus> {
-  const service = createServiceRoleClient();
-  const wallet = await resolveWallet(service, input);
-  if (!wallet) return { kind: "unrestricted" };
+function toStatus(wallet: ResolvedWalletInfo | null): WalletStatus {
+  if (!wallet || wallet.enforcement === "off") return { kind: "unrestricted" };
   return {
     kind: "wallet",
     walletId: wallet.walletId,
@@ -141,15 +163,36 @@ export async function getQuotaStatus(input: QuotaScopeInput): Promise<QuotaStatu
   };
 }
 
+/** Read path for the quota-status endpoint (§9) and the checks below. */
+export async function getQuotaStatus(input: QuotaScopeInput): Promise<QuotaStatus> {
+  const service = createServiceRoleClient();
+  const [pool, classCap] = await Promise.all([
+    resolveInstitutionPoolWallet(service, input.institutionId),
+    input.classId
+      ? resolveClassCapWallet(service, input.institutionId, input.classId)
+      : Promise.resolve(null),
+  ]);
+  return { pool: toStatus(pool), classCap: toStatus(classCap) };
+}
+
+function isBlocked(status: WalletStatus): boolean {
+  return status.kind === "wallet" && status.enforcement === "block" && status.balance <= 0;
+}
+
+function isWarning(status: WalletStatus): boolean {
+  return status.kind === "wallet" && status.enforcement === "warn" && status.belowWarnThreshold;
+}
+
 /**
  * Per-call check for genuine one-shots (D6 gateway step 3). Throws before any
- * provider credential is touched or row is written when the resolved wallet
- * is block-enforced and exhausted (balance <= 0). warn-enforced/unrestricted
- * wallets never throw here.
+ * provider credential is touched or row is written when either the class cap
+ * or the institution pool is block-enforced and exhausted (balance <= 0).
+ * warn-enforced/unrestricted levels never throw here. Only meaningful for
+ * platform-key calls — BYOK callers must skip quota entirely.
  */
 export async function assertWithinQuota(input: QuotaScopeInput): Promise<void> {
   const status = await getQuotaStatus(input);
-  if (status.kind === "wallet" && status.enforcement === "block" && status.balance <= 0) {
+  if (isBlocked(status.classCap) || isBlocked(status.pool)) {
     throw new QuotaExceededError();
   }
 }
@@ -159,26 +202,29 @@ export interface AssertSessionCanStartInput {
   assignmentId: string;
 }
 
+/** Which gating level is warn-enforced and below its soft threshold. */
+export type QuotaWarningLevel = "institution" | "class";
+
 export interface AssertSessionCanStartResult {
-  /** key_owners whose wallet is warn-enforced and below its soft threshold. */
-  warnings: KeyOwner[];
+  warnings: QuotaWarningLevel[];
 }
 
 /**
  * Session-start admission (D6) — the single per-session quota gate, run once
  * from attempt-start before any AI call. Enumerates every AI surface the
  * session will use (chat LLM always; STT/TTS depending on the assignment's
- * multimodal_interaction config), resolves each to its key_owner, and blocks
- * the whole session if any distinct wallet in play is block-enforced and
- * exhausted — not just the chat LLM's wallet.
+ * multimodal_interaction config). BYOK surfaces (institution/class own key)
+ * are unmetered and skipped; if any surface spends platform credits, the
+ * session is blocked when either the class cap or the institution pool is
+ * block-enforced and exhausted.
  */
 export async function assertSessionCanStart(
   input: AssertSessionCanStartInput,
 ): Promise<AssertSessionCanStartResult> {
   const service = createServiceRoleClient();
   const institutionId = await resolveInstitutionId(service, input.classDbId);
-  // No institution resolvable for this class -> nothing to gate (D5 spirit:
-  // no wallet can ever exist for a scope with no institution).
+  // No institution resolvable for this class -> nothing to gate (no wallet
+  // can ever exist for a scope with no institution).
   if (!institutionId) return { warnings: [] };
 
   const { data: assignmentRow } = await service
@@ -189,14 +235,14 @@ export async function assertSessionCanStart(
   const interaction = (assignmentRow?.bot_prompt_config as BotPromptConfig | null)
     ?.multimodal_interaction;
 
-  const keyOwners = new Set<KeyOwner>();
+  let usesPlatformCredits = false;
 
   // Chat LLM — always a surface for this session.
   const { keySource: llmKeySource } = await getCachedResolveModelConfig({
     classDbId: input.classDbId,
     appFunctionKey: "text.chat_tutoring",
   });
-  keyOwners.add(keyOwnerFromSource(llmKeySource));
+  if (!isByokSource(llmKeySource)) usesPlatformCredits = true;
 
   const hasAudioInput = interaction?.input?.modes?.includes("audio") ?? false;
   const audioDelivery = interaction?.input?.audioDelivery ?? "transcribe";
@@ -205,7 +251,7 @@ export async function assertSessionCanStart(
   const needsStt = hasAudioInput && audioDelivery === "transcribe";
   const needsTts = speechMode !== "none";
 
-  if (needsStt || needsTts) {
+  if (!usesPlatformCredits && (needsStt || needsTts)) {
     const { sttModelId, ttsModelId } = await resolveMultimodalSpeechModelsForClass(
       input.classDbId,
     );
@@ -214,30 +260,29 @@ export async function assertSessionCanStart(
       const sttEntry = getModelEntry(sttModelId);
       if (sttEntry) {
         const keySource = await resolveSpeechKeySource(sttEntry.providerId, input.assignmentId);
-        keyOwners.add(keyOwnerFromSource(keySource));
+        if (!isByokSource(keySource)) usesPlatformCredits = true;
       }
     }
 
-    if (needsTts) {
+    if (!usesPlatformCredits && needsTts) {
       const ttsEntry = getModelEntry(ttsModelId);
       if (ttsEntry) {
         const keySource = await resolveSpeechKeySource(ttsEntry.providerId, input.assignmentId);
-        keyOwners.add(keyOwnerFromSource(keySource));
+        if (!isByokSource(keySource)) usesPlatformCredits = true;
       }
     }
   }
 
-  const warnings: KeyOwner[] = [];
-  for (const keyOwner of keyOwners) {
-    const status = await getQuotaStatus({ institutionId, classId: input.classDbId, keyOwner });
-    if (status.kind !== "wallet") continue;
-    if (status.enforcement === "block" && status.balance <= 0) {
-      throw new QuotaExceededError();
-    }
-    if (status.enforcement === "warn" && status.belowWarnThreshold) {
-      warnings.push(keyOwner);
-    }
+  // All surfaces BYOK -> fully unmetered session, nothing to gate.
+  if (!usesPlatformCredits) return { warnings: [] };
+
+  const status = await getQuotaStatus({ institutionId, classId: input.classDbId });
+  if (isBlocked(status.classCap) || isBlocked(status.pool)) {
+    throw new QuotaExceededError();
   }
 
+  const warnings: QuotaWarningLevel[] = [];
+  if (isWarning(status.pool)) warnings.push("institution");
+  if (isWarning(status.classCap)) warnings.push("class");
   return { warnings };
 }

@@ -18,9 +18,9 @@ interface WalletsPanelProps {
   /** Institution scope only. */
   institutionId?: string;
   defaultClassWalletCredits?: number | null;
-  /** Institution scope only — this scope's own wallets (`class_id === null`). Only the platform-key_owner row is shown. */
+  /** Institution scope only — the institution's credit pool wallet (`class_id === null`). */
   institutionWallets: AiCreditWallet[];
-  /** Institution scope: every class's wallets in this institution. Class scope: just this class's. Only the platform-key_owner row per class is shown. */
+  /** Institution scope: every class's cap wallets in this institution. Class scope: just this class's. */
   classWallets: AiCreditWallet[];
   /** Institution scope: every class in the institution. Class scope: the single active class. */
   classes: ClassOption[];
@@ -57,9 +57,7 @@ export default function WalletsPanel({
   onAdjustCredits,
 }: WalletsPanelProps) {
   const renderClassWalletCard = (classId: string) => {
-    const platformWallet = classWallets.find(
-      (w) => w.class_id === classId && w.key_owner === "platform",
-    );
+    const platformWallet = classWallets.find((w) => w.class_id === classId);
 
     return (
       <AiAccessAndLimitCard
@@ -91,9 +89,7 @@ export default function WalletsPanel({
     return renderClassWalletCard(cls.id);
   }
 
-  const institutionPlatformWallet = institutionWallets.find(
-    (w) => w.key_owner === "platform",
-  );
+  const institutionPlatformWallet = institutionWallets[0];
 
   return (
     <div className="space-y-8">

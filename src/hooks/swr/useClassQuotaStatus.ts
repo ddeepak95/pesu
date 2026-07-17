@@ -9,9 +9,14 @@ export interface QuotaStatusEntry {
   belowWarnThreshold?: boolean;
 }
 
+/**
+ * Dual-debit cap model: `pool` is the institution's credit pool, `classCap`
+ * the class's own spending cap (unrestricted when the class has none). BYOK
+ * usage is unmetered and never appears here.
+ */
 export interface ClassQuotaStatusResponse {
-  platform: QuotaStatusEntry;
-  byok: QuotaStatusEntry;
+  pool: QuotaStatusEntry;
+  classCap: QuotaStatusEntry;
 }
 
 async function fetchClassQuotaStatus(

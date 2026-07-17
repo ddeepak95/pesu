@@ -1,5 +1,5 @@
 -- AI usage metering — Phase 2 Step 1 (dev-docs/ai-usage-metering-phase2-plan.md §1)
--- O(1) analytics rollup over ai_invocations, keyed by (institution, class, key_owner,
+-- O(1) analytics rollup over ai_invocations, keyed by (institution, class, key_source,
 -- period, usage_type). A pure, rebuildable cache — never a second source of truth.
 
 -- Sentinel class_id for institution-wide rows (no FK — matches plan §4.5's rationale
@@ -8,13 +8,13 @@
 create table if not exists public.ai_usage_counters (
   institution_id uuid not null references public.institutions(id) on delete cascade,
   class_id       uuid not null default '00000000-0000-0000-0000-000000000000',
-  key_owner      text not null,
+  key_source     text not null,  -- 'platform' | 'institution' | 'class' (whose API key served the call)
   period_start   date not null,
   usage_type     text not null,
   credits        numeric(20,8) not null default 0,
   events         bigint not null default 0,
   updated_at     timestamptz not null default now(),
-  primary key (institution_id, class_id, key_owner, period_start, usage_type)
+  primary key (institution_id, class_id, key_source, period_start, usage_type)
 );
 
 alter table public.ai_usage_counters owner to postgres;
@@ -32,26 +32,29 @@ create policy "Usage counters readable by admins and class teachers" on public.a
 
 grant all on table public.ai_usage_counters to service_role;
 
--- D1: the single source of truth for ai_key_source -> key_owner. Called by both the
--- hot-path upsert and the nightly rebuild so the two can never drift from each other.
--- 'platform'/'env' -> 'platform'; 'institution'/'class' -> 'byok'; anything else ->
--- 'platform' fail-safe default (flagged separately by the reconcile job's
+-- D1: the single source of truth for ai_key_source -> key_source. Called by
+-- both the hot-path upsert and the nightly rebuild so the two can never drift
+-- from each other. Keeps the resolved key's scope granularity so the UI can
+-- tell an institution-owned BYOK key apart from a class-owned one:
+-- 'institution'/'class' pass through as-is; 'env' (platform-managed key
+-- outside the catalog) normalizes to 'platform'; anything else -> 'platform'
+-- fail-safe default (flagged separately by the reconcile job's
 -- unmapped_key_source anomaly check).
-create or replace function public.key_owner_from_source(p_ai_key_source text)
+create or replace function public.normalize_key_source(p_ai_key_source text)
 returns text
 language sql
 immutable
 as $$
-  select case p_ai_key_source
-    when 'platform' then 'platform'
-    when 'env' then 'platform'
-    when 'institution' then 'byok'
-    when 'class' then 'byok'
+  select case
+    when p_ai_key_source in ('institution', 'class') then p_ai_key_source
     else 'platform'
   end;
 $$;
 
-revoke execute on function public.key_owner_from_source(text) from anon, authenticated;
+-- Revoke from PUBLIC too — Postgres grants EXECUTE on new functions to PUBLIC
+-- by default, so named-role revokes alone don't actually restrict anything.
+revoke all on function public.normalize_key_source(text) from public, anon, authenticated;
+grant execute on function public.normalize_key_source(text) to service_role;
 
 -- Upserts 4 fan-out rows per invocation: (class, usage_type), (class, 'all'),
 -- (institution-wide sentinel, usage_type), (institution-wide sentinel, 'all').
@@ -70,7 +73,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_key_owner text;
+  v_key_source text;
   v_period_start date;
   v_credits numeric(20,8);
   v_sentinel uuid := '00000000-0000-0000-0000-000000000000';
@@ -80,17 +83,17 @@ begin
     return;
   end if;
 
-  v_key_owner := public.key_owner_from_source(p_ai_key_source);
+  v_key_source := public.normalize_key_source(p_ai_key_source);
   v_period_start := date_trunc('month', p_started_at at time zone 'UTC')::date;
   v_credits := coalesce(p_credits, 0);
   v_class_id := coalesce(p_class_id, v_sentinel);
 
   -- Institution-wide sentinel rows, always written.
-  insert into public.ai_usage_counters (institution_id, class_id, key_owner, period_start, usage_type, credits, events)
+  insert into public.ai_usage_counters (institution_id, class_id, key_source, period_start, usage_type, credits, events)
   values
-    (p_institution_id, v_sentinel, v_key_owner, v_period_start, p_usage_type, v_credits, 1),
-    (p_institution_id, v_sentinel, v_key_owner, v_period_start, 'all', v_credits, 1)
-  on conflict (institution_id, class_id, key_owner, period_start, usage_type)
+    (p_institution_id, v_sentinel, v_key_source, v_period_start, p_usage_type, v_credits, 1),
+    (p_institution_id, v_sentinel, v_key_source, v_period_start, 'all', v_credits, 1)
+  on conflict (institution_id, class_id, key_source, period_start, usage_type)
   do update set
     credits = public.ai_usage_counters.credits + excluded.credits,
     events = public.ai_usage_counters.events + 1,
@@ -100,11 +103,11 @@ begin
   -- this would collide with the sentinel rows above within the same statement
   -- (same conflict key hit twice), which Postgres rejects.
   if v_class_id <> v_sentinel then
-    insert into public.ai_usage_counters (institution_id, class_id, key_owner, period_start, usage_type, credits, events)
+    insert into public.ai_usage_counters (institution_id, class_id, key_source, period_start, usage_type, credits, events)
     values
-      (p_institution_id, v_class_id, v_key_owner, v_period_start, p_usage_type, v_credits, 1),
-      (p_institution_id, v_class_id, v_key_owner, v_period_start, 'all', v_credits, 1)
-    on conflict (institution_id, class_id, key_owner, period_start, usage_type)
+      (p_institution_id, v_class_id, v_key_source, v_period_start, p_usage_type, v_credits, 1),
+      (p_institution_id, v_class_id, v_key_source, v_period_start, 'all', v_credits, 1)
+    on conflict (institution_id, class_id, key_source, period_start, usage_type)
     do update set
       credits = public.ai_usage_counters.credits + excluded.credits,
       events = public.ai_usage_counters.events + 1,
@@ -113,4 +116,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.record_usage_counter(uuid, uuid, text, timestamptz, text, numeric) from anon, authenticated;
+revoke all on function public.record_usage_counter(uuid, uuid, text, timestamptz, text, numeric) from public, anon, authenticated;
+grant execute on function public.record_usage_counter(uuid, uuid, text, timestamptz, text, numeric) to service_role;

@@ -12,7 +12,6 @@ import {
   updateWalletPolicy,
   type AiCreditWallet,
   type WalletEnforcement,
-  type WalletKeyOwner,
 } from "@/lib/queries/aiCreditWallets";
 import {
   getMonthlyUsageByModality,
@@ -82,7 +81,6 @@ export interface CreateWalletActionResult extends WalletActionResult {
 export async function createWalletResultAction(input: {
   institutionId: string;
   classId: string | null;
-  keyOwner: WalletKeyOwner;
   enforcement?: WalletEnforcement;
   classShortId?: string | null;
 }): Promise<CreateWalletActionResult> {
@@ -92,7 +90,6 @@ export async function createWalletResultAction(input: {
     wallet = await createWallet(supabase, {
       institutionId: input.institutionId,
       classId: input.classId,
-      keyOwner: input.keyOwner,
       enforcement: input.enforcement,
     });
   } catch (err) {
@@ -112,7 +109,6 @@ export async function updateWalletPolicyResultAction(input: {
   enforcement: WalletEnforcement;
   maxBalance: number | null;
   softWarnThreshold: number | null;
-  classAllocationCapacity: number | null;
   classId?: string | null;
   classShortId?: string | null;
 }): Promise<WalletActionResult> {
@@ -123,7 +119,6 @@ export async function updateWalletPolicyResultAction(input: {
       enforcement: input.enforcement,
       maxBalance: input.maxBalance,
       softWarnThreshold: input.softWarnThreshold,
-      classAllocationCapacity: input.classAllocationCapacity,
     });
   } catch (err) {
     return fail(err);

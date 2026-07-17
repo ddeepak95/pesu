@@ -2,20 +2,32 @@
 -- §Implementation 1-2). Wallets + ledger + derived balance + policy audit, plus
 -- allocate_wallet_credits (the only funding/policy write path this phase — D9).
 
+-- Dual-debit cap model (product decision 2026-07-16): the institution-level
+-- wallet (class_id null) is the only pool of real money — every platform-key
+-- usage under the institution debits it. A class-level wallet is a spending
+-- CAP on that pool: its balance is the class's remaining allowance, debited in
+-- lockstep with the pool; setting/raising a cap never moves money and caps may
+-- over-commit the pool. BYOK usage (institution/class custom API keys) is
+-- fully unmetered — no wallet, no gating, no debit.
 create table public.ai_credit_wallets (
   id             uuid primary key default gen_random_uuid(),
   institution_id uuid not null references public.institutions(id) on delete cascade,
-  class_id       uuid references public.classes(id) on delete cascade,  -- null = institution-level
-  key_owner      text not null default 'platform',                      -- 'platform' | 'byok'
+  class_id       uuid references public.classes(id) on delete cascade,  -- null = institution-level pool
   monthly_grant  numeric(14,4),      -- reserved for future cron (D-revision #1); inert this phase
   max_balance    numeric(14,4),      -- this wallet's own rollover cap; null = unbounded
-  class_allocation_capacity numeric(14,4),  -- institution-only; null = unbounded (D8)
   soft_warn_threshold numeric(14,4),
   enforcement    text not null default 'off',       -- 'off' | 'warn' | 'block'
-  self_manage_enabled boolean not null default false, -- institution-BYOK-only; locked, D10
-  updated_at     timestamptz not null default now(),
-  unique (institution_id, class_id, key_owner)
+  self_manage_enabled boolean not null default false, -- reserved (locked, D10); inert this phase
+  updated_at     timestamptz not null default now()
 );
+
+-- Two partial unique indexes instead of unique(institution_id, class_id):
+-- NULLs are distinct in a plain unique constraint, which would allow duplicate
+-- institution-level (class_id null) wallet rows.
+create unique index ai_credit_wallets_institution_pool_uidx
+  on public.ai_credit_wallets (institution_id) where class_id is null;
+create unique index ai_credit_wallets_class_cap_uidx
+  on public.ai_credit_wallets (institution_id, class_id) where class_id is not null;
 
 alter table public.ai_credit_wallets owner to postgres;
 
@@ -132,7 +144,6 @@ create policy "Admins create wallets in their scope" on public.ai_credit_wallets
   with check (
     public.is_platform_super_admin()
     or (class_id is not null and public.is_institution_admin(institution_id))
-    or (class_id is null and key_owner = 'byok' and public.is_institution_admin(institution_id))
   );
 
 create policy "Admins update wallets in their scope" on public.ai_credit_wallets
@@ -140,23 +151,18 @@ create policy "Admins update wallets in their scope" on public.ai_credit_wallets
   using (
     public.is_platform_super_admin()
     or (class_id is not null and public.is_institution_admin(institution_id))
-    or (class_id is null and key_owner = 'byok' and self_manage_enabled and public.is_institution_admin(institution_id))
   )
   with check (
     public.is_platform_super_admin()
     or (class_id is not null and public.is_institution_admin(institution_id))
-    or (class_id is null and key_owner = 'byok' and self_manage_enabled and public.is_institution_admin(institution_id))
   );
 
--- Note the asymmetry: an institution admin can CREATE their institution's BYOK
--- wallet row (it starts locked), but can only UPDATE it once self_manage_enabled
--- is already true — resolved by a super admin's prior write. A platform-key_owner
--- institution-level wallet is never writable by an institution admin at all
--- (only super admin), regardless of INSERT or UPDATE.
+-- The institution-level pool wallet is never writable by an institution admin
+-- (only super admin); institution admins manage their classes' cap wallets.
 
 -- No write RLS policies on ai_credit_transactions/ai_credit_balances — those are
 -- only ever written by allocate_wallet_credits (SECURITY DEFINER) and
--- debit_wallet_balance (service-role, gateway-only), never by a direct client
+-- debit_usage_wallets (service-role, gateway-only), never by a direct client
 -- insert. No write RLS policies on ai_credit_wallet_policy_audit either — only
 -- the lock-and-audit trigger below writes to it.
 
@@ -208,8 +214,11 @@ create trigger ai_credit_wallets_audit_trg
   after insert or update on public.ai_credit_wallets
   for each row execute function public.ai_credit_wallets_audit();
 
--- ─── allocate_wallet_credits — funding, with capacity + permission checks
--- (D8, D9) ─────────────────────────────────────────────────────────────────
+-- ─── allocate_wallet_credits — funding, with permission checks (D9) ─────────
+-- Institution pool (class_id null): 'topup' — real money, super admin only.
+-- Class cap (class_id set): 'allocation' — adjusts the class's allowance, never
+-- moves money out of the pool; caps may over-commit the pool by design (dual-
+-- debit model), so there is no capacity ceiling check here.
 
 create or replace function public.allocate_wallet_credits(
   p_wallet_id uuid, p_credits numeric, p_note text default null
@@ -218,8 +227,6 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_wallet public.ai_credit_wallets%rowtype;
   v_is_super boolean := public.is_platform_super_admin();
-  v_capacity numeric(14,4);
-  v_current_class_sum numeric(14,4);
   v_type text;
 begin
   select * into v_wallet from public.ai_credit_wallets where id = p_wallet_id;
@@ -229,42 +236,13 @@ begin
 
   if v_wallet.class_id is null then
     v_type := 'topup';
-    if v_wallet.key_owner = 'platform' and not v_is_super then
-      raise exception 'Only platform super admins may fund a platform institution wallet';
-    end if;
-    if v_wallet.key_owner = 'byok' and not v_is_super
-       and not (v_wallet.self_manage_enabled and public.is_institution_admin(v_wallet.institution_id)) then
-      raise exception 'Not permitted to fund this institution''s BYOK wallet';
+    if not v_is_super then
+      raise exception 'Only platform super admins may fund an institution wallet';
     end if;
   else
     v_type := 'allocation';
     if not v_is_super and not public.is_institution_admin(v_wallet.institution_id) then
       raise exception 'Not permitted to fund this class wallet';
-    end if;
-
-    -- FOR UPDATE serializes concurrent class allocations under the same
-    -- institution+key_owner on the single institution-wallet row, so the
-    -- sum-then-insert capacity check below can't be raced past its ceiling
-    -- (D8). No institution wallet row -> no capacity -> unbounded, and
-    -- nothing to race. Concurrent debits only shrink the sum (free up room),
-    -- a safe direction, so they need no lock.
-    select w.class_allocation_capacity into v_capacity
-    from public.ai_credit_wallets w
-    where w.institution_id = v_wallet.institution_id
-      and w.class_id is null and w.key_owner = v_wallet.key_owner
-    for update;
-
-    if v_capacity is not null then
-      select coalesce(sum(b.balance), 0) into v_current_class_sum
-      from public.ai_credit_balances b
-      join public.ai_credit_wallets w on w.id = b.wallet_id
-      where w.institution_id = v_wallet.institution_id
-        and w.class_id is not null and w.key_owner = v_wallet.key_owner;
-
-      if v_current_class_sum + p_credits > v_capacity then
-        raise exception 'Allocating % would exceed institution capacity (currently % of % allocated)',
-          p_credits, v_current_class_sum, v_capacity;
-      end if;
     end if;
   end if;
 
@@ -284,20 +262,43 @@ revoke all on function public.allocate_wallet_credits(uuid, numeric, text) from 
 grant execute on function public.allocate_wallet_credits(uuid, numeric, text) to authenticated;
 grant execute on function public.allocate_wallet_credits(uuid, numeric, text) to service_role;
 
--- ─── debit_wallet_balance — called from completeAiInvocation (D1), alongside
--- record_usage_counter. Service-role-only; no floor at zero (a wallet may
--- legitimately go negative mid-session, decision #7). Shape unchanged from
--- the original main-plan draft (dev-docs/ai-usage-metering-plan.md §4.6).
-create or replace function public.debit_wallet_balance(
-  p_wallet_id uuid, p_credits numeric
+-- ─── debit_usage_wallets — called from completeAiInvocation (D1), alongside
+-- record_usage_counter. One atomic debit per completed platform-key invocation:
+-- the class cap (when the class has one) AND the institution pool move in
+-- lockstep. Upserts so a wallet whose balance row doesn't exist yet still
+-- records the debit instead of silently no-oping. Service-role-only; no floor
+-- at zero (a wallet may legitimately go negative mid-session, decision #7).
+create or replace function public.debit_usage_wallets(
+  p_institution_id uuid, p_class_wallet_id uuid, p_credits numeric
 ) returns void
-language sql security definer set search_path = public as $$
-  update public.ai_credit_balances
-    set balance = balance - p_credits,
-        updated_at = now()
-    where wallet_id = p_wallet_id;
+language plpgsql security definer set search_path = public as $$
+declare
+  v_pool_wallet_id uuid;
+begin
+  if p_class_wallet_id is not null then
+    insert into public.ai_credit_balances (wallet_id, balance)
+    values (p_class_wallet_id, -p_credits)
+    on conflict (wallet_id) do update
+      set balance = ai_credit_balances.balance - p_credits, updated_at = now();
+  end if;
+
+  select id into v_pool_wallet_id
+  from public.ai_credit_wallets
+  where institution_id = p_institution_id and class_id is null;
+
+  if v_pool_wallet_id is not null then
+    insert into public.ai_credit_balances (wallet_id, balance)
+    values (v_pool_wallet_id, -p_credits)
+    on conflict (wallet_id) do update
+      set balance = ai_credit_balances.balance - p_credits, updated_at = now();
+  end if;
+end;
 $$;
 
-alter function public.debit_wallet_balance(uuid, numeric) owner to postgres;
+alter function public.debit_usage_wallets(uuid, uuid, numeric) owner to postgres;
 
-revoke execute on function public.debit_wallet_balance(uuid, numeric) from anon, authenticated;
+-- Revoke from PUBLIC, not just anon/authenticated — Postgres grants EXECUTE
+-- on new functions to PUBLIC by default, so revoking only the named roles
+-- would leave them access through the PUBLIC grant.
+revoke all on function public.debit_usage_wallets(uuid, uuid, numeric) from public, anon, authenticated;
+grant execute on function public.debit_usage_wallets(uuid, uuid, numeric) to service_role;
