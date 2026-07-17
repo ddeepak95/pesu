@@ -27,7 +27,7 @@ export interface UsageTypeDefinition {
 export const USAGE_TYPE_REGISTRY: Record<UsageType, UsageTypeDefinition> = {
   text_generation: {
     usageType: "text_generation",
-    label: "Text generation",
+    label: "Foundation model",
     billableMetrics: [
       "input_token",
       "output_token",

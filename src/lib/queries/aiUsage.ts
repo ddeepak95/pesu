@@ -19,7 +19,7 @@ export interface UsageBreakdownRow {
 const SENTINEL_CLASS_ID = "00000000-0000-0000-0000-000000000000";
 
 const USAGE_TYPE_LABELS: Record<string, string> = {
-  text_generation: "Text generation",
+  text_generation: "Foundation model",
   speech_to_text: "Speech to text",
   text_to_speech: "Text to speech",
   realtime_dialogue: "Realtime dialogue",

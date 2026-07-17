@@ -86,6 +86,7 @@ export default function UsageOverview({
             unitLabel="AI Credits"
             rows={breakdown}
             valueKey="credits"
+            classScope={classId != null}
           />
           <ModalityBreakdownCard
             title="By API Requests"
@@ -93,6 +94,7 @@ export default function UsageOverview({
             rows={breakdown}
             valueKey="calls"
             formatValue={(v) => v.toLocaleString()}
+            classScope={classId != null}
           />
         </div>
       </div>
@@ -128,7 +130,14 @@ export default function UsageOverview({
                     )}
                   </div>
                   <div className="text-muted-foreground">
-                    {new Date(entry.createdAt).toLocaleDateString()}
+                    {/* Fixed locale — this renders during SSR, and a bare
+                        toLocaleDateString() hydration-mismatches whenever the
+                        server and browser locales differ. */}
+                    {new Date(entry.createdAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
                   </div>
                 </li>
               ))}

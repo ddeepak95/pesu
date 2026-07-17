@@ -5,7 +5,7 @@
  * Slot 8 (red) is the fallback for any future/unrecognized usage_type label.
  */
 const MODALITY_COLOR_CLASSES: Record<string, string> = {
-  "Text generation": "bg-[#2a78d6] dark:bg-[#3987e5]", // slot 1 — blue
+  "Foundation model": "bg-[#2a78d6] dark:bg-[#3987e5]", // slot 1 — blue
   "Speech to text": "bg-[#008300] dark:bg-[#008300]", // slot 2 — green
   "Text to speech": "bg-[#e87ba4] dark:bg-[#d55181]", // slot 3 — magenta
   "Realtime dialogue": "bg-[#eda100] dark:bg-[#c98500]", // slot 4 — yellow
