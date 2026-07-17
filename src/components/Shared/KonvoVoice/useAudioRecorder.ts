@@ -17,6 +17,8 @@ export interface UseAudioRecorderResult {
   primeAudio: () => void;
   startRecording: () => Promise<boolean>;
   stopRecording: () => Promise<StopRecordingResult>;
+  /** Discard an in-progress recording: stop the mic without producing a blob. */
+  cancelRecording: () => void;
   clearRecording: () => void;
   error: string | null;
 }
@@ -311,6 +313,7 @@ export function useAudioRecorder(
     primeAudio,
     startRecording,
     stopRecording,
+    cancelRecording: abortCurrentSession,
     clearRecording,
     error,
   };

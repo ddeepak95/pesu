@@ -708,7 +708,12 @@ export function MultimodalInputArea({
     ],
   );
 
+  const { cancelRecording } = recorder;
+
   const finishSubmission = React.useCallback(async () => {
+    // The activity is over — discard any in-progress mic recording (no turn is
+    // produced) so the mic doesn't stay hot behind the evaluating overlay.
+    cancelRecording();
     const answerText = formatFullConversationTranscript(messagesRef.current).trim();
     // handleEvaluate re-throws on failure (a contract the static-text input relies
     // on for answer preservation). Here the transcript already lives in messagesRef
@@ -719,7 +724,7 @@ export function MultimodalInputArea({
     } catch {
       /* surfaced in-place by AssessmentShell's retry card */
     }
-  }, [onSubmitForEvaluation, sessionId]);
+  }, [onSubmitForEvaluation, sessionId, cancelRecording]);
 
   // Live streaming bubble: the assistant message is appended as soon as text
   // starts arriving and updated in place as more streams in. `commit` then just
@@ -1733,7 +1738,12 @@ export function MultimodalInputArea({
   }, [micRequestPending, requestAccess]);
 
   const handleMicPress = React.useCallback(async () => {
-    if (maxAttemptsReached || isTranscribing || (isThinking && !isSpeaking)) {
+    if (
+      maxAttemptsReached ||
+      isEvaluating ||
+      isTranscribing ||
+      (isThinking && !isSpeaking)
+    ) {
       return;
     }
     recorder.primeAudio();
@@ -1988,6 +1998,7 @@ export function MultimodalInputArea({
     assignmentId,
     activityType,
     attempt,
+    isEvaluating,
     isSpeaking,
     isThinking,
     isTranscribing,
