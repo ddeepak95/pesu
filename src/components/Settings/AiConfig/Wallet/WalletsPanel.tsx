@@ -2,9 +2,13 @@
 
 import AiAccessAndLimitCard, {
   type AiSpendMode,
+  type ByokCounting,
 } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 import { spendModeForWallet } from "@/lib/ai/metering/spendMode";
-import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
+import type {
+  AiCreditWallet,
+  DefaultClassWalletSettings,
+} from "@/lib/queries/aiCreditWallets";
 
 import DefaultClassWalletCreditsForm from "./DefaultClassWalletCreditsForm";
 
@@ -17,7 +21,7 @@ interface WalletsPanelProps {
   scope: "institution" | "class";
   /** Institution scope only. */
   institutionId?: string;
-  defaultClassWalletCredits?: number | null;
+  defaultClassWalletSettings?: DefaultClassWalletSettings | null;
   /** Institution scope only — the institution's credit pool wallet (`class_id === null`). */
   institutionWallets: AiCreditWallet[];
   /** Institution scope: every class's cap wallets in this institution. Class scope: just this class's. */
@@ -38,12 +42,17 @@ interface WalletsPanelProps {
     mode: AiSpendMode,
   ) => void;
   onAdjustCredits: (walletId: string, delta: number) => void;
+  onByokCountingChange?: (
+    wallet: AiCreditWallet,
+    classId: string,
+    next: ByokCounting,
+  ) => void;
 }
 
 export default function WalletsPanel({
   scope,
   institutionId,
-  defaultClassWalletCredits,
+  defaultClassWalletSettings,
   institutionWallets,
   classWallets,
   classes,
@@ -55,6 +64,7 @@ export default function WalletsPanel({
   canEditClassWallet,
   onSpendModeChange,
   onAdjustCredits,
+  onByokCountingChange,
 }: WalletsPanelProps) {
   const renderClassWalletCard = (classId: string) => {
     const platformWallet = classWallets.find((w) => w.class_id === classId);
@@ -76,6 +86,19 @@ export default function WalletsPanel({
         onAdjustCredits={
           platformWallet
             ? (delta) => onAdjustCredits(platformWallet.id, delta)
+            : undefined
+        }
+        byokCounting={
+          platformWallet
+            ? {
+                countInstitutionByok: platformWallet.count_institution_byok,
+                countClassByok: platformWallet.count_class_byok,
+              }
+            : undefined
+        }
+        onByokCountingChange={
+          platformWallet && onByokCountingChange
+            ? (next) => onByokCountingChange(platformWallet, classId, next)
             : undefined
         }
         readOnly={!canEditClassWallet(platformWallet)}
@@ -113,7 +136,13 @@ export default function WalletsPanel({
         {institutionId && (
           <DefaultClassWalletCreditsForm
             institutionId={institutionId}
-            defaultCredits={defaultClassWalletCredits ?? null}
+            defaultSettings={
+              defaultClassWalletSettings ?? {
+                credits: null,
+                countInstitutionByok: true,
+                countClassByok: false,
+              }
+            }
           />
         )}
       </section>

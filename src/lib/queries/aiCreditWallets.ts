@@ -9,7 +9,9 @@ export type WalletEnforcement = "off" | "warn" | "block";
  * institution's credit pool — the only real money; its balance is debited by
  * every platform-key invocation under the institution. A class-level row is a
  * spending cap; its balance is the class's remaining allowance, debited in
- * lockstep with the pool. BYOK usage has no wallet at all.
+ * lockstep with the pool. BYOK usage never touches the pool; a class cap may
+ * opt in to counting it via the count_*_byok flags (class rows only — inert
+ * on the pool).
  */
 export interface AiCreditWallet {
   id: string;
@@ -20,12 +22,14 @@ export interface AiCreditWallet {
   soft_warn_threshold: number | null;
   enforcement: WalletEnforcement;
   self_manage_enabled: boolean;
+  count_institution_byok: boolean;
+  count_class_byok: boolean;
   updated_at: string;
   balance: number;
 }
 
 const WALLET_COLUMNS =
-  "id, institution_id, class_id, monthly_grant, max_balance, soft_warn_threshold, enforcement, self_manage_enabled, updated_at";
+  "id, institution_id, class_id, monthly_grant, max_balance, soft_warn_threshold, enforcement, self_manage_enabled, count_institution_byok, count_class_byok, updated_at";
 
 async function attachBalances(
   supabase: SupabaseClient,
@@ -112,6 +116,8 @@ export async function updateWalletPolicy(
     enforcement: WalletEnforcement;
     maxBalance: number | null;
     softWarnThreshold: number | null;
+    countInstitutionByok: boolean;
+    countClassByok: boolean;
   },
 ): Promise<void> {
   const { error } = await supabase
@@ -120,6 +126,8 @@ export async function updateWalletPolicy(
       enforcement: input.enforcement,
       max_balance: input.maxBalance,
       soft_warn_threshold: input.softWarnThreshold,
+      count_institution_byok: input.countInstitutionByok,
+      count_class_byok: input.countClassByok,
     })
     .eq("id", input.walletId);
   if (error) throw error;
@@ -150,32 +158,53 @@ export async function allocateWalletCredits(
 }
 
 /**
- * The institution's default grant/enforcement applied to a newly created
- * class's auto-provisioned wallet (seed_class_ai_credit_wallet trigger,
- * 20260717000000_ai_credit_wallets_auto_provision.sql). `null` = unbounded —
- * new classes get an explicit `enforcement='off'` wallet instead. Lives on
+ * The institution's defaults applied to a newly created class's
+ * auto-provisioned wallet (seed_class_ai_credit_wallet trigger,
+ * 20260717000000_ai_credit_wallets_auto_provision.sql +
+ * 20260721000000_ai_wallet_byok_metering.sql). `credits: null` = unbounded —
+ * the new class gets no wallet row at all, which also makes the two BYOK
+ * default flags inert (no cap = nothing to count). Lives on
  * `ai_institution_settings` (not `ai_credit_wallets`) since institution
  * admins already have write access to that row without any new RLS.
  */
-export async function getDefaultClassWalletCredits(
+export interface DefaultClassWalletSettings {
+  credits: number | null;
+  countInstitutionByok: boolean;
+  countClassByok: boolean;
+}
+
+export async function getDefaultClassWalletSettings(
   supabase: SupabaseClient,
   institutionId: string,
-): Promise<number | null> {
+): Promise<DefaultClassWalletSettings> {
   const { data, error } = await supabase
     .from("ai_institution_settings")
-    .select("default_class_wallet_credits")
+    .select(
+      "default_class_wallet_credits, default_class_count_institution_byok, default_class_count_class_byok",
+    )
     .eq("institution_id", institutionId)
     .maybeSingle();
   if (error) throw error;
-  return (data?.default_class_wallet_credits as number | null | undefined) ?? null;
+  return {
+    credits: (data?.default_class_wallet_credits as number | null | undefined) ?? null,
+    countInstitutionByok:
+      (data?.default_class_count_institution_byok as boolean | undefined) ?? true,
+    countClassByok:
+      (data?.default_class_count_class_byok as boolean | undefined) ?? false,
+  };
 }
 
-export async function setDefaultClassWalletCredits(
+export async function setDefaultClassWalletSettings(
   supabase: SupabaseClient,
-  input: { institutionId: string; credits: number | null },
+  input: { institutionId: string } & DefaultClassWalletSettings,
 ): Promise<void> {
   const { error } = await supabase.from("ai_institution_settings").upsert(
-    { institution_id: input.institutionId, default_class_wallet_credits: input.credits },
+    {
+      institution_id: input.institutionId,
+      default_class_wallet_credits: input.credits,
+      default_class_count_institution_byok: input.countInstitutionByok,
+      default_class_count_class_byok: input.countClassByok,
+    },
     { onConflict: "institution_id" },
   );
   if (error) throw error;

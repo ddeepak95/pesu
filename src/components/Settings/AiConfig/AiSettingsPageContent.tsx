@@ -31,10 +31,13 @@ import {
   type AiInstitutionPolicy,
 } from "@/types/aiSettings";
 
+import { CATALOG_PROVIDERS } from "@/lib/ai/catalog/data";
+
 import AiChildOverrideDefaultRow from "./AiChildOverrideDefaultRow";
 import AiConfigLocksRow from "./AiConfigLocksRow";
 import AiFunctionsPanel from "./AiFunctionsPanel";
 import AiModelCatalogDialog from "./AiModelCatalogDialog";
+import type { InstitutionDefaultSource } from "./AiProviderCard";
 import AiProvidersPanel from "./AiProvidersPanel";
 import ClassAiOverrideRow from "./ClassAiOverrideRow";
 
@@ -43,6 +46,7 @@ interface AiSettingsPageContentProps {
   scopeId: string;
   institutionId?: string;
   title: string;
+  description?: string;
   viewerRole?: ViewerRole;
   institutionPolicy?: AiInstitutionPolicy;
   classOverridePolicy?: AiClassOverridePolicy;
@@ -57,6 +61,7 @@ export default function AiSettingsPageContent({
   scopeId,
   institutionId,
   title,
+  description,
   viewerRole = "super_admin",
   institutionPolicy,
   classOverridePolicy,
@@ -119,6 +124,28 @@ export default function AiSettingsPageContent({
     return state;
   }, [scope, state, platformState, institutionState]);
 
+  // What "Institution Default" resolves to per provider at class scope —
+  // institution BYOK when the institution has its own active key, otherwise
+  // the platform's credit-metered key. Display-only: just the source enum
+  // crosses into the card, never key material.
+  const institutionDefaultSources = useMemo(() => {
+    if (scope !== "class" || !institutionState || !platformState) {
+      return undefined;
+    }
+    const map: Partial<Record<ProviderId, InstitutionDefaultSource>> = {};
+    for (const provider of CATALOG_PROVIDERS) {
+      const inst = institutionState.providers[provider.id];
+      const plat = platformState.providers[provider.id];
+      map[provider.id] =
+        inst?.isActive && !inst.usePlatformDefault
+          ? "institution"
+          : plat?.isActive
+            ? "platform"
+            : "none";
+    }
+    return map;
+  }, [scope, institutionState, platformState]);
+
   const highlightModelId =
     state.functions.text?.modelId ??
     institutionState?.functions.text?.modelId ??
@@ -157,6 +184,9 @@ export default function AiSettingsPageContent({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">{title}</h2>
+        {description && (
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        )}
         {(isPending || error) && (
           <p className="mt-2 text-xs text-muted-foreground">
             {isPending ? "Saving…" : null}
@@ -219,6 +249,7 @@ export default function AiSettingsPageContent({
               institutionPolicy?.allowUsePlatformDefaults ?? true
             }
             allowUseInstitutionDefault={classAccessEnabled}
+            institutionDefaultSources={institutionDefaultSources}
             canEdit={canEditProviders}
             onActivate={activateProvider}
             onDeactivate={deactivateProvider}

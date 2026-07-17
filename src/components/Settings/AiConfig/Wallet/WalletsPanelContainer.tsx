@@ -11,8 +11,14 @@ import {
   updateWalletPolicyResultAction,
 } from "@/lib/ai/metering/actions";
 import { enforcementForSpendMode } from "@/lib/ai/metering/spendMode";
-import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
-import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
+import type {
+  AiSpendMode,
+  ByokCounting,
+} from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
+import type {
+  AiCreditWallet,
+  DefaultClassWalletSettings,
+} from "@/lib/queries/aiCreditWallets";
 
 import WalletsPanel from "./WalletsPanel";
 
@@ -27,7 +33,7 @@ interface WalletsPanelContainerProps {
   institutionId: string;
   isSuperAdmin: boolean;
   /** Institution scope only. */
-  defaultClassWalletCredits?: number | null;
+  defaultClassWalletSettings?: DefaultClassWalletSettings | null;
   /** Institution scope only — this scope's own wallets (`class_id === null`). */
   institutionWallets: AiCreditWallet[];
   /** Institution scope: every class's wallets. Class scope: just this class's. */
@@ -55,7 +61,7 @@ export default function WalletsPanelContainer({
   scope,
   institutionId,
   isSuperAdmin,
-  defaultClassWalletCredits,
+  defaultClassWalletSettings,
   institutionWallets: initialInstitutionWallets,
   classWallets: initialClassWallets,
   classes,
@@ -184,12 +190,49 @@ export default function WalletsPanelContainer({
         enforcement,
         maxBalance: wallet.max_balance,
         softWarnThreshold: wallet.soft_warn_threshold,
+        countInstitutionByok: wallet.count_institution_byok,
+        countClassByok: wallet.count_class_byok,
         classId,
         classShortId: classId ? classById.get(classId)?.shortId : undefined,
       });
       if (!result.ok) {
         patchWallet(wallet.id, { enforcement: previous });
         setError(result.error ?? "Failed to update spending");
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const handleByokCountingChange = (
+    wallet: AiCreditWallet,
+    classId: string,
+    next: ByokCounting,
+  ) => {
+    setError(null);
+    const previous = {
+      count_institution_byok: wallet.count_institution_byok,
+      count_class_byok: wallet.count_class_byok,
+    };
+    patchWallet(wallet.id, {
+      count_institution_byok: next.countInstitutionByok,
+      count_class_byok: next.countClassByok,
+    });
+    startTransition(async () => {
+      const result = await updateWalletPolicyResultAction({
+        institutionId,
+        walletId: wallet.id,
+        enforcement: wallet.enforcement,
+        maxBalance: wallet.max_balance,
+        softWarnThreshold: wallet.soft_warn_threshold,
+        countInstitutionByok: next.countInstitutionByok,
+        countClassByok: next.countClassByok,
+        classId,
+        classShortId: classById.get(classId)?.shortId,
+      });
+      if (!result.ok) {
+        patchWallet(wallet.id, previous);
+        setError(result.error ?? "Failed to update BYOK counting");
         return;
       }
       router.refresh();
@@ -228,7 +271,7 @@ export default function WalletsPanelContainer({
       <WalletsPanel
         scope={scope}
         institutionId={scope === "institution" ? institutionId : undefined}
-        defaultClassWalletCredits={defaultClassWalletCredits}
+        defaultClassWalletSettings={defaultClassWalletSettings}
         institutionWallets={wallets.filter((w) => w.class_id === null)}
         classWallets={wallets.filter((w) => w.class_id !== null)}
         classes={classes}
@@ -240,6 +283,7 @@ export default function WalletsPanelContainer({
         canEditClassWallet={canEditClassWallet}
         onSpendModeChange={handleSpendModeChange}
         onAdjustCredits={handleAdjustCredits}
+        onByokCountingChange={handleByokCountingChange}
       />
     </div>
   );

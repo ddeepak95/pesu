@@ -9,7 +9,10 @@ import {
 } from "@/components/Teacher/Shared/MutedPrimaryTabs";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
-import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
+import type {
+  AiCreditWallet,
+  DefaultClassWalletSettings,
+} from "@/lib/queries/aiCreditWallets";
 import type { ViewerRole } from "@/lib/settings/capabilities";
 import type { EffectiveSettings } from "@/lib/settings/resolve";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
@@ -50,7 +53,7 @@ interface InstitutionSettingsTabsProps {
   aiWallets: AiCreditWallet[];
   aiClasses: ClassOption[];
   aiClassAccessEnabled: Record<string, boolean>;
-  aiDefaultClassWalletCredits: number | null;
+  aiDefaultClassWalletSettings: DefaultClassWalletSettings | null;
   /** Feeds the "AI Credit Availability" card at the top of the AI management tab. */
   aiPlatformWalletBalance: number;
   aiPlatformWalletSpendMode: AiSpendMode;
@@ -68,7 +71,7 @@ export default function InstitutionSettingsTabs({
   aiWallets,
   aiClasses,
   aiClassAccessEnabled,
-  aiDefaultClassWalletCredits,
+  aiDefaultClassWalletSettings,
   aiPlatformWalletBalance,
   aiPlatformWalletSpendMode,
 }: InstitutionSettingsTabsProps) {
@@ -128,7 +131,7 @@ export default function InstitutionSettingsTabs({
           wallets={aiWallets}
           classes={aiClasses}
           classAccessEnabled={aiClassAccessEnabled}
-          defaultClassWalletCredits={aiDefaultClassWalletCredits}
+          defaultClassWalletSettings={aiDefaultClassWalletSettings}
           platformWalletBalance={aiPlatformWalletBalance}
           platformWalletSpendMode={aiPlatformWalletSpendMode}
         />

@@ -8,7 +8,7 @@ import { setClassAiAccessEnabled } from "@/lib/queries/aiClassSettings";
 import {
   allocateWalletCredits,
   createWallet,
-  setDefaultClassWalletCredits,
+  setDefaultClassWalletSettings,
   updateWalletPolicy,
   type AiCreditWallet,
   type WalletEnforcement,
@@ -109,6 +109,8 @@ export async function updateWalletPolicyResultAction(input: {
   enforcement: WalletEnforcement;
   maxBalance: number | null;
   softWarnThreshold: number | null;
+  countInstitutionByok: boolean;
+  countClassByok: boolean;
   classId?: string | null;
   classShortId?: string | null;
 }): Promise<WalletActionResult> {
@@ -119,6 +121,8 @@ export async function updateWalletPolicyResultAction(input: {
       enforcement: input.enforcement,
       maxBalance: input.maxBalance,
       softWarnThreshold: input.softWarnThreshold,
+      countInstitutionByok: input.countInstitutionByok,
+      countClassByok: input.countClassByok,
     });
   } catch (err) {
     return fail(err);
@@ -164,12 +168,16 @@ export async function allocateCreditsResultAction(input: {
 export async function setDefaultClassWalletCreditsResultAction(input: {
   institutionId: string;
   credits: number | null;
+  countInstitutionByok: boolean;
+  countClassByok: boolean;
 }): Promise<WalletActionResult> {
   const { supabase } = await requireInstitutionAdminOrSuper(input.institutionId);
   try {
-    await setDefaultClassWalletCredits(supabase, {
+    await setDefaultClassWalletSettings(supabase, {
       institutionId: input.institutionId,
       credits: input.credits,
+      countInstitutionByok: input.countInstitutionByok,
+      countClassByok: input.countClassByok,
     });
   } catch (err) {
     return fail(err);

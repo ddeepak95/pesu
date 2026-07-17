@@ -11,12 +11,17 @@ import type { AiConfigSource } from "@/types/aiSettings";
 export type NormalizedKeySource = "platform" | "institution" | "class";
 
 /**
- * BYOK usage — an institution's or class's own API key — is fully unmetered
- * (product decision 2026-07-16): no wallet, no gating, no debit; the provider
- * bills the key owner directly. Invocations and usage counters are still
+ * BYOK usage — an institution's or class's own API key — never touches the
+ * institution pool (product decision 2026-07-16): the provider bills the key
+ * owner directly. A class cap wallet counts BYOK usage against the class
+ * limit per its count_institution_byok (default on) / count_class_byok
+ * (default off) flags (product decision 2026-07-17), in which case the class
+ * cap alone is debited and gated. Invocations and usage counters are always
  * recorded for visibility.
  */
-export function isByokSource(keySource: AiConfigSource): boolean {
+export function isByokSource(
+  keySource: AiConfigSource,
+): keySource is "institution" | "class" {
   return keySource === "institution" || keySource === "class";
 }
 

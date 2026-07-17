@@ -9,6 +9,8 @@ import {
   usageTypeHasTokenMetrics,
   type TokenDetails,
 } from "@/lib/ai/metering/computeUsage";
+import { isByokSource } from "@/lib/ai/metering/keyOwner";
+import type { AiConfigSource } from "@/types/aiSettings";
 import { CURRENT_RATE_VERSION } from "@/lib/ai/metering/rates";
 import type { UsageType } from "@/lib/ai/metering/usageTypes";
 import { logAppEvent, resolveInstitutionId } from "@/lib/logging/appLog";
@@ -99,14 +101,16 @@ async function upsertUsageCounter(rpcArgs: UsageCounterRpcArgs): Promise<boolean
  * Isolated, retried write to the ai_credit_balances wallet debit (D1). Same
  * shape as upsertUsageCounter — never allowed to fail the caller's AI
  * response. Dual-debit cap model: one atomic RPC debits the class cap (when
- * the invocation carries one) and the institution pool in lockstep. No floor
- * at zero (decision #7): a session already admitted at attempt-start may
- * legitimately drive its wallet negative.
+ * the invocation carries one) and the institution pool in lockstep —
+ * includePool: false (BYOK counted by a class cap) debits the cap alone. No
+ * floor at zero (decision #7): a session already admitted at attempt-start
+ * may legitimately drive its wallet negative.
  */
 async function debitUsageWallets(input: {
   institutionId: string;
   capWalletId: string | null;
   credits: number;
+  includePool: boolean;
 }): Promise<boolean> {
   try {
     const service = createServiceRoleClient();
@@ -114,6 +118,7 @@ async function debitUsageWallets(input: {
       p_institution_id: input.institutionId,
       p_class_wallet_id: input.capWalletId,
       p_credits: input.credits,
+      p_include_pool: input.includePool,
     });
     if (error) {
       logAppEvent({
@@ -580,18 +585,25 @@ export async function completeAiInvocation(
   // Wallet debit (D1), dual-debit cap model: every completed platform-key
   // invocation under an institution debits the institution pool, plus the
   // class cap when the invocation carries one (wallet_id). BYOK invocations
-  // (institution/class own key) are unmetered — no debit at all. No floor at
-  // zero (decision #7): a session admitted at attempt-start may legitimately
-  // drive its wallet negative mid-session.
+  // (institution/class own key) never debit the pool; they debit the class
+  // cap alone when the gateway attributed one (wallet_id set because the
+  // cap's count_*_byok flag was on at resolve time), otherwise nothing. No
+  // floor at zero (decision #7): a session admitted at attempt-start may
+  // legitimately drive its wallet negative mid-session.
   const debitInstitutionId = (startedRow?.institution_id as string | null) ?? null;
   const capWalletId = (startedRow?.wallet_id as string | null) ?? null;
   const keySource = (startedRow?.ai_key_source as string | null) ?? null;
-  const isByok = keySource === "institution" || keySource === "class";
-  if (computed.credits != null && debitInstitutionId && !isByok) {
+  const isByok = keySource != null && isByokSource(keySource as AiConfigSource);
+  if (
+    computed.credits != null &&
+    debitInstitutionId &&
+    (!isByok || capWalletId != null)
+  ) {
     const debitInput = {
       institutionId: debitInstitutionId,
       capWalletId,
       credits: computed.credits,
+      includePool: !isByok,
     };
     const firstDebitSucceeded = await debitUsageWallets(debitInput);
     if (!firstDebitSucceeded) {

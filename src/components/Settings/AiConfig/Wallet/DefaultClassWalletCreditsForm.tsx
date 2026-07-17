@@ -21,43 +21,57 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import { setDefaultClassWalletCreditsResultAction } from "@/lib/ai/metering/actions";
-import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
+import type {
+  AiSpendMode,
+  ByokCounting,
+} from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
+import type { DefaultClassWalletSettings } from "@/lib/queries/aiCreditWallets";
 
 interface DefaultClassWalletCreditsFormProps {
   institutionId: string;
-  defaultCredits: number | null;
+  defaultSettings: DefaultClassWalletSettings;
 }
 
 /**
- * Credits a newly created class's auto-provisioned wallet starts with
- * (seed_class_ai_credit_wallet trigger). Null = unbounded — new classes get
- * an explicit `enforcement='off'` wallet instead. Unlike the wallet cards,
- * "Available Credits" here is just a plain settable number (there's no real
- * wallet/balance to add to yet — the class doesn't exist), so edits go
- * through a dialog that sets an absolute value rather than a delta.
+ * Defaults a newly created class's auto-provisioned wallet starts with
+ * (seed_class_ai_credit_wallet trigger): the credit limit plus the two BYOK
+ * counting flags. `credits: null` = unbounded — the new class gets no wallet
+ * row, which also leaves the BYOK flags inert (no cap = nothing to count).
+ * Unlike the wallet cards, "Available Credits" here is just a plain settable
+ * number (there's no real wallet/balance to add to yet — the class doesn't
+ * exist), so edits go through a dialog that sets an absolute value rather
+ * than a delta.
  */
 export default function DefaultClassWalletCreditsForm({
   institutionId,
-  defaultCredits,
+  defaultSettings,
 }: DefaultClassWalletCreditsFormProps) {
   const router = useTrackedRouter();
   const [mode, setMode] = useState<AiSpendMode>(
-    defaultCredits == null ? "unbounded" : "limited",
+    defaultSettings.credits == null ? "unbounded" : "limited",
   );
-  const [credits, setCredits] = useState(defaultCredits ?? 0);
+  const [credits, setCredits] = useState(defaultSettings.credits ?? 0);
+  const [byokCounting, setByokCounting] = useState<ByokCounting>({
+    countInstitutionByok: defaultSettings.countInstitutionByok,
+    countClassByok: defaultSettings.countClassByok,
+  });
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editValue, setEditValue] = useState("");
 
-  const save = (value: number | null, onFail: () => void) => {
+  const save = (
+    next: { credits: number | null } & ByokCounting,
+    onFail: () => void,
+  ) => {
     setError(null);
     startTransition(async () => {
       const result = await setDefaultClassWalletCreditsResultAction({
         institutionId,
-        credits: value,
+        ...next,
       });
       if (!result.ok) {
         onFail();
@@ -71,11 +85,20 @@ export default function DefaultClassWalletCreditsForm({
   const handleModeChange = (next: AiSpendMode) => {
     const previous = mode;
     setMode(next);
-    save(next === "unbounded" ? null : credits, () => setMode(previous));
+    save(
+      { credits: next === "unbounded" ? null : credits, ...byokCounting },
+      () => setMode(previous),
+    );
     if (next === "limited" && credits === 0) {
       setEditValue("0");
       setEditOpen(true);
     }
+  };
+
+  const handleByokCountingChange = (next: ByokCounting) => {
+    const previous = byokCounting;
+    setByokCounting(next);
+    save({ credits, ...next }, () => setByokCounting(previous));
   };
 
   const openEdit = () => {
@@ -87,14 +110,14 @@ export default function DefaultClassWalletCreditsForm({
     const value = Number(editValue) || 0;
     const previous = credits;
     setCredits(value);
-    save(value, () => setCredits(previous));
+    save({ credits: value, ...byokCounting }, () => setCredits(previous));
     setEditOpen(false);
   };
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-        <CardTitle>Class Default Platform Credit Limit</CardTitle>
+        <CardTitle>Class Default AI Credit Limit</CardTitle>
         <Select
           value={mode}
           onValueChange={(v) => handleModeChange(v as AiSpendMode)}
@@ -113,7 +136,7 @@ export default function DefaultClassWalletCreditsForm({
         <CardContent className="space-y-2">
           {mode === "limited" && (
             <div className="flex items-center justify-between gap-4">
-              <Label className="text-sm font-normal">Available Platform Credits</Label>
+              <Label className="text-sm font-normal">Available AI Credits</Label>
               <div className="flex items-center gap-2">
                 <div className="w-28 rounded-md border px-3 py-1.5 text-sm">
                   {credits.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -129,6 +152,52 @@ export default function DefaultClassWalletCreditsForm({
                 </Button>
               </div>
             </div>
+          )}
+          {mode === "limited" && (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-normal">
+                    Count institution key (BYOK) usage toward this limit
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Usage served by the institution&apos;s own API keys draws down
+                    the class limit. It never spends institution AI credits.
+                  </p>
+                </div>
+                <Switch
+                  checked={byokCounting.countInstitutionByok}
+                  onCheckedChange={(checked) =>
+                    handleByokCountingChange({
+                      ...byokCounting,
+                      countInstitutionByok: checked,
+                    })
+                  }
+                  disabled={pending}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-normal">
+                    Count class key (BYOK) usage toward this limit
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Usage served by a class&apos;s own API keys draws down that
+                    class&apos;s limit.
+                  </p>
+                </div>
+                <Switch
+                  checked={byokCounting.countClassByok}
+                  onCheckedChange={(checked) =>
+                    handleByokCountingChange({
+                      ...byokCounting,
+                      countClassByok: checked,
+                    })
+                  }
+                  disabled={pending}
+                />
+              </div>
+            </>
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>

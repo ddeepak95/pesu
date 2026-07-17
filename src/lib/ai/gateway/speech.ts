@@ -21,7 +21,11 @@ import { resolveProviderApiKeyWithSourceForAssignment } from "@/lib/konvo-voice/
 import { withRetry } from "@/lib/ai/retry";
 import { assertClassAiAccessAllowed, assertPlatformAiAccessAllowed } from "@/lib/ai/metering/access";
 import { isByokSource } from "@/lib/ai/metering/keyOwner";
-import { assertWithinQuota, resolveCapWalletId } from "@/lib/ai/metering/quota";
+import {
+  assertWithinQuota,
+  resolveByokCapWalletId,
+  resolveCapWalletId,
+} from "@/lib/ai/metering/quota";
 import { resolveInstitutionId } from "@/lib/logging/appLog";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import type { AiConfigSource } from "@/types/aiSettings";
@@ -457,8 +461,6 @@ export async function resolveMeteredSpeech(input: {
       await assertClassAiAccessAllowed(classDbId);
     }
 
-    // BYOK is fully unmetered (product decision 2026-07-16): no wallet
-    // attribution, no quota check — the provider bills the key owner.
     if (!byok) {
       walletId = await resolveCapWalletId(institutionId, classDbId);
 
@@ -467,6 +469,21 @@ export async function resolveMeteredSpeech(input: {
         input.context.quotaPolicy !== "ride-through";
       if (shouldCheck) {
         await assertWithinQuota({ institutionId, classId: classDbId });
+      }
+    } else {
+      // BYOK never debits or gates the institution pool — see the matching
+      // comment in resolveMeteredModel (model.ts).
+      walletId = await resolveByokCapWalletId(institutionId, classDbId, keySource);
+
+      const shouldCheck =
+        walletId !== null &&
+        input.context.admittedAtSessionStart !== true &&
+        input.context.quotaPolicy !== "ride-through";
+      if (shouldCheck) {
+        await assertWithinQuota(
+          { institutionId, classId: classDbId },
+          { includePool: false },
+        );
       }
     }
   }

@@ -40,7 +40,10 @@ import type { EffectiveSettings } from "@/lib/settings/resolve";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
 import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 import type { UsageBreakdownRow, WalletFundingEntry } from "@/lib/queries/aiUsage";
-import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
+import type {
+  AiCreditWallet,
+  DefaultClassWalletSettings,
+} from "@/lib/queries/aiCreditWallets";
 import UsageOverview from "@/components/Platform/Usage/UsageOverview";
 
 import {
@@ -82,7 +85,7 @@ export interface InstitutionDetailViewProps {
   /** AI management tab data — wallets, access (see InstitutionSettingsTabs). */
   aiWallets: AiCreditWallet[];
   aiClassAccessEnabled: Record<string, boolean>;
-  aiDefaultClassWalletCredits: number | null;
+  aiDefaultClassWalletSettings: DefaultClassWalletSettings | null;
   /** Analytics and Logs tab data — AI usage/spend for this institution. */
   aiPlatformWalletBalance: number;
   aiPlatformWalletSpendMode: AiSpendMode;
@@ -126,7 +129,7 @@ export default function InstitutionDetailView({
   activityTemplatesManageHref,
   aiWallets,
   aiClassAccessEnabled,
-  aiDefaultClassWalletCredits,
+  aiDefaultClassWalletSettings,
   aiPlatformWalletBalance,
   aiPlatformWalletSpendMode,
   aiUsageBreakdown,
@@ -255,7 +258,7 @@ export default function InstitutionDetailView({
               shortId: c.class_id,
             }))}
             aiClassAccessEnabled={aiClassAccessEnabled}
-            aiDefaultClassWalletCredits={aiDefaultClassWalletCredits}
+            aiDefaultClassWalletSettings={aiDefaultClassWalletSettings}
             aiPlatformWalletBalance={aiPlatformWalletBalance}
             aiPlatformWalletSpendMode={aiPlatformWalletSpendMode}
             adminsSection={

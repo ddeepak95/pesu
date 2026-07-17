@@ -20,6 +20,11 @@ import CreditAdjustControl from "./Wallet/CreditAdjustControl";
 
 export type AiSpendMode = "unbounded" | "limited";
 
+export interface ByokCounting {
+  countInstitutionByok: boolean;
+  countClassByok: boolean;
+}
+
 interface AiAccessAndLimitCardProps {
   scope: "institution" | "class";
   /**
@@ -34,6 +39,13 @@ interface AiAccessAndLimitCardProps {
   onSpendModeChange: (mode: AiSpendMode) => void;
   balance: number;
   onAdjustCredits?: (delta: number) => void;
+  /**
+   * Class scope only — whether BYOK usage (institution/class own keys) draws
+   * down this class's limit. Undefined hides the toggles (no wallet exists
+   * yet; the flags live on the wallet row).
+   */
+  byokCounting?: ByokCounting;
+  onByokCountingChange?: (next: ByokCounting) => void;
   readOnly?: boolean;
 }
 
@@ -46,7 +58,8 @@ interface AiAccessAndLimitCardProps {
  * Limited (see createWalletResultAction). Dual-debit cap model: at
  * institution scope the balance is the pool of real credits; at class scope
  * it is the class's remaining spending limit, drawn down in lockstep with the
- * pool. BYOK usage is unmetered and isn't managed through this UI.
+ * pool. BYOK usage never spends institution credits, but a class limit can
+ * opt in to counting it via the two BYOK toggles (class scope, Limited only).
  */
 export default function AiAccessAndLimitCard({
   scope,
@@ -56,6 +69,8 @@ export default function AiAccessAndLimitCard({
   onSpendModeChange,
   balance,
   onAdjustCredits,
+  byokCounting,
+  onByokCountingChange,
   readOnly = false,
 }: AiAccessAndLimitCardProps) {
   return (
@@ -112,6 +127,56 @@ export default function AiAccessAndLimitCard({
             />
           </div>
         )}
+
+        {accessEnabled &&
+          spendMode === "limited" &&
+          scope === "class" &&
+          byokCounting && (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-normal">
+                    Count institution key (BYOK) usage toward this limit
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Usage served by the institution&apos;s own API keys draws down
+                    this class limit. It never spends institution AI credits.
+                  </p>
+                </div>
+                <Switch
+                  checked={byokCounting.countInstitutionByok}
+                  onCheckedChange={(checked) =>
+                    onByokCountingChange?.({
+                      ...byokCounting,
+                      countInstitutionByok: checked,
+                    })
+                  }
+                  disabled={readOnly}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-normal">
+                    Count class key (BYOK) usage toward this limit
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Usage served by this class&apos;s own API keys draws down this
+                    class limit.
+                  </p>
+                </div>
+                <Switch
+                  checked={byokCounting.countClassByok}
+                  onCheckedChange={(checked) =>
+                    onByokCountingChange?.({
+                      ...byokCounting,
+                      countClassByok: checked,
+                    })
+                  }
+                  disabled={readOnly}
+                />
+              </div>
+            </>
+          )}
       </CardContent>
     </Card>
   );

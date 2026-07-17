@@ -6,7 +6,11 @@ import { getCachedResolveModelConfig } from "@/lib/ai/credentials/modelConfigCac
 import { modelMetaFromResolved, type AiInvocationModelMeta } from "@/lib/ai/logging/types";
 import { assertClassAiAccessAllowed, assertPlatformAiAccessAllowed } from "@/lib/ai/metering/access";
 import { isByokSource } from "@/lib/ai/metering/keyOwner";
-import { assertWithinQuota, resolveCapWalletId } from "@/lib/ai/metering/quota";
+import {
+  assertWithinQuota,
+  resolveByokCapWalletId,
+  resolveCapWalletId,
+} from "@/lib/ai/metering/quota";
 import type { UsageType } from "@/lib/ai/metering/usageTypes";
 import { getLanguageModel } from "@/lib/ai/provider";
 import { providerOptionsForConfig } from "@/lib/ai/providerOptions";
@@ -261,8 +265,6 @@ export async function resolveMeteredModel(input: {
       await assertClassAiAccessAllowed(classDbId);
     }
 
-    // BYOK is fully unmetered (product decision 2026-07-16): no wallet
-    // attribution, no quota check — the provider bills the key owner.
     if (!byok) {
       walletId = await resolveCapWalletId(institutionId, classDbId);
 
@@ -271,6 +273,23 @@ export async function resolveMeteredModel(input: {
         input.context.quotaPolicy !== "ride-through";
       if (shouldCheck) {
         await assertWithinQuota({ institutionId, classId: classDbId });
+      }
+    } else {
+      // BYOK never debits or gates the institution pool — the provider bills
+      // the key owner. It counts against the class cap only when the cap's
+      // matching count_*_byok flag is on (walletId non-null is the signal
+      // completeAiInvocation uses to debit the cap alone).
+      walletId = await resolveByokCapWalletId(institutionId, classDbId, keySource);
+
+      const shouldCheck =
+        walletId !== null &&
+        input.context.admittedAtSessionStart !== true &&
+        input.context.quotaPolicy !== "ride-through";
+      if (shouldCheck) {
+        await assertWithinQuota(
+          { institutionId, classId: classDbId },
+          { includePool: false },
+        );
       }
     }
   }

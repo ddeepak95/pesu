@@ -7,6 +7,7 @@ import { resolveMultimodalSpeechModelsForClass } from "@/lib/konvo-voice/resolve
 import { getModelEntry } from "@/lib/ai/catalog/helpers";
 import { resolveSpeechKeySource } from "@/lib/ai/gateway";
 import type { BotPromptConfig } from "@/types/assignment";
+import type { AiConfigSource } from "@/types/aiSettings";
 import { QUOTA_EXCEEDED_ERROR_CODE } from "./constants";
 import { isByokSource } from "./keyOwner";
 
@@ -41,6 +42,8 @@ interface ResolvedWalletInfo {
   enforcement: WalletEnforcement;
   balance: number;
   softWarnThreshold: number | null;
+  countInstitutionByok: boolean;
+  countClassByok: boolean;
 }
 
 export type WalletStatus =
@@ -51,6 +54,8 @@ export type WalletStatus =
       enforcement: WalletEnforcement;
       balance: number;
       belowWarnThreshold: boolean;
+      countInstitutionByok: boolean;
+      countClassByok: boolean;
     };
 
 /**
@@ -80,7 +85,8 @@ async function loadBalance(
   return (data?.balance as number | undefined) ?? 0;
 }
 
-const WALLET_SELECT = "id, enforcement, soft_warn_threshold";
+const WALLET_SELECT =
+  "id, enforcement, soft_warn_threshold, count_institution_byok, count_class_byok";
 
 function toResolvedInfo(
   walletRow: Record<string, unknown>,
@@ -91,6 +97,8 @@ function toResolvedInfo(
     enforcement: walletRow.enforcement as WalletEnforcement,
     balance,
     softWarnThreshold: (walletRow.soft_warn_threshold as number | null) ?? null,
+    countInstitutionByok: (walletRow.count_institution_byok as boolean | null) ?? true,
+    countClassByok: (walletRow.count_class_byok as boolean | null) ?? false,
   };
 }
 
@@ -139,7 +147,7 @@ async function resolveInstitutionPoolWallet(
  * decision). Returns null when the class has no active cap — the invocation's
  * wallet_id stays null and only the institution pool is debited (which
  * debit_usage_wallets resolves by institution_id on its own). Callers must
- * not call this for BYOK key sources at all (BYOK is unmetered).
+ * not call this for BYOK key sources — use resolveByokCapWalletId there.
  */
 export async function resolveCapWalletId(
   institutionId: string,
@@ -151,6 +159,27 @@ export async function resolveCapWalletId(
   return wallet?.walletId ?? null;
 }
 
+/**
+ * The class-cap wallet a BYOK call is counted against, or null when the class
+ * has no active cap or the cap's matching count_*_byok flag is off (the
+ * default — BYOK unmetered). Never the institution pool: BYOK is billed to
+ * the key owner, so the cap only limits volume. A non-null result is the
+ * signal completeAiInvocation uses to debit the class cap alone.
+ */
+export async function resolveByokCapWalletId(
+  institutionId: string,
+  classId: string | null,
+  keySource: "institution" | "class",
+): Promise<string | null> {
+  if (!classId) return null;
+  const service = createServiceRoleClient();
+  const wallet = await resolveClassCapWallet(service, institutionId, classId);
+  if (!wallet) return null;
+  const counts =
+    keySource === "institution" ? wallet.countInstitutionByok : wallet.countClassByok;
+  return counts ? wallet.walletId : null;
+}
+
 function toStatus(wallet: ResolvedWalletInfo | null): WalletStatus {
   if (!wallet || wallet.enforcement === "off") return { kind: "unrestricted" };
   return {
@@ -160,6 +189,8 @@ function toStatus(wallet: ResolvedWalletInfo | null): WalletStatus {
     balance: wallet.balance,
     belowWarnThreshold:
       wallet.softWarnThreshold != null && wallet.balance <= wallet.softWarnThreshold,
+    countInstitutionByok: wallet.countInstitutionByok,
+    countClassByok: wallet.countClassByok,
   };
 }
 
@@ -187,12 +218,18 @@ function isWarning(status: WalletStatus): boolean {
  * Per-call check for genuine one-shots (D6 gateway step 3). Throws before any
  * provider credential is touched or row is written when either the class cap
  * or the institution pool is block-enforced and exhausted (balance <= 0).
- * warn-enforced/unrestricted levels never throw here. Only meaningful for
- * platform-key calls — BYOK callers must skip quota entirely.
+ * warn-enforced/unrestricted levels never throw here. Platform-key calls
+ * check both levels; BYOK calls counted by a class cap (count_*_byok) pass
+ * includePool: false so only the cap gates — uncounted BYOK skips quota
+ * entirely.
  */
-export async function assertWithinQuota(input: QuotaScopeInput): Promise<void> {
+export async function assertWithinQuota(
+  input: QuotaScopeInput,
+  opts: { includePool?: boolean } = {},
+): Promise<void> {
   const status = await getQuotaStatus(input);
-  if (isBlocked(status.classCap) || isBlocked(status.pool)) {
+  const poolBlocked = (opts.includePool ?? true) && isBlocked(status.pool);
+  if (isBlocked(status.classCap) || poolBlocked) {
     throw new QuotaExceededError();
   }
 }
@@ -213,10 +250,11 @@ export interface AssertSessionCanStartResult {
  * Session-start admission (D6) — the single per-session quota gate, run once
  * from attempt-start before any AI call. Enumerates every AI surface the
  * session will use (chat LLM always; STT/TTS depending on the assignment's
- * multimodal_interaction config). BYOK surfaces (institution/class own key)
- * are unmetered and skipped; if any surface spends platform credits, the
- * session is blocked when either the class cap or the institution pool is
- * block-enforced and exhausted.
+ * multimodal_interaction config). Any platform-keyed surface gates the
+ * session at both levels (class cap + institution pool). BYOK surfaces never
+ * involve the pool, but gate the class cap when its matching count_*_byok
+ * flag is on; with the flags off (default) an all-BYOK session is admitted
+ * unconditionally.
  */
 export async function assertSessionCanStart(
   input: AssertSessionCanStartInput,
@@ -235,14 +273,19 @@ export async function assertSessionCanStart(
   const interaction = (assignmentRow?.bot_prompt_config as BotPromptConfig | null)
     ?.multimodal_interaction;
 
-  let usesPlatformCredits = false;
+  // Key source of every surface the session will use. Resolution stops once
+  // a platform surface is found — that alone already forces full gating, so
+  // the remaining surfaces' sources can't change the outcome.
+  const sources = new Set<AiConfigSource>();
+  let anyPlatform = false;
 
   // Chat LLM — always a surface for this session.
   const { keySource: llmKeySource } = await getCachedResolveModelConfig({
     classDbId: input.classDbId,
     appFunctionKey: "text.chat_tutoring",
   });
-  if (!isByokSource(llmKeySource)) usesPlatformCredits = true;
+  sources.add(llmKeySource);
+  if (!isByokSource(llmKeySource)) anyPlatform = true;
 
   const hasAudioInput = interaction?.input?.modes?.includes("audio") ?? false;
   const audioDelivery = interaction?.input?.audioDelivery ?? "transcribe";
@@ -251,7 +294,7 @@ export async function assertSessionCanStart(
   const needsStt = hasAudioInput && audioDelivery === "transcribe";
   const needsTts = speechMode !== "none";
 
-  if (!usesPlatformCredits && (needsStt || needsTts)) {
+  if (!anyPlatform && (needsStt || needsTts)) {
     const { sttModelId, ttsModelId } = await resolveMultimodalSpeechModelsForClass(
       input.classDbId,
     );
@@ -260,29 +303,42 @@ export async function assertSessionCanStart(
       const sttEntry = getModelEntry(sttModelId);
       if (sttEntry) {
         const keySource = await resolveSpeechKeySource(sttEntry.providerId, input.assignmentId);
-        if (!isByokSource(keySource)) usesPlatformCredits = true;
+        sources.add(keySource);
+        if (!isByokSource(keySource)) anyPlatform = true;
       }
     }
 
-    if (!usesPlatformCredits && needsTts) {
+    if (!anyPlatform && needsTts) {
       const ttsEntry = getModelEntry(ttsModelId);
       if (ttsEntry) {
         const keySource = await resolveSpeechKeySource(ttsEntry.providerId, input.assignmentId);
-        if (!isByokSource(keySource)) usesPlatformCredits = true;
+        sources.add(keySource);
+        if (!isByokSource(keySource)) anyPlatform = true;
       }
     }
   }
 
-  // All surfaces BYOK -> fully unmetered session, nothing to gate.
-  if (!usesPlatformCredits) return { warnings: [] };
-
+  // The count_*_byok flags live on the class cap wallet, so status is read
+  // even for all-BYOK sessions. The cap gates when any surface spends
+  // platform credits OR uses a BYOK source the cap opted to count; the pool
+  // gates only on platform spend (BYOK never touches it).
   const status = await getQuotaStatus({ institutionId, classId: input.classDbId });
-  if (isBlocked(status.classCap) || isBlocked(status.pool)) {
+  const cap = status.classCap;
+  const capCountsByok =
+    cap.kind === "wallet" &&
+    ((cap.countInstitutionByok && sources.has("institution")) ||
+      (cap.countClassByok && sources.has("class")));
+  const capGates = anyPlatform || capCountsByok;
+
+  // All surfaces BYOK and none of them counted -> fully unmetered session.
+  if (!capGates) return { warnings: [] };
+
+  if (isBlocked(cap) || (anyPlatform && isBlocked(status.pool))) {
     throw new QuotaExceededError();
   }
 
   const warnings: QuotaWarningLevel[] = [];
-  if (isWarning(status.pool)) warnings.push("institution");
-  if (isWarning(status.classCap)) warnings.push("class");
+  if (anyPlatform && isWarning(status.pool)) warnings.push("institution");
+  if (isWarning(cap)) warnings.push("class");
   return { warnings };
 }

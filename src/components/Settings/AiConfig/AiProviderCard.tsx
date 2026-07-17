@@ -18,6 +18,13 @@ import type {
   ProviderCatalogEntry,
 } from "@/lib/ai/catalog/types";
 
+/**
+ * What a class provider actually resolves to when it defers to the
+ * institution: the institution's own key (BYOK), the platform's credit-
+ * metered key, or nothing (provider not set up anywhere above).
+ */
+export type InstitutionDefaultSource = "platform" | "institution" | "none";
+
 interface AiProviderCardProps {
   provider: ProviderCatalogEntry;
   scope: AiSettingsScope;
@@ -26,6 +33,8 @@ interface AiProviderCardProps {
   allowUsePlatformDefaults?: boolean;
   /** Whether this class may fall back to the institution's key (the class's AI-access toggle). Institution scope is unaffected. */
   allowUseInstitutionDefault?: boolean;
+  /** Class scope only — what "Institution Default" resolves to for this provider (drives the helper text under the dropdown). */
+  institutionDefaultSource?: InstitutionDefaultSource;
   /** Whether the viewer may edit provider config. When false, controls render read-only. */
   canEdit?: boolean;
   onActivate: (apiKey: string) => void;
@@ -41,6 +50,7 @@ export default function AiProviderCard({
   activation,
   allowUsePlatformDefaults = true,
   allowUseInstitutionDefault = true,
+  institutionDefaultSource,
   canEdit = true,
   onActivate,
   onDeactivate,
@@ -98,12 +108,24 @@ export default function AiProviderCard({
           <SelectContent>
             <SelectItem value="off">Off</SelectItem>
             {canUseCredits && (
-              <SelectItem value="credits">AI Credits</SelectItem>
+              <SelectItem value="credits">
+                {scope === "class" ? "Institution Default" : "AI Credits"}
+              </SelectItem>
             )}
             <SelectItem value="own_key">BYOK</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {scope === "class" && mode === "credits" && institutionDefaultSource && (
+        <p className="text-xs text-muted-foreground">
+          {institutionDefaultSource === "platform" && "Uses AI credits."}
+          {institutionDefaultSource === "institution" &&
+            `Uses the institution's own ${provider.label} key (BYOK).`}
+          {institutionDefaultSource === "none" &&
+            "The institution hasn't set up this provider yet."}
+        </p>
+      )}
 
       {scope === "class" && !allowUseInstitutionDefault && (
         <p className="text-xs text-muted-foreground">

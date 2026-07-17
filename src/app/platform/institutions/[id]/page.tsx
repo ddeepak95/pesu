@@ -15,7 +15,7 @@ import { getInstitutionAiPolicy } from "@/lib/queries/aiInstitutionSettings";
 import { getEffectiveSettingsForInstitution } from "@/lib/queries/settings";
 import { getClassAiAccessEnabledMap } from "@/lib/queries/aiClassSettings";
 import {
-  getDefaultClassWalletCredits,
+  getDefaultClassWalletSettings,
   listWalletsForInstitution,
 } from "@/lib/queries/aiCreditWallets";
 import {
@@ -50,7 +50,7 @@ export default async function InstitutionDetailPage({
     effectiveSettings,
     institutionPolicy,
     aiWallets,
-    defaultClassWalletCredits,
+    defaultClassWalletSettings,
     usageBreakdown,
   ] = await Promise.all([
     listInstitutionMembers(supabase, id),
@@ -60,7 +60,7 @@ export default async function InstitutionDetailPage({
     getEffectiveSettingsForInstitution(supabase, id),
     getInstitutionAiPolicy(supabase, id),
     listWalletsForInstitution(supabase, id),
-    getDefaultClassWalletCredits(supabase, id),
+    getDefaultClassWalletSettings(supabase, id),
     getMonthlyUsageByModality(supabase, { institutionId: id }),
   ]);
 
@@ -104,7 +104,7 @@ export default async function InstitutionDetailPage({
         activityTemplatesManageHref={`/platform/institutions/${id}/activity-templates`}
         aiWallets={aiWallets}
         aiClassAccessEnabled={classAccessEnabled}
-        aiDefaultClassWalletCredits={defaultClassWalletCredits}
+        aiDefaultClassWalletSettings={defaultClassWalletSettings}
         aiPlatformWalletBalance={platformWallet?.balance ?? 0}
         aiPlatformWalletSpendMode={spendModeForWallet(platformWallet)}
         aiUsageBreakdown={usageBreakdown}

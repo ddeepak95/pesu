@@ -4,7 +4,10 @@ import {
   canViewInstitutionOverrideSections,
   type ViewerRole,
 } from "@/lib/settings/capabilities";
-import type { AiCreditWallet } from "@/lib/queries/aiCreditWallets";
+import type {
+  AiCreditWallet,
+  DefaultClassWalletSettings,
+} from "@/lib/queries/aiCreditWallets";
 import type { AiInstitutionPolicy } from "@/types/aiSettings";
 import type { AiSpendMode } from "@/components/Settings/AiConfig/AiAccessAndLimitCard";
 
@@ -26,7 +29,7 @@ interface InstitutionAiManagementTabProps {
   wallets: AiCreditWallet[];
   classes: ClassOption[];
   classAccessEnabled: Record<string, boolean>;
-  defaultClassWalletCredits: number | null;
+  defaultClassWalletSettings: DefaultClassWalletSettings | null;
   platformWalletBalance: number;
   platformWalletSpendMode: AiSpendMode;
 }
@@ -38,7 +41,7 @@ export default function InstitutionAiManagementTab({
   wallets,
   classes,
   classAccessEnabled,
-  defaultClassWalletCredits,
+  defaultClassWalletSettings,
   platformWalletBalance,
   platformWalletSpendMode,
 }: InstitutionAiManagementTabProps) {
@@ -67,7 +70,7 @@ export default function InstitutionAiManagementTab({
             scope="institution"
             institutionId={institutionId}
             isSuperAdmin={isSuperAdmin}
-            defaultClassWalletCredits={defaultClassWalletCredits}
+            defaultClassWalletSettings={defaultClassWalletSettings}
             institutionWallets={wallets.filter((w) => w.class_id === null)}
             classWallets={wallets.filter((w) => w.class_id !== null)}
             classes={classes}
