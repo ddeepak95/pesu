@@ -9,23 +9,34 @@ export async function upsertSubmissionQuestion(
   client: SupabaseClient,
   input: { submissionId: string; questionOrder: number; questionId: string },
 ): Promise<string> {
-  const { data, error } = await client
-    .from("submission_questions")
-    .upsert(
-      {
-        submission_id: input.submissionId,
-        question_order: input.questionOrder,
-        question_id: input.questionId,
-      },
-      { onConflict: "submission_id,question_id" },
-    )
-    .select("id")
-    .single();
+  // Retried once: the table has a second unique index, (submission_id,
+  // question_order), that is NOT the upsert's conflict target. When two
+  // identical calls race (React Strict Mode double-effect, double-click),
+  // the loser's insert can raise 23505 on that index instead of taking the
+  // DO UPDATE path — ON CONFLICT only arbitrates on its own target. By the
+  // retry, the winner's row is committed and the upsert resolves normally.
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, error } = await client
+      .from("submission_questions")
+      .upsert(
+        {
+          submission_id: input.submissionId,
+          question_order: input.questionOrder,
+          question_id: input.questionId,
+        },
+        { onConflict: "submission_id,question_id" },
+      )
+      .select("id")
+      .single();
 
-  if (error || !data) {
-    throw error ?? new Error("Failed to upsert submission_questions");
+    if (data && !error) {
+      return data.id as string;
+    }
+    lastError = error;
+    if (error?.code !== "23505") break;
   }
-  return data.id as string;
+  throw lastError ?? new Error("Failed to upsert submission_questions");
 }
 
 export interface CurrentAttempt {
