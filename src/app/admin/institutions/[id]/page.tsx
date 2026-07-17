@@ -25,7 +25,12 @@ import {
   getMonthlyUsageByModality,
   getWalletFundingHistory,
 } from "@/lib/queries/aiUsage";
+import { listAppLogs } from "@/lib/queries/appLogs";
 import { spendModeForWallet } from "@/lib/ai/metering/spendMode";
+
+function normalizeLevel(v?: string): "info" | "warn" | "error" | undefined {
+  return v === "info" || v === "warn" || v === "error" ? v : undefined;
+}
 
 export const metadata = {
   title: "Institution admin",
@@ -42,10 +47,15 @@ export default async function AdminInstitutionPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    error?: string;
+    level?: string;
+    source?: string;
+  }>;
 }) {
   const { id } = await params;
-  const { ok, error } = await searchParams;
+  const { ok, error, level, source } = await searchParams;
   const { supabase, viewerRole } = await requireInstitutionAdminOrSuper(id);
 
   const institution = await getInstitution(supabase, id);
@@ -81,6 +91,15 @@ export default async function AdminInstitutionPage({
   const fundingHistory = platformWallet
     ? await getWalletFundingHistory(supabase, platformWallet.id)
     : [];
+
+  // Recent app_logs slice for the embedded Analytics-and-Logs view (RLS already
+  // scopes rows; the explicit institutionId narrows a multi-institution admin).
+  const appLogs = await listAppLogs(supabase, {
+    institutionId: id,
+    level: normalizeLevel(level),
+    source: source || undefined,
+    limit: 20,
+  });
 
   const memberIds = members.map((m) => m.user_id);
   const moverIds = moves.map((m) => m.moved_by);
@@ -132,6 +151,9 @@ export default async function AdminInstitutionPage({
         aiPlatformWalletSpendMode={spendModeForWallet(platformWallet)}
         aiUsageBreakdown={usageBreakdown}
         aiFundingHistory={fundingHistory}
+        appLogs={appLogs}
+        logFilters={{ level, source }}
+        institutionBaseHref={`/admin/institutions/${id}`}
       />
     </PageLayout>
   );

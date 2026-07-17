@@ -22,21 +22,31 @@ import {
   getMonthlyUsageByModality,
   getWalletFundingHistory,
 } from "@/lib/queries/aiUsage";
+import { listAppLogs } from "@/lib/queries/appLogs";
 import { spendModeForWallet } from "@/lib/ai/metering/spendMode";
 
 export const metadata = {
   title: "Institution",
 };
 
+function normalizeLevel(v?: string): "info" | "warn" | "error" | undefined {
+  return v === "info" || v === "warn" || v === "error" ? v : undefined;
+}
+
 export default async function InstitutionDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    error?: string;
+    level?: string;
+    source?: string;
+  }>;
 }) {
   const { id } = await params;
-  const { ok, error } = await searchParams;
+  const { ok, error, level, source } = await searchParams;
   const { supabase } = await requireSuperAdmin();
 
   const institution = await getInstitution(supabase, id);
@@ -72,6 +82,14 @@ export default async function InstitutionDetailPage({
   const fundingHistory = platformWallet
     ? await getWalletFundingHistory(supabase, platformWallet.id)
     : [];
+
+  // Recent app_logs slice for the embedded Analytics-and-Logs view.
+  const appLogs = await listAppLogs(supabase, {
+    institutionId: id,
+    level: normalizeLevel(level),
+    source: source || undefined,
+    limit: 20,
+  });
 
   const memberIds = members.map((m) => m.user_id);
   const moverIds = moves.map((m) => m.moved_by);
@@ -109,6 +127,9 @@ export default async function InstitutionDetailPage({
         aiPlatformWalletSpendMode={spendModeForWallet(platformWallet)}
         aiUsageBreakdown={usageBreakdown}
         aiFundingHistory={fundingHistory}
+        appLogs={appLogs}
+        logFilters={{ level, source }}
+        institutionBaseHref={`/platform/institutions/${id}`}
       />
     </PageLayout>
   );

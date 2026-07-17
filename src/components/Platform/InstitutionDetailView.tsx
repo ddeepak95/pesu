@@ -45,6 +45,9 @@ import type {
   DefaultClassWalletSettings,
 } from "@/lib/queries/aiCreditWallets";
 import UsageOverview from "@/components/Platform/Usage/UsageOverview";
+import InstitutionAnalyticsSection from "@/components/Platform/Analytics/InstitutionAnalyticsSection";
+import InstitutionLogsSection from "@/components/Platform/Analytics/InstitutionLogsSection";
+import type { AppLogRow } from "@/lib/queries/appLogs";
 
 import {
   addInstitutionAdminRequestAction,
@@ -91,6 +94,17 @@ export interface InstitutionDetailViewProps {
   aiPlatformWalletSpendMode: AiSpendMode;
   aiUsageBreakdown: UsageBreakdownRow[];
   aiFundingHistory: WalletFundingEntry[];
+  /**
+   * Analytics and Logs tab — recent app_logs slice (already institution-scoped
+   * + RLS-filtered by the loader) and the current level/source filter values.
+   */
+  appLogs: AppLogRow[];
+  logFilters: { level?: string; source?: string };
+  /**
+   * Base institution href for this surface, e.g. `/admin/institutions/{id}` or
+   * `/platform/institutions/{id}`. Used as the embedded logs filter form target.
+   */
+  institutionBaseHref: string;
 }
 
 type ActiveTab = "settings" | "classes" | "analytics";
@@ -134,6 +148,9 @@ export default function InstitutionDetailView({
   aiPlatformWalletSpendMode,
   aiUsageBreakdown,
   aiFundingHistory,
+  appLogs,
+  logFilters,
+  institutionBaseHref,
 }: InstitutionDetailViewProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -321,12 +338,20 @@ export default function InstitutionDetailView({
           />
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-6 pt-6">
+        <TabsContent value="analytics" className="space-y-10 pt-6">
           <UsageOverview
             institutionId={institution.id}
             initialBreakdown={aiUsageBreakdown}
             fundingHistory={aiFundingHistory}
           />
+
+          <InstitutionLogsSection
+            appLogs={appLogs}
+            logFilters={logFilters}
+            institutionBaseHref={institutionBaseHref}
+          />
+
+          <InstitutionAnalyticsSection institutionId={institution.id} />
         </TabsContent>
       </Tabs>
     </div>

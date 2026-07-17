@@ -9,18 +9,28 @@ const SOURCES = [
 /**
  * Plain GET form for narrowing the log table. Server-component friendly — it
  * submits `level`/`source` as query params the page reads from searchParams.
+ *
+ * `hiddenFields` carries extra query params through the submit (a GET form
+ * replaces the whole query string, so callers embedding this under a tabbed URL
+ * must re-emit params like `tab` to avoid dropping them).
  */
 export default function AppLogsFilterBar({
   action,
   level,
   source,
+  hiddenFields,
 }: {
   action: string;
   level?: string;
   source?: string;
+  hiddenFields?: Record<string, string>;
 }) {
   return (
     <form method="get" action={action} className="flex flex-wrap items-end gap-3">
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       <label className="flex flex-col text-sm">
         <span className="mb-1 text-muted-foreground">Level</span>
         <select
