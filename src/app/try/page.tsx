@@ -22,7 +22,7 @@ const activities = [
     description:
       "Explore a concept through guided questions that deepen your thinking. The AI nudges you toward insight rather than just giving answers.",
     sampleLink: null,
-    url: "/assignment/U-qOw_dV",
+    url: "/assignment/FY3eOQCy",
   },
   {
     name: "Code Review Viva",
@@ -32,7 +32,7 @@ const activities = [
     description:
       "Submit your code and answer oral exam questions dynamically generated from it by an AI examiner. Get instant feedback on your depth of understanding.",
     sampleLink: "/downloads/sample-palindrome",
-    url: "/assignment/aBe-z78U",
+    url: "/assignment/2F2V-fko",
   },
   {
     name: "Speaking Practice",
@@ -42,7 +42,7 @@ const activities = [
     description:
       "Practice speaking on a topic aloud and receive targeted feedback on clarity, fluency, and content.",
     sampleLink: null,
-    url: "/assignment/JTCHs-F-",
+    url: "/assignment/cJSwtAZs",
   },
 ];
 
