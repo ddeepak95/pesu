@@ -1,6 +1,24 @@
+/**
+ * Which built-in (non-profile-field) columns show in the unified Students table.
+ * Undefined keys fall back to defaults resolved in `studentsTableConfig.ts`:
+ * `group` is auto (shown iff the class has >1 group); the rest default to hidden.
+ */
+export interface ProgressViewColumnConfig {
+  /** Group column. Omitted/undefined => auto (shown iff class has >1 group). */
+  group?: boolean;
+  /** Progress bar (completed/total). Default hidden. */
+  progress?: boolean;
+  /** Last completed date. Default hidden. */
+  last_completed?: boolean;
+  /** Pending approvals badge. Default hidden. */
+  approvals?: boolean;
+}
+
 export interface ProgressViewConfig {
   display_fields: string[];
   filter_fields: string[];
+  /** Built-in column visibility for the unified Students table. */
+  columns?: ProgressViewColumnConfig;
 }
 
 /**

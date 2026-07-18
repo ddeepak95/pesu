@@ -13,8 +13,21 @@ export function profileColumnId(fieldId: string): string {
   return `profile:${fieldId}`;
 }
 
-export function getInfoCsvColumnOptions(
-  visibleProfileFields: ProfileField[]
+/** Which optional columns are currently visible in the unified Students table. */
+export interface ClassStudentsCsvVisibility {
+  group: boolean;
+  progress: boolean;
+  lastCompleted: boolean;
+  approvals: boolean;
+}
+
+/**
+ * CSV column options mirroring the currently-visible table columns: Name + Email
+ * always, then the visible profile fields, then whichever built-in columns are on.
+ */
+export function getClassStudentsCsvColumnOptions(
+  visibleProfileFields: ProfileField[],
+  visibility: ClassStudentsCsvVisibility
 ): { id: string; label: string }[] {
   return [
     { id: CSV_COL_NAME, label: "Name" },
@@ -23,18 +36,16 @@ export function getInfoCsvColumnOptions(
       id: profileColumnId(f.id),
       label: f.field_name,
     })),
-    { id: CSV_COL_GROUP, label: "Group" },
-  ];
-}
-
-export function getProgressCsvColumnOptions(
-  visibleProfileFields: ProfileField[]
-): { id: string; label: string }[] {
-  return [
-    ...getInfoCsvColumnOptions(visibleProfileFields),
-    { id: CSV_COL_PROGRESS, label: "Progress" },
-    { id: CSV_COL_LAST_COMPLETED, label: "Last completed" },
-    { id: CSV_COL_PENDING_APPROVAL, label: "Pending approval" },
+    ...(visibility.group ? [{ id: CSV_COL_GROUP, label: "Group" }] : []),
+    ...(visibility.progress
+      ? [{ id: CSV_COL_PROGRESS, label: "Progress" }]
+      : []),
+    ...(visibility.lastCompleted
+      ? [{ id: CSV_COL_LAST_COMPLETED, label: "Last completed" }]
+      : []),
+    ...(visibility.approvals
+      ? [{ id: CSV_COL_PENDING_APPROVAL, label: "Pending approval" }]
+      : []),
   ];
 }
 
@@ -99,33 +110,16 @@ function cellValueProgress(
   }
 }
 
-export function buildClassStudentsInfoCsv(
+export function buildClassStudentsCsv(
   rows: SubmissionsTableRow[],
   visibleProfileFields: ProfileField[],
+  visibility: ClassStudentsCsvVisibility,
   selectedIds: Set<string>
 ): string {
-  const options = getInfoCsvColumnOptions(visibleProfileFields).filter((o) =>
-    selectedIds.has(o.id)
-  );
-  if (options.length === 0) {
-    return CSV_UTF8_BOM;
-  }
-  const lines = [options.map((o) => escapeCsvCell(o.label)).join(",")];
-  for (const row of rows) {
-    const cells = options.map((o) => cellValueInfo(row, o.id));
-    lines.push(cells.map((c) => escapeCsvCell(String(c))).join(","));
-  }
-  return `${CSV_UTF8_BOM}${lines.join("\r\n")}`;
-}
-
-export function buildClassStudentsProgressCsv(
-  rows: SubmissionsTableRow[],
-  visibleProfileFields: ProfileField[],
-  selectedIds: Set<string>
-): string {
-  const options = getProgressCsvColumnOptions(visibleProfileFields).filter(
-    (o) => selectedIds.has(o.id)
-  );
+  const options = getClassStudentsCsvColumnOptions(
+    visibleProfileFields,
+    visibility
+  ).filter((o) => selectedIds.has(o.id));
   if (options.length === 0) {
     return CSV_UTF8_BOM;
   }

@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { mutate } from "swr";
-import { Class } from "@/types/class";
+import { Class, ProgressViewConfig } from "@/types/class";
 import { StudentWithInfo } from "@/lib/queries/students";
 import { ClassGroup } from "@/lib/queries/groups";
 import { ProfileField } from "@/types/profileFields";
+import { saveProgressViewConfig } from "@/lib/queries/classes";
 import {
   useAllStudentProfiles,
   useClassGroups,
@@ -15,6 +15,12 @@ import {
   useProgressViewConfig,
   useStudentIdsPendingApprovalsByClass,
 } from "@/hooks/swr";
+import {
+  needsPendingApprovals,
+  needsProgressSummary,
+  resolveColumnVisibility,
+  type ResolvedColumnVisibility,
+} from "../studentsTableConfig";
 
 export type StudentProgressStatus =
   | "complete"
@@ -46,21 +52,32 @@ interface UseClassStudentsDataProps {
 
 interface UseClassStudentsDataReturn {
   loading: boolean;
-  progressLoading: boolean;
   error: string | null;
   students: StudentWithInfo[];
   groups: ClassGroup[];
+  groupCount: number;
   profileFields: ProfileField[];
   studentProfilesMap: Map<string, Record<string, string>>;
+  savedConfig: ProgressViewConfig | null;
+  /** Resolved built-in column visibility (config + group count). */
+  resolvedVisibility: ResolvedColumnVisibility;
   displayFieldIds: Set<string>;
   filterFieldIds: Set<string>;
   filterableFields: ProfileField[];
-  progressLoaded: boolean;
   progressStatsMap: Map<string, StudentProgressStats>;
-  /** Students with any assignment awaiting approval (Progress tab only). */
+  /** Students with any assignment awaiting approval. */
   pendingApprovalStudentIds: Set<string>;
+  /** True while the progress-summary RPC is loading (an enabled column needs it). */
+  progressSummaryLoading: boolean;
+  /** True while the pending-approvals query is loading (Approvals column needs it). */
+  approvalsLoading: boolean;
+  /** Progress-summary loading state relevant to the Analytics tab. */
+  analyticsProgressLoading: boolean;
   refreshBase: () => Promise<void>;
-  ensureProgressDataLoaded: () => Promise<void>;
+  /** Persist the Table Config (class-level, shared across co-teachers). */
+  saveTableConfig: (next: ProgressViewConfig) => Promise<void>;
+  /** Trigger the progress-summary fetch the Analytics tab needs. */
+  ensureAnalyticsDataLoaded: () => void;
   buildGroupAnalyticsBuckets: () => StudentsAnalyticsBucket[];
   buildProfileAnalyticsBuckets: (fieldId: string) => StudentsAnalyticsBucket[];
 }
@@ -89,23 +106,23 @@ export function useClassStudentsData({
     skipProgressView ? null : classDbId
   );
 
-  const [progressEnabled, setProgressEnabled] = useState(false);
-  const progressSummaryQuery = useClassStudentProgressSummary(
-    classDbId,
-    progressEnabled
+  // Optimistic override applied after the teacher edits the Table Config, so the
+  // UI (and the fetch gates below) react before the DB round-trip resolves.
+  const [configOverride, setConfigOverride] = useState<ProgressViewConfig | null>(
+    null
   );
-  const pendingApprovalsQuery = useStudentIdsPendingApprovalsByClass(
-    classDbId,
-    progressEnabled
-  );
+  // The Analytics tab needs progress data regardless of which table columns are
+  // enabled; this gate is flipped when that tab opens.
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
 
-  // Reset on-demand progress when the class changes. Using the
-  // "store information from previous render" pattern instead of an effect
-  // avoids cascading renders flagged by `react-hooks/set-state-in-effect`.
+  // Reset on-demand state when the class changes. Using the "store information
+  // from previous render" pattern instead of an effect avoids cascading renders
+  // flagged by `react-hooks/set-state-in-effect`.
   const [trackedClassId, setTrackedClassId] = useState(classData.id);
   if (trackedClassId !== classData.id) {
     setTrackedClassId(classData.id);
-    setProgressEnabled(false);
+    setConfigOverride(null);
+    setAnalyticsEnabled(false);
   }
 
   const baseError =
@@ -138,9 +155,11 @@ export function useClassStudentsData({
     return map;
   }, [profilesQuery.data]);
 
-  const savedConfig = skipProgressView
-    ? classData.progress_view_config ?? null
-    : progressViewQuery.data ?? null;
+  const savedConfig =
+    configOverride ??
+    (skipProgressView
+      ? classData.progress_view_config ?? null
+      : progressViewQuery.data ?? null);
 
   const displayFieldIds = useMemo(
     () => new Set(savedConfig?.display_fields ?? []),
@@ -151,13 +170,32 @@ export function useClassStudentsData({
     [savedConfig]
   );
 
-  const progressLoaded =
-    progressEnabled &&
-    progressSummaryQuery.data !== undefined &&
-    !pendingApprovalsQuery.isLoading;
-  const progressLoading =
-    progressEnabled &&
-    (progressSummaryQuery.isLoading || pendingApprovalsQuery.isLoading);
+  const resolvedVisibility = useMemo(
+    () => resolveColumnVisibility(savedConfig, groups.length),
+    [savedConfig, groups.length]
+  );
+
+  // Config-driven fetch gates: each heavy query runs only when an enabled column
+  // (or the Analytics tab, for the summary) actually needs its data.
+  const wantsProgressSummary =
+    needsProgressSummary(resolvedVisibility) || analyticsEnabled;
+  const wantsPendingApprovals = needsPendingApprovals(resolvedVisibility);
+
+  const progressSummaryQuery = useClassStudentProgressSummary(
+    classDbId,
+    wantsProgressSummary
+  );
+  const pendingApprovalsQuery = useStudentIdsPendingApprovalsByClass(
+    classDbId,
+    wantsPendingApprovals
+  );
+
+  const progressSummaryLoading =
+    wantsProgressSummary && progressSummaryQuery.isLoading;
+  const approvalsLoading =
+    wantsPendingApprovals && pendingApprovalsQuery.isLoading;
+  const analyticsProgressLoading =
+    analyticsEnabled && progressSummaryQuery.isLoading;
 
   const pendingApprovalStudentIds = useMemo(
     () => new Set(pendingApprovalsQuery.data ?? []),
@@ -172,12 +210,8 @@ export function useClassStudentsData({
       profileFieldsQuery.mutate(),
       profilesQuery.mutate(),
       skipProgressView ? Promise.resolve() : progressViewQuery.mutate(),
-      progressEnabled
-        ? Promise.all([
-            progressSummaryQuery.mutate(),
-            pendingApprovalsQuery.mutate(),
-          ])
-        : Promise.resolve(),
+      wantsProgressSummary ? progressSummaryQuery.mutate() : Promise.resolve(),
+      wantsPendingApprovals ? pendingApprovalsQuery.mutate() : Promise.resolve(),
     ]);
   }, [
     isTeacher,
@@ -188,19 +222,25 @@ export function useClassStudentsData({
     progressViewQuery,
     progressSummaryQuery,
     pendingApprovalsQuery,
-    progressEnabled,
+    wantsProgressSummary,
+    wantsPendingApprovals,
     skipProgressView,
   ]);
 
-  const ensureProgressDataLoaded = useCallback(async () => {
+  const saveTableConfig = useCallback(
+    async (next: ProgressViewConfig) => {
+      if (!isTeacher) return;
+      setConfigOverride(next);
+      await saveProgressViewConfig(classData.id, next);
+      if (!skipProgressView) await progressViewQuery.mutate();
+    },
+    [isTeacher, classData.id, skipProgressView, progressViewQuery]
+  );
+
+  const ensureAnalyticsDataLoaded = useCallback(() => {
     if (!isTeacher) return;
-    setProgressEnabled(true);
-    // If already enabled and cached, the SWR call is a no-op revalidation.
-    await Promise.all([
-      mutate(["classStudentProgressSummary", classData.id]),
-      mutate(["studentIdsPendingApprovalsByClass", classData.id]),
-    ]);
-  }, [classData.id, isTeacher]);
+    setAnalyticsEnabled(true);
+  }, [isTeacher]);
 
   const filterableFields = useMemo(() => {
     if (filterFieldIds.size === 0) return [];
@@ -318,20 +358,25 @@ export function useClassStudentsData({
 
   return {
     loading: !!loading,
-    progressLoading,
     error: baseError ? "Failed to load students." : null,
     students,
     groups,
+    groupCount: groups.length,
     profileFields,
     studentProfilesMap,
+    savedConfig,
+    resolvedVisibility,
     displayFieldIds,
     filterFieldIds,
     filterableFields,
-    progressLoaded,
     progressStatsMap,
     pendingApprovalStudentIds,
+    progressSummaryLoading,
+    approvalsLoading,
+    analyticsProgressLoading,
     refreshBase,
-    ensureProgressDataLoaded,
+    saveTableConfig,
+    ensureAnalyticsDataLoaded,
     buildGroupAnalyticsBuckets,
     buildProfileAnalyticsBuckets,
   };

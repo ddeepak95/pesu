@@ -26,13 +26,7 @@ import {
   updateProfileField,
   deleteProfileField,
 } from "@/lib/queries/profileFields";
-import { saveProgressViewConfig } from "@/lib/queries/classes";
-import { ProgressViewConfig } from "@/types/class";
-import {
-  useProfileFieldsForClass,
-  useProgressViewConfig,
-} from "@/hooks/swr";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useProfileFieldsForClass } from "@/hooks/swr";
 import {
   Plus,
   Trash2,
@@ -63,10 +57,8 @@ export default function ProfileFieldsSection({
   isOwner: _isOwner,
 }: ProfileFieldsSectionProps) {
   const profileFieldsQuery = useProfileFieldsForClass(classData.id);
-  const progressViewQuery = useProgressViewConfig(classData.id);
 
-  const loading =
-    profileFieldsQuery.isLoading || progressViewQuery.isLoading;
+  const loading = profileFieldsQuery.isLoading;
 
   const [fields, setFields] = useState<LocalField[]>([]);
   const [saving, setSaving] = useState(false);
@@ -74,11 +66,6 @@ export default function ProfileFieldsSection({
   const [success, setSuccess] = useState(false);
   const [deletedFieldIds, setDeletedFieldIds] = useState<string[]>([]);
   const [optionInputs, setOptionInputs] = useState<Record<number, string>>({});
-
-  const [displayFieldIds, setDisplayFieldIds] = useState<Set<string>>(new Set());
-  const [filterFieldIds, setFilterFieldIds] = useState<Set<string>>(new Set());
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [configSuccess, setConfigSuccess] = useState(false);
 
   useEffect(() => {
     if (profileFieldsQuery.error) {
@@ -101,13 +88,6 @@ export default function ProfileFieldsSection({
       }))
     );
   }, [profileFieldsQuery.data, profileFieldsQuery.error]);
-
-  useEffect(() => {
-    if (!progressViewQuery.data && !progressViewQuery.isLoading) return;
-    const cfg = progressViewQuery.data;
-    setDisplayFieldIds(new Set<string>(cfg?.display_fields ?? []));
-    setFilterFieldIds(new Set<string>(cfg?.filter_fields ?? []));
-  }, [progressViewQuery.data, progressViewQuery.isLoading]);
 
   const handleAddField = () => {
     const newPosition =
@@ -512,132 +492,6 @@ export default function ProfileFieldsSection({
               </Button>
             </div>
 
-            {/* Display in Views config */}
-            {fields.filter((f) => !f.isNew).length > 0 && (
-              <div className="pt-6 mt-6 border-t space-y-3">
-                <div>
-                  <h4 className="text-sm font-medium">Display in Views</h4>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Select which profile fields to show under student names in
-                    the Submissions tables and the Progress dialog.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {fields
-                    .filter((f) => !f.isNew)
-                    .map((field) => (
-                      <div
-                        key={`display-${field.id}`}
-                        className="flex items-center gap-2"
-                      >
-                        <Checkbox
-                          id={`display-field-${field.id}`}
-                          checked={displayFieldIds.has(field.id)}
-                          onCheckedChange={(checked) => {
-                            setDisplayFieldIds((prev) => {
-                              const next = new Set(prev);
-                              if (checked) {
-                                next.add(field.id);
-                              } else {
-                                next.delete(field.id);
-                              }
-                              return next;
-                            });
-                          }}
-                        />
-                        <Label
-                          htmlFor={`display-field-${field.id}`}
-                          className="text-sm cursor-pointer"
-                        >
-                          {field.field_name || "Untitled field"}
-                        </Label>
-                      </div>
-                    ))}
-                </div>
-                {/* Filter in Views: dropdown-type fields only */}
-                {fields.filter((f) => !f.isNew && f.field_type === "dropdown").length > 0 && (
-                  <>
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium">Filter in Views</h4>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Select which dropdown fields to show as filter options
-                        in the Submissions tables and the Progress dialog.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {fields
-                        .filter((f) => !f.isNew && f.field_type === "dropdown")
-                        .map((field) => (
-                          <div
-                            key={`filter-${field.id}`}
-                            className="flex items-center gap-2"
-                          >
-                            <Checkbox
-                              id={`filter-field-${field.id}`}
-                              checked={filterFieldIds.has(field.id)}
-                              onCheckedChange={(checked) => {
-                                setFilterFieldIds((prev) => {
-                                  const next = new Set(prev);
-                                  if (checked) {
-                                    next.add(field.id);
-                                  } else {
-                                    next.delete(field.id);
-                                  }
-                                  return next;
-                                });
-                              }}
-                            />
-                            <Label
-                              htmlFor={`filter-field-${field.id}`}
-                              className="text-sm cursor-pointer"
-                            >
-                              {field.field_name || "Untitled field"}
-                            </Label>
-                          </div>
-                        ))}
-                    </div>
-                  </>
-                )}
-
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={savingConfig}
-                    onClick={async () => {
-                      setSavingConfig(true);
-                      setConfigSuccess(false);
-                      try {
-                        const config: ProgressViewConfig = {
-                          display_fields: Array.from(displayFieldIds),
-                          filter_fields: Array.from(filterFieldIds),
-                        };
-                        await saveProgressViewConfig(classData.id, config);
-                        await mutate([
-                          "progressViewConfig",
-                          classData.id,
-                        ]);
-                        setConfigSuccess(true);
-                        setTimeout(() => setConfigSuccess(false), 3000);
-                      } catch (err) {
-                        console.error(
-                          "Error saving display config:",
-                          err
-                        );
-                      } finally {
-                        setSavingConfig(false);
-                      }
-                    }}
-                  >
-                    {savingConfig ? "Saving..." : "Save View Config"}
-                  </Button>
-                  {configSuccess && (
-                    <span className="text-sm text-green-600">Saved!</span>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </CardContent>

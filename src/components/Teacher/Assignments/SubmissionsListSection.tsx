@@ -29,6 +29,7 @@ import { deleteContentCompletionForStudent } from "@/lib/queries/contentCompleti
 import { IntegrityLockBadge } from "@/components/Shared/Integrity/IntegrityLockBadge";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
 import { Pill } from "@/components/ui/pill";
+import SubmissionsViewConfigMenu from "@/components/Teacher/Shared/SubmissionsViewConfigMenu";
 import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
@@ -635,6 +636,14 @@ export function SubmissionsListSection({
               displayFieldIds={displayFieldIds}
               filterFieldIds={filterFieldIds}
               profileFilterStorageKey={`assignment-submissions-filters-${classId}-${assignmentId}`}
+              toolbarEndExtra={
+                classDbId ? (
+                  <SubmissionsViewConfigMenu
+                    classDbId={classDbId}
+                    profileFields={profileFields}
+                  />
+                ) : undefined
+              }
               showUnlockColumn={requireTeacherUnlock}
               contentName="this assignment"
               onToggleUnlock={handleToggleUnlock}

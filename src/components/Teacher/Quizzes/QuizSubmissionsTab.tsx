@@ -25,6 +25,7 @@ import SubmissionsTable, {
   SubmissionsTableColumn,
   SubmissionsTableRow,
 } from "@/components/Teacher/Shared/SubmissionsTable";
+import SubmissionsViewConfigMenu from "@/components/Teacher/Shared/SubmissionsViewConfigMenu";
 import { Check, X } from "lucide-react";
 import { showErrorToast } from "@/lib/toast";
 import {
@@ -428,6 +429,12 @@ export default function QuizSubmissionsTab({
         displayFieldIds={displayFieldIds}
         filterFieldIds={filterFieldIds}
         profileFilterStorageKey={`quiz-submissions-filters-${quiz.class_id}-${quiz.id}`}
+        toolbarEndExtra={
+          <SubmissionsViewConfigMenu
+            classDbId={classDbId}
+            profileFields={profileFields}
+          />
+        }
         showUnlockColumn={requireTeacherUnlock}
         contentName={quiz.title}
         onToggleUnlock={handleToggleUnlock}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Download } from "lucide-react";
-import { Class } from "@/types/class";
+import { Class, ProgressViewConfig } from "@/types/class";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCoTeacherForClass } from "@/hooks/swr";
@@ -18,7 +18,6 @@ import ManageStudentsDialog from "./ManageStudentsDialog";
 import StudentListItemMenu from "./StudentListItemMenu";
 import ChangeGroupDialog from "./ChangeGroupDialog";
 import DeleteStudentDialog from "./DeleteStudentDialog";
-import StudentProgressDialog from "./StudentProgressDialog";
 import StudentIndividualProgressDialog from "./StudentIndividualProgressDialog";
 import SubmissionsTable, {
   SubmissionsTableColumn,
@@ -32,15 +31,21 @@ import {
   useClassStudentsData,
 } from "./hooks/useClassStudentsData";
 import StudentsAnalyticsTab from "./StudentsAnalyticsTab";
+import StudentsTableConfigMenu from "./StudentsTableConfigMenu";
 import ClassStudentsCsvExportDialog from "./ClassStudentsCsvExportDialog";
 import {
-  buildClassStudentsInfoCsv,
-  buildClassStudentsProgressCsv,
-  getInfoCsvColumnOptions,
-  getProgressCsvColumnOptions,
+  buildClassStudentsCsv,
+  getClassStudentsCsvColumnOptions,
 } from "./classStudentsCsvColumns";
+import { STUDENT_COLUMN_META } from "./studentsTableConfig";
 
-type StudentsSubTab = "info" | "progress" | "analytics";
+type StudentsSubTab = "table" | "analytics";
+
+type ProgressStatsShape = {
+  completed: number;
+  total: number;
+  lastCompletedAt: string | null;
+};
 
 function downloadCsvFile(csv: string, filename: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -92,25 +97,21 @@ export default function Students({
   const [studentToDelete, setStudentToDelete] =
     useState<StudentWithInfo | null>(null);
 
-  // Progress dialog state
-  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
-
   // Individual progress dialog state
   const [individualProgressDialogOpen, setIndividualProgressDialogOpen] =
     useState(false);
   const [individualProgressStudent, setIndividualProgressStudent] =
     useState<StudentWithInfo | null>(null);
 
-  const [infoCsvExportOpen, setInfoCsvExportOpen] = useState(false);
-  const [progressCsvExportOpen, setProgressCsvExportOpen] = useState(false);
+  const [csvExportOpen, setCsvExportOpen] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
 
   const activeStudentsTab = useMemo((): StudentsSubTab => {
     const t = searchParams.get("studentsTab");
-    // Fall back to "info" when analytics is hidden so a stale/deep-linked
+    // Fall back to the table when analytics is hidden so a stale/deep-linked
     // `studentsTab=analytics` URL doesn't render (or preload) a hidden tab.
-    if (t === "analytics") return showAnalyticsTab ? "analytics" : "info";
-    if (t === "progress") return "progress";
-    return "info";
+    if (t === "analytics") return showAnalyticsTab ? "analytics" : "table";
+    return "table";
   }, [searchParams, showAnalyticsTab]);
 
   const setStudentsSubTabInUrl = useCallback(
@@ -120,7 +121,7 @@ export default function Students({
       current.delete("studentsTab");
       const ordered = new URLSearchParams();
       ordered.set("tab", "students");
-      if (next !== "info") {
+      if (next !== "table") {
         ordered.set("studentsTab", next);
       }
       for (const [k, v] of current.entries()) {
@@ -133,19 +134,25 @@ export default function Students({
 
   const {
     loading,
-    progressLoading,
     error,
     students,
     groups,
+    groupCount,
     profileFields,
     studentProfilesMap,
+    savedConfig,
+    resolvedVisibility,
     displayFieldIds,
     filterFieldIds,
     filterableFields,
     progressStatsMap,
     pendingApprovalStudentIds,
+    progressSummaryLoading,
+    approvalsLoading,
+    analyticsProgressLoading,
     refreshBase,
-    ensureProgressDataLoaded,
+    saveTableConfig,
+    ensureAnalyticsDataLoaded,
     buildGroupAnalyticsBuckets,
     buildProfileAnalyticsBuckets,
   } = useClassStudentsData({
@@ -154,10 +161,9 @@ export default function Students({
   });
 
   useEffect(() => {
-    if (activeStudentsTab !== "progress" && activeStudentsTab !== "analytics")
-      return;
-    ensureProgressDataLoaded();
-  }, [activeStudentsTab, ensureProgressDataLoaded]);
+    if (activeStudentsTab !== "analytics") return;
+    ensureAnalyticsDataLoaded();
+  }, [activeStudentsTab, ensureAnalyticsDataLoaded]);
 
   const handleChangeGroup = useCallback((student: StudentWithInfo) => {
     setSelectedStudent(student);
@@ -185,112 +191,32 @@ export default function Students({
     setDeleteStudentDialogOpen(true);
   }, []);
 
-  const tableRows: SubmissionsTableRow[] = useMemo(() => {
-    return students.map((s) => {
-      const groupDisplayName = getStudentGroupLabel(s);
-      return {
-        id: s.student_id,
-        name: getStudentDisplayName(s),
-        email: s.student_email,
-        profileData: studentProfilesMap.get(s.student_id) ?? {},
-        data: {
-          groupDisplayName,
-          _student: s,
-          _groups: groups,
-        },
-      };
-    });
-  }, [students, studentProfilesMap, groups]);
+  const handleSaveConfig = useCallback(
+    async (next: ProgressViewConfig) => {
+      setSavingConfig(true);
+      try {
+        await saveTableConfig(next);
+      } finally {
+        setSavingConfig(false);
+      }
+    },
+    [saveTableConfig],
+  );
 
   const visibleDisplayFields = useMemo(() => {
     if (displayFieldIds.size === 0) return [];
     return profileFields.filter((f) => displayFieldIds.has(f.id));
   }, [profileFields, displayFieldIds]);
 
-  const infoCsvColumns = useMemo(
-    () => getInfoCsvColumnOptions(visibleDisplayFields),
-    [visibleDisplayFields],
-  );
-  const progressCsvColumns = useMemo(
-    () => getProgressCsvColumnOptions(visibleDisplayFields),
-    [visibleDisplayFields],
-  );
-
-  const tableColumns: SubmissionsTableColumn[] = useMemo(() => {
-    const profileColumns: SubmissionsTableColumn[] = visibleDisplayFields.map(
-      (field) => ({
-        key: `profile_${field.id}`,
-        label: field.field_name,
-        render: (row) => (
-          <span className="text-sm">
-            {row.profileData?.[field.id]?.trim() ?? "—"}
-          </span>
-        ),
-        sortValue: (row) => (row.profileData?.[field.id] ?? "").trim(),
-      }),
-    );
-    return [
-      ...profileColumns,
-      {
-        key: "group",
-        label: "Group",
-        render: (row) => (
-          <span className="text-sm">
-            {(row.data?.groupDisplayName as string) ?? "—"}
-          </span>
-        ),
-        sortValue: (row) => (row.data?.groupDisplayName as string) ?? "",
-      },
-      {
-        key: "actions",
-        label: "Actions",
-        align: "right",
-        sortable: false,
-        render: (row) => {
-          const student = row.data?._student as StudentWithInfo | undefined;
-          const groupList = row.data?._groups as ClassGroup[] | undefined;
-          if (!student) return null;
-          return (
-            <div className="flex items-center justify-end gap-2">
-              {false && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    handleViewIndividualProgress(student as StudentWithInfo)
-                  }
-                >
-                  View progress
-                </Button>
-              )}
-              <StudentListItemMenu
-                student={student}
-                groups={groupList ?? []}
-                onChangeGroup={handleChangeGroup}
-                onDeleteStudent={handleDeleteStudent}
-              />
-            </div>
-          );
-        },
-      },
-    ];
-  }, [
-    handleChangeGroup,
-    handleViewIndividualProgress,
-    handleDeleteStudent,
-    visibleDisplayFields,
-  ]);
-
-  const progressTableRows: SubmissionsTableRow[] = useMemo(() => {
+  const tableRows: SubmissionsTableRow[] = useMemo(() => {
     return students.map((s) => {
       const groupDisplayName = getStudentGroupLabel(s);
       const stats = progressStatsMap.get(s.student_id) ?? {
         completed: 0,
         total: 0,
         lastCompletedAt: null,
-        status: "not_started",
+        status: "not_started" as const,
       };
-
       return {
         id: s.student_id,
         name: getStudentDisplayName(s),
@@ -314,44 +240,42 @@ export default function Students({
     pendingApprovalStudentIds,
   ]);
 
-  const progressTableColumns: SubmissionsTableColumn[] = useMemo(() => {
-    const profileColumns: SubmissionsTableColumn[] = visibleDisplayFields.map(
+  const tableColumns: SubmissionsTableColumn[] = useMemo(() => {
+    const columns: SubmissionsTableColumn[] = visibleDisplayFields.map(
       (field) => ({
         key: `profile_${field.id}`,
         label: field.field_name,
-        render: (row: SubmissionsTableRow) => (
+        render: (row) => (
           <span className="text-sm">
             {row.profileData?.[field.id]?.trim() ?? "—"}
           </span>
         ),
-        sortValue: (row: SubmissionsTableRow) =>
-          (row.profileData?.[field.id] ?? "").trim(),
+        sortValue: (row) => (row.profileData?.[field.id] ?? "").trim(),
       }),
     );
-    return [
-      ...profileColumns,
-      {
+
+    if (resolvedVisibility.group) {
+      columns.push({
         key: "group",
-        label: "Group",
-        render: (row: SubmissionsTableRow) => (
+        label: STUDENT_COLUMN_META.group.label,
+        render: (row) => (
           <span className="text-sm">
             {(row.data?.groupDisplayName as string) ?? "—"}
           </span>
         ),
-        sortValue: (row: SubmissionsTableRow) =>
-          (row.data?.groupDisplayName as string) ?? "",
-      },
-      {
+        sortValue: (row) => (row.data?.groupDisplayName as string) ?? "",
+      });
+    }
+
+    if (resolvedVisibility.progress) {
+      columns.push({
         key: "progress",
-        label: "Progress",
-        render: (row: SubmissionsTableRow) => {
-          const stats = row.data?.progressStats as
-            | {
-                completed: number;
-                total: number;
-                lastCompletedAt: string | null;
-              }
-            | undefined;
+        label: STUDENT_COLUMN_META.progress.label,
+        render: (row) => {
+          if (progressSummaryLoading) {
+            return <span className="text-xs text-muted-foreground">…</span>;
+          }
+          const stats = row.data?.progressStats as ProgressStatsShape | undefined;
           if (!stats || stats.total === 0) {
             return (
               <span className="text-xs text-muted-foreground">No content</span>
@@ -378,29 +302,23 @@ export default function Students({
             </div>
           );
         },
-        sortValue: (row: SubmissionsTableRow) => {
-          const stats = row.data?.progressStats as
-            | {
-                completed: number;
-                total: number;
-                lastCompletedAt: string | null;
-              }
-            | undefined;
+        sortValue: (row) => {
+          const stats = row.data?.progressStats as ProgressStatsShape | undefined;
           if (!stats || stats.total === 0) return -1;
           return stats.completed / stats.total;
         },
-      },
-      {
+      });
+    }
+
+    if (resolvedVisibility.lastCompleted) {
+      columns.push({
         key: "last_completed",
-        label: "Last completed",
-        render: (row: SubmissionsTableRow) => {
-          const stats = row.data?.progressStats as
-            | {
-                completed: number;
-                total: number;
-                lastCompletedAt: string | null;
-              }
-            | undefined;
+        label: STUDENT_COLUMN_META.lastCompleted.label,
+        render: (row) => {
+          if (progressSummaryLoading) {
+            return <span className="text-sm text-muted-foreground">…</span>;
+          }
+          const stats = row.data?.progressStats as ProgressStatsShape | undefined;
           if (!stats || !stats.lastCompletedAt) {
             return <span className="text-sm text-muted-foreground">—</span>;
           }
@@ -410,128 +328,170 @@ export default function Students({
             </span>
           );
         },
-        sortValue: (row: SubmissionsTableRow) => {
-          const stats = row.data?.progressStats as
-            | {
-                completed: number;
-                total: number;
-                lastCompletedAt: string | null;
-              }
-            | undefined;
+        sortValue: (row) => {
+          const stats = row.data?.progressStats as ProgressStatsShape | undefined;
           if (!stats || !stats.lastCompletedAt) return -1;
           return Date.parse(stats.lastCompletedAt);
         },
-      },
-      {
+      });
+    }
+
+    if (resolvedVisibility.approvals) {
+      columns.push({
         key: "pending_approval",
-        label: "Approvals",
-        render: (row: SubmissionsTableRow) =>
-          row.data?.hasPendingApprovals ? (
+        label: STUDENT_COLUMN_META.approvals.label,
+        render: (row) => {
+          if (approvalsLoading) {
+            return <span className="text-sm text-muted-foreground">…</span>;
+          }
+          return row.data?.hasPendingApprovals ? (
             <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
               Pending
             </span>
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
-          ),
-        sortValue: (row: SubmissionsTableRow) =>
-          row.data?.hasPendingApprovals ? 0 : 1,
-      },
-      {
-        key: "actions",
-        label: "",
-        align: "right" as const,
-        sortable: false,
-        render: (row: SubmissionsTableRow) => {
-          const student = row.data?._student as StudentWithInfo | undefined;
-          if (!student) return null;
-          return (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleViewIndividualProgress(student)}
-            >
-              View details
-            </Button>
           );
         },
-      },
-    ];
-  }, [handleViewIndividualProgress, visibleDisplayFields]);
+        sortValue: (row) => (row.data?.hasPendingApprovals ? 0 : 1),
+      });
+    }
 
-  const handleConfirmInfoCsvDownload = useCallback(
-    (selectedIds: Set<string>) => {
-      const csv = buildClassStudentsInfoCsv(
-        tableRows,
-        visibleDisplayFields,
-        selectedIds,
-      );
-      const safeName = sanitizeFilenameSegment(classData.name, "class");
-      const stamp = csvFilenameDateTime();
-      downloadCsvFile(
-        csv,
-        `class-students-info-${classData.class_id}-${safeName}-${stamp}.csv`,
-      );
-    },
-    [tableRows, visibleDisplayFields, classData.class_id, classData.name],
+    columns.push({
+      key: "actions",
+      label: "",
+      align: "right",
+      sortable: false,
+      render: (row) => {
+        const student = row.data?._student as StudentWithInfo | undefined;
+        const groupList = row.data?._groups as ClassGroup[] | undefined;
+        if (!student) return null;
+        return (
+          <div className="flex items-center justify-end">
+            <StudentListItemMenu
+              student={student}
+              groups={groupList ?? []}
+              onViewProgress={handleViewIndividualProgress}
+              onChangeGroup={handleChangeGroup}
+              onDeleteStudent={handleDeleteStudent}
+            />
+          </div>
+        );
+      },
+    });
+
+    return columns;
+  }, [
+    visibleDisplayFields,
+    resolvedVisibility,
+    progressSummaryLoading,
+    approvalsLoading,
+    handleViewIndividualProgress,
+    handleChangeGroup,
+    handleDeleteStudent,
+  ]);
+
+  const csvColumns = useMemo(
+    () =>
+      getClassStudentsCsvColumnOptions(visibleDisplayFields, resolvedVisibility),
+    [visibleDisplayFields, resolvedVisibility],
   );
 
-  const handleConfirmProgressCsvDownload = useCallback(
+  const handleConfirmCsvDownload = useCallback(
     (selectedIds: Set<string>) => {
-      const csv = buildClassStudentsProgressCsv(
-        progressTableRows,
+      const csv = buildClassStudentsCsv(
+        tableRows,
         visibleDisplayFields,
+        resolvedVisibility,
         selectedIds,
       );
       const safeName = sanitizeFilenameSegment(classData.name, "class");
       const stamp = csvFilenameDateTime();
       downloadCsvFile(
         csv,
-        `class-students-progress-${classData.class_id}-${safeName}-${stamp}.csv`,
+        `class-students-${classData.class_id}-${safeName}-${stamp}.csv`,
       );
     },
     [
-      progressTableRows,
+      tableRows,
       visibleDisplayFields,
+      resolvedVisibility,
       classData.class_id,
       classData.name,
     ],
   );
 
-  const infoToolbarExtra = useMemo(
-    () => (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="gap-1.5 shrink-0"
-        onClick={() => setInfoCsvExportOpen(true)}
-        disabled={students.length === 0}
-        title="Download roster as CSV"
-        aria-label="Download student info table as CSV"
-      >
-        <Download className="h-4 w-4" />
-      </Button>
-    ),
-    [students.length],
+  const statusFilterOptions = useMemo(
+    () =>
+      resolvedVisibility.progress
+        ? [
+            { value: "complete", label: "All Complete" },
+            { value: "in_progress", label: "In Progress" },
+            { value: "not_started", label: "Not Started" },
+          ]
+        : [],
+    [resolvedVisibility.progress],
   );
 
-  const progressToolbarExtra = useMemo(
+  const toolbarExtra = useMemo(
     () => (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="gap-1.5 shrink-0"
-        onClick={() => setProgressCsvExportOpen(true)}
-        disabled={students.length === 0}
-        title="Download progress as CSV"
-        aria-label="Download student progress table as CSV"
-      >
-        <Download className="h-4 w-4" />
-      </Button>
+      <>
+        <StudentsTableConfigMenu
+          profileFields={profileFields}
+          savedConfig={savedConfig}
+          visibility={resolvedVisibility}
+          groupCount={groupCount}
+          saving={savingConfig}
+          onSave={handleSaveConfig}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 shrink-0"
+          onClick={() => setCsvExportOpen(true)}
+          disabled={students.length === 0}
+          title="Download roster as CSV"
+          aria-label="Download student table as CSV"
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+      </>
     ),
-    [students.length],
+    [
+      profileFields,
+      savedConfig,
+      resolvedVisibility,
+      groupCount,
+      savingConfig,
+      handleSaveConfig,
+      students.length,
+    ],
   );
+
+  const studentsTable =
+    students.length === 0 ? (
+      <div className="text-center py-12 text-muted-foreground">
+        <p>
+          No students enrolled yet. Use the &apos;Invite Students&apos; button to
+          generate an invite link.
+        </p>
+      </div>
+    ) : (
+      <SubmissionsTable
+        columns={tableColumns}
+        rows={tableRows}
+        statusFilterOptions={statusFilterOptions}
+        profileFields={profileFields}
+        displayFieldIds={new Set()}
+        filterFieldIds={filterFieldIds}
+        profileFilterStorageKey={`class-students-filters-${classData.id}`}
+        showUnlockColumn={false}
+        emptyMessage="No students enrolled yet."
+        searchPlaceholder="Search by student name..."
+        toolbarEndExtra={toolbarExtra}
+        wideColumnScroll
+      />
+    );
 
   return (
     <div className="py-6">
@@ -539,14 +499,6 @@ export default function Students({
         <h2 className="text-2xl font-bold">Students</h2>
         {isStaffTeacher && (
           <div className="flex gap-2">
-            {false && (
-              <Button
-                variant="outline"
-                onClick={() => setProgressDialogOpen(true)}
-              >
-                View Student Progress
-              </Button>
-            )}
             <Button onClick={() => setManageDialogOpen(true)}>
               Invite Students
             </Button>
@@ -566,6 +518,8 @@ export default function Students({
         <div className="text-center py-12">
           <p className="text-destructive">{error}</p>
         </div>
+      ) : !showAnalyticsTab ? (
+        studentsTable
       ) : (
         <Tabs
           value={activeStudentsTab}
@@ -574,96 +528,31 @@ export default function Students({
         >
           <MutedPrimaryTabsList className="mb-4 h-auto w-auto gap-1 rounded-md p-1">
             <MutedPrimaryTabsTrigger
-              value="info"
+              value="table"
               className="rounded-sm px-4 py-2"
             >
-              Info
+              Roster
             </MutedPrimaryTabsTrigger>
             <MutedPrimaryTabsTrigger
-              value="progress"
+              value="analytics"
               className="rounded-sm px-4 py-2"
             >
-              Progress
+              Analytics
             </MutedPrimaryTabsTrigger>
-            {showAnalyticsTab && (
-              <MutedPrimaryTabsTrigger
-                value="analytics"
-                className="rounded-sm px-4 py-2"
-              >
-                Analytics
-              </MutedPrimaryTabsTrigger>
-            )}
           </MutedPrimaryTabsList>
 
-          <TabsContent value="info" className="mt-0 overflow-visible">
-            {students.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <p>
-                  No students enrolled yet. Use the &apos;Invite Students&apos;
-                  button to generate an invite link.
-                </p>
-              </div>
-            ) : (
-              <SubmissionsTable
-                columns={tableColumns}
-                rows={tableRows}
-                statusFilterOptions={[]}
-                profileFields={profileFields}
-                displayFieldIds={new Set()}
-                filterFieldIds={filterFieldIds}
-                profileFilterStorageKey={`class-students-filters-${classData.id}`}
-                showUnlockColumn={false}
-                emptyMessage="No students enrolled yet."
-                searchPlaceholder="Search by student name..."
-                toolbarEndExtra={infoToolbarExtra}
-                wideColumnScroll
-              />
-            )}
+          <TabsContent value="table" className="mt-0 overflow-visible">
+            {studentsTable}
           </TabsContent>
 
-          <TabsContent value="progress" className="mt-0 overflow-visible">
-            {progressLoading ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">
-                  Loading progress data...
-                </p>
-              </div>
-            ) : students.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <p>No students enrolled yet.</p>
-              </div>
-            ) : (
-              <SubmissionsTable
-                columns={progressTableColumns}
-                rows={progressTableRows}
-                statusFilterOptions={[
-                  { value: "complete", label: "All Complete" },
-                  { value: "in_progress", label: "In Progress" },
-                  { value: "not_started", label: "Not Started" },
-                ]}
-                profileFields={profileFields}
-                displayFieldIds={new Set()}
-                filterFieldIds={filterFieldIds}
-                profileFilterStorageKey={`class-students-filters-${classData.id}`}
-                showUnlockColumn={false}
-                emptyMessage="No students enrolled yet."
-                searchPlaceholder="Search by student name..."
-                toolbarEndExtra={progressToolbarExtra}
-                wideColumnScroll
-              />
-            )}
+          <TabsContent value="analytics" className="mt-0">
+            <StudentsAnalyticsTab
+              filterableFields={filterableFields}
+              groupBuckets={buildGroupAnalyticsBuckets()}
+              buildProfileBuckets={buildProfileAnalyticsBuckets}
+              progressLoading={analyticsProgressLoading}
+            />
           </TabsContent>
-
-          {showAnalyticsTab && (
-            <TabsContent value="analytics" className="mt-0">
-              <StudentsAnalyticsTab
-                filterableFields={filterableFields}
-                groupBuckets={buildGroupAnalyticsBuckets()}
-                buildProfileBuckets={buildProfileAnalyticsBuckets}
-                progressLoading={progressLoading}
-              />
-            </TabsContent>
-          )}
         </Tabs>
       )}
 
@@ -693,12 +582,6 @@ export default function Students({
         onStudentDeleted={handleStudentDeleted}
       />
 
-      <StudentProgressDialog
-        open={progressDialogOpen}
-        onOpenChange={setProgressDialogOpen}
-        classDbId={classData.id}
-      />
-
       <StudentIndividualProgressDialog
         open={individualProgressDialogOpen}
         onOpenChange={(newOpen) => {
@@ -711,18 +594,11 @@ export default function Students({
       />
 
       <ClassStudentsCsvExportDialog
-        open={infoCsvExportOpen}
-        onOpenChange={setInfoCsvExportOpen}
-        title="Download student info (CSV)"
-        columns={infoCsvColumns}
-        onDownload={handleConfirmInfoCsvDownload}
-      />
-      <ClassStudentsCsvExportDialog
-        open={progressCsvExportOpen}
-        onOpenChange={setProgressCsvExportOpen}
-        title="Download student progress (CSV)"
-        columns={progressCsvColumns}
-        onDownload={handleConfirmProgressCsvDownload}
+        open={csvExportOpen}
+        onOpenChange={setCsvExportOpen}
+        title="Download students (CSV)"
+        columns={csvColumns}
+        onDownload={handleConfirmCsvDownload}
       />
     </div>
   );
