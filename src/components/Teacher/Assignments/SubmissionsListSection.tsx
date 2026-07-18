@@ -28,6 +28,7 @@ import {
 import { deleteContentCompletionForStudent } from "@/lib/queries/contentCompletions";
 import { IntegrityLockBadge } from "@/components/Shared/Integrity/IntegrityLockBadge";
 import { getStudentDisplayName } from "@/lib/utils/displayName";
+import { formatPoints } from "@/lib/utils/scoreDisplay";
 import { Pill } from "@/components/ui/pill";
 import SubmissionsViewConfigMenu from "@/components/Teacher/Shared/SubmissionsViewConfigMenu";
 import SubmissionsTable, {
@@ -372,7 +373,7 @@ export function SubmissionsListSection({
         ? "-"
         : !item.released
           ? "Pending review"
-          : `${item.gradedScore ?? 0}/${item.maxScore ?? 0}`;
+          : `${formatPoints(item.gradedScore)}/${formatPoints(item.maxScore)}`;
       return {
         id: item.student.student_id,
         name: getStudentDisplayName(item.student),
@@ -495,7 +496,7 @@ export function SubmissionsListSection({
         ? "-"
         : !item.released
           ? "Pending review"
-          : `${item.gradedScore ?? 0}/${item.maxScore ?? 0}`;
+          : `${formatPoints(item.gradedScore)}/${formatPoints(item.maxScore)}`;
       return {
         id: item.submission.submission_id,
         name: getPublicResponderDisplayName(item.submission),

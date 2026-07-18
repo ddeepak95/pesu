@@ -12,7 +12,7 @@ import { StarRatingDisplay } from "@/components/StarRatingDisplay";
 import { FinishAssessmentButton } from "@/components/Shared/FinishAssessmentButton";
 import { AttemptFeedbackView } from "@/components/Shared/AttemptFeedbackView";
 import { FeedbackTentativeBanner } from "@/components/Shared/FeedbackTentativeBanner";
-import { getScoreColor, getScoreBgColor } from "@/lib/utils/scoreDisplay";
+import { getScoreColor, getScoreBgColor, formatPoints } from "@/lib/utils/scoreDisplay";
 import { CheckCircle2 } from "lucide-react";
 import { useAssessmentTracking } from "@/contexts/AssessmentTrackingContext";
 
@@ -97,7 +97,7 @@ export function QuestionCompletionPanel({
             className={`px-5 py-2.5 rounded-lg ${getScoreBgColor(scorePercentage)}`}
           >
             <span className={`text-2xl font-bold ${getScoreColor(scorePercentage)}`}>
-              {score}/{attempt.max_score}
+              {formatPoints(score)}/{formatPoints(attempt.max_score)}
             </span>
             <span className="text-sm ml-2 text-muted-foreground">
               ({Math.round(scorePercentage)}%)

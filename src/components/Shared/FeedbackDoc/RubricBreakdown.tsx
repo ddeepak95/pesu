@@ -2,7 +2,7 @@
 
 import type { RubricScore } from "@/types/submission";
 import { StarRatingDisplay } from "@/components/StarRatingDisplay";
-import { getRubricItemScoreColor } from "@/lib/utils/scoreDisplay";
+import { formatPoints, getRubricItemScoreColor } from "@/lib/utils/scoreDisplay";
 
 export interface RubricBreakdownProps {
   rubricScores: RubricScore[];
@@ -51,7 +51,8 @@ export function RubricBreakdown({
                 <span
                   className={`text-sm font-semibold ${getRubricItemScoreColor(itemPercentage)}`}
                 >
-                  {rubricItem.points_earned}/{rubricItem.points_possible} pts
+                  {formatPoints(rubricItem.points_earned)}/
+                  {formatPoints(rubricItem.points_possible)} pts
                 </span>
               )}
             </div>

@@ -3,7 +3,7 @@
 import type { RubricScore } from "@/types/submission";
 import type { FeedbackDoc } from "@/types/feedbackDoc";
 import { feedbackDocHasContent } from "@/types/feedbackDoc";
-import { getScoreColor, getScoreBgColor } from "@/lib/utils/scoreDisplay";
+import { getScoreColor, getScoreBgColor, formatPoints } from "@/lib/utils/scoreDisplay";
 import { FeedbackDocView } from "@/components/Shared/FeedbackDoc/FeedbackDocView";
 import { RubricBreakdown } from "@/components/Shared/FeedbackDoc/RubricBreakdown";
 
@@ -49,7 +49,7 @@ export function AttemptFeedbackView({
           <span
             className={`text-2xl font-bold ${getScoreColor(scorePercentage)}`}
           >
-            {score}/{maxScore}
+            {formatPoints(score)}/{formatPoints(maxScore)}
           </span>
           <span className="text-sm ml-2 text-muted-foreground">
             ({Math.round(scorePercentage)}%)

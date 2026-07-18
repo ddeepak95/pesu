@@ -11,6 +11,7 @@ import {
 } from "@/types/feedbackDoc";
 import type { TeacherGradingAttempt } from "@/lib/queries/submissions";
 import { FeedbackDocEditor } from "@/components/Teacher/Assignments/FeedbackDocEditor";
+import { formatPoints, roundScore } from "@/lib/utils/scoreDisplay";
 
 /** Composed (client-side) edit for one attempt; persisted to a draft on Save, published at Release. */
 export interface AttemptGradeEdit {
@@ -43,7 +44,7 @@ export function attemptToEdit(attempt: TeacherGradingAttempt): AttemptGradeEdit 
 function clampScore(value: string, max: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 0;
-  return Math.min(Math.max(parsed, 0), max);
+  return roundScore(Math.min(Math.max(parsed, 0), max));
 }
 
 export function EditableAttemptGradingForm({
@@ -70,7 +71,9 @@ export function EditableAttemptGradingForm({
     const nextRubric = value.rubric_scores.map((r, i) =>
       i === index ? { ...r, ...patch } : r,
     );
-    const nextScore = nextRubric.reduce((t, r) => t + r.points_earned, 0);
+    const nextScore = roundScore(
+      nextRubric.reduce((t, r) => t + r.points_earned, 0),
+    );
     onChange({ ...value, rubric_scores: nextRubric, score: nextScore });
   };
 
@@ -81,7 +84,7 @@ export function EditableAttemptGradingForm({
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-base font-semibold">Rubric</h3>
             <p className="text-sm font-semibold">
-              Points Scored <span className="ml-1">{totalPoints} / {maxPoints}</span>
+              Points Scored <span className="ml-1">{formatPoints(totalPoints)} / {formatPoints(maxPoints)}</span>
             </p>
           </div>
           {value.rubric_scores.map((rubricScore, index) => (
@@ -93,7 +96,7 @@ export function EditableAttemptGradingForm({
                     type="number"
                     min={0}
                     max={rubricScore.points_possible}
-                    step="0.5"
+                    step="0.05"
                     value={rubricScore.points_earned}
                     onChange={(e) =>
                       updateRubric(index, {

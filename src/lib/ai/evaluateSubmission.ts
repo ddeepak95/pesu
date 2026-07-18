@@ -25,6 +25,7 @@ import {
   type LLMRubricScore,
 } from "./schemas/evaluation";
 import { INTERACTIVE_MAX_ATTEMPTS } from "./retry";
+import { roundScore } from "@/lib/utils/scoreDisplay";
 
 /** Validation-driven regenerations of feedback_doc (on top of provider retries). */
 const MAX_FEEDBACK_DOC_ATTEMPTS = 2;
@@ -146,10 +147,13 @@ export async function evaluateSubmission(
   const validatedRubricScores = evaluationResult.rubric_scores.map(
     (score: LLMRubricScore, index: number) => {
       const rubricItem = rubric[index];
-      const pointsEarned = Math.min(
+      const clamped = Math.min(
         Math.max(0, score.points_earned),
         rubricItem.points,
       );
+      // The LLM emits arbitrary-precision floats (e.g. 6.6666667). Snap to the
+      // nearest 0.05 so the stored/displayed points stay tidy across every consumer.
+      const pointsEarned = roundScore(clamped);
       return {
         item: score.item || rubricItem.item,
         points_earned: pointsEarned,
@@ -159,9 +163,8 @@ export async function evaluateSubmission(
     },
   );
 
-  const totalScore = validatedRubricScores.reduce(
-    (sum, item) => sum + item.points_earned,
-    0,
+  const totalScore = roundScore(
+    validatedRubricScores.reduce((sum, item) => sum + item.points_earned, 0),
   );
 
   return {
