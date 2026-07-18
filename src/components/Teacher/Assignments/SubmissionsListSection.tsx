@@ -106,6 +106,9 @@ export function SubmissionsListSection({
     () => publicSubmissionsQuery.data ?? [],
     [publicSubmissionsQuery.data]
   );
+  // Only surface the Public Submissions tab once there is at least one public
+  // submission to show.
+  const showPublicTab = isPublic && publicSubmissions.length > 0;
   const profileFields = useMemo(
     () => profileFieldsQuery.data ?? [],
     [profileFieldsQuery.data]
@@ -609,7 +612,7 @@ export function SubmissionsListSection({
           >
             Class Students
           </MutedPrimaryTabsTrigger>
-          {isPublic && (
+          {showPublicTab && (
             <MutedPrimaryTabsTrigger
               value="public-submissions"
               className="rounded-sm px-4 py-2"
@@ -657,7 +660,7 @@ export function SubmissionsListSection({
           )}
         </TabsContent>
 
-        {isPublic && (
+        {showPublicTab && (
           <TabsContent value="public-submissions">
             {publicLoading ? (
               <div className="text-center py-12">
