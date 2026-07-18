@@ -3,6 +3,8 @@ import { verifySession } from "@/lib/dal";
 import { notFound } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import ClassDetailClient from "@/app/teacher/classes/[classId]/ClassDetailClient";
+import { getEffectiveSettingsForClass } from "@/lib/queries/settings";
+import { getEffectiveValue } from "@/lib/settings/resolve";
 
 const CLASS_COLUMNS =
   "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
@@ -50,9 +52,28 @@ export default async function ClassDetailPage({
 
   if (!classData) notFound();
 
+  // Resolve institution → class settings server-side so the Create menu and the
+  // Students → Analytics tab are correct on first paint (no client fetch, no
+  // flash). `verifySession` is request-cached, so this reuses the client above.
+  const { supabase } = await verifySession("/teacher/login");
+  const effective = await getEffectiveSettingsForClass(supabase, classData.id);
+  const allowedContentTypes = getEffectiveValue(
+    effective,
+    "allowed_content_types",
+  );
+  const showAnalyticsTab = getEffectiveValue(
+    effective,
+    "show_students_analytics_tab",
+  );
+
   return (
     <Suspense fallback={<ClassDetailFallback />}>
-      <ClassDetailClient classData={classData} classId={classId} />
+      <ClassDetailClient
+        classData={classData}
+        classId={classId}
+        allowedContentTypes={allowedContentTypes}
+        showAnalyticsTab={showAnalyticsTab}
+      />
     </Suspense>
   );
 }

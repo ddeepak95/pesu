@@ -67,10 +67,15 @@ function InstitutionSettingRow({
     institutionLocks: effective.institutionLocks,
   });
 
-  // Use the platform default as the "parent" for clamping at the institution
-  // level — for now there's no super-scope, but this keeps the contract
-  // symmetric with class-level controls.
-  const parentValue = def.default;
+  // At the institution scope there's no parent to restrict against (no
+  // super-scope), so every option is selectable. For `string_array` the ceiling
+  // is the full option universe — NOT `def.default`, which is only the
+  // "on by default" subset (e.g. Quiz/Survey are off by default but must still
+  // be enable-able here). Other types ignore `parentValue`, so `default` is fine.
+  const parentValue =
+    def.type === "string_array"
+      ? (def.options ?? []).map((o) => o.value)
+      : def.default;
 
   const [draftValue, setDraftValue] = useState<unknown>(effective.value);
   const [draftAllowAdminEdit, setDraftAllowAdminEdit] = useState(

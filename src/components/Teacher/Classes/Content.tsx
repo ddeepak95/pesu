@@ -58,9 +58,13 @@ import {
 
 interface ContentProps {
   classData: Class;
+  allowedContentTypes: string[];
 }
 
-export default function Content({ classData }: ContentProps) {
+export default function Content({
+  classData,
+  allowedContentTypes,
+}: ContentProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
   // Initialize from URL so we don't flash empty content when navigating back
@@ -569,6 +573,7 @@ export default function Content({ classData }: ContentProps) {
           <CreateContentMenu
             classPublicId={classData.class_id}
             selectedGroupId={selectedGroupId}
+            allowedContentTypes={allowedContentTypes}
           />
         </div>
       </div>

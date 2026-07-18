@@ -278,6 +278,34 @@ from public.classes c
 where c.class_id = 'seedc001'
 on conflict (class_id, student_id) do nothing;
 
+-- Seed institution-owned default class settings for the default institution.
+-- Mirrors buildInstitutionScaffoldRows() (src/lib/settings/scaffold.ts): rows
+-- must exist WITH the correct lock columns so institution admins can manage the
+-- default and class admins can override. Idempotent (do nothing on conflict).
+insert into public.setting_values (
+  scope, scope_id, key, value, allow_admin_edit, allow_child_override, updated_by
+)
+values
+  (
+    'institution',
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    'allowed_content_types',
+    '["formative_assignment", "learning_content"]'::jsonb,
+    true,
+    true,
+    '00000000-0000-0000-0000-000000000010'::uuid
+  ),
+  (
+    'institution',
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    'show_students_analytics_tab',
+    'false'::jsonb,
+    true,
+    true,
+    '00000000-0000-0000-0000-000000000010'::uuid
+  )
+on conflict (scope, scope_id, key) do nothing;
+
 -- Repair seeded users created before token columns were set (GoTrue login fix).
 update auth.users
 set

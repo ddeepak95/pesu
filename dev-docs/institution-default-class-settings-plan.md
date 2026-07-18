@@ -1,5 +1,16 @@
 # Institution Default Class Settings — Content Types & Analytics Visibility
 
+> **Status: IMPLEMENTED (2026-07-18, branch `ui-fixes-new`).** All 8 steps below
+> are done except step 8's formal unit tests — this repo has no test runner
+> (no jest/vitest, no `test` script), so the pure validators/scaffold builder
+> were verified via `tsc --noEmit` + `eslint` instead. No DB migration was
+> needed (registry-only). New files: `src/lib/settings/scaffold.ts`,
+> `src/lib/settings/contentTypeGuard.ts`. New institutions scaffold on create
+> and the default institution is covered by `seed.sql`; **no backfill for
+> existing institutions** — un-scaffolded institutions fall back to the registry
+> `default` (Quiz/Survey off, Analytics hidden), which matches the intended
+> defaults, so their classes behave correctly until an admin customizes them.
+
 ## Goal
 
 Give **each institution** its own default class settings that class-level admins can
@@ -132,9 +143,12 @@ Wire-in points:
   scaffold rows right after the institution insert, in the same action (runs as super
   admin ⇒ trigger permits setting the locks). Also cover the default institution created
   in [seed.sql](../supabase/seed.sql).
-- **Backfill existing institutions:** idempotent one-time script under `scripts/`
-  (`insert … on conflict (scope, scope_id, key) do nothing`) so it never clobbers a
-  customized row. Only a handful of institutions exist today.
+- **Existing institutions:** not backfilled (decided against — the platform is
+  new). Any institution without a scaffold row falls back to the registry
+  `default` (Quiz/Survey off, Analytics hidden), which is the intended default,
+  so their classes behave correctly. `seedInstitutionScaffoldSettings()` upserts
+  with `on conflict do nothing`, so a backfill could be added later without risk
+  if institution-admin-editable defaults are wanted for the old ones.
 
 > Lighter alternative considered — make `DEFAULT_LOCKS` registry-declared (no seeding, so
 > the registry value stays DRY with no drift). Rejected as the primary approach because
@@ -265,10 +279,10 @@ Worth adding a short `dev-docs/adding-hierarchical-settings.md` capturing this r
 1. **registry.ts** — add the `InstitutionScaffold` type + `institutionScaffold` field,
    `CONTENT_TYPE_OPTIONS`, a `validateStringArray(options)` helper, and the two entries.
 2. **scaffold.ts** — `buildInstitutionScaffoldRows()` (registry-driven).
-3. **Institution create + backfill** — call the scaffold from
+3. **Institution create** — call the scaffold from
    [createInstitutionAction](../src/app/platform/actions.ts) / `createInstitution`; cover
-   [seed.sql](../supabase/seed.sql); add an idempotent `scripts/` backfill for existing
-   institutions.
+   [seed.sql](../supabase/seed.sql). No backfill for existing institutions (they
+   fall back to the registry `default`).
 4. **page.tsx (server) → props** — resolve `getEffectiveSettingsForClass` in the class
    detail RSC and thread `allowedContentTypes` + `showAnalyticsTab` through
    `ClassDetailClient` to `Content`/`Students` (see "Loading strategy"). No client fetch

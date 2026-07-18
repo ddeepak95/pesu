@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Class } from "@/types/class";
+import { buildInstitutionScaffoldRows } from "@/lib/settings/scaffold";
 
 const CLASS_COLUMNS =
   "id, name, class_id, created_by, created_at, updated_at, status, preferred_language, group_count, enable_progressive_unlock, student_assignment_strategy, progress_view_config, institution_id";
@@ -78,7 +79,7 @@ export async function getInstitution(
 
 export async function createInstitution(
   supabase: SupabaseClient,
-  input: { name: string; slug?: string | null }
+  input: { name: string; slug?: string | null; createdBy: string }
 ): Promise<Institution> {
   const payload: { name: string; slug?: string | null; status: string } = {
     name: input.name,
@@ -94,7 +95,30 @@ export async function createInstitution(
     .select(INSTITUTION_COLUMNS)
     .single();
   if (error) throw error;
-  return data as Institution;
+
+  const institution = data as Institution;
+  await seedInstitutionScaffoldSettings(supabase, institution.id, input.createdBy);
+  return institution;
+}
+
+/**
+ * Seed the institution-owned default settings (registry entries declaring
+ * `institutionScaffold`) with their correct lock columns. Idempotent: existing
+ * rows are left untouched, so it is safe to call on create and again during a
+ * backfill. Must run as super admin (the DB trigger only lets a super admin set
+ * `allow_admin_edit = true`) — `createInstitution` is already super-admin-gated.
+ */
+export async function seedInstitutionScaffoldSettings(
+  supabase: SupabaseClient,
+  institutionId: string,
+  userId: string | null
+): Promise<void> {
+  const rows = buildInstitutionScaffoldRows(institutionId, userId);
+  if (rows.length === 0) return;
+  const { error } = await supabase
+    .from("setting_values")
+    .upsert(rows, { onConflict: "scope,scope_id,key", ignoreDuplicates: true });
+  if (error) throw error;
 }
 
 export async function listInstitutionMembers(

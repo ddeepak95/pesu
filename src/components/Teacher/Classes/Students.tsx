@@ -63,9 +63,14 @@ function csvFilenameDateTime(): string {
 
 interface StudentsProps {
   classData: Class;
+  /** Whether the Analytics sub-tab is available (institution default → class override). */
+  showAnalyticsTab: boolean;
 }
 
-export default function Students({ classData }: StudentsProps) {
+export default function Students({
+  classData,
+  showAnalyticsTab,
+}: StudentsProps) {
   const router = useTrackedRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -101,9 +106,12 @@ export default function Students({ classData }: StudentsProps) {
 
   const activeStudentsTab = useMemo((): StudentsSubTab => {
     const t = searchParams.get("studentsTab");
-    if (t === "progress" || t === "analytics") return t;
+    // Fall back to "info" when analytics is hidden so a stale/deep-linked
+    // `studentsTab=analytics` URL doesn't render (or preload) a hidden tab.
+    if (t === "analytics") return showAnalyticsTab ? "analytics" : "info";
+    if (t === "progress") return "progress";
     return "info";
-  }, [searchParams]);
+  }, [searchParams, showAnalyticsTab]);
 
   const setStudentsSubTabInUrl = useCallback(
     (next: StudentsSubTab) => {
@@ -577,12 +585,14 @@ export default function Students({ classData }: StudentsProps) {
             >
               Progress
             </MutedPrimaryTabsTrigger>
-            <MutedPrimaryTabsTrigger
-              value="analytics"
-              className="rounded-sm px-4 py-2"
-            >
-              Analytics
-            </MutedPrimaryTabsTrigger>
+            {showAnalyticsTab && (
+              <MutedPrimaryTabsTrigger
+                value="analytics"
+                className="rounded-sm px-4 py-2"
+              >
+                Analytics
+              </MutedPrimaryTabsTrigger>
+            )}
           </MutedPrimaryTabsList>
 
           <TabsContent value="info" className="mt-0 overflow-visible">
@@ -644,14 +654,16 @@ export default function Students({ classData }: StudentsProps) {
             )}
           </TabsContent>
 
-          <TabsContent value="analytics" className="mt-0">
-            <StudentsAnalyticsTab
-              filterableFields={filterableFields}
-              groupBuckets={buildGroupAnalyticsBuckets()}
-              buildProfileBuckets={buildProfileAnalyticsBuckets}
-              progressLoading={progressLoading}
-            />
-          </TabsContent>
+          {showAnalyticsTab && (
+            <TabsContent value="analytics" className="mt-0">
+              <StudentsAnalyticsTab
+                filterableFields={filterableFields}
+                groupBuckets={buildGroupAnalyticsBuckets()}
+                buildProfileBuckets={buildProfileAnalyticsBuckets}
+                progressLoading={progressLoading}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       )}
 

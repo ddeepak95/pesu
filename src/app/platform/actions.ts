@@ -36,7 +36,7 @@ function buildNoticeUrl(
 export async function createInstitutionAction(
   formData: FormData
 ): Promise<void> {
-  const { supabase } = await requireSuperAdmin();
+  const { user, supabase } = await requireSuperAdmin();
 
   const name = formString(formData, "name");
   if (!name) {
@@ -45,7 +45,7 @@ export async function createInstitutionAction(
 
   let errorMessage: string | null = null;
   try {
-    await createInstitution(supabase, { name });
+    await createInstitution(supabase, { name, createdBy: user.id });
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err);
   }

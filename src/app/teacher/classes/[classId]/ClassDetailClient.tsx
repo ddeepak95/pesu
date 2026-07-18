@@ -21,11 +21,17 @@ import { useAuth } from "@/contexts/AuthContext";
 interface ClassDetailClientProps {
   classData: Class;
   classId: string;
+  /** Content types this class may create (institution default → class override). */
+  allowedContentTypes: string[];
+  /** Whether the Students → Analytics sub-tab is visible for this class. */
+  showAnalyticsTab: boolean;
 }
 
 export default function ClassDetailClient({
   classData,
   classId,
+  allowedContentTypes,
+  showAnalyticsTab,
 }: ClassDetailClientProps) {
   const router = useTrackedRouter();
   const searchParams = useSearchParams();
@@ -154,11 +160,17 @@ export default function ClassDetailClient({
             </TabsList>
 
             <TabsContent value="content">
-              <Content classData={classData} />
+              <Content
+                classData={classData}
+                allowedContentTypes={allowedContentTypes}
+              />
             </TabsContent>
 
             <TabsContent value="students" className="overflow-visible">
-              <Students classData={classData} />
+              <Students
+                classData={classData}
+                showAnalyticsTab={showAnalyticsTab}
+              />
             </TabsContent>
           </Tabs>
         </div>
