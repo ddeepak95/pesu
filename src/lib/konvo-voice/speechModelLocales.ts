@@ -110,7 +110,7 @@ export const KONVO_TTS_MODEL_VOICES: Readonly<
     cs: "82db1f84-5b96-4364-b04a-4c7ff80e2f8a",
     da: "a466f9e2-28eb-4bb7-925c-8e8984950700",
     nl: "da743a82-ddf2-4d9b-8eb8-ff67ca0b138e",
-    en: "8d8ce8c9-44a4-46c4-b10f-9a927b99a853",
+    en: "630ed21c-2c5c-41cf-9d82-10a7fd668370",
     "en-IN": "638efaaa-4d0c-442e-b701-3fae16aad012",
     fr: "ab636c8b-9960-4fb3-bb0c-b7b655fb9745",
     de: "1ade29fc-6b82-4607-9e70-361720139b12",
