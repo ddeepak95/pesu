@@ -39,6 +39,15 @@ export interface DisplayContentActionPayload {
   content: string;
   /** Optional short label shown above the content (e.g. a function name). */
   title?: string;
+  documentFigure?: {
+    assignmentId: string;
+    submissionId: string;
+    documentId: string;
+    versionPath: string;
+    label: string;
+    documentTitle: string;
+    figures: Array<{ id: string; pageNumber: number; description: string; caption: string; labels: string[] }>;
+  };
 }
 
 // Future payloads — uncomment/extend as each kind is implemented:

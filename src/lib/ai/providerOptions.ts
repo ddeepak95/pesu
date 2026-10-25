@@ -8,7 +8,7 @@ import { getDefaultProviderOptions } from "@/lib/ai/config";
 export function providerOptionsForConfig(
   config: ResolvedModelConfig,
 ): SharedV3ProviderOptions {
-  return config.providerOptions ?? getDefaultProviderOptions(config.provider);
+  return config.providerOptions ?? getDefaultProviderOptions(config.provider, config.modelId);
 }
 
 /** Dev-friendly reasoning label from resolved catalog or env defaults. */

@@ -53,6 +53,9 @@ import {
 } from "@/lib/konvo-voice/konvoLocaleCapabilitiesHelpers";
 import { sseEvent, sseHeaders } from "@/lib/konvo-voice/sse";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServiceRoleClient } from "@/lib/supabase-server";
+import { authorizedDocumentActivity, retrieveDocumentContext } from "@/lib/classDocuments/student";
+import { DOCUMENT_GUIDED_TEMPLATE_ID } from "@/lib/activityTypes/templates";
 
 interface MultimodalTurnMessage {
   /**
@@ -328,6 +331,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(quotaBlocked.body, { status: quotaBlocked.status });
       }
       throw error;
+    }
+
+    let documentContext = "";
+    const { data: documentAssignment } = await createServiceRoleClient().from("assignments")
+      .select("activity_template_id").eq("assignment_id", assignmentId).maybeSingle();
+    if (documentAssignment?.activity_template_id === DOCUMENT_GUIDED_TEMPLATE_ID) {
+      if (directAudioAttached) {
+        return NextResponse.json({ error: "Document-guided activities require transcribed audio so the latest question can be matched to the document." }, { status: 409 });
+      }
+      const documentAccess = await authorizedDocumentActivity(assignmentId, submissionId || null, userId);
+      if (!documentAccess) return NextResponse.json({ error: "Document activity attempt not found" }, { status: 403 });
+      if (!enabledActions.includes("display_content")) enabledActions.push("display_content");
+      const retrievalMessages = Array.isArray(candidates) && candidates.length >= 2
+        ? [...messages.slice(0, -1), { role: "student", content: `${candidates[0].text}\n${candidates[1].text}` }]
+        : messages;
+      documentContext = await retrieveDocumentContext(documentAccess.documents, retrievalMessages, handle);
     }
 
     console.log("[multimodal/turn]", {
@@ -623,7 +642,7 @@ export async function POST(request: NextRequest) {
           }
 
           const streamCallBase = {
-            systemPrompt,
+            systemPrompt: systemPrompt + documentContext,
             greeting,
             messages: sdkMessages,
             availableActions: enabledActions,
@@ -1030,6 +1049,7 @@ export async function POST(request: NextRequest) {
               handle: actionHandle,
               enqueue,
               supabase,
+              userId,
               submissionId: submissionId ?? null,
               chatMessageId: assistantChatMessageId,
               languageLabel: localeLabel(language),

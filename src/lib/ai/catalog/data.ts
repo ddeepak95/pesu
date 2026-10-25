@@ -118,6 +118,20 @@ export const CATALOG_PROVIDERS: ProviderCatalogEntry[] = [
 
 export const CATALOG_MODELS: ModelCatalogEntry[] = [
   {
+    id: "gemini-3.8-flash",
+    providerId: "google",
+    label: "Gemini 3.8 Flash",
+    modelClass: "foundation",
+    tasks: ["text_generation", "audio_input"],
+    io: { inputs: ["text", "image", "audio"], outputs: ["text"] },
+    status: "available",
+    apiSurface: "chat_completions",
+    reasoningCapabilities: {
+      kind: "google",
+      levels: ["low", "medium", "high"],
+    },
+  },
+  {
     id: "gemini-3-flash-preview",
     providerId: "google",
     label: "Gemini 3 Flash Preview",

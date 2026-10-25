@@ -45,6 +45,8 @@ export interface EvaluateSubmissionParams {
   /** Teacher's free-text "Feedback focus" — steers the AI's dynamic section titles. */
   feedbackFocus?: string;
   activityType?: ActivityTypeKind;
+  /** Persona from the assignment's saved template snapshot, when available. */
+  evaluationSystemPersona?: string;
   /** Forwarded to generateStructured so silent retries can be logged (plan §8). */
   onRetryAttempt?: (attempt: number, error: unknown) => void;
 }
@@ -79,6 +81,7 @@ export async function evaluateSubmission(
     customEvaluationPrompt,
     feedbackFocus,
     activityType,
+    evaluationSystemPersona,
     onRetryAttempt,
   } = params;
 
@@ -103,6 +106,7 @@ export async function evaluateSubmission(
 
   const systemMessage = buildEvaluationSystemMessage(
     activityType ?? "learning",
+    evaluationSystemPersona,
   );
 
   // Generate, then validate feedback_output against the Zod schema. If it is

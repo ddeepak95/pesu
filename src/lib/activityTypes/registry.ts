@@ -52,8 +52,10 @@ ${SAFETY_DIRECTIVE}`;
 
 export function buildEvaluationSystemMessage(
   activityType: ActivityTypeKind = "learning",
+  evaluationSystemPersona?: string,
 ): string {
   const persona =
+    evaluationSystemPersona ??
     getActivityTypeDefinition(activityType).evaluationSystemPersona;
   return `${persona}\n\n${EVALUATION_SYSTEM_SHARED_FOOTER}`;
 }

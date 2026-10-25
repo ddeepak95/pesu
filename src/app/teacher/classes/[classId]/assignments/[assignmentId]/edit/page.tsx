@@ -25,6 +25,9 @@ import {
 } from "@/lib/feedbackFocus";
 import type { TabSwitchPolicy } from "@/lib/integrity/constants";
 import { useAssignmentByIdForTeacher } from "@/hooks/swr";
+import { useAssignmentDocumentIds } from "@/hooks/swr/useClassDocuments";
+import { saveAssignmentDocuments } from "@/lib/classDocuments/attachments";
+import { DOCUMENT_GUIDED_TEMPLATE_ID } from "@/lib/activityTypes/templates";
 import type { AssessmentMode } from "@/lib/settings/registry";
 
 export default function EditAssignmentPage() {
@@ -86,6 +89,7 @@ export default function EditAssignmentPage() {
   const [initialIsDraft, setInitialIsDraft] = useState(false);
 
   const assignmentQuery = useAssignmentByIdForTeacher(assignmentId);
+  const attachmentQuery = useAssignmentDocumentIds(assignmentDbId);
   const assignmentData = assignmentQuery.data ?? null;
   const loadingAssignment = assignmentQuery.isLoading;
   const fetchError = assignmentQuery.error
@@ -160,11 +164,15 @@ export default function EditAssignmentPage() {
     }
 
     const newStatus = data.isDraft ? "draft" : "active";
+    const publishAfterAttachments = newStatus === "active" && data.activityTemplateId === DOCUMENT_GUIDED_TEMPLATE_ID;
+    if (publishAfterAttachments && !data.documentIds.length) throw new Error("Attach a ready class document before publishing.");
 
     const updated = await updateAssignment(assignmentDbId, {
       ...buildAssignmentFields(data),
-      status: newStatus,
+      status: publishAfterAttachments ? "draft" : newStatus,
     });
+    await saveAssignmentDocuments(updated.id, data.documentIds);
+    if (publishAfterAttachments) await updateAssignment(updated.id, { ...buildAssignmentFields(data), status: "active" });
 
     // Sync content_item status
     if (assignmentClassId) {
@@ -172,7 +180,7 @@ export default function EditAssignmentPage() {
         class_id: assignmentClassId,
         type: "formative_assignment",
         ref_id: assignmentDbId,
-        status: updated.status,
+        status: newStatus,
       });
     }
   };
@@ -230,10 +238,12 @@ export default function EditAssignmentPage() {
     if (!assignmentDbId) {
       throw new Error("Assignment not found");
     }
-    return updateAssignment(assignmentDbId, buildAssignmentFields(data));
+    const updated = await updateAssignment(assignmentDbId, buildAssignmentFields(data));
+    await saveAssignmentDocuments(updated.id, data.documentIds);
+    return updated;
   };
 
-  if (loadingAssignment) {
+  if (loadingAssignment || (assignmentDbId && attachmentQuery.isLoading)) {
     return (
       <PageLayout>
         <div />
@@ -250,6 +260,8 @@ export default function EditAssignmentPage() {
       </PageLayout>
     );
   }
+
+  if (attachmentQuery.error) return <PageLayout><p className="text-destructive">Could not load activity documents.</p></PageLayout>;
 
   return (
     <PageLayout>
@@ -296,6 +308,7 @@ export default function EditAssignmentPage() {
           initialFileSubmissionConfig={fileSubmissionConfig}
           initialDynamicGenerationPrompt={dynamicGenerationPrompt}
           initialIsDraft={initialIsDraft}
+          initialDocumentIds={attachmentQuery.data?.documentIds || []}
           onSubmit={handleSubmit}
           onSaveForPreview={handleSaveForPreview}
           onCancel={() => router.back()}

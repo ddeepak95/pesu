@@ -33,6 +33,8 @@ export interface DispatchActionArgs {
   handle: MeteredTextModel;
   enqueue: EnqueueFn;
   supabase: SupabaseClient;
+  /** Authenticated once by the route before starting the asynchronous action. */
+  userId: string | null;
   submissionId: string | null;
   /** FK to the assistant chat_messages row this action belongs to. */
   chatMessageId: string;
@@ -93,6 +95,13 @@ function runActionHandler(args: DispatchActionArgs): Promise<void> {
  */
 export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
   const kind = args.action.kind;
+  const figureReference = args.action.kind === "display_content"
+    ? {
+        documentId: args.action.documentId,
+        figureId: args.action.figureId,
+        figureLabel: args.action.figureLabel,
+      }
+    : {};
   try {
     await withRetry(() => runActionHandler(args), {
       maxAttempts: INTERACTIVE_MAX_ATTEMPTS,
@@ -109,7 +118,7 @@ export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
           submissionId: args.submissionId,
           questionOrder: args.questionOrder,
           questionId: args.questionId,
-          metadata: { attempt, kind },
+          metadata: { attempt, kind, ...figureReference },
         });
       },
     });
@@ -126,7 +135,7 @@ export async function dispatchAction(args: DispatchActionArgs): Promise<void> {
       submissionId: args.submissionId,
       questionOrder: args.questionOrder,
       questionId: args.questionId,
-      metadata: { kind },
+      metadata: { kind, ...figureReference },
     });
     throw err;
   }

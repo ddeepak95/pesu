@@ -42,6 +42,9 @@ export const SYSTEM_TEMPLATE_IDS: Record<ActivityTypeKind, string> = {
   code_review: "11111111-1111-4111-8111-000000000004",
 };
 
+/** Opt-in system template for activities grounded in attached PDFs. */
+export const DOCUMENT_GUIDED_TEMPLATE_ID = "11111111-1111-4111-8111-000000000005";
+
 /** Reverse lookup: seeded system-row id → built-in kind (for registry fallback). */
 export const SYSTEM_TEMPLATE_ID_TO_KIND: Record<string, ActivityTypeKind> =
   Object.fromEntries(

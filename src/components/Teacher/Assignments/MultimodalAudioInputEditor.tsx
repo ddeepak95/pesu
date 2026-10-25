@@ -37,6 +37,7 @@ interface MultimodalInteractionEditorProps {
    * check is still loading. Gates the "Send audio directly" toggle.
    */
   audioInputSupported?: boolean;
+  directAudioUnavailableReason?: string;
   /** Controls are greyed out and non-interactive (e.g. while loading). */
   disabled?: boolean;
   /**
@@ -74,6 +75,7 @@ export function MultimodalAudioInputEditor({
   onAudioDeliveryChange,
   audioInputAvailable,
   audioInputSupported,
+  directAudioUnavailableReason,
   disabled,
   readOnly,
 }: MultimodalInteractionEditorProps) {
@@ -231,9 +233,9 @@ export function MultimodalAudioInputEditor({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="left">
-                    {audioInputSupported === undefined
+                    {directAudioUnavailableReason || (audioInputSupported === undefined
                       ? "Checking whether this class's AI model supports direct audio input…"
-                      : "This class's configured AI model doesn't support direct audio input. Contact your administrator to enable it."}
+                      : "This class's configured AI model doesn't support direct audio input. Contact your administrator to enable it.")}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

@@ -17,6 +17,8 @@ import type { AssignmentFormSubmitData } from "@/components/Teacher/Assignments/
 import type { Assignment } from "@/types/assignment";
 import { getClassGroups } from "@/lib/queries/groups";
 import type { ClassLanguageConfig } from "@/types/class";
+import { saveAssignmentDocuments } from "@/lib/classDocuments/attachments";
+import { DOCUMENT_GUIDED_TEMPLATE_ID } from "@/lib/activityTypes/templates";
 
 export default function CreateAssignmentPage() {
   const params = useParams();
@@ -99,14 +101,18 @@ export default function CreateAssignmentPage() {
     }
 
     const status = data.isDraft ? "draft" : "active";
+    const publishAfterAttachments = status === "active" && data.activityTemplateId === DOCUMENT_GUIDED_TEMPLATE_ID;
+    if (publishAfterAttachments && !data.documentIds.length) throw new Error("Attach a ready class document before publishing.");
 
     // If a draft was already created via "Save and Preview", finalize that same
     // row instead of creating a duplicate.
     if (previewAssignmentDbId) {
       const updated = await updateAssignment(previewAssignmentDbId, {
         ...buildAssignmentFields(data),
-        status,
+        status: publishAfterAttachments ? "draft" : status,
       });
+      await saveAssignmentDocuments(updated.id, data.documentIds);
+      if (publishAfterAttachments) await updateAssignment(updated.id, { ...buildAssignmentFields(data), status: "active" });
       await updateContentItemStatusByRef({
         class_id: classDbId,
         type: "formative_assignment",
@@ -121,11 +127,12 @@ export default function CreateAssignmentPage() {
         class_id: classDbId,
         class_group_id: classGroupId,
         ...buildAssignmentFields(data),
-        status,
+        status: publishAfterAttachments ? "draft" : status,
       },
       user.id
     );
-
+    await saveAssignmentDocuments(assignment.id, data.documentIds);
+    if (publishAfterAttachments) await updateAssignment(assignment.id, { ...buildAssignmentFields(data), status: "active" });
     // Insert into the unified content feed
     await createContentItem(
       {
@@ -137,6 +144,7 @@ export default function CreateAssignmentPage() {
       },
       user.id
     );
+    setPreviewAssignmentDbId(assignment.id);
   };
 
   // Shared field mapping for create / update / preview saves (status handled by caller).
@@ -197,7 +205,9 @@ export default function CreateAssignmentPage() {
 
     if (previewAssignmentDbId) {
       // Update the existing draft, preserving its draft status (omit status).
-      return updateAssignment(previewAssignmentDbId, fields);
+      const updated = await updateAssignment(previewAssignmentDbId, fields);
+      await saveAssignmentDocuments(updated.id, data.documentIds);
+      return updated;
     }
 
     const assignment = await createAssignment(
@@ -209,7 +219,6 @@ export default function CreateAssignmentPage() {
       },
       user.id
     );
-
     await createContentItem(
       {
         class_id: classDbId,
@@ -222,6 +231,7 @@ export default function CreateAssignmentPage() {
     );
 
     setPreviewAssignmentDbId(assignment.id);
+    await saveAssignmentDocuments(assignment.id, data.documentIds);
     return assignment;
   };
 

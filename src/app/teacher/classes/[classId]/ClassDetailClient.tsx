@@ -101,6 +101,8 @@ export default function ClassDetailClient({
           </div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">{classData.name}</h1>
+            <div className="flex gap-2">
+            <Button variant="outline" onClick={() => router.push(`/teacher/classes/${classId}/documents`)}>Documents</Button>
             {showSettingsLink && (
               <Button variant="outline" className="gap-2" asChild>
                 <Link href={`/teacher/classes/${classId}/settings`}>
@@ -109,6 +111,7 @@ export default function ClassDetailClient({
                 </Link>
               </Button>
             )}
+            </div>
           </div>
 
           {classData.status === "archived" && (

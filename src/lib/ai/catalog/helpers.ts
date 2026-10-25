@@ -82,7 +82,10 @@ export function createDefaultReasoningForModel(
     return {
       kind: "google",
       availableLevels: [...caps.levels],
-      thinkingLevel: pickGoogleLevel(caps.levels, "minimal"),
+      thinkingLevel: pickGoogleLevel(
+        caps.levels,
+        modelId === "gemini-3.8-flash" ? "medium" : "minimal",
+      ),
     };
   }
   return {

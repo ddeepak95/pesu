@@ -54,7 +54,7 @@ export function resolvePrototypeModelConfig(
     provider,
     apiKey,
     modelId,
-    providerOptions: getDefaultProviderOptions(provider),
+    providerOptions: getDefaultProviderOptions(provider, modelId),
   };
 
   return config;

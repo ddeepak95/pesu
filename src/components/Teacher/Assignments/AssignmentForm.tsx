@@ -23,6 +23,7 @@ import SelectActivityTemplateDialog, {
 } from "@/components/Teacher/Assignments/SelectActivityTemplateDialog";
 import { MoreOptionsGeneral } from "@/components/Teacher/Assignments/MoreOptionsGeneral";
 import { SharedContextSection } from "@/components/Teacher/Assignments/SharedContextSection";
+import { ClassDocumentPicker } from "@/components/Teacher/Assignments/ClassDocumentPicker";
 import { AssignmentLanguageSection } from "@/components/Teacher/Assignments/AssignmentLanguageSection";
 import { InteractionSettingDialog } from "@/components/Teacher/Assignments/InteractionSettingDialog";
 import { CollapsibleSection } from "@/components/Teacher/Assignments/CollapsibleSection";
@@ -65,15 +66,16 @@ import {
   SYSTEM_TEMPLATE_ID_TO_KIND,
   type TemplateDefinition,
 } from "@/lib/activityTypes/templates";
+import { DOCUMENT_GUIDED_TEMPLATE_ID } from "@/lib/activityTypes/templates";
 import type { ActivityTypeDefaults } from "@/lib/activityTypes/types";
-import { useAvailableTemplatesForClass } from "@/hooks/swr";
+import { useAvailableTemplatesForClass, useTemplateById } from "@/hooks/swr";
 import { useAudioInputSupport } from "@/hooks/swr/useAudioInputSupport";
 import {
   normalizeFeedbackFocusAreas,
   type FeedbackFocusArea,
 } from "@/lib/feedbackFocus";
 import { Settings } from "lucide-react";
-import { showSuccessToast } from "@/lib/toast";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import {
   ASSESSMENT_MODE_OPTIONS,
   RETIRED_ASSESSMENT_MODES,
@@ -233,6 +235,7 @@ interface AssignmentFormProps {
   initialFileSubmissionConfig?: FileSubmissionConfig | null;
   initialDynamicGenerationPrompt?: string;
   initialIsDraft?: boolean;
+  initialDocumentIds?: string[];
   /** Omitted in view mode, where no submit action is rendered. */
   onSubmit?: (data: AssignmentFormSubmitData) => Promise<void>;
   /**
@@ -286,6 +289,7 @@ export interface AssignmentFormSubmitData {
   fileSubmissionConfig?: FileSubmissionConfig | null;
   dynamicQuestionsEnabled?: boolean;
   dynamicGenerationPrompt?: string | null;
+  documentIds: string[];
 }
 
 export default function AssignmentForm({
@@ -344,6 +348,7 @@ export default function AssignmentForm({
   initialFileSubmissionConfig = null,
   initialDynamicGenerationPrompt,
   initialIsDraft = false,
+  initialDocumentIds = [],
   onSubmit,
   onSaveForPreview,
   onCancel,
@@ -351,6 +356,7 @@ export default function AssignmentForm({
   const router = useTrackedRouter();
   const { user } = useAuth();
   const [title, setTitle] = useState(initialTitle);
+  const [documentIds, setDocumentIds] = useState<string[]>(initialDocumentIds);
   const [questions, setQuestions] = useState<Question[]>(() =>
     ensureQuestionIds(initialQuestions),
   );
@@ -388,6 +394,7 @@ export default function AssignmentForm({
   // activity-type picker; falls back to the built-in registry list when a class
   // context isn't available yet.
   const availableTemplatesQuery = useAvailableTemplatesForClass(classDbId);
+  const { data: selectedTemplate, mutate: refreshSelectedTemplate } = useTemplateById(activityTemplateId);
   const availableTemplates = useMemo(
     () => availableTemplatesQuery.data ?? [],
     [availableTemplatesQuery.data],
@@ -441,6 +448,9 @@ export default function AssignmentForm({
   );
 
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  useEffect(() => {
+    if (templateDialogOpen && activityTemplateId) void refreshSelectedTemplate();
+  }, [templateDialogOpen, activityTemplateId, refreshSelectedTemplate]);
   const [interactionSettingDialogOpen, setInteractionSettingDialogOpen] =
     useState(false);
 
@@ -898,25 +908,32 @@ export default function AssignmentForm({
   };
 
   /** Re-pull the selected template's current definition into this assignment. */
-  const handleUpdateFromTemplate = () => {
+  const handleUpdateFromTemplate = async () => {
     if (!activityTemplateId) return;
-    const row = availableTemplates.find((t) => t.id === activityTemplateId);
-    if (!row) return;
-    setActivityDefinition(row.definition);
-    setTemplateSyncedAt(row.updated_at);
-    seedFromDefinition(row.definition);
-    showSuccessToast("Updated from template.");
+    try {
+      // The class palette may have been cached before a platform edit in another tab.
+      const row = await refreshSelectedTemplate();
+      if (!row || row.id !== activityTemplateId) throw new Error("Current template is unavailable");
+      setActivityDefinition(row.definition);
+      setTemplateSyncedAt(row.updated_at);
+      seedFromDefinition(row.definition);
+      showSuccessToast("Latest template applied. Save the activity to use it.");
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : "Could not load the latest template");
+    }
   };
 
   const isUpdateAvailable = useMemo(() => {
     if (mode !== "edit" || !activityTemplateId || !templateSyncedAt)
       return false;
-    const row = availableTemplates.find((t) => t.id === activityTemplateId);
+    const row = selectedTemplate?.id === activityTemplateId
+      ? selectedTemplate
+      : availableTemplates.find((t) => t.id === activityTemplateId);
     if (!row) return false;
     return (
       new Date(row.updated_at).getTime() > new Date(templateSyncedAt).getTime()
     );
-  }, [mode, activityTemplateId, availableTemplates, templateSyncedAt]);
+  }, [mode, activityTemplateId, availableTemplates, selectedTemplate, templateSyncedAt]);
 
   const handleActivityTypeChange = (value: string) => {
     const newType = value as ActivityType;
@@ -1048,6 +1065,7 @@ export default function AssignmentForm({
 
     return {
       title: title.trim(),
+      documentIds,
       questions: cleanedQuestions,
       totalPoints,
       preferredLanguage,
@@ -1102,6 +1120,10 @@ export default function AssignmentForm({
     setError(null);
 
     const validationError = validate();
+    if (!draft && activityTemplateId === DOCUMENT_GUIDED_TEMPLATE_ID && documentIds.length === 0) {
+      setError("Attach at least one ready class document before publishing this activity.");
+      return;
+    }
     if (validationError) {
       setError(validationError);
       return;
@@ -1390,6 +1412,8 @@ export default function AssignmentForm({
               loading={effectiveDisabled}
             />
 
+            {mode !== "view" && <ClassDocumentPicker classId={classId} classDbId={classDbId} selected={documentIds} onChange={setDocumentIds} disabled={effectiveDisabled} />}
+
             <div className="space-y-4">
               {questions.map((question, index) => (
                 <QuestionCard
@@ -1525,7 +1549,7 @@ export default function AssignmentForm({
         items={templateDialogItems}
         onSelect={handleSelectTemplateItem}
         updateAvailable={mode === "edit" && isUpdateAvailable}
-        onApplyUpdate={handleUpdateFromTemplate}
+        onApplyUpdate={() => void handleUpdateFromTemplate()}
         createHref={`/teacher/classes/${classId}/settings/activity-templates/new`}
       />
       <InteractionSettingDialog
@@ -1573,7 +1597,8 @@ export default function AssignmentForm({
           })
         }
         audioInputAvailable={audioInputSupportQuery.data?.audioInputAvailable}
-        audioInputSupported={audioInputSupportQuery.data?.audioInputSupported}
+        audioInputSupported={activityTemplateId === DOCUMENT_GUIDED_TEMPLATE_ID ? false : audioInputSupportQuery.data?.audioInputSupported}
+        directAudioUnavailableReason={activityTemplateId === DOCUMENT_GUIDED_TEMPLATE_ID ? "Document-guided activities need a transcript to find relevant passages before the tutor replies." : undefined}
         disabled={loading}
         readOnly={readOnly}
       />

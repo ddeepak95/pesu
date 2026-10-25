@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
           handle: actionHandle,
           enqueue,
           supabase,
+          userId,
           submissionId: submissionId ?? null,
           chatMessageId,
           languageLabel: localeLabel(language),

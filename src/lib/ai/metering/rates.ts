@@ -280,8 +280,26 @@ const RATE_CARD_VERSIONS: Record<string, RateCardVersion> = {
   },
 };
 
+// Keep v1 unchanged for historical invocations. This new version uses Google's
+// introductory standard Gemini API rates through December 31, 2026.
+RATE_CARD_VERSIONS.v2 = {
+  effectiveDate: "2026-10-25",
+  notes: "Add Gemini 3.8 Flash at Google's introductory standard rates.",
+  creditsPerUsd: RATE_CARD_VERSIONS.v1.creditsPerUsd,
+  entries: {
+    "gemini-3.8-flash": {
+      rates: {
+        input_token: { usdPerUnit: 0.75 / 1_000_000 },
+        output_token: { usdPerUnit: 3.75 / 1_000_000 },
+        cached_input_token: { usdPerUnit: 0.075 / 1_000_000 },
+      },
+    },
+    ...RATE_CARD_VERSIONS.v1.entries,
+  },
+};
+
 /** The rate version new invocation rows are priced at. See §4.4 rule 4. */
-export const CURRENT_RATE_VERSION = "v1";
+export const CURRENT_RATE_VERSION = "v2";
 
 function getVersion(rateVersion: string): RateCardVersion | null {
   return RATE_CARD_VERSIONS[rateVersion] ?? null;

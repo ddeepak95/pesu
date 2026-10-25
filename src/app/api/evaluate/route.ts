@@ -14,6 +14,7 @@ import {
   type AiCallContext,
 } from "@/lib/ai/gateway";
 import { evaluateSubmission } from "@/lib/ai/evaluateSubmission";
+import { normalizeDefinition } from "@/lib/activityTypes/templates";
 import { classifyAiError } from "@/lib/ai/errors";
 import { logAppEvent } from "@/lib/logging/appLog";
 import {
@@ -150,13 +151,16 @@ export async function POST(request: NextRequest) {
     // Teacher "Feedback focus" areas steer the AI's feedback sections.
     const { data: assignmentConfig } = await supabase
       .from("assignments")
-      .select("feedback_focus")
+      .select("feedback_focus, activity_definition_snapshot")
       .eq("assignment_id", assignmentId)
       .maybeSingle();
     const feedbackFocus =
       buildFeedbackFocusPromptText(
         parseFeedbackFocusAreas(assignmentConfig?.feedback_focus),
       ) || undefined;
+    const evaluationSystemPersona = normalizeDefinition(
+      assignmentConfig?.activity_definition_snapshot,
+    )?.evaluationSystemPersona;
 
     const {
       data: { user },
@@ -283,6 +287,7 @@ export async function POST(request: NextRequest) {
         customEvaluationPrompt,
         feedbackFocus,
         activityType,
+        evaluationSystemPersona,
         onRetryAttempt: (attempt, error) => {
           logAppEvent({
             level: "warn",

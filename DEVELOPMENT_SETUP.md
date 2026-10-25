@@ -129,3 +129,48 @@ npm run dev
 - Extra Supabase-specific bootstrap details (including how to generate migrations) are in:
   - `LOCAL_SUPABASE.md`
 
+## Class PDF document processing
+
+The class document library uses Google Document AI Layout Parser batch processing.
+Enable the Document AI API, create a Layout Parser processor in the chosen region,
+and set `DOCUMENT_AI_PROCESSOR_ID` and `DOCUMENT_AI_LOCATION` in the app environment.
+The default processor version is `pretrained-layout-parser-v1.5-2025-08-25`;
+set `DOCUMENT_AI_PROCESSOR_VERSION` to override it. The app uses the service account
+in `FIREBASE_SERVICE_ACCOUNT_BASE64` to call Document AI. Grant that account
+`roles/documentai.apiUser`. The Document AI service agent also needs access to
+read PDFs and write JSON results in `FIREBASE_STORAGE_BUCKET`. If the processor
+and bucket are in different projects, grant that service agent bucket access
+explicitly. Apply the migration in `supabase/migrations/` before enabling upload.
+
+For batch requests, set a `chunkSize` when using `includeAncestorHeadings`.
+Do not set `returnImages` in batch mode: Document AI rejects it. With image
+annotation enabled, the batch output still includes figure `blobAssets` and
+descriptions for Markdown assembly.
+
+Conversion is finalized when a teacher opens a processing document in the class
+library; the library polls until the batch operation completes. Check a
+representative searchable PDF, a scanned PDF, a table, and a figure before
+enabling this preview processor for regular use.
+
+The PDF, approved and draft Markdown, retrieval index, and separate figure images
+are private GCS objects. Each version's `index.json` holds page-linked chunk
+offsets and figure metadata; Supabase stores document title, tags, status, GCS
+version pointers, and activity attachments. The class library searches title
+and tags. `source_labels` such as `Figure 50.3A` live in the GCS index. A panel
+label also includes the parent `Figure 50.3`, so all selected images in the
+figure can be shown together. Teachers verify and correct labels in the editor.
+
+Before applying the content-removal migration to a database with existing PDFs,
+apply the additive GCS-version migration, then run
+`npx tsx scripts/migrate-class-documents-to-gcs.ts --local` (or `--production`
+for the linked project). The script verifies Markdown and every figure object
+before it sets a GCS pointer. Migration `20261025040000` refuses to drop the
+old content columns and tables if any legacy content remains unmigrated.
+
+The platform `Document-guided learning` template is hidden from classes by
+default. A class enables it in its template library; teachers attach ready
+documents when creating activities. Student turns retrieve a small set of
+passages from approved GCS versions. The `display_content` action uses stable
+figure references and an attempt-authorized image route, including public
+activity attempts.
+

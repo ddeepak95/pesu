@@ -52,6 +52,9 @@ export const displayContentActionInputSchema = z.object({
     .string()
     .optional()
     .describe("Short label shown above the content, e.g. a function name or section heading."),
+  documentId: z.string().uuid().optional().describe("Attached document ID from the current server context, when showing a document figure."),
+  figureLabel: z.string().optional().describe("Figure group label supplied by the server, such as Figure 50.3. Shows all selected panels."),
+  figureId: z.string().uuid().optional().describe("Figure ID supplied by the server when no group label exists."),
 });
 
 // Add future action input schemas here, then list them in actionInputSchemas.

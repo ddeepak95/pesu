@@ -17,6 +17,7 @@ import { z } from "zod";
 import type { AppFunctionKey } from "@/lib/ai/catalog/appFunctions";
 import type { ModelTask } from "@/lib/ai/catalog/types";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
+import { stripPortableFigureImages } from "@/lib/classDocuments/figureMarkdown";
 
 import {
   displayContentActionInputSchema,
@@ -59,7 +60,11 @@ function serializeDisplayContentForTranscript(
   payload: DisplayContentActionPayload,
 ): string {
   const titleSuffix = payload.title ? ` (${payload.title})` : "";
-  return `[Content shown to the learner${titleSuffix}]\n${payload.content}`;
+  const figure = payload.documentFigure;
+  const figureNote = figure
+    ? `\n[Figure shown: ${figure.label} from ${figure.documentTitle}, pages ${[...new Set(figure.figures.map((item) => item.pageNumber))].join(", ")}; ${figure.figures.length} image(s)]`
+    : "";
+  return `[Content shown to the learner${titleSuffix}]\n${figure ? stripPortableFigureImages(payload.content) : payload.content}${figureNote}`;
 }
 
 function serializeSuggestedResponseForTranscript(

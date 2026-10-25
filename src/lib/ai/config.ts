@@ -29,8 +29,8 @@ export interface ResolvedModelConfig {
 /**
  * Returns default providerOptions for the given provider.
  *
- * Google (Gemini 3): thinkingLevel "minimal" — near-zero latency, model may
- *   still think for complex coding tasks.
+ * Google: Gemini 3 Flash Preview defaults to "minimal". Gemini 3.8 Flash
+ *   defaults to "medium" because it does not support "minimal".
  * OpenAI: reasoning.effort (e.g. gpt-5.4: none, low, medium, high, xhigh).
  *
  * `strictJsonSchema: false` (OpenAI): the SDK defaults structured outputs to
@@ -45,12 +45,13 @@ export interface ResolvedModelConfig {
  */
 export function getDefaultProviderOptions(
   provider: AIProvider,
+  modelId?: string,
 ): SharedV3ProviderOptions {
   if (provider === "google") {
     return {
       google: {
         thinkingConfig: {
-          thinkingLevel: "minimal",
+          thinkingLevel: modelId === "gemini-3.8-flash" ? "medium" : "minimal",
         },
       } satisfies GoogleLanguageModelOptions,
     };

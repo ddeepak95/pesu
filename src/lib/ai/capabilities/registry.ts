@@ -8,6 +8,10 @@ export const DEFAULT_GOOGLE_MODEL = "gemini-3-flash-preview";
 /** Curated Gemini models for settings UI and save validation. value === label. */
 export const GOOGLE_MODELS = [
   {
+    value: "gemini-3.8-flash",
+    label: "gemini-3.8-flash",
+  },
+  {
     value: "gemini-3-flash-preview",
     label: "gemini-3-flash-preview",
   },
