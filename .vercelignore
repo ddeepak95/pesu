@@ -1,0 +1,11 @@
+.git
+.next
+node_modules
+.env*
+pesu-server
+class-backups
+coverage
+.cursor
+.claude
+*.pem
+**/service-account-key.json

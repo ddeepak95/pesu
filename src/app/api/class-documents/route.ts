@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const access = await teacherClient(classId);
   if (!access) return NextResponse.json({ error: "Class not found" }, { status: 404 });
   let query = access.db.from("class_documents")
-    .select("id, class_id, title, filename, file_size, page_count, tags, status, error_message, created_at, updated_at")
+    .select("id, class_id, title, filename, file_size, page_count, tags, status, processing_stage, processed_pages, error_message, created_at, updated_at")
     .eq("class_id", classId);
   const search = request.nextUrl.searchParams.get("q")?.trim();
   if (search) query = query.textSearch("metadata_search", search, { type: "plain" });

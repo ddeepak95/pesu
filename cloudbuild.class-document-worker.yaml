@@ -1,0 +1,14 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.class-document-worker
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/class-document-worker:${BUILD_ID}
+      - .
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/class-document-worker:${BUILD_ID}
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: gcf-artifacts

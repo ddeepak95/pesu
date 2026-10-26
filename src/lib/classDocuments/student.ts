@@ -96,11 +96,11 @@ export async function resolveDocumentFigureGroup(assignmentId: string, submissio
     ? normalizedLabel
     : anchor.source_labels[0];
   const panelMatch = sourceLabel && /^Figure (\d+(?:\.\d+)*)(?:[A-Z])?$/.exec(sourceLabel);
-  const group = panelMatch ? `Figure ${panelMatch[1]}` : sourceLabel;
-  const figures = (group ? selected.filter((figure) => figure.source_labels.includes(group)) : [anchor])
+  const group = anchor.group_label || (panelMatch ? `Figure ${panelMatch[1]}` : sourceLabel);
+  const figures = (group ? selected.filter((figure) => figure.group_label === group || figure.source_labels.includes(group)) : [anchor])
     .sort((a, b) => a.figure_order - b.figure_order);
   return { document, versionPath: path, figures: figures.map((figure: DocumentFigure) => ({
     id: figure.id, pageNumber: figure.page_number, description: figure.description, caption: figure.caption || "",
-    labels: figure.source_labels, order: figure.figure_order, storagePath: figure.storage_path,
+    labels: figure.source_labels, panelLabel: figure.panel_label || "", order: figure.figure_order, storagePath: figure.storage_path,
   })), label: group || anchor.source_labels[0] || "Figure" };
 }

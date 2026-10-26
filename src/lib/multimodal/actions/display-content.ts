@@ -27,7 +27,7 @@ export async function handleDisplayContentAction(
     documentFigure = {
       assignmentId: args.assignmentId, submissionId, documentId: action.documentId, versionPath: group.versionPath,
       documentTitle: group.document.title, label: group.label,
-      figures: group.figures.map(({ id, pageNumber, description, caption, labels }) => ({ id, pageNumber, description, caption, labels })),
+      figures: group.figures.map(({ id, pageNumber, description, caption, labels, panelLabel }) => ({ id, pageNumber, description, caption, labels, panelLabel })),
     };
   }
 

@@ -46,7 +46,7 @@ export interface DisplayContentActionPayload {
     versionPath: string;
     label: string;
     documentTitle: string;
-    figures: Array<{ id: string; pageNumber: number; description: string; caption: string; labels: string[] }>;
+    figures: Array<{ id: string; pageNumber: number; description: string; caption: string; labels: string[]; panelLabel?: string }>;
   };
 }
 

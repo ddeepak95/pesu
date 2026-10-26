@@ -47,7 +47,7 @@ export function createServiceRoleClient() {
   }
 
   return createClient(
-    getSupabaseUrl(),
+    !useLocal && process.env.SUPABASE_URL ? process.env.SUPABASE_URL : getSupabaseUrl(),
     serviceRoleKey,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )

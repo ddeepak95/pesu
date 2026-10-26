@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+.env*
+!env.example
+*.pem
+**/service-account-key.json
+class-backups
+coverage
+.vercel
+.cursor
+.claude
+pesu-server

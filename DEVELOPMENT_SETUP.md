@@ -147,10 +147,56 @@ Do not set `returnImages` in batch mode: Document AI rejects it. With image
 annotation enabled, the batch output still includes figure `blobAssets` and
 descriptions for Markdown assembly.
 
-Conversion is finalized when a teacher opens a processing document in the class
-library; the library polls until the batch operation completes. Check a
-representative searchable PDF, a scanned PDF, a table, and a figure before
-enabling this preview processor for regular use.
+After Document AI extraction, the worker assembles its ordered page blocks
+directly into Markdown and a figure manifest for teacher review. There is no
+additional LLM reconstruction step. The app accepts PDFs up to 20 MB and 100 pages.
+
+For production, deploy `Dockerfile.class-document-worker` as a private Cloud Run
+service with the same Supabase and Firebase/GCS environment as
+the app. Create a Cloud Tasks HTTP queue in the same Google project and set:
+
+- `SUPABASE_URL` to the linked project URL and `SUPABASE_SERVICE_ROLE_KEY`
+  from Secret Manager (the worker uses these for service-role operations)
+- `NEXT_PUBLIC_USE_LOCAL_SUPABASE=false`
+- `FIREBASE_SERVICE_ACCOUNT_BASE64` from Secret Manager and `FIREBASE_STORAGE_BUCKET`
+- `DOCUMENT_AI_PROCESSOR_ID`, `DOCUMENT_AI_LOCATION`, and optionally
+  `DOCUMENT_AI_PROCESSOR_VERSION`
+- `CLOUD_TASKS_DOCUMENT_QUEUE=projects/PROJECT/locations/REGION/queues/QUEUE`
+- `CLASS_DOCUMENT_WORKER_URL=https://WORKER.run.app/api/internal/class-document-worker`
+- `CLASS_DOCUMENT_WORKER_AUDIENCE` to the Cloud Run service base URL (without
+  `/api/internal/class-document-worker`); this is the OIDC audience
+- `CLASS_DOCUMENT_TASK_INVOKER` to a dedicated service account email with
+  Cloud Run Invoker permission on the worker service
+
+The production Vercel app also needs the four queue settings and the Document AI
+processor settings. Store worker credentials in Secret Manager and bind them to
+the Cloud Run service; do not put credentials in the container image. PDF
+conversion does not require the AI catalog encryption key.
+
+Build the image with `gcloud builds submit --project PROJECT --config
+cloudbuild.class-document-worker.yaml .`. The build tags the image with its
+Cloud Build ID under `REGION-docker.pkg.dev/PROJECT/REPOSITORY/class-document-worker`;
+the region and Artifact Registry repository can be set with the `_REGION` and
+`_REPOSITORY` build substitutions. Deploy that image to the private Cloud Run
+service with a 900-second timeout, 2 GiB memory, and concurrency 1. The Vercel build requires
+the internal route's `maxDuration` to stay at or below 300 seconds; the actual
+conversion task runs on Cloud Run with its separate 900-second request timeout.
+
+The app's Firebase service account needs Cloud Tasks Enqueuer permission on
+that queue. Tasks use the dedicated account's OIDC token; the worker verifies
+its email and audience. Configure the queue for at least five retries and a
+request deadline that permits Document AI result assembly. The app refuses new
+production conversions when this queue is not configured. Locally, leave
+these variables empty: opening a processing document polls and assembles the
+Document AI result using the same processing code.
+
+The GCS run prefix holds Document AI output and ordered layout blocks. Original
+page screenshots are rendered and cached in GCS when a teacher opens a page
+preview. Supabase holds only the processing stage and
+completed-page count. The teacher reviews page screenshots, Markdown, and
+figure labels, captions, descriptions, and panels before approving an
+immutable version. Check a searchable PDF, scanned PDF, multi-column page,
+table, and multi-panel figure before regular use.
 
 The PDF, approved and draft Markdown, retrieval index, and separate figure images
 are private GCS objects. Each version's `index.json` holds page-linked chunk
@@ -160,12 +206,10 @@ and tags. `source_labels` such as `Figure 50.3A` live in the GCS index. A panel
 label also includes the parent `Figure 50.3`, so all selected images in the
 figure can be shown together. Teachers verify and correct labels in the editor.
 
-Before applying the content-removal migration to a database with existing PDFs,
-apply the additive GCS-version migration, then run
-`npx tsx scripts/migrate-class-documents-to-gcs.ts --local` (or `--production`
-for the linked project). The script verifies Markdown and every figure object
-before it sets a GCS pointer. Migration `20261025040000` refuses to drop the
-old content columns and tables if any legacy content remains unmigrated.
+Apply the migrations in their recorded order using the Supabase CLI. The
+historical content tables are removed by the GCS migration sequence; the final
+schema stores document content in GCS only. Run `npm run test:class-documents`
+to verify page assembly, figure validation, caption edits, and retrieval index offsets.
 
 The platform `Document-guided learning` template is hidden from classes by
 default. A class enables it in its template library; teachers attach ready

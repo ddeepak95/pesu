@@ -1,0 +1,18 @@
+FROM node:20-bookworm-slim AS build
+WORKDIR /app
+ENV NEXT_PUBLIC_USE_LOCAL_SUPABASE=false
+ENV NEXT_PUBLIC_SUPABASE_PROD_URL=https://worker-build-placeholder.supabase.co
+ENV NEXT_PUBLIC_SUPABASE_PROD_ANON_KEY=worker-build-placeholder
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production PORT=8080 HOSTNAME=0.0.0.0
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
+EXPOSE 8080
+CMD ["node", "server.js"]

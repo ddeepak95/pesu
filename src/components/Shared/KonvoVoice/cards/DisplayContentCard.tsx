@@ -21,12 +21,13 @@ export function DisplayContentCard({ payload }: DisplayContentCardProps) {
       ) : null}
       {content && <MarkdownContent content={content} className="space-y-2" />}
       {group && <div className="mt-3 space-y-3">
-        {group.figures.map((figure) => {
+        {group.figures.map((figure, index) => {
+          const repeatedCaption = group.figures.slice(0, index).some((earlier) => earlier.caption === figure.caption);
           const caption = figure.caption.replace(/^fig(?:ure)?\.?\s*\d+(?:\.\d+)*(?:[a-z])?\s*[.:–—-]?\s*/i, "").trim();
           return <figure key={figure.id}>
             <img loading="lazy" className="h-auto max-w-full rounded" alt={figure.description || figure.labels.join(", ") || "Document figure"}
               src={`/api/student-document-figure?assignmentId=${encodeURIComponent(group.assignmentId)}&submissionId=${encodeURIComponent(group.submissionId)}&documentId=${encodeURIComponent(group.documentId)}&figureId=${encodeURIComponent(figure.id)}&versionPath=${encodeURIComponent(group.versionPath)}`} />
-            <figcaption className="mt-1 text-xs text-muted-foreground">Page {figure.pageNumber}{caption ? ` · ${caption}` : ""}</figcaption>
+            <figcaption className="mt-1 text-xs text-muted-foreground">{figure.panelLabel ? `Panel ${figure.panelLabel} · ` : ""}Page {figure.pageNumber}{caption && !repeatedCaption ? ` · ${caption}` : ""}</figcaption>
           </figure>;
         })}
       </div>}
