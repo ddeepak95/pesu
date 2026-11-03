@@ -4,9 +4,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/ui/settings-card";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { LanguageSelect } from "@/components/Shared/LanguageSelect";
 import { MultimodalLanguageSupportEditor } from "@/components/Teacher/Assignments/MultimodalLanguageSupportEditor";
-import { supportedLanguages } from "@/utils/supportedLanguages";
 import type { ActivityTypeKind } from "@/lib/activityTypes/types";
 import type { BotPromptConfig } from "@/types/assignment";
 
@@ -63,15 +62,11 @@ export function AssignmentLanguageSection({
             <Label htmlFor="preferredLanguage">{primaryLanguageLabel}</Label>
             <InfoTooltip text={primaryLanguageTooltip} />
           </div>
-          <SearchableSelect
+          <LanguageSelect
             id="preferredLanguage"
             className="w-[220px]"
             value={preferredLanguage}
             onValueChange={setPreferredLanguage}
-            options={supportedLanguages.map((lang) => ({
-              value: lang.code,
-              label: lang.name,
-            }))}
             placeholder="Select a language"
             disabled={loading}
             readOnly={readOnly}

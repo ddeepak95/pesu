@@ -298,8 +298,35 @@ RATE_CARD_VERSIONS.v2 = {
   },
 };
 
+// Standard text-token rates verified 2026-11-03:
+// https://developers.openai.com/api/docs/models/gpt-6.1-sol
+// https://developers.openai.com/api/docs/models/gpt-6-luna
+// Preserve historical versions and keep OpenAI entries grouped together.
+RATE_CARD_VERSIONS.v3 = {
+  effectiveDate: "2026-11-03",
+  notes: "Add GPT-6.1 Sol and GPT-6 Luna standard token rates.",
+  creditsPerUsd: RATE_CARD_VERSIONS.v2.creditsPerUsd,
+  entries: Object.fromEntries(
+    Object.entries(RATE_CARD_VERSIONS.v2.entries).flatMap(([id, entry]): Array<[string, CatalogModelRateCard]> =>
+      id === "gpt-5.4" ? [
+        ["gpt-6.1-sol", { rates: {
+          input_token: { usdPerUnit: 2 / 1_000_000 },
+          output_token: { usdPerUnit: 10 / 1_000_000 },
+          cached_input_token: { usdPerUnit: 0.1 / 1_000_000 },
+        } }],
+        ["gpt-6-luna", { rates: {
+          input_token: { usdPerUnit: 0.1 / 1_000_000 },
+          output_token: { usdPerUnit: 0.5 / 1_000_000 },
+          cached_input_token: { usdPerUnit: 0.01 / 1_000_000 },
+        } }],
+        [id, entry],
+      ] : [[id, entry]],
+    ),
+  ),
+};
+
 /** The rate version new invocation rows are priced at. See §4.4 rule 4. */
-export const CURRENT_RATE_VERSION = "v2";
+export const CURRENT_RATE_VERSION = "v3";
 
 function getVersion(rateVersion: string): RateCardVersion | null {
   return RATE_CARD_VERSIONS[rateVersion] ?? null;

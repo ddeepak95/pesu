@@ -1,4 +1,5 @@
 "use client";
+import { ContentEditorTabs } from "@/components/Shared/ContentEditorTabs";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent } from "@/components/ui/tabs";
 import QuestionCard from "@/components/Teacher/Assignments/QuestionCard";
 import SelectActivityTemplateDialog, {
   type TemplatePickerItem,
@@ -1214,24 +1215,7 @@ export default function AssignmentForm({
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-6 pb-28">
-        <Tabs {...tabsControlProps} className="w-full">
-          {mode !== "view" && (
-            <TabsList className="h-auto w-full justify-start rounded-none border-b border-[var(--class-underline-tab-rule)] bg-transparent p-0">
-              <TabsTrigger
-                value="content"
-                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
-              >
-                Content
-              </TabsTrigger>
-              <TabsTrigger
-                value="settings"
-                className="rounded-none border-b-2 border-transparent px-6 py-3 text-base font-medium data-[state=active]:!border-[var(--class-underline-tab-active-accent)] data-[state=active]:!bg-transparent data-[state=active]:!shadow-none"
-              >
-                Settings
-              </TabsTrigger>
-            </TabsList>
-          )}
-
+        <ContentEditorTabs {...tabsControlProps} hideTabs={mode === "view"}>
           <TabsContent
             value="content"
             className={`space-y-6 ${mode === "view" ? "" : "pt-6"}`}
@@ -1516,7 +1500,7 @@ export default function AssignmentForm({
               readOnly={readOnly}
             />
           </TabsContent>
-        </Tabs>
+        </ContentEditorTabs>
 
         {mode !== "view" && (
           <AssignmentFormFooter

@@ -7,6 +7,7 @@ import { getLearningContentsByIds } from "./learningContent";
 import { getAssignmentsByIdsForTeacher } from "./assignments";
 import { getQuizzesByIds, deleteQuizSubmissionForStudent } from "./quizzes";
 import { getSurveysByIds } from "./surveys";
+import { getChatbotsByIds } from "./chatbots";
 import { deleteSurveyResponseForStudent } from "./surveyResponses";
 import { getSubmissionByStudentAndAssignment, markAttemptsAsStale } from "./submissions";
 
@@ -280,7 +281,8 @@ export async function getClassContentCompletions(
   }
 
   // Fetch content names in parallel
-  const [learningContents, assignments, quizzes, surveys] = await Promise.all([
+  const [chatbots, learningContents, assignments, quizzes, surveys] = await Promise.all([
+    getChatbotsByIds(contentItems.filter(i => i.type === "chatbot").map(i => i.ref_id)),
     learningContentIds.length > 0 ? getLearningContentsByIds(learningContentIds) : Promise.resolve([]),
     assignmentIds.length > 0 ? getAssignmentsByIdsForTeacher(assignmentIds) : Promise.resolve([]),
     quizIds.length > 0 ? getQuizzesByIds(quizIds) : Promise.resolve([]),
@@ -289,6 +291,7 @@ export async function getClassContentCompletions(
 
   // Create maps for quick lookup
   const contentNameMap = new Map<string, string>();
+  for (const b of chatbots) contentNameMap.set(b.id, b.title);
   
   for (const lc of learningContents) {
     contentNameMap.set(lc.id, lc.title);
@@ -426,7 +429,8 @@ export async function getClassStudentContentCompletions(params: {
     }
   }
 
-  const [learningContents, assignments, quizzes, surveys] = await Promise.all([
+  const [chatbots, learningContents, assignments, quizzes, surveys] = await Promise.all([
+    getChatbotsByIds(scopedContentItems.filter(i => i.type === "chatbot").map(i => i.ref_id)),
     learningContentIds.length > 0
       ? getLearningContentsByIds(learningContentIds)
       : Promise.resolve([]),
@@ -439,6 +443,10 @@ export async function getClassStudentContentCompletions(params: {
 
   const contentNameMap = new Map<string, string>();
   const routeEntityByRefId = new Map<string, string>();
+  for (const b of chatbots) {
+    contentNameMap.set(b.id, b.title);
+    routeEntityByRefId.set(b.id, b.chatbot_id);
+  }
 
   for (const lc of learningContents) {
     contentNameMap.set(lc.id, lc.title);

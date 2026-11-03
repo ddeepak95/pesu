@@ -218,3 +218,20 @@ passages from approved GCS versions. The `display_content` action uses stable
 figure references and an attempt-authorized image route, including public
 activity attempts.
 
+
+
+## Reviewing AI requests and responses locally
+
+Set `AI_INVOCATION_LOGGING_ENABLED=true` in `.env.local` and restart `npm run dev`.
+In development, invocation payloads are saved locally by default:
+
+```text
+.local/ai-logs/<invocation-id>/request.json
+.local/ai-logs/<invocation-id>/response.json
+```
+
+Requests contain the model, context, and serialized SDK request. Responses contain the serialized reply, usage, status, or failure details. Streaming responses are written after generation completes or fails. Existing secret redaction applies to local payloads.
+
+Supabase still holds the `ai_invocations` index and usage metering. Storage-path fields have a `local:` prefix for local files. The `.local/` directory is Git-ignored and is not served by the app.
+
+Set `AI_INVOCATION_LOG_STORAGE=gcs` to use cloud payload storage during development. Production always uses GCS when payload logging is enabled, even if this setting is `local`. Local payload storage does not require Firebase/GCS credentials. Disabling `AI_INVOCATION_LOGGING_ENABLED` stops payload capture without disabling usage metering.

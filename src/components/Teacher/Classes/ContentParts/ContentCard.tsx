@@ -105,6 +105,8 @@ export default function ContentCard({
 
   const labelForType = (type: ContentItemType) => {
     switch (type) {
+      case "chatbot":
+        return "Chatbot";
       case "quiz":
         return "Quiz";
       case "learning_content":
@@ -257,8 +259,9 @@ export default function ContentCard({
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit
               </DropdownMenuItem>
-              {onShareLinks && item.type === "formative_assignment" && (
+              {onShareLinks && (item.type === "formative_assignment" || item.type === "chatbot") && (
                 <DropdownMenuItem
+                  disabled={item.type === "chatbot" && item.status !== "active"}
                   onClick={(e) => {
                     e.stopPropagation();
                     onShareLinks();

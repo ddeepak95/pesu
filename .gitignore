@@ -46,3 +46,6 @@ next-env.d.ts
 .cursor/
 .claude/settings.local.json
 class-backups/
+
+# Local AI invocation payloads
+/.local/

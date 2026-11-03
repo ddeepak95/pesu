@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { StudentPreviewOverlay } from "@/components/Shared/StudentPreviewOverlay";
 import {
   createSubmission,
   resetPreviewSubmission,
@@ -20,9 +20,8 @@ import { Assignment, Question } from "@/types/assignment";
 import { SubmissionFile } from "@/types/submission";
 import AssignmentResponseCore from "@/components/Shared/AssignmentResponseCore";
 import { ActivityTrackingProvider } from "@/contexts/ActivityTrackingContext";
-import { Button } from "@/components/ui/button";
 import { showErrorToast } from "@/lib/toast";
-import { Eye, Loader2, RotateCcw, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface AssignmentPreviewResponseProps {
   /** The saved assignment row to preview (real row, resolved server-side by id). */
@@ -69,23 +68,6 @@ export default function AssignmentPreviewResponse({
   const [previewEpoch, setPreviewEpoch] = useState(0);
   const [restarting, setRestarting] = useState(false);
   const initializingRef = useRef(false);
-
-  // Portal target only exists on the client; gate render until mounted.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Lock background page scroll while the full-screen preview is mounted, so the
-  // overlay doesn't inherit / pass through the builder page's scroll.
-  useEffect(() => {
-    const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
-    };
-  }, []);
 
   const fileUploadRequired = !!assignment.file_submission_config?.required;
   const dynamicQuestionsEnabled =
@@ -176,34 +158,8 @@ export default function AssignmentPreviewResponse({
 
   const showTentativeNote = assignment.feedback_requires_approval ?? false;
 
-  if (!mounted) return null;
-
-  return createPortal(
-    <div className="grain-canvas fixed inset-0 z-50 flex flex-col bg-canvas">
-      {/* Preview chrome */}
-      <div className="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Eye className="h-4 w-4 text-primary" />
-          <span>Preview as Student</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleRestart}
-            disabled={loading || restarting || !submissionId}
-          >
-            <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-            {restarting ? "Restarting..." : "Restart preview"}
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={onExit}>
-            <X className="mr-1.5 h-3.5 w-3.5" />
-            Exit preview
-          </Button>
-        </div>
-      </div>
-
+  return (
+    <StudentPreviewOverlay onExit={onExit} onRestart={handleRestart} restartDisabled={loading || !submissionId} restarting={restarting}>
       {showTentativeNote && (
         <div className="border-b bg-amber-50 px-4 py-2 text-xs text-amber-800 sm:px-6 dark:bg-amber-950/40 dark:text-amber-200">
           This activity holds feedback for approval, so scores shown here are
@@ -255,7 +211,6 @@ export default function AssignmentPreviewResponse({
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </StudentPreviewOverlay>
   );
 }

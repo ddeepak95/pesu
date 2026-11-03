@@ -17,6 +17,8 @@ import { deleteAssignment } from "@/lib/queries/assignments";
 import { deleteLearningContent } from "@/lib/queries/learningContent";
 import { deleteQuiz } from "@/lib/queries/quizzes";
 import { deleteSurvey } from "@/lib/queries/surveys";
+import { deleteChatbot } from "@/lib/queries/chatbots";
+import { useChatbotsByIds } from "@/hooks/swr/useChatbots";
 import { Assignment } from "@/types/assignment";
 import { LearningContent } from "@/types/learningContent";
 import { Quiz } from "@/types/quiz";
@@ -40,7 +42,7 @@ import DuplicateContentDialog from "@/components/Teacher/Classes/DuplicateConten
 import BulkDuplicateContentDialog from "@/components/Teacher/Classes/BulkDuplicateContentDialog";
 import CreateContentMenu from "@/components/Teacher/Classes/ContentParts/CreateContentMenu";
 import ContentCard from "@/components/Teacher/Classes/ContentParts/ContentCard";
-import { AssignmentLinkShare } from "@/components/Teacher/Assignments/AssignmentLinkShare";
+import { ContentLinkShare } from "@/components/Shared/ContentLinkShare";
 import {
   useClassGroups,
   useContentItemsByClass,
@@ -77,8 +79,12 @@ export default function Content({
   const [localItems, setLocalItems] = useState<ContentItem[] | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] =
-    useState<Assignment | null>(null);
+  const [selectedShare, setSelectedShare] = useState<{
+    contentLabel: string;
+    publicPath: string;
+    classroomPath: string;
+    isPublic: boolean;
+  } | null>(null);
 
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -167,6 +173,9 @@ export default function Content({
     useLearningContentsByIds(learningContentIds);
   const { data: quizzesData } = useQuizzesByIds(quizIds);
   const { data: surveysData } = useSurveysByIds(surveyIds);
+  const chatbotIds = useMemo(() => items.filter(i => i.type === "chatbot").map(i => i.ref_id), [items]);
+  const { data: chatbotsData } = useChatbotsByIds(chatbotIds);
+  const chatbotById = useMemo(() => Object.fromEntries((chatbotsData ?? []).map(b => [b.id, b])), [chatbotsData]);
 
   // Build lookup maps
   const assignmentById = useMemo(() => {
@@ -273,6 +282,10 @@ export default function Content({
       ? `?tab=content&groupId=${selectedGroupId}`
       : `?tab=content`;
 
+    if (item.type === "chatbot") {
+      const bot = chatbotById[item.ref_id];
+      return bot ? `/teacher/classes/${classData.class_id}/chatbots/${bot.chatbot_id}${backQs}` : undefined;
+    }
     if (item.type === "formative_assignment") {
       const a = assignmentById[item.ref_id];
       if (a) {
@@ -327,6 +340,11 @@ export default function Content({
       ? `?tab=content&groupId=${selectedGroupId}`
       : `?tab=content`;
 
+    if (item.type === "chatbot") {
+      const bot = chatbotById[item.ref_id];
+      if (bot) router.push(`/teacher/classes/${classData.class_id}/chatbots/${bot.chatbot_id}/edit${backQs}`);
+      return;
+    }
     if (item.type === "formative_assignment") {
       const a = assignmentById[item.ref_id];
       if (a) {
@@ -380,6 +398,9 @@ export default function Content({
       }
 
       switch (item.type) {
+        case "chatbot":
+          await deleteChatbot(item.ref_id);
+          break;
         case "formative_assignment":
           await deleteAssignment(item.ref_id, classId);
           break;
@@ -459,7 +480,23 @@ export default function Content({
     if (item.type === "formative_assignment") {
       const assignment = assignmentById[item.ref_id];
       if (assignment) {
-        setSelectedAssignment(assignment);
+        setSelectedShare({
+          contentLabel: "Assignment",
+          publicPath: `/assignment/${assignment.assignment_id}`,
+          classroomPath: `/student/classes/${classData.class_id}/assignments/${assignment.assignment_id}`,
+          isPublic: assignment.is_public,
+        });
+        setShareDialogOpen(true);
+      }
+    } else if (item.type === "chatbot") {
+      const bot = chatbotById[item.ref_id];
+      if (bot && bot.status === "active") {
+        setSelectedShare({
+          contentLabel: "Chatbot",
+          publicPath: `/chatbot/${bot.chatbot_id}`,
+          classroomPath: `/student/classes/${classData.class_id}/chatbots/${bot.chatbot_id}`,
+          isPublic: bot.is_public,
+        });
         setShareDialogOpen(true);
       }
     }
@@ -662,10 +699,12 @@ export default function Content({
               <List
                 items={items}
                 keyExtractor={(item) => item.id}
-                emptyMessage="No content yet. Use the Create button to add a quiz, survey, learning content, or formative assignment."
+                emptyMessage="No content yet. Use the Create button to add content."
                 renderItem={(item, index) => {
                   const resolvedTitle =
-                    item.type === "formative_assignment"
+                    item.type === "chatbot"
+                      ? chatbotById[item.ref_id]?.title
+                      : item.type === "formative_assignment"
                       ? assignmentById[item.ref_id]?.title
                       : item.type === "quiz"
                         ? quizById[item.ref_id]?.title
@@ -748,13 +787,11 @@ export default function Content({
         }}
       />
 
-      {selectedAssignment && (
-        <AssignmentLinkShare
+      {selectedShare && (
+        <ContentLinkShare
+          {...selectedShare}
           open={shareDialogOpen}
           onOpenChange={setShareDialogOpen}
-          assignmentId={selectedAssignment.assignment_id}
-          classId={classData.class_id}
-          isPublic={selectedAssignment.is_public}
         />
       )}
     </div>

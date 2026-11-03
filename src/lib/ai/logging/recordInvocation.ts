@@ -16,7 +16,7 @@ import type { UsageType } from "@/lib/ai/metering/usageTypes";
 import { logAppEvent, resolveInstitutionId } from "@/lib/logging/appLog";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { isAiInvocationLoggingEnabled } from "./enabled";
-import { uploadInvocationJson } from "./gcs";
+import { storeInvocationJson } from "./storage";
 import { aiInvocationStoragePaths } from "./paths";
 import type {
   AiInvocationDomainContext,
@@ -269,7 +269,7 @@ function tokenDetailsFromLoggedSdkResponse(sdkResponse: unknown): TokenDetails |
 }
 
 /**
- * Detached, fire-and-forget GCS payload upload — debug/audit only (§6). Never
+ * Detached, fire-and-forget debug payload storage — debug/audit only (§6). Never
  * awaited by the row lifecycle; a storage outage costs only the debug
  * payload, never a billing row. Paths are set on the row only when capture
  * is enabled (isAiInvocationLoggingEnabled), which is what makes the
@@ -280,7 +280,7 @@ function scheduleInvocationPayloadUpload(
   storagePath: string,
   payload: unknown,
 ): void {
-  void uploadInvocationJson(storagePath, payload).catch((err) =>
+  void storeInvocationJson(storagePath, payload).catch((err) =>
     logInvocationError(`failed to upload payload for ${invocationId}`, err),
   );
 }

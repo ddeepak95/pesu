@@ -5,6 +5,7 @@ import { createLearningContent, getLearningContentsByIdsFull } from "@/lib/queri
 import { createQuiz, getQuizzesByIdsFull } from "@/lib/queries/quizzes";
 import { createSurvey, getSurveysByIdsFull } from "@/lib/queries/surveys";
 import { createContentItem } from "@/lib/queries/contentItems";
+import { createChatbot, getChatbotsByIds } from "@/lib/queries/chatbots";
 
 export async function duplicateContentItem(params: {
   item: ContentItem;
@@ -68,6 +69,17 @@ export async function duplicateContentItem(params: {
     position: _ciPosition,
     ...contentItemFields
   } = item;
+
+  if (item.type === "chatbot") {
+    const [bot] = await getChatbotsByIds([item.ref_id]);
+    if (!bot) throw new Error("Source chatbot not found");
+    await createChatbot({
+      ...bot, status: item.status === "draft" ? "draft" : "active",
+      class_id: destinationClassDbId, class_group_id: destinationClassGroupId,
+      placement: contentItemFields,
+    });
+    return;
+  }
 
   if (item.type === "formative_assignment") {
     const [a] = await getAssignmentsByIdsForTeacherFull([item.ref_id]);

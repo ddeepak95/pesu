@@ -1,4 +1,4 @@
-export type ContentItemType = "quiz" | "learning_content" | "formative_assignment" | "survey";
+export type ContentItemType = "quiz" | "learning_content" | "formative_assignment" | "survey" | "chatbot";
 
 export interface ContentItem {
   id: string; // uuid pk

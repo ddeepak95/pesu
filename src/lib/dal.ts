@@ -131,7 +131,8 @@ export async function getContentUnlockState(
   userId: string,
   classId: string, // short class_id from the URL
   refId: string, // entity UUID (assignments.id, quizzes.id, etc.)
-  type: ContentItem["type"]
+  type: ContentItem["type"],
+  placementId?: string,
 ): Promise<ContentUnlockResult> {
   const result: ContentUnlockResult = {
     contentItemId: null,
@@ -143,13 +144,14 @@ export async function getContentUnlockState(
   };
 
   // 1. Fetch the content item by ref_id + type
-  const { data: contentItem } = await supabase
+  let placementQuery = supabase
     .from("content_items")
     .select(CONTENT_ITEM_COLUMNS)
     .eq("ref_id", refId)
     .eq("type", type)
-    .in("status", ["active", "draft"])
-    .maybeSingle();
+    .in("status", ["active", "draft"]);
+  if (placementId) placementQuery = placementQuery.eq("id", placementId);
+  const { data: contentItem } = await placementQuery.maybeSingle();
 
   if (!contentItem) return result;
 
@@ -286,6 +288,7 @@ export async function getContentUnlockState(
 
 /** Map content item type to student URL path segment. */
 const CONTENT_TYPE_SEGMENT: Record<ContentItem["type"], string> = {
+  chatbot: "chatbots",
   formative_assignment: "assignments",
   learning_content: "learning-content",
   quiz: "quizzes",
@@ -301,6 +304,10 @@ export async function getPublicIdForContentRef(
   refId: string,
   type: ContentItem["type"]
 ): Promise<string | null> {
+  if (type === "chatbot") {
+    const { data } = await supabase.from("chatbots").select("chatbot_id").eq("id", refId).maybeSingle();
+    return data?.chatbot_id ?? null;
+  }
   if (type === "formative_assignment") {
     const { data } = await supabase
       .from("assignments")

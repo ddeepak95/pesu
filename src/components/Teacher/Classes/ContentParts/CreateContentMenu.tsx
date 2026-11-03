@@ -17,6 +17,7 @@ import {
 
 /** "Create X" label per content type, in the menu's display order. */
 const CREATE_LABELS: Record<ContentTypeId, string> = {
+  chatbot: "Create Chatbot",
   formative_assignment: "Create Activity",
   learning_content: "Create Content",
   quiz: "Create Quiz",

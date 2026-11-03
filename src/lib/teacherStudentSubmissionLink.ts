@@ -2,6 +2,8 @@ import type { ContentItemType } from "@/types/contentCompletion";
 
 function submissionTabForContentType(type: ContentItemType): string {
   switch (type) {
+    case "chatbot":
+      return "conversations";
     case "formative_assignment":
       return "submissions";
     case "quiz":
@@ -19,6 +21,8 @@ function submissionTabForContentType(type: ContentItemType): string {
 
 function materialPathSegment(type: ContentItemType): string {
   switch (type) {
+    case "chatbot":
+      return "chatbots";
     case "formative_assignment":
       return "assignments";
     case "quiz":

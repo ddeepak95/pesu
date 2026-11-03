@@ -37,6 +37,7 @@ interface StudentIndividualProgressDialogProps {
 }
 
 const CONTENT_TYPE_LABELS: Record<ContentItemType, string> = {
+  chatbot: "Chatbot",
   learning_content: "Content",
   quiz: "Quiz",
   formative_assignment: "Activity",

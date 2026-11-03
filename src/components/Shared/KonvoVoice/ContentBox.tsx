@@ -1,7 +1,14 @@
 "use client";
 
 import React from "react";
+import MarkdownContent from "@/components/Shared/MarkdownContent";
 import { ChevronDown, ChevronRight, Loader2, Pause, Play } from "lucide-react";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { ActionCard, type TtsConfig } from "./ActionCard";
 import { useOnDemandTts } from "./useOnDemandTts";
@@ -17,20 +24,26 @@ type ContentDisplay = {
   url?: string;
 };
 
+export interface ChatDisplayMessage {
+  id: string;
+  role: "student" | "assistant";
+  content: string;
+  status?: "transcribing";
+  deliveryStatus?: "pending" | "complete" | "failed";
+  format?: "text" | "markdown";
+  sources?: Array<{ url: string; title: string }>;
+  searchAttributionHtml?: string | null;
+  streaming?: boolean;
+  action?: PendingAction;
+  hidden?: boolean;
+  typed?: boolean;
+  /** Present on a failed AI-turn bubble — renders the retry UI in place. */
+  error?: ChatTurnError;
+}
+
 interface ContentBoxProps {
   content: ContentDisplay | null;
-  messages?: Array<{
-    id: string;
-    role: "student" | "assistant";
-    content: string;
-    status?: "transcribing";
-    streaming?: boolean;
-    action?: PendingAction;
-    hidden?: boolean;
-    typed?: boolean;
-    /** Present on a failed AI-turn bubble — renders the retry UI in place. */
-    error?: ChatTurnError;
-  }>;
+  messages?: ChatDisplayMessage[];
   expandedMessageIds?: Record<string, boolean>;
   onToggleExpanded?: (messageId: string) => void;
   onMcqAnswer?: (messageId: string, choiceIndex: number) => void;
@@ -46,7 +59,10 @@ interface ContentBoxProps {
   className?: string;
   animateActions?: boolean;
   autoScroll?: boolean;
+  scrollMode?: "always-new" | "follow";
+  pendingReply?: boolean;
   /** Label shown on student bubbles (e.g. "You" in the live view, "Student" for teachers). */
+  assistantLabel?: string;
   studentLabel?: string;
   /** Retry a failed AI turn (rendered as an error bubble). */
   onRetryTurn?: (messageId: string) => void;
@@ -82,7 +98,10 @@ export function ContentBox({
   className,
   animateActions = true,
   autoScroll = true,
+  scrollMode = "always-new",
+  pendingReply = false,
   studentLabel = "You",
+  assistantLabel = "Konvo",
   speechMode = "automatic",
   onRetryTurn,
   onActionRetry,
@@ -90,6 +109,8 @@ export function ContentBox({
   retryAttemptCount,
 }: ContentBoxProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const followBottomRef = React.useRef(true);
+  const scrollContentRef = React.useRef<HTMLDivElement>(null);
   const prevMessageCountRef = React.useRef(0);
   const [knownMessageIds, setKnownMessageIds] = React.useState<Set<string>>(
     () => new Set(),
@@ -121,7 +142,7 @@ export function ContentBox({
   React.useLayoutEffect(() => {
     if (!autoScroll) return;
     const count = messages?.length ?? 0;
-    if (count === 0) {
+    if (count === 0 && !pendingReply) {
       prevMessageCountRef.current = 0;
       return;
     }
@@ -132,7 +153,12 @@ export function ContentBox({
     prevMessageCountRef.current = count;
 
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
-    if (!isNewMessage && !nearBottom) return;
+    if (
+      scrollMode === "follow"
+        ? !followBottomRef.current
+        : !isNewMessage && !nearBottom
+    )
+      return;
 
     const scrollToEnd = () => {
       const endTop = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -144,7 +170,18 @@ export function ContentBox({
     scrollToEnd();
     const raf = requestAnimationFrame(scrollToEnd);
     return () => cancelAnimationFrame(raf);
-  }, [autoScroll, messages]);
+  }, [autoScroll, messages, pendingReply, scrollMode]);
+
+  React.useEffect(() => {
+    if (!autoScroll || scrollMode !== "follow" || !scrollContentRef.current)
+      return;
+    const observer = new ResizeObserver(() => {
+      const el = scrollRef.current;
+      if (el && followBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(scrollContentRef.current);
+    return () => observer.disconnect();
+  }, [autoScroll, scrollMode]);
 
   return (
     <>
@@ -168,11 +205,16 @@ export function ContentBox({
       <div
         className={cn(
           "relative flex h-96 flex-col rounded-xl border border-border bg-muted/30 overflow-hidden",
-          className
+          className,
         )}
       >
         <div
           ref={scrollRef}
+          onScroll={(event) => {
+            const el = event.currentTarget;
+            followBottomRef.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+          }}
           className="relative min-h-0 flex-1 overflow-y-auto p-4 bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.14)_1px,transparent_0)] bg-[length:18px_18px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(161,98,7,0.20)_1px,transparent_0)] dark:bg-[length:18px_18px]"
           // translateZ(0) promotes the scroll layer so Chromium invalidates it
           // correctly — without it, the bubbles' box-shadow leaves repaint
@@ -182,7 +224,7 @@ export function ContentBox({
             transform: "translateZ(0)",
           }}
         >
-          <div className="flex min-h-full flex-col">
+          <div ref={scrollContentRef} className="flex min-h-full flex-col">
             <div className="min-h-0 flex-1 shrink-0" aria-hidden />
             <div className="flex flex-col gap-3">
               {messages?.map((m) => {
@@ -218,7 +260,8 @@ export function ContentBox({
                         style={
                           animateActions
                             ? {
-                                animation: "konvoCardRing 1100ms ease-out 220ms 1",
+                                animation:
+                                  "konvoCardRing 1100ms ease-out 220ms 1",
                               }
                             : undefined
                         }
@@ -255,18 +298,41 @@ export function ContentBox({
                     onReplayAudio={() => onReplayAudio?.(m.id)}
                     transliterationEnabled={transliterationEnabled}
                     transliteration={transliterations?.[m.id]}
-                    transliterationPending={Boolean(transliterationPending?.[m.id])}
-                    onRequestTransliteration={() => onRequestTransliteration?.(m.id)}
+                    transliterationPending={Boolean(
+                      transliterationPending?.[m.id],
+                    )}
+                    onRequestTransliteration={() =>
+                      onRequestTransliteration?.(m.id)
+                    }
                     readOnly={readOnly}
+                    assistantLabel={assistantLabel}
                     studentLabel={studentLabel}
                     speechMode={speechMode}
                     ttsConfig={ttsConfig}
                   />
                 );
               })}
+              {pendingReply && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="flex items-center gap-2 self-start py-2 text-sm text-muted-foreground"
+                >
+                  <span>Thinking...</span>
+                  <span aria-hidden="true" className="inline-flex gap-1">
+                    {[0, 1, 2].map((index) => (
+                      <span
+                        key={index}
+                        className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-bounce"
+                        style={{ animationDelay: `${index * 150}ms` }}
+                      />
+                    ))}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
-          {(!messages || messages.length === 0) && !content ? (
+          {(!messages || messages.length === 0) && !content && !pendingReply ? (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span className="text-sm text-muted-foreground">
                 Enjoy learning
@@ -309,14 +375,7 @@ const STATIC_WAVE_HEIGHTS = [
 ];
 
 interface MessageBubbleProps {
-  message: {
-    id: string;
-    role: "student" | "assistant";
-    content: string;
-    status?: "transcribing";
-    streaming?: boolean;
-    typed?: boolean;
-  };
+  message: ChatDisplayMessage;
   isNew: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;
@@ -328,6 +387,7 @@ interface MessageBubbleProps {
   transliterationPending?: boolean;
   onRequestTransliteration?: () => void;
   readOnly?: boolean;
+  assistantLabel?: string;
   studentLabel?: string;
   speechMode?: "automatic" | "on_demand" | "none";
   ttsConfig?: TtsConfig;
@@ -347,9 +407,12 @@ function MessageBubble({
   onRequestTransliteration,
   readOnly,
   studentLabel = "You",
+  assistantLabel = "Konvo",
   speechMode = "automatic",
   ttsConfig,
 }: MessageBubbleProps) {
+  const sources =
+    m.sources?.filter((source) => /^https?:\/\//i.test(source.url)) ?? [];
   const isStudent = m.role === "student";
   const isStreaming = m.role === "assistant" && Boolean(m.streaming);
   // Show message text directly (no collapsed waveform placeholder, no "View
@@ -358,7 +421,6 @@ function MessageBubble({
   // regardless of the tutor's output mode). For the tutor it's any non-automatic
   // output mode (on_demand/none produce no auto-played audio).
   const textOutput = isStudent ? Boolean(m.typed) : speechMode !== "automatic";
-  const onDemandTts = useOnDemandTts(ttsConfig);
   // on_demand: assistant replies get a tap-to-hear button that synthesizes from
   // the message text (the live turn produced no audio).
   const showOnDemandPlay =
@@ -371,10 +433,12 @@ function MessageBubble({
   return (
     <div
       className={`flex items-end gap-2 ${isStudent ? "flex-row-reverse" : "flex-row"}`}
-      style={isNew ? { animation: "konvoBubbleIn 900ms ease-out both" } : undefined}
+      style={
+        isNew ? { animation: "konvoBubbleIn 900ms ease-out both" } : undefined
+      }
     >
       <div
-        className={`relative min-w-[10rem] max-w-[95%] sm:max-w-[80%] px-3 py-2 text-sm whitespace-pre-wrap shadow-sm transition-colors duration-500 ease-out ${
+        className={`relative min-w-[10rem] max-w-[95%] sm:max-w-[80%] px-3 py-2 text-sm shadow-sm transition-colors duration-500 ease-out ${
           isStudent
             ? "bg-muted text-foreground border border-border/60 rounded-2xl rounded-br-sm"
             : "bg-muted/70 border border-border/60 text-foreground rounded-2xl rounded-bl-sm"
@@ -382,7 +446,7 @@ function MessageBubble({
       >
         <div className="mb-2 flex items-center justify-between">
           <div className="text-sm font-semibold text-foreground">
-            {isStudent ? studentLabel : "Konvo"}
+            {isStudent ? studentLabel : assistantLabel}
           </div>
           <div className="flex items-center gap-1">
             {!isStreaming && audioAvailable ? (
@@ -401,20 +465,7 @@ function MessageBubble({
                 )}
               </Button>
             ) : showOnDemandPlay ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-auto px-1 text-foreground/60 hover:text-foreground"
-                aria-label={onDemandTts.isPlaying ? "Pause audio" : "Play audio"}
-                onClick={() => void onDemandTts.play(m.content)}
-              >
-                {onDemandTts.isPlaying ? (
-                  <Pause className="h-3.5 w-3.5" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-              </Button>
+              <OnDemandSpeechButton config={ttsConfig} content={m.content} />
             ) : null}
             {!readOnly && !textOutput && (
               <Button
@@ -457,7 +508,62 @@ function MessageBubble({
               ))}
             </div>
           ) : (
-            <div className="mt-1">{m.content}</div>
+            <div className="mt-1">
+              {m.format === "markdown" ? (
+                <MarkdownContent
+                  content={m.content}
+                  renderStandaloneImages={m.role === "assistant"}
+                  className="whitespace-normal [overflow-wrap:anywhere] [&_pre]:whitespace-pre [&_pre]:[overflow-wrap:normal] [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_li>p]:my-1 [&_li>ul]:mt-1 [&_li>ol]:mt-1 [&_img]:my-3 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_img]:bg-white [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_hr]:border-border"
+                />
+              ) : (
+                <div className="whitespace-pre-wrap">{m.content}</div>
+              )}
+              {m.deliveryStatus && m.deliveryStatus !== "complete" && (
+                <p className="mt-2 text-xs text-muted-foreground" role="status">
+                  {m.deliveryStatus === "failed"
+                    ? "Reply failed. This message did not use a turn."
+                    : "Waiting for a reply..."}
+                </p>
+              )}
+              {sources.length > 0 && (
+                <Accordion
+                  type="single"
+                  collapsible
+                  className="mt-3 border-t border-border/60"
+                >
+                  <AccordionItem value="sources" className="border-b-0">
+                    <AccordionTrigger className="gap-3 py-2 text-xs text-muted-foreground">
+                      Sources ({sources.length})
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-1">
+                      <ul className="space-y-2 text-xs" aria-label="Sources">
+                        {sources.map((source, i) => (
+                          <li key={`${source.url}-${i}`}>
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="break-words underline"
+                            >
+                              {source.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              )}
+              {m.searchAttributionHtml && (
+                <iframe
+                  title="Search attribution"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox"
+                  referrerPolicy="no-referrer"
+                  srcDoc={m.searchAttributionHtml}
+                  className="mt-3 h-32 w-full border-0"
+                />
+              )}
+            </div>
           )}
           {!isStudent && (expanded || textOutput) && transliterationEnabled ? (
             <div className="mt-2 border-t border-border/40 pt-2">
@@ -474,8 +580,7 @@ function MessageBubble({
                 </div>
               ) : transliterationPending ? (
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />{" "}
-                  Translating...
+                  <Loader2 className="h-3 w-3 animate-spin" /> Translating...
                 </span>
               ) : (
                 <Button
@@ -494,5 +599,32 @@ function MessageBubble({
         </div>
       </div>
     </div>
+  );
+}
+
+// Mounted only for on-demand speech. Text-only chats never initialize speech hooks.
+function OnDemandSpeechButton({
+  config,
+  content,
+}: {
+  config?: TtsConfig;
+  content: string;
+}) {
+  const tts = useOnDemandTts(config);
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-auto px-1 text-foreground/60 hover:text-foreground"
+      aria-label={tts.isPlaying ? "Pause audio" : "Play audio"}
+      onClick={() => void tts.play(content)}
+    >
+      {tts.isPlaying ? (
+        <Pause className="h-3.5 w-3.5" />
+      ) : (
+        <Play className="h-3.5 w-3.5" />
+      )}
+    </Button>
   );
 }

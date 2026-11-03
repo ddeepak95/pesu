@@ -12,6 +12,7 @@ export interface ContentCompletionInput {
 }
 
 export type ContentItemType =
+  | "chatbot"
   | "quiz"
   | "learning_content"
   | "formative_assignment"

@@ -69,6 +69,7 @@ interface StudentRow {
 }
 
 const CONTENT_TYPE_LABELS: Record<ContentItemType, string> = {
+  chatbot: "Chatbot",
   learning_content: "Content",
   quiz: "Quiz",
   formative_assignment: "Activity",
@@ -469,6 +470,7 @@ export default function StudentProgressDialog({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="chatbot">Chatbot</SelectItem>
               <SelectItem value="learning_content">Content</SelectItem>
               <SelectItem value="quiz">Quiz</SelectItem>
               <SelectItem value="formative_assignment">Activity</SelectItem>

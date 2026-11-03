@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Gates GCS debug-payload capture only (request.json / response.json).
+ * Gates debug-payload capture only (local disk in development, GCS otherwise) (request.json / response.json).
  * The ai_invocations row itself is always written regardless of this flag —
  * it's the system of record for billing/usage, not a debug artifact (§6 of
  * dev-docs/ai-usage-metering-plan.md). Conceptually this is now

@@ -1,9 +1,13 @@
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import { remarkStandaloneImages } from "@/lib/remarkStandaloneImages";
+import { normalizeMarkdownImageUrl } from "@/lib/markdownImageUrl";
+import MarkdownImage from "./MarkdownImage";
 import { cn } from "@/lib/utils";
 
 const markdownComponents: Components = {
+  img: ({ src, alt, title }) => typeof src === "string" && src ? <MarkdownImage key={src} src={src} alt={alt} title={title} /> : null,
   h1: ({ children, ...props }) => (
     <h1 className="text-2xl font-semibold text-foreground" {...props}>
       {children}
@@ -93,15 +97,21 @@ const markdownComponents: Components = {
 export default function MarkdownContent({
   content,
   className,
+  renderStandaloneImages = false,
 }: {
   content: string;
   className?: string;
+  renderStandaloneImages?: boolean;
 }) {
   return (
     <div className={cn("space-y-4", className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={renderStandaloneImages ? [remarkGfm, remarkBreaks, remarkStandaloneImages] : [remarkGfm, remarkBreaks]}
         components={markdownComponents}
+        urlTransform={(url, key, node) => {
+          const safeUrl = defaultUrlTransform(url);
+          return node.tagName === "img" && key === "src" ? normalizeMarkdownImageUrl(safeUrl) : safeUrl;
+        }}
       >
         {content}
       </ReactMarkdown>

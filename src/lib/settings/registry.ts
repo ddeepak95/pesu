@@ -170,12 +170,13 @@ export type AssessmentMode = (typeof ASSESSMENT_MODE_OPTIONS)[number]["value"];
 export const RETIRED_ASSESSMENT_MODES = new Set<AssessmentMode>(["voice"]);
 
 /**
- * The four creatable content types, keyed by the ids used throughout
+ * Creatable content types, keyed by the ids used throughout
  * `content_items.type` and the create routes. Single source of truth for the
  * `allowed_content_types` option set and for mapping a type to its create-route
  * URL segment.
  */
 export const CONTENT_TYPE_OPTIONS = [
+  { value: "chatbot", label: "Chatbot" },
   { value: "formative_assignment", label: "Activity" },
   { value: "learning_content", label: "Content" },
   { value: "quiz", label: "Quiz" },
@@ -186,6 +187,7 @@ export type ContentTypeId = (typeof CONTENT_TYPE_OPTIONS)[number]["value"];
 
 /** Content type id → create-route URL segment (`/teacher/classes/:id/<segment>/create`). */
 export const CONTENT_TYPE_SEGMENTS: Record<ContentTypeId, string> = {
+  chatbot: "chatbots",
   formative_assignment: "assignments",
   learning_content: "learning-content",
   quiz: "quizzes",
@@ -196,13 +198,13 @@ const allowedContentTypes: SettingDefinition<string[]> = {
   key: "allowed_content_types",
   label: "Allowed content types",
   description:
-    "Content types teachers can create in a class. Quiz and Survey are off by default.",
+    "Content types teachers can create in a class. Quiz, Survey, and Chatbot are off by default.",
   category: "Content",
   order: 10,
   scopes: ["institution", "class"],
   type: "string_array",
   options: CONTENT_TYPE_OPTIONS,
-  // Quiz & Survey off by default.
+  // Quiz, Survey, and Chatbot off by default.
   default: ["formative_assignment", "learning_content"],
   validate: makeStringArrayValidator(CONTENT_TYPE_OPTIONS),
   // A class can never re-enable a type the institution turned off.

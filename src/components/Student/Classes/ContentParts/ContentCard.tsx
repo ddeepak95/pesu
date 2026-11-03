@@ -42,6 +42,8 @@ export default function ContentCard({
   const [lockMessage, setLockMessage] = useState("");
   const labelForType = (type: ContentItemType) => {
     switch (type) {
+      case "chatbot":
+        return "Chatbot";
       case "quiz":
         return "Quiz";
       case "learning_content":

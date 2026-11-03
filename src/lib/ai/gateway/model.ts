@@ -30,6 +30,7 @@ import {
   type MultimodalTurnStreamOptions,
 } from "./turnStream";
 import { generateStructuredInternal } from "./structured";
+import { generateChatInternal, type ChatGenerationOptions, type ChatGenerationResult } from "./chat";
 
 /**
  * What a `streamTurn` caller supplies to `startInvocation` — everything on
@@ -80,6 +81,7 @@ export interface AiCallContext {
 }
 
 export interface MeteredTextModel {
+  generateChat(opts: ChatGenerationOptions): Promise<ChatGenerationResult>;
   readonly meta: { provider: string; modelId: string; keySource: AiConfigSource };
   /** The invocation id of the most recent generateStructured call (overwritten on every call). */
   readonly lastInvocationId: string | null;
@@ -128,6 +130,20 @@ class MeteredTextModelImpl implements MeteredTextModel {
 
   get lastInvocationId(): string | null {
     return this._lastInvocationId;
+  }
+
+  async generateChat(opts: ChatGenerationOptions): Promise<ChatGenerationResult> {
+    const result = await generateChatInternal({
+      ...opts, model: this.runtime, providerOptions: this.providerOptions,
+      invocation: {
+        appFunctionKey: this.appFunctionKey, usageType: this.usageType, model: this.meta,
+        classId: this.context.classDbId, userId: this.context.userId,
+        relatedEntityType: this.context.relatedEntity?.type, relatedEntityId: this.context.relatedEntity?.id,
+        institutionId: this.institutionId, walletId: this.walletId,
+      },
+    });
+    this._lastInvocationId = result.invocationId;
+    return result;
   }
 
   constructor(

@@ -155,6 +155,7 @@ const FUNNEL_CALL_PATTERNS: FunnelCallPattern[] = [
 
 /** File paths relative to src/lib/ai/gateway/. Update when a new call site is added. */
 const KNOWN_FUNNEL_CALL_SITES: Record<string, string[]> = {
+  "chat.ts": ["generateText"],
   "structured.ts": ["generateText"],
   "turnStream.ts": ["streamObject"],
   "speech.ts": ["provider.transcribe", "provider.synthesize", "cartesia.open", "sarvam.open"],

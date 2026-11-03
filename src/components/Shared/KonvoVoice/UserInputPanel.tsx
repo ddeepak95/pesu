@@ -13,16 +13,19 @@ import type { UseAudioRecorderResult } from "./useAudioRecorder";
 
 interface UserInputPanelProps {
   ui: KonvoUiConfig;
-  canSend: boolean;
-  recorder: UseAudioRecorderResult;
-  onMicPress: () => void;
-  onSend: () => void;
+  variant?: "assessment" | "composer";
+  placeholder?: string;
+  canSend?: boolean;
+  recorder?: UseAudioRecorderResult;
+  onMicPress?: () => void;
+  onSend?: () => void;
   /** Whether the mic (audio input) is offered at all. */
   audioEnabled: boolean;
   /** Whether the text box (text input) is offered at all. */
   textEnabled: boolean;
   /** Current text draft. */
   textValue: string;
+  maxLength?: number;
   onTextChange: (value: string) => void;
   onTextSubmit: () => void;
   /** Whether the learner may submit text right now (false during bot thinking). */
@@ -46,10 +49,14 @@ interface UserInputPanelProps {
   submissionId?: string;
   /** Optional control rendered directly above the mic button (e.g. STT language toggle). */
   micAccessory?: ReactNode;
+  /** Optional status above Send in the text-only composer. */
+  sendAccessory?: ReactNode;
 }
 
 export function UserInputPanel({
   ui,
+  variant = "assessment",
+  placeholder,
   canSend,
   recorder,
   onMicPress,
@@ -57,6 +64,7 @@ export function UserInputPanel({
   audioEnabled,
   textEnabled,
   textValue,
+  maxLength,
   onTextChange,
   onTextSubmit,
   canSubmitText,
@@ -66,6 +74,7 @@ export function UserInputPanel({
   allowCopyPaste,
   submissionId,
   micAccessory,
+  sendAccessory,
 }: UserInputPanelProps) {
   const micDisabled =
     inputsDisabled || (ui.actionButton === "mic" && !ui.micEnabled);
@@ -85,14 +94,14 @@ export function UserInputPanel({
   // Show the text box whenever text is enabled and we're not mid-recording
   // (recording shows the waveform). It's compact while contracted, full-height
   // once the panel expands.
-  const showTextBox = textEnabled && !ui.showUserWave;
+  const showTextBox = textEnabled && !(audioEnabled && ui.showUserWave);
 
   // Right-hand action button: Send the typed message when there's a draft,
   // otherwise the mic (record / stop) when audio is enabled.
   const actionButtonMode: "text-send" | "record-send" | "mic" | "none" =
     textHasInput
       ? "text-send"
-      : ui.showUserWave
+      : audioEnabled && ui.showUserWave && !!recorder
         ? "record-send"
         : audioEnabled
           ? "mic"
@@ -106,6 +115,41 @@ export function UserInputPanel({
     onSubmit: onTextSubmit,
     textareaRef,
   });
+
+  if (variant === "composer") {
+    return (
+      <div className="flex w-full items-end gap-3 bg-background p-3 sm:p-4">
+        <Textarea
+          ref={textareaRef}
+          aria-label="Your message"
+          rows={2}
+          maxLength={maxLength}
+          value={textValue}
+          onChange={guards.onChange}
+          onKeyDown={guards.onKeyDown}
+          onPaste={guards.onPaste}
+          onDrop={guards.onDrop}
+          onContextMenu={guards.onContextMenu}
+          disabled={inputsDisabled}
+          placeholder={placeholder ?? "Message the chatbot..."}
+          className="min-h-16 max-h-40 min-w-0 flex-1 resize-none overflow-y-auto"
+        />
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          {sendAccessory}
+        <Button
+          type="button"
+          size="icon"
+          className="mb-1 shrink-0 rounded-xl"
+          aria-label="Send"
+          onClick={onTextSubmit}
+          disabled={!canSubmitText || inputsDisabled || !textValue.trim()}
+        >
+          <Send className="h-5 w-5" />
+        </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card
@@ -121,7 +165,7 @@ export function UserInputPanel({
 
       <div className="absolute inset-0 flex items-stretch gap-3 px-4 pt-11 pb-3">
         <div className="flex-1 min-w-0 flex flex-col items-center justify-center text-center">
-          {ui.showUserWave ? (
+          {audioEnabled && ui.showUserWave && recorder ? (
             <AudioWaveform
               key={`rec-${recorder.recordingSessionId}`}
               mode={recorder.analyser ? "audio" : "thinking"}
@@ -133,6 +177,8 @@ export function UserInputPanel({
             <div className="relative w-full flex-1 min-h-0">
               <Textarea
                 ref={textareaRef}
+                aria-label="Your message"
+                maxLength={maxLength}
                 value={textValue}
                 onChange={guards.onChange}
                 onKeyDown={guards.onKeyDown}
@@ -142,7 +188,9 @@ export function UserInputPanel({
                 onFocus={() => setTextFocused(true)}
                 onBlur={() => setTextFocused(false)}
                 disabled={inputsDisabled}
-                placeholder={inputsDisabled ? "Waiting for the tutor…" : "Tap to type…"}
+                placeholder={
+                  inputsDisabled ? "Waiting for the tutor…" : "Tap to type…"
+                }
                 className="resize-none h-full w-full text-left"
               />
             </div>
@@ -198,7 +246,7 @@ export function UserInputPanel({
         ) : null}
       </div>
 
-      {recorder.error ? (
+      {audioEnabled && recorder?.error ? (
         <p className="absolute bottom-4 left-4 right-4 z-10 text-xs text-destructive">
           {recorder.error}
         </p>

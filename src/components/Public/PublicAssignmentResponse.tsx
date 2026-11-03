@@ -9,7 +9,7 @@ import {
   forwardRef,
 } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PublicEntryCard } from "./PublicEntryCard";
 import { createSubmission } from "@/lib/queries/submissions";
 import {
   fetchSubmissionByIdTracked,
@@ -368,22 +368,13 @@ const PublicAssignmentResponse = forwardRef<
   // Phase 1: Responder Details Form
   if (phase === "info") {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-md bg-background">
-          <CardHeader>
-            <CardTitle className="text-center text-2xl">
-              {assignmentData.title}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <ResponderDetailsForm
-              fields={responderFields}
-              onSubmit={handleBeginAssignment}
-              submitLabel="Begin Assignment"
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <PublicEntryCard title={assignmentData.title}>
+        <ResponderDetailsForm
+          fields={responderFields}
+          onSubmit={handleBeginAssignment}
+          submitLabel="Begin Assignment"
+        />
+      </PublicEntryCard>
     );
   }
 

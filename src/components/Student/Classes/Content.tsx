@@ -8,6 +8,7 @@ import { Assignment } from "@/types/assignment";
 import { LearningContent } from "@/types/learningContent";
 import { Quiz } from "@/types/quiz";
 import { Survey } from "@/types/survey";
+import { useChatbotsByIds } from "@/hooks/swr/useChatbots";
 import List from "@/components/ui/List";
 import { useAuth } from "@/contexts/AuthContext";
 import ContentCard from "@/components/Student/Classes/ContentParts/ContentCard";
@@ -74,6 +75,9 @@ export default function Content({ classData }: ContentProps) {
   const { data: learningContentsData } = useLearningContentsByIdsForStudent(learningContentIds);
   const { data: quizzesData } = useQuizzesByIdsForStudent(quizIds);
   const { data: surveysData } = useSurveysByIdsForStudent(surveyIds);
+  const chatbotIds = useMemo(() => items.filter(i => i.type === "chatbot").map(i => i.ref_id), [items]);
+  const { data: chatbotsData } = useChatbotsByIds(chatbotIds);
+  const chatbotById = useMemo(() => Object.fromEntries((chatbotsData ?? []).map(b => [b.id, b])), [chatbotsData]);
 
   // Fetch completions with dates (needed for day-delay unlock logic)
   const contentItemIds = useMemo(() => items.map((item) => item.id), [items]);
@@ -204,6 +208,11 @@ export default function Content({ classData }: ContentProps) {
       }
     }
 
+    if (item.type === "chatbot") {
+      const bot = chatbotById[item.ref_id];
+      if (bot) router.push(`/student/classes/${classData.class_id}/chatbots/${bot.chatbot_id}`);
+      return;
+    }
     if (item.type === "learning_content") {
       const lc = learningContentById[item.ref_id];
       if (lc) {
@@ -242,7 +251,9 @@ export default function Content({ classData }: ContentProps) {
       | "class_page_completed_section"
   ) => {
     const resolvedTitle =
-      item.type === "formative_assignment"
+      item.type === "chatbot"
+        ? chatbotById[item.ref_id]?.title
+        : item.type === "formative_assignment"
         ? assignmentById[item.ref_id]?.title
         : item.type === "quiz"
         ? quizById[item.ref_id]?.title
