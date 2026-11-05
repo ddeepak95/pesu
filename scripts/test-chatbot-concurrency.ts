@@ -73,6 +73,19 @@ test("concurrent requests admit exactly one turn and one restart", async () => {
     assert.equal(publicCount.output.trim(), "2", "Concurrent public restarts consume exactly one allowance");
     const studentCount = await sql(`select count(*) from public.chatbot_conversations where chatbot_id='${bot}' and student_id='${student}';`);
     assert.equal(studentCount.output.trim(), "2", "Preview restarts leave student allowance unchanged");
+    const imageSetup = await sql(`begin; insert into public.institution_members(institution_id,user_id) values('${institution}','${teacher}');
+      select set_config('request.jwt.claim.sub','${teacher}',true);
+      insert into public.setting_values(scope,scope_id,key,value) values('class','${classId}','allow_chatbot_images','true');
+      insert into public.chatbot_images(chatbot_id,description,filename,storage_path,mime_type,file_size,status)
+        select '${bot}','Diagram','image.png','assets/test','image/png',100,'ready' from generate_series(1,19); commit;`);
+    assert.equal(imageSetup.code, 0, imageSetup.error);
+    const uploads = await Promise.all([1, 2].map(() => sql(`begin; select public.manage_chatbot_image('${bot}','${teacher}','request',
+      jsonb_build_object('id','${randomUUID()}','description','Diagram','filename','image.png','storage_path','staging/test','mime_type','image/png','file_size',100));
+      select pg_sleep(0.2); commit;`)));
+    assert.equal(uploads.filter(result => result.code === 0).length, 1, JSON.stringify(uploads));
+    assert.match(uploads.find(result => result.code !== 0)!.error, /Maximum 20 images/);
+    const imageCount = await sql(`select count(*) from public.chatbot_images where chatbot_id='${bot}';`);
+    assert.equal(imageCount.output.trim(), "20", "Concurrent uploads obey the library limit");
   } finally {
     const cleanup = await sql(`begin;
       delete from public.content_items where class_id='${classId}';

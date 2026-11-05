@@ -8,6 +8,7 @@ import type { ModelTask } from "@/lib/ai/catalog/types";
  * column; this is the source of truth for what values are valid.
  */
 export type UsageType =
+  | "decisions"
   | "text_generation"
   | "speech_to_text"
   | "text_to_speech"
@@ -25,6 +26,7 @@ export interface UsageTypeDefinition {
 }
 
 export const USAGE_TYPE_REGISTRY: Record<UsageType, UsageTypeDefinition> = {
+  decisions: { usageType: "decisions", label: "Decisions", billableMetrics: ["input_token"], status: "live" },
   text_generation: {
     usageType: "text_generation",
     label: "Foundation model",
@@ -82,6 +84,7 @@ export const USAGE_TYPE_REGISTRY: Record<UsageType, UsageTypeDefinition> = {
  * usage_type (§4.2 "two alignment rules").
  */
 const TASK_TO_USAGE_TYPE: Partial<Record<ModelTask, UsageType>> = {
+  decisions: "decisions",
   text_generation: "text_generation",
   speech_to_text: "speech_to_text",
   text_to_speech: "text_to_speech",

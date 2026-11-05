@@ -249,11 +249,11 @@ class MeteredTextModelImpl implements MeteredTextModel {
  * ride-through (`quotaPolicy: 'ride-through'`, evaluate only) — the
  * fail-closed default is to check.
  */
-export async function resolveMeteredModel(input: {
+export async function resolveMeteredContext(input: {
   appFunctionKey: AppFunctionKey;
   usageType?: UsageType;
   context: AiCallContext;
-}): Promise<MeteredTextModel> {
+}) {
   const classDbId = input.context.classDbId;
   const { config, keySource } = classDbId
     ? await getCachedResolveModelConfig({
@@ -310,6 +310,14 @@ export async function resolveMeteredModel(input: {
     }
   }
 
+  return { config, keySource, institutionId, walletId };
+}
+
+export async function resolveMeteredModel(input: {
+  appFunctionKey: AppFunctionKey; usageType?: UsageType; context: AiCallContext;
+}): Promise<MeteredTextModel> {
+  const { config, keySource, institutionId, walletId } = await resolveMeteredContext(input);
+  if (config.modelId === "gpt-6-luna-decisions") throw new Error("Use the Decisions gateway for this model");
   const model = getLanguageModel(config);
   const providerOptions = providerOptionsForConfig(config);
   const modelMeta = modelMetaFromResolved(config, keySource);

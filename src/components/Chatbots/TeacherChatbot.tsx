@@ -198,6 +198,7 @@ export default function TeacherChatbot({
             <SettingsCard className="mt-4">
               <dl className="grid gap-4 sm:grid-cols-2">
                 <div><dt className="text-sm text-muted-foreground">Web search</dt><dd className="mt-1">{bot.web_search ? "Allowed" : "Off"}</dd></div>
+                <div><dt className="text-sm text-muted-foreground">Uploaded images</dt><dd className="mt-1">{bot.image_mode === "replace" ? "Replace matching images" : bot.image_mode === "append" ? "Append to matching images" : "Off"}</dd></div>
                 <div><dt className="text-sm text-muted-foreground">Image search</dt><dd className="mt-1">{bot.image_search ? "Allowed" : "Off"}</dd></div>
               </dl>
             </SettingsCard>

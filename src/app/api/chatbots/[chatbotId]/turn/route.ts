@@ -1,3 +1,4 @@
+import { matchChatbotImages } from "@/lib/chatbots/imagesServer";
 import { requireChatbotAccess } from "@/lib/chatbots/access";
 import type { ChatbotConversation } from "@/types/chatbot";
 import { NextRequest, NextResponse } from "next/server";
@@ -19,6 +20,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ chatbotId: string }> },
 ) {
+  const requestDeadline = Date.now() + 110_000;
   const state: {
     reservation: { conversationId: string; messageId: string } | null;
   } = { reservation: null };
@@ -149,12 +151,15 @@ export async function POST(
                   webSearch: currentBot.web_search,
                   imageSearch: currentBot.image_search,
                 });
+                const matching = await matchChatbotImages(currentBot, result.text, userId, conversation.id, Math.min(requestDeadline, new Date(reservedConversation!.pending_until!).getTime() - 5000));
                 const { error: finishError } = await service.rpc(
-                  "finish_chatbot_turn",
+                  "finish_chatbot_turn_images",
                   {
                     p_conversation_id: conversation.id,
                     p_message_id: body.messageId,
                     p_reply: result.text,
+                    p_image_mappings: matching.mappings,
+                    p_matching_invocation_id: matching.invocationId,
                     p_sources: result.sources,
                     p_search_entry_point: result.searchEntryPoint,
                     p_invocation_id: result.invocationId,

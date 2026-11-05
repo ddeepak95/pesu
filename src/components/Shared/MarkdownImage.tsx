@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { normalizeMarkdownImageUrl, wikimediaImageFallback } from "@/lib/markdownImageUrl";
 
-export default function MarkdownImage({ src, alt, title }: { src: string; alt?: string; title?: string }) {
+export default function MarkdownImage({ src, alt, title, originalUrl }: { src: string; alt?: string; title?: string; originalUrl?: string }) {
   const [failedUrls, setFailedUrls] = useState<string[]>([]);
   const normalized = normalizeMarkdownImageUrl(src);
   const fallback = wikimediaImageFallback(src);
@@ -11,7 +11,7 @@ export default function MarkdownImage({ src, alt, title }: { src: string; alt?: 
   if (!current || failedUrls.includes(current)) {
     return <span className="my-3 block rounded-md border border-border p-3 text-sm text-muted-foreground">
       Image unavailable{alt ? `: ${alt}` : "."}{" "}
-      {(fallback || /^https?:\/\//i.test(src)) && <a href={fallback?.searchUrl ?? src} target="_blank" rel="noopener noreferrer" className="underline">{fallback ? "Find an image on Wikimedia Commons" : "Open image link"}</a>}
+      {(originalUrl || fallback || /^https?:\/\//i.test(src)) && <a href={originalUrl ?? fallback?.searchUrl ?? src} target="_blank" rel="noopener noreferrer" className="underline">{fallback ? "Find an image on Wikimedia Commons" : "Open image link"}</a>}
     </span>;
   }
   // External educational images have unknown dimensions and arbitrary source hosts.

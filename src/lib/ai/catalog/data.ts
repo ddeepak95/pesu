@@ -207,6 +207,11 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
     },
   },
   {
+    id: "gpt-6-luna-decisions", providerId: "openai", label: "GPT-6 Luna (Decisions)",
+    modelClass: "foundation", tasks: ["decisions"], io: { inputs: ["text"], outputs: ["text"] },
+    status: "available", apiSurface: "decisions", apiModelId: "gpt-6-luna",
+  },
+  {
     id: "gpt-6-luna",
     providerId: "openai",
     label: "GPT-6 Luna",
@@ -354,6 +359,10 @@ export const CATALOG_MODELS: ModelCatalogEntry[] = [
 ];
 
 export const CATALOG_FUNCTIONS: AppFunctionCatalogEntry[] = [
+  { key: "decisions", label: "Decisions", description: "Fast classification and selection.",
+    requiredTasks: ["decisions"], status: "available", subFunctions: [
+      { key: "chatbot_image_matching", label: "Chatbot image matching", description: "Select teacher-uploaded images for chatbot replies." }
+    ] },
   {
     key: TEXT_CAPABILITY_KEY,
     label: "Foundation model",

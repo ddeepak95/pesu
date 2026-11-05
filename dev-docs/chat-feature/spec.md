@@ -67,3 +67,16 @@ Student chat and teacher preview use a full-width text composer pinned beneath a
 - Migration: `20261103040000_public_chatbots.sql`. Apply via Supabase CLI. Existing conversations are unchanged.
 
 Automated checks: `npm run test:chatbots:db`, `npm run test:chatbots:concurrency`, and `npm run test:chatbots:public-api` (requires the local app at `http://localhost:3000` using local Supabase; makes no AI calls).
+
+
+## Teacher-uploaded images and Decisions
+
+Class institution/platform admins enable **Allow teacher-uploaded chatbot images** in class settings (off by default). Configure **AI management ? Decisions ? Chatbot image matching** with OpenAI **GPT-6 Luna (Decisions)** and an available class/inherited OpenAI credential. This binding is independent of the conversation model and uses existing AI policy locks, quotas, invocation logs and endpoint-specific metering.
+
+Teachers manage a per-chatbot library in the editor Content tab: PNG/JPEG/WebP, 10 MB per image, 20 active images, and required descriptions up to 2,000 characters. A first upload saves the chatbot as a draft. Modes are Off, Append and Replace. Descriptions guide matching; image pixels are not sent for analysis.
+
+After generating a reply, one Decisions request chooses a suitable upload (or no match) for each image occurrence. Text streams while images wait for matching. Timeout, refusal, unavailable configuration or invalid matches retain original images. Replies retain original Markdown and URLs; image mappings and the Decisions invocation ID are saved atomically. Teacher transcript review exposes original links. Library removal and disabling the class permission do not remove historical images.
+
+Uploads use signed GCS staging URLs, server-side format/size validation and immutable private assets. Authorized image delivery checks message access and public cookies. Duplicate libraries have independent entries referencing immutable files. Expired staging uploads are cleaned on subsequent library mutations. No production schema changes are applied by local validation.
+
+Checks: `npm run test:chatbot-images`, `npm run test:chatbots:db`, `npm run test:chatbots:concurrency`, `npm run validate:ai-metering`, TypeScript, lint and build. Manual browser testing remains separate.

@@ -74,7 +74,7 @@ export async function duplicateContentItem(params: {
     const [bot] = await getChatbotsByIds([item.ref_id]);
     if (!bot) throw new Error("Source chatbot not found");
     await createChatbot({
-      ...bot, status: item.status === "draft" ? "draft" : "active",
+      ...bot, image_source_id: bot.id, status: item.status === "draft" ? "draft" : "active",
       class_id: destinationClassDbId, class_group_id: destinationClassGroupId,
       placement: contentItemFields,
     });

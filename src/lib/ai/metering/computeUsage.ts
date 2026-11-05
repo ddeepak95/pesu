@@ -33,7 +33,7 @@ export interface TokenDetails {
 
 /** usage_types whose `token_details`/blended input-output totals are meaningful (§4.2: everything else has no LLM tokens). */
 export function usageTypeHasTokenMetrics(usageType: UsageType): boolean {
-  return usageType === "text_generation" || usageType === "realtime_dialogue" || usageType === "embedding";
+  return usageType === "decisions" || usageType === "text_generation" || usageType === "realtime_dialogue" || usageType === "embedding";
 }
 
 /**

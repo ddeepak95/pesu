@@ -38,10 +38,10 @@ export async function getChatbotMessages(conversationId: string): Promise<Chatbo
   }
 }
 
-export async function createChatbot(payload: ChatbotConfig & { class_id: string; class_group_id: string | null; placement?: Partial<ContentItem> }): Promise<Chatbot> {
+export async function createChatbot(payload: ChatbotConfig & { class_id: string; class_group_id: string | null; image_source_id?: string; placement?: Partial<ContentItem> }): Promise<Chatbot> {
   const { data, error } = await createClient().rpc("save_chatbot", {
     p_class_id: payload.class_id, p_group_id: payload.class_group_id,
-    p_config: validateChatbotConfig(payload), p_placement: payload.placement ?? {},
+    p_config: validateChatbotConfig(payload), p_placement: { ...payload.placement, image_source_id: payload.image_source_id },
   }).single();
   if (error) throw error;
   return data as Chatbot;

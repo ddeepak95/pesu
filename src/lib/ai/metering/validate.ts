@@ -137,6 +137,8 @@ interface FunnelCallPattern {
 }
 
 const FUNNEL_CALL_PATTERNS: FunnelCallPattern[] = [
+  { key: "decisions.request", regex: /await requestDecisions\(/g, description: "Metered Decisions transport call" },
+  { key: "decisions.fetch", regex: /fetch\("https:\/\/api\.openai\.com\/v1\/decisions"/g, description: "OpenAI Decisions endpoint" },
   { key: "generateText", regex: /\bgenerateText\s*\(/g, description: "AI SDK generateText() call" },
   { key: "streamObject", regex: /\bstreamObject\s*\(/g, description: "AI SDK streamObject() call" },
   { key: "provider.transcribe", regex: /\.transcribe\s*\(/g, description: "speech provider transcribe() call" },
@@ -155,6 +157,8 @@ const FUNNEL_CALL_PATTERNS: FunnelCallPattern[] = [
 
 /** File paths relative to src/lib/ai/gateway/. Update when a new call site is added. */
 const KNOWN_FUNNEL_CALL_SITES: Record<string, string[]> = {
+  "decisions.ts": ["decisions.request"],
+  "decisionsTransport.ts": ["decisions.fetch"],
   "chat.ts": ["generateText"],
   "structured.ts": ["generateText"],
   "turnStream.ts": ["streamObject"],

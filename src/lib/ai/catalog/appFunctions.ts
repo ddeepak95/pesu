@@ -4,6 +4,8 @@ import { subFunctionBindingKey } from "./helpers";
 
 /** Runtime keys for catalog-backed LLM routes. */
 export type AppFunctionKey =
+  | "decisions"
+  | "decisions.chatbot_image_matching"
   | "text"
   | "text.chat_tutoring"
   | "text.evaluation"

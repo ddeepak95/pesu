@@ -4,6 +4,7 @@ export type ModelClass = "foundation" | "speech" | "realtime";
 
 export type ModelTask =
   | "text_generation"
+  | "decisions"
   | "speech_to_text"
   | "text_to_speech"
   | "realtime_dialogue"
@@ -55,7 +56,7 @@ export interface ModelCatalogEntry {
   tasks: ModelTask[];
   io: { inputs: Modality[]; outputs: Modality[] };
   status: "available" | "coming_soon";
-  apiSurface?: "chat_completions" | "live" | "transcribe" | "synthesize";
+  apiSurface?: "decisions" | "chat_completions" | "live" | "transcribe" | "synthesize";
   /** Konvo prototype: batch REST vs WebSocket streaming STT. */
   sttDelivery?: "batch" | "stream";
   /** ISO-style codes from supportedLanguages.ts (prototype / speech models). */

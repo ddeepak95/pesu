@@ -259,6 +259,12 @@ export type AnySettingDefinition = SettingDefinition<any>;
  * enforcing the `SettingDefinition` contract on every entry.
  */
 export const SETTINGS_REGISTRY = {
+  allow_chatbot_images: {
+    key: "allow_chatbot_images", label: "Allow teacher-uploaded chatbot images",
+    description: "Teachers can upload images and match them to chatbot replies. Historical images remain when disabled.",
+    category: "Content", scopes: ["class"], type: "boolean", default: false,
+    validate: validateBoolean, classOverrideAdminOnly: true,
+  } as SettingDefinition<boolean>,
   allowed_content_types: allowedContentTypes,
   show_students_analytics_tab: showStudentsAnalyticsTab,
   enable_bulk_feedback_approval: enableBulkFeedbackApproval,

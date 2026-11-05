@@ -1,4 +1,5 @@
 "use client";
+import type { ChatbotImageMapping } from "@/types/chatbot";
 
 import React from "react";
 import MarkdownContent from "@/components/Shared/MarkdownContent";
@@ -25,6 +26,9 @@ type ContentDisplay = {
 };
 
 export interface ChatDisplayMessage {
+  imageMappings?: ChatbotImageMapping[];
+  deferImages?: boolean;
+  showOriginalImages?: boolean;
   id: string;
   role: "student" | "assistant";
   content: string;
@@ -511,6 +515,7 @@ function MessageBubble({
             <div className="mt-1">
               {m.format === "markdown" ? (
                 <MarkdownContent
+                  imageMappings={m.imageMappings} messageId={m.id} deferImages={m.deferImages} showOriginalImages={m.showOriginalImages}
                   content={m.content}
                   renderStandaloneImages={m.role === "assistant"}
                   className="whitespace-normal [overflow-wrap:anywhere] [&_pre]:whitespace-pre [&_pre]:[overflow-wrap:normal] [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_li>p]:my-1 [&_li>ul]:mt-1 [&_li>ol]:mt-1 [&_img]:my-3 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_img]:bg-white [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_hr]:border-border"

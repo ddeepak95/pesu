@@ -12,14 +12,15 @@
     "validate:ai-metering": "npx tsx scripts/validate-ai-metering.ts",
     "test:class-documents": "npx tsx --test scripts/test-class-document-conversion.ts && npx tsx scripts/validate-class-document-index.ts",
     "test:chatbots": "npx tsx --test scripts/test-chatbots.ts",
-    "test:chatbots:db": "supabase test db supabase/tests/chatbots.test.sql supabase/tests/chatbots-public.test.sql",
+    "test:chatbots:db": "supabase test db supabase/tests/chatbots.test.sql supabase/tests/chatbots-public.test.sql supabase/tests/chatbot-images.test.sql",
     "test:chatbots:public-api": "npx tsx --test scripts/test-chatbot-public-api.ts",
     "test:chatbots:concurrency": "npx tsx --test scripts/test-chatbot-concurrency.ts",
     "seed:platform-ai": "npx tsx scripts/seed-platform-ai-catalog.ts",
     "generate:system-template-seed": "npx tsx scripts/generate-system-template-seed.ts",
     "backup:class": "npx tsx scripts/backup-class.ts",
     "delete:class": "npx tsx scripts/delete-class.ts",
-    "restore:class": "npx tsx scripts/restore-class.ts"
+    "restore:class": "npx tsx scripts/restore-class.ts",
+    "test:chatbot-images": "npx tsx --test scripts/test-chatbot-images.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.59",
@@ -61,12 +62,15 @@
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
     "sonner": "^2.0.7",
     "swr": "^2.4.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.181.0",
+    "unified": "^11.0.5",
     "ws": "^8.20.1"
   },
   "devDependencies": {

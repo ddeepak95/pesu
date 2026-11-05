@@ -11,5 +11,6 @@ export function chatbotDisplayMessage(
     format: "markdown",
     deliveryStatus: message.status,
     sources: message.sources,
+    imageMappings: message.image_mappings,
   };
 }

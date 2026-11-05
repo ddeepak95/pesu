@@ -293,6 +293,7 @@ export default function ChatbotChat({
               </div>
             ) : (
               <ChatbotTranscript
+                deferImages={!!bot.image_mode && bot.image_mode !== "off"}
                 conversationId={selected?.id ?? null}
                 studentLabel="You"
                 publicShortId={publicMode ? bot.chatbot_id : undefined}

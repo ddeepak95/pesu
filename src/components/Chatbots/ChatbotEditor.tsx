@@ -30,6 +30,7 @@ import { ContentFormFooter } from "@/components/Shared/ContentFormFooter";
 import { LanguageSelect } from "@/components/Shared/LanguageSelect";
 import { postChatbotAction } from "@/lib/queries/chatbots";
 import ChatbotChat from "./ChatbotChat";
+import ChatbotImageLibrary from "./ChatbotImageLibrary";
 
 export default function ChatbotEditor({
   classDbId,
@@ -65,7 +66,7 @@ export default function ChatbotEditor({
   ) => setConfig((c) => ({ ...c, [key]: value }));
   const backHref = `/teacher/classes/${classId}?tab=content${selectedGroup ? `&groupId=${selectedGroup}` : ""}`;
 
-  async function save(action: "draft" | "preview" | "publish") {
+  async function save(action: "draft" | "preview" | "publish" | "library") {
     if (saving.current) return;
     saving.current = true;
     setPending(true);
@@ -98,6 +99,7 @@ export default function ChatbotEditor({
           ? [invalidateContentItemsByGroup(classDbId, selectedGroup)]
           : []),
       ]);
+      if (action === "library") return saved;
       if (action === "preview") {
         await postChatbotAction(saved.chatbot_id, "conversation", {
           preview: true,
@@ -111,6 +113,7 @@ export default function ChatbotEditor({
         `/teacher/classes/${classId}/chatbots/${saved.chatbot_id}${selectedGroup ? `?groupId=${selectedGroup}` : ""}`,
       );
     } catch (err) {
+      if (action === "library") throw err;
       setError(
         err instanceof Error
           ? err.message
@@ -170,6 +173,9 @@ export default function ChatbotEditor({
                 conversation language.
               </p>
             </div>
+            <ChatbotImageLibrary bot={savedBot} classId={classDbId} mode={config.image_mode ?? "off"}
+              onModeChange={value => change("image_mode", value)} disabled={pending}
+              ensureSaved={async () => { const saved = await save("library"); if (!saved) throw new Error("Could not save chatbot"); return saved; }} />
           </TabsContent>
           <TabsContent value="settings" className="space-y-6 pt-6">
             <SettingsCard className="space-y-3">

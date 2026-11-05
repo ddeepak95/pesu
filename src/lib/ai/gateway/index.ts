@@ -32,3 +32,4 @@ export type {
   ResolvedMultimodalTurnCall,
   TurnSchema,
 } from "./turnStream";
+export { resolveMeteredDecisions } from "./decisions";

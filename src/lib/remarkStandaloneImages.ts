@@ -19,7 +19,7 @@ export function remarkStandaloneImages() {
         if (!["https:", "http:"].includes(url.protocol) ||
           !/\.(svg|png|jpe?g|gif|webp|avif)$/i.test(url.pathname) ||
           url.pathname.includes("/wiki/")) return node;
-        return { type: "paragraph", children: [{ type: "image", url: candidate, alt: "Illustration", title: null }] };
+        return { type: "paragraph", position: node.position, children: [{ type: "image", position: node.position, url: candidate, alt: "Illustration", title: null }] };
       } catch { return node; }
     });
   };

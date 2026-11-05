@@ -1,4 +1,5 @@
 export interface ChatbotConfig {
+  image_mode?: "off" | "append" | "replace";
   is_public: boolean;
   title: string;
   language: string;
@@ -49,8 +50,25 @@ export interface ChatbotMessage {
   role: "user" | "assistant";
   content: string;
   status: "pending" | "complete" | "failed";
+  image_mappings?: ChatbotImageMapping[];
+  image_matching_invocation_id?: string | null;
   sources: ChatbotSource[];
   search_entry_point: string | null;
   ai_invocation_id: string | null;
   created_at: string;
+}
+
+export interface ChatbotImage {
+  id: string;
+  chatbot_id: string;
+  description: string;
+  filename: string;
+  status: "pending" | "ready" | "removed";
+}
+export interface ChatbotImageMapping {
+  occurrence_id: string;
+  original_url: string;
+  image_id: string;
+  action: "append" | "replace";
+  description: string;
 }

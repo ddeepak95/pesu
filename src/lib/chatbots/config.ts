@@ -5,6 +5,7 @@ export const DEFAULT_CHATBOT_PROMPT =
   "You are an expert teacher. You are teaching the topic \"{topic_title}\" in the language {language}. Follow the best practices of conversational learning to help the student learn.";
 
 export const DEFAULT_CHATBOT_CONFIG: ChatbotConfig = {
+  image_mode: "off",
   is_public: false,
   title: "",
   language: "en",
@@ -50,7 +51,10 @@ export function validateChatbotConfig(input: unknown): ChatbotConfig {
     throw new Error("Invalid search settings");
   if (v.status !== "active" && v.status !== "draft")
     throw new Error("Invalid status");
+  if (v.image_mode !== undefined && !["off", "append", "replace"].includes(String(v.image_mode)))
+    throw new Error("Invalid image mode");
   return {
+    image_mode: (v.image_mode ?? "off") as ChatbotConfig["image_mode"],
     is_public: v.is_public === true,
     title: String(v.title).trim(),
     language: v.language,

@@ -13,6 +13,7 @@ export default function ChatbotTranscript({
   streamingMessage,
   replyPending = false,
   fillFrame = false,
+  deferImages = false,
 }: {
   conversationId: string | null;
   publicShortId?: string;
@@ -21,6 +22,7 @@ export default function ChatbotTranscript({
   streamingMessage?: ChatbotMessage | null;
   replyPending?: boolean;
   fillFrame?: boolean;
+  deferImages?: boolean;
 }) {
   const { data, error, mutate } = useChatbotMessages(conversationId, publicShortId);
   const messages = useMemo(() => {
@@ -43,6 +45,7 @@ export default function ChatbotTranscript({
         : stored;
     const messages = rows.map((message) => {
       const display = chatbotDisplayMessage(message);
+      display.showOriginalImages = !fillFrame;
       if (fillFrame && display.deliveryStatus === "pending")
         display.deliveryStatus = undefined;
       return display;
@@ -52,6 +55,7 @@ export default function ChatbotTranscript({
         ...chatbotDisplayMessage(live),
         deliveryStatus: undefined,
         streaming: true,
+        deferImages,
       });
     return messages;
   }, [
@@ -60,7 +64,7 @@ export default function ChatbotTranscript({
     streamingMessage,
     conversationId,
     replyPending,
-    fillFrame,
+    fillFrame, deferImages,
   ]);
   if (error)
     return (

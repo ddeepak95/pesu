@@ -326,7 +326,18 @@ RATE_CARD_VERSIONS.v3 = {
 };
 
 /** The rate version new invocation rows are priced at. See §4.4 rule 4. */
-export const CURRENT_RATE_VERSION = "v3";
+// Decisions pricing: https://developers.openai.com/api/docs/guides/decisions (2026-11-04).
+// This endpoint disables prompt caching explicitly, so cache-write charges cannot occur.
+RATE_CARD_VERSIONS.v4 = {
+  effectiveDate: "2026-11-04", notes: "Add endpoint-specific OpenAI Decisions rates.",
+  creditsPerUsd: RATE_CARD_VERSIONS.v3.creditsPerUsd,
+  entries: Object.fromEntries(Object.entries(RATE_CARD_VERSIONS.v3.entries).flatMap(([id, entry]) =>
+    id === "gpt-6-luna" ? [[id, entry], ["gpt-6-luna-decisions", { rates: {
+      input_token: { usdPerUnit: 0.1 / 1_000_000 }, output_token: { usdPerUnit: 0 },
+      cached_input_token: { usdPerUnit: 0.01 / 1_000_000 },
+    } }]] : [[id, entry]])),
+};
+export const CURRENT_RATE_VERSION = "v4";
 
 function getVersion(rateVersion: string): RateCardVersion | null {
   return RATE_CARD_VERSIONS[rateVersion] ?? null;
