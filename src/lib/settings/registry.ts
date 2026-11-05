@@ -207,8 +207,6 @@ const allowedContentTypes: SettingDefinition<string[]> = {
   // Quiz, Survey, and Chatbot off by default.
   default: ["formative_assignment", "learning_content"],
   validate: makeStringArrayValidator(CONTENT_TYPE_OPTIONS),
-  // A class can never re-enable a type the institution turned off.
-  clamp: (child, parent) => child.filter((v) => parent.includes(v)),
   classOverrideAdminOnly: true,
   institutionScaffold: { allowAdminEdit: true, allowChildOverride: true },
 };

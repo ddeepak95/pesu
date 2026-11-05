@@ -102,7 +102,7 @@ function StringArrayControl({
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-2">
       {options.map((opt) => {
-        const allowedByParent = parentAllowed.has(opt.value);
+        const allowedByParent = !definition.clamp || parentAllowed.has(opt.value);
         const optDisabled = disabled || !allowedByParent;
         const isChecked = selected.has(opt.value);
         return (
