@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MCQQuestion } from "@/types/quiz";
 import MCQQuestionCard from "@/components/Teacher/Quizzes/MCQQuestionCard";
+import QuizImageManager from "@/components/Teacher/Quizzes/QuizImageManager";
+import { invalidateQuizImages } from "@/hooks/swr/useQuizImages";
+import { removeQuizImage } from "@/lib/quizzes/removeImage";
 
 function newQuestion(order: number): MCQQuestion {
   const id = nanoid(10);
@@ -18,6 +21,7 @@ function newQuestion(order: number): MCQQuestion {
     id,
     order,
     prompt: "",
+    prompt_format: "markdown",
     options: [a, b],
     correct_option_id: a.id,
     points: 1,
@@ -32,6 +36,7 @@ function ensureQuestionIds(questions: MCQQuestion[]): MCQQuestion[] {
 }
 
 export default function QuizForm({
+  classId,
   onSubmit,
   submitLabel = "Create Quiz",
   initialTitle = "",
@@ -42,6 +47,7 @@ export default function QuizForm({
   initialRandomizeOptions = false,
   initialShowPointsToStudents = true,
 }: {
+  classId: string;
   onSubmit: (data: {
     title: string;
     instructions: string;
@@ -77,7 +83,10 @@ export default function QuizForm({
   const [showPointsToStudents, setShowPointsToStudents] = useState(
     initialShowPointsToStudents
   );
-  const [loading, setLoading] = useState(false);
+  const [saving, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deletingImage, setDeletingImage] = useState(false);
+  const loading = saving || uploading || deletingImage;
   const [error, setError] = useState<string | null>(null);
 
   const totalPoints = useMemo(
@@ -85,30 +94,25 @@ export default function QuizForm({
     [questions]
   );
 
-  const setQuestion = (index: number, next: MCQQuestion) => {
-    const copy = [...questions];
-    copy[index] = next;
-    copy.forEach((q, i) => (q.order = i));
-    setQuestions(copy);
+  const setQuestion = (_index: number, next: MCQQuestion) => {
+    setQuestions(previous => previous.map((q, order) => ({ ...(q.id === next.id ? next : q), order })));
   };
 
   const addQuestion = () =>
-    setQuestions([...questions, newQuestion(questions.length)]);
+    setQuestions(previous => [...previous, newQuestion(previous.length)]);
 
   const deleteQuestion = (index: number) => {
-    if (questions.length <= 1) return;
-    const next = questions.filter((_, i) => i !== index);
-    next.forEach((q, i) => (q.order = i));
-    setQuestions(next);
+    setQuestions(previous => previous.length <= 1 ? previous : previous.filter((_, i) => i !== index).map((q, order) => ({ ...q, order })));
   };
 
   const move = (index: number, dir: "up" | "down") => {
-    const j = dir === "up" ? index - 1 : index + 1;
-    if (j < 0 || j >= questions.length) return;
-    const next = [...questions];
-    [next[index], next[j]] = [next[j], next[index]];
-    next.forEach((q, i) => (q.order = i));
-    setQuestions(next);
+    setQuestions(previous => {
+      const j = dir === "up" ? index - 1 : index + 1;
+      if (j < 0 || j >= previous.length) return previous;
+      const next = [...previous];
+      [next[index], next[j]] = [next[j], next[index]];
+      return next.map((q, order) => ({ ...q, order }));
+    });
   };
 
   const validate = (): string | null => {
@@ -132,6 +136,7 @@ export default function QuizForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
 
     const validationError = validate();
@@ -169,6 +174,7 @@ export default function QuizForm({
         randomizeOptions,
         showPointsToStudents,
       });
+      await invalidateQuizImages(classId);
     } catch (err) {
       console.error("Error creating quiz:", err);
       setError("Failed to create quiz. Please try again.");
@@ -226,7 +232,9 @@ export default function QuizForm({
       <div className="space-y-4">
         {questions.map((q, idx) => (
           <MCQQuestionCard
-            key={idx}
+            key={q.id}
+            classId={classId}
+            onUploadPendingChange={setUploading}
             question={q}
             index={idx}
             totalQuestions={questions.length}
@@ -238,6 +246,10 @@ export default function QuizForm({
           />
         ))}
       </div>
+
+      <QuizImageManager classId={classId} questions={questions} disabled={loading} onPendingChange={setDeletingImage}
+        onRemove={imageId => setQuestions(previous => previous.map(q => q.prompt_format === "markdown"
+          ? { ...q, prompt: removeQuizImage(q.prompt, imageId) } : q))} />
 
       <div className="space-y-3 p-4 border rounded-md bg-muted/30">
         <div className="flex items-center space-x-2">
@@ -319,7 +331,7 @@ export default function QuizForm({
 
       <div className="flex gap-3">
         <Button type="submit" disabled={loading}>
-          {loading ? "Saving…" : isDraft ? submitLabel : "Publish"}
+          {uploading ? "Uploading images…" : saving ? "Saving…" : isDraft ? submitLabel : "Publish"}
         </Button>
       </div>
     </form>

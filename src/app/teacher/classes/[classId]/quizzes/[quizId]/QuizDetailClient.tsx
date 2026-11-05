@@ -1,5 +1,6 @@
 "use client";
 
+import QuizPrompt from "@/components/Shared/QuizPrompt";
 import { useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
@@ -238,7 +239,7 @@ export default function QuizDetailClient({
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <p className="whitespace-pre-wrap">{q.prompt}</p>
+                        <QuizPrompt question={q} />
                         <div className="space-y-2">
                           {q.options.map((o) => (
                             <div

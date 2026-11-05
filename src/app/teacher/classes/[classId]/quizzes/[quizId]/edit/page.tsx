@@ -59,6 +59,7 @@ export default function EditQuizPage() {
         </p>
 
         <QuizForm
+          classId={quiz.class_id}
           submitLabel="Save changes"
           initialTitle={quiz.title}
           initialInstructions={quiz.instructions ?? ""}
@@ -95,6 +96,7 @@ export default function EditQuizPage() {
               status: updated.status,
             });
 
+            await quizQuery.mutate();
             showSuccessToast("Quiz updated successfully");
           }}
         />

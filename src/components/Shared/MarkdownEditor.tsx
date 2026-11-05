@@ -5,6 +5,8 @@ import MarkdownContent from "@/components/Shared/MarkdownContent";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { quizImageMarkdown } from "@/lib/quizzes/prompt";
 import {
   Bold,
   Italic,
@@ -15,6 +17,7 @@ import {
   Code,
   PenLine,
   Eye,
+  ImagePlus,
 } from "lucide-react";
 
 interface MarkdownEditorProps {
@@ -24,6 +27,8 @@ interface MarkdownEditorProps {
   disabled?: boolean;
   placeholder?: string;
   rows?: number;
+  onUploadImage?: (file: File) => Promise<string>;
+  onUploadPendingChange?: (pending: boolean) => void;
 }
 
 export default function MarkdownEditor({
@@ -33,9 +38,38 @@ export default function MarkdownEditor({
   disabled = false,
   placeholder = "Write content here…",
   rows = 6,
+  onUploadImage,
+  onUploadPendingChange,
 }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [tab, setTab] = useState("write");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const selectionRef = useRef({ start: 0, end: 0 });
+  const [description, setDescription] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const uploadImage = async (file: File) => {
+    if (!onUploadImage || uploading) return;
+    const { start, end } = selectionRef.current;
+    setUploading(true);
+    setUploadError(null);
+    onUploadPendingChange?.(true);
+    try {
+      const url = await onUploadImage(file);
+      const inserted = quizImageMarkdown(url, description.trim());
+      onChange(value.slice(0, start) + inserted + value.slice(end));
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(start + inserted.length, start + inserted.length);
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+      onUploadPendingChange?.(false);
+    }
+  };
 
   const insertMarkdown = (prefix: string, suffix = "", placeholder = "") => {
     const textarea = textareaRef.current;
@@ -81,7 +115,7 @@ export default function MarkdownEditor({
 
   return (
     <Tabs value={tab} onValueChange={setTab}>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between mb-2">
         <div className="flex items-center gap-0.5">
           <Button
             type="button"
@@ -185,13 +219,33 @@ export default function MarkdownEditor({
         </TabsList>
       </div>
 
+      {onUploadImage && <div className="mb-2 space-y-2">
+        <label htmlFor={`${id}-image-description`} className="text-sm">Image description (alt text)</label>
+        <div className="flex flex-wrap gap-2">
+          <Input id={`${id}-image-description`} value={description} onChange={e => setDescription(e.target.value)}
+            disabled={disabled || uploading} placeholder="Describe the image for students" className="flex-1" maxLength={2000} />
+          <Button type="button" variant="outline" disabled={disabled || uploading || isPreview || !description.trim()}
+            onClick={() => {
+              selectionRef.current = { start: textareaRef.current?.selectionStart ?? value.length, end: textareaRef.current?.selectionEnd ?? value.length };
+              fileRef.current?.click();
+            }}>
+            <ImagePlus className="mr-2 h-4 w-4" />{uploading ? "Uploading…" : "Upload image"}
+          </Button>
+        </div>
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Choose question image"
+          onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void uploadImage(file); }} />
+        <p className="text-xs text-muted-foreground">PNG, JPEG or WebP, up to 10 MB. Images are inserted at the cursor. Edit or remove their Markdown to move or delete them.</p>
+        {uploading && <p role="status" className="text-sm">Uploading and validating image…</p>}
+        {uploadError && <p role="alert" className="text-sm text-destructive">{uploadError}</p>}
+      </div>}
+
       <TabsContent value="write" className="mt-0">
         <Textarea
           id={id}
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
+          disabled={disabled || uploading}
           placeholder={placeholder}
           rows={rows}
         />

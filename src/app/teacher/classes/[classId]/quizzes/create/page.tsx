@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTrackedRouter } from "@/hooks/useTrackedRouter";
 import PageLayout from "@/components/PageLayout";
@@ -8,11 +8,11 @@ import BackButton from "@/components/ui/back-button";
 import PageTitle from "@/components/Shared/PageTitle";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { getClassByClassId } from "@/lib/queries/classes";
+import { useClassData, useClassGroups } from "@/hooks/swr";
 import { createQuiz } from "@/lib/queries/quizzes";
 import { createContentItem } from "@/lib/queries/contentItems";
 import QuizForm from "@/components/Teacher/Quizzes/QuizForm";
-import { getClassGroups } from "@/lib/queries/groups";
+
 
 export default function CreateQuizPage() {
   const params = useParams();
@@ -21,10 +21,12 @@ export default function CreateQuizPage() {
   const { user } = useAuth();
 
   const classId = params.classId as string;
-  const [classDbId, setClassDbId] = useState<string | null>(null);
-  const [classGroupId, setClassGroupId] = useState<string | null>(null);
-  const [loadingClass, setLoadingClass] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const classQuery = useClassData(classId);
+  const classDbId = classQuery.data?.id ?? null;
+  const groupsQuery = useClassGroups(classDbId);
+  const classGroupId = searchParams.get("groupId") ?? groupsQuery.data?.[0]?.id ?? null;
+  const loadingClass = classQuery.isLoading || groupsQuery.isLoading;
+  const error = classQuery.error || groupsQuery.error ? "Failed to load class/groups" : null;
 
   const backToContentHref = useMemo(() => {
     const groupId = searchParams.get("groupId");
@@ -32,45 +34,6 @@ export default function CreateQuizPage() {
       ? `/teacher/classes/${classId}?tab=content&groupId=${groupId}`
       : `/teacher/classes/${classId}?tab=content`;
   }, [classId, searchParams]);
-
-  useEffect(() => {
-    const fetchClass = async () => {
-      try {
-        const classData = await getClassByClassId(classId);
-        if (!classData) {
-          setError("Class not found");
-          return;
-        }
-        setClassDbId(classData.id);
-      } catch (err) {
-        console.error("Error fetching class:", err);
-        setError("Failed to load class");
-      } finally {
-        setLoadingClass(false);
-      }
-    };
-
-    if (classId) fetchClass();
-  }, [classId]);
-
-  useEffect(() => {
-    const initGroup = async () => {
-      if (!classDbId) return;
-      const fromUrl = searchParams.get("groupId");
-      if (fromUrl) {
-        setClassGroupId(fromUrl);
-        return;
-      }
-      try {
-        const groups = await getClassGroups(classDbId);
-        setClassGroupId(groups[0]?.id ?? null);
-      } catch (err) {
-        console.error("Error loading class groups:", err);
-        setClassGroupId(null);
-      }
-    };
-    initGroup();
-  }, [classDbId, searchParams]);
 
   if (loadingClass) {
     return (
@@ -106,6 +69,7 @@ export default function CreateQuizPage() {
         </p>
 
         <QuizForm
+          classId={classDbId}
           onSubmit={async ({
             title,
             instructions,

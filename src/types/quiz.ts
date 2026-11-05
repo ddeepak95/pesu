@@ -7,6 +7,8 @@ export interface MCQQuestion {
   id: string;
   order: number;
   prompt: string;
+  /** Missing format denotes a legacy literal text prompt. */
+  prompt_format?: "plain" | "markdown";
   options: MCQOption[];
   correct_option_id: string;
   points: number;

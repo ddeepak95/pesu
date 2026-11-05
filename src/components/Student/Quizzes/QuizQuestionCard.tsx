@@ -1,3 +1,4 @@
+import QuizPrompt from "@/components/Shared/QuizPrompt";
 import { Card, CardContent } from "@/components/ui/card";
 import { MCQQuestion } from "@/types/quiz";
 
@@ -20,7 +21,7 @@ export default function QuizQuestionCard({
     <Card>
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-4">
-          <p className="whitespace-pre-wrap">{question.prompt}</p>
+          <QuizPrompt question={question} />
           {showPoints ? (
             <span className="text-sm text-muted-foreground">
               {question.points} pts

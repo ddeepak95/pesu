@@ -13,9 +13,15 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MCQQuestion } from "@/types/quiz";
+import MarkdownEditor from "@/components/Shared/MarkdownEditor";
+import { editableQuizPrompt } from "@/lib/quizzes/prompt";
+import { uploadQuizImage } from "@/lib/quizzes/imageUpload";
+import { invalidateQuizImages } from "@/hooks/swr/useQuizImages";
 
 export default function MCQQuestionCard({
   question,
+  classId,
+  onUploadPendingChange,
   index,
   totalQuestions,
   disabled,
@@ -25,6 +31,8 @@ export default function MCQQuestionCard({
   onMoveDown,
 }: {
   question: MCQQuestion;
+  classId: string;
+  onUploadPendingChange: (pending: boolean) => void;
   index: number;
   totalQuestions: number;
   disabled?: boolean;
@@ -34,7 +42,7 @@ export default function MCQQuestionCard({
   onMoveDown: (index: number) => void;
 }) {
   const setPrompt = (prompt: string) =>
-    onChange(index, { ...question, prompt });
+    onChange(index, { ...question, prompt, prompt_format: "markdown" });
   const setPoints = (points: number) =>
     onChange(index, { ...question, points });
 
@@ -109,10 +117,16 @@ export default function MCQQuestionCard({
       <CardContent className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor={`prompt-${index}`}>Prompt</Label>
-          <Input
+          <MarkdownEditor
             id={`prompt-${index}`}
-            value={question.prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            value={editableQuizPrompt(question)}
+            onChange={setPrompt}
+            onUploadImage={async file => {
+              const url = await uploadQuizImage(classId, file);
+              await invalidateQuizImages(classId);
+              return url;
+            }}
+            onUploadPendingChange={onUploadPendingChange}
             disabled={disabled}
             placeholder="Enter the question…"
           />

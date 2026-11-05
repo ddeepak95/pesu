@@ -1,5 +1,6 @@
 "use client";
 
+import QuizPrompt from "@/components/Shared/QuizPrompt";
 import { useCallback, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,7 +98,8 @@ function QuizSubmissionViewDialog({
                 <Card key={q.id}>
                   <CardHeader className="py-3">
                     <CardTitle className="text-sm font-medium">
-                      Question {idx + 1}: {q.prompt}
+                      Question {idx + 1}
+                      <QuizPrompt question={q} />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 py-0 pb-3">

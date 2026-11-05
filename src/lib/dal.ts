@@ -133,6 +133,8 @@ export async function getContentUnlockState(
   refId: string, // entity UUID (assignments.id, quizzes.id, etc.)
   type: ContentItem["type"],
   placementId?: string,
+  // Private asset endpoints must deny access when an unlock query fails.
+  failClosed = false,
 ): Promise<ContentUnlockResult> {
   const result: ContentUnlockResult = {
     contentItemId: null,
@@ -151,14 +153,15 @@ export async function getContentUnlockState(
     .eq("type", type)
     .in("status", ["active", "draft"]);
   if (placementId) placementQuery = placementQuery.eq("id", placementId);
-  const { data: contentItem } = await placementQuery.maybeSingle();
+  const { data: contentItem, error: placementError } = await placementQuery.maybeSingle();
+  if (failClosed && placementError) throw placementError;
 
   if (!contentItem) return result;
 
   result.contentItemId = contentItem.id;
 
   // 2. Check if already complete
-  const { data: completionRow } = await supabase
+  const { data: completionRow, error: completionError } = await supabase
     .from("student_content_completions")
     .select("id")
     .eq("student_id", userId)
@@ -166,15 +169,17 @@ export async function getContentUnlockState(
     .maybeSingle();
 
   result.isComplete = !!completionRow;
+  if (failClosed && completionError) throw completionError;
 
   // 3. Fetch class data
-  const { data: classData } = await supabase
+  const { data: classData, error: classError } = await supabase
     .from("classes")
     .select(CLASS_COLUMNS)
     .eq("class_id", classId)
     .eq("status", "active")
     .single();
 
+  if (failClosed && classError) throw classError;
   if (classData) {
     result.classUuid = classData.id;
   }
@@ -182,13 +187,14 @@ export async function getContentUnlockState(
   // 4. Check teacher unlock (require_teacher_unlock)
   // If the content item requires teacher unlock, check if it has been unlocked for this student
   if (contentItem.require_teacher_unlock) {
-    const { data: teacherUnlock } = await supabase
+    const { data: teacherUnlock, error: unlockError } = await supabase
       .from("teacher_content_unlocks")
       .select("id")
       .eq("content_item_id", contentItem.id)
       .eq("student_id", userId)
       .maybeSingle();
 
+    if (failClosed && unlockError) throw unlockError;
     if (!teacherUnlock) {
       result.isLocked = true;
       result.lockReason = "This content requires teacher approval to access";
@@ -201,18 +207,20 @@ export async function getContentUnlockState(
   if (classData) {
     try {
       // Get student's group
-      const { data: membership } = await supabase
+      const { data: membership, error: membershipError } = await supabase
         .from("class_group_memberships")
         .select("group_id")
         .eq("class_id", classData.id)
         .eq("student_id", userId)
         .single();
 
+      if (failClosed && membershipError) throw membershipError;
       const groupId = membership?.group_id ?? null;
+      if (failClosed && !groupId) throw new Error("Student group unavailable");
 
       if (groupId) {
         // Get all content items in the group
-        const { data: allItems } = await supabase
+        const { data: allItems, error: itemsError } = await supabase
           .from("content_items")
           .select(CONTENT_ITEM_COLUMNS)
           .eq("class_id", classData.id)
@@ -220,16 +228,19 @@ export async function getContentUnlockState(
           .in("status", ["active", "draft"])
           .order("position", { ascending: true });
 
+        if (failClosed && itemsError) throw itemsError;
+        if (failClosed && !allItems?.some((item) => item.id === contentItem.id)) throw new Error("Content placement unavailable");
         if (allItems && allItems.length > 0) {
           const itemIds = allItems.map((i: ContentItem) => i.id);
 
           // Get completions with dates (needed for day-delay)
-          const { data: completions } = await supabase
+          const { data: completions, error: completionsError } = await supabase
             .from("student_content_completions")
             .select("content_item_id, completed_at")
             .eq("student_id", userId)
             .in("content_item_id", itemIds);
 
+          if (failClosed && completionsError) throw completionsError;
           const completedAtByItemId = new Map<string, string>();
           for (const c of completions ?? []) {
             if (c.completed_at) {
@@ -238,12 +249,13 @@ export async function getContentUnlockState(
           }
 
           // Get teacher unlocks for all items in the group
-          const { data: teacherUnlocks } = await supabase
+          const { data: teacherUnlocks, error: teacherUnlocksError } = await supabase
             .from("teacher_content_unlocks")
             .select("content_item_id")
             .eq("student_id", userId)
             .in("content_item_id", itemIds);
 
+          if (failClosed && teacherUnlocksError) throw teacherUnlocksError;
           const teacherUnlockedIds = new Set(
             (teacherUnlocks ?? []).map(
               (u: { content_item_id: string }) => u.content_item_id
@@ -278,6 +290,7 @@ export async function getContentUnlockState(
         }
       }
     } catch (err) {
+      if (failClosed) throw err;
       console.error("Error checking unlock status:", err);
       // Don't block access if there's an error checking unlock status
     }
