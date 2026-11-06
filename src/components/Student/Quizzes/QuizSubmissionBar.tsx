@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 
 interface QuizSubmissionBarProps {
   isSubmitted: boolean;
+  needsCompletion?: boolean;
   isSubmitting: boolean;
   canSubmit: boolean;
   showPoints: boolean;
@@ -12,6 +13,7 @@ interface QuizSubmissionBarProps {
 
 export default function QuizSubmissionBar({
   isSubmitted,
+  needsCompletion = false,
   isSubmitting,
   canSubmit,
   showPoints,
@@ -34,6 +36,16 @@ export default function QuizSubmissionBar({
         <Button onClick={onSubmit} disabled={!canSubmit || isSubmitting}>
           {isSubmitting ? "Submitting..." : "Submit answers"}
         </Button>
+      )}
+      {isSubmitted && needsCompletion && (
+        <div className="text-center space-y-2" role="status">
+          <p className="text-sm text-muted-foreground">
+            Your answers are saved. Completion still needs to be recorded.
+          </p>
+          <Button onClick={onSubmit} disabled={isSubmitting}>
+            {isSubmitting ? "Saving completion..." : "Retry completion"}
+          </Button>
+        </div>
       )}
     </div>
   );

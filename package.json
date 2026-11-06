@@ -11,6 +11,7 @@
     "validate:locales": "npx tsx scripts/validate-locales.ts",
     "validate:ai-metering": "npx tsx scripts/validate-ai-metering.ts",
     "test:class-documents": "npx tsx --test scripts/test-class-document-conversion.ts && npx tsx scripts/validate-class-document-index.ts",
+    "test:content-completion": "npx tsx --test scripts/test-content-completion.ts",
     "test:chatbots": "npx tsx --test scripts/test-chatbots.ts",
     "test:chatbots:db": "supabase test db supabase/tests/chatbots.test.sql supabase/tests/chatbots-public.test.sql supabase/tests/chatbot-images.test.sql",
     "test:chatbots:public-api": "npx tsx --test scripts/test-chatbot-public-api.ts",

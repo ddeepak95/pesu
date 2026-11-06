@@ -1,3 +1,4 @@
+import { saveContentCompletion } from "@/lib/content/saveCompletion";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
@@ -32,29 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upsert the completion (insert or do nothing if already exists)
-    const { data, error } = await supabase
-      .from("student_content_completions")
-      .upsert(
-        {
-          student_id: user.id,
-          content_item_id: contentItemId,
-          completed_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "student_id,content_item_id",
-        }
-      )
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error marking content as complete:", error);
-      return NextResponse.json(
-        { error: "Failed to mark content as complete" },
-        { status: 500 }
-      );
-    }
+    const data = await saveContentCompletion(supabase, user.id, contentItemId);
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

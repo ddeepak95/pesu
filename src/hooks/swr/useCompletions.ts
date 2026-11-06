@@ -67,6 +67,7 @@ export function invalidateCompletionsCache() {
     (key) =>
       Array.isArray(key) &&
       (key[0] === "completionsForStudent" ||
-        key[0] === "completionsWithDatesForStudent")
+        key[0] === "completionsWithDatesForStudent" ||
+        key[0] === "isContentComplete")
   );
 }

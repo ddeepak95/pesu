@@ -1,3 +1,4 @@
+import { saveContentCompletion } from "@/lib/content/saveCompletion";
 import { createClient } from "@/lib/supabase";
 import { getCachedUser } from "@/lib/auth-cache";
 import { ContentCompletion, StudentContentCompletionWithDetails, ContentItemType } from "@/types/contentCompletion";
@@ -24,26 +25,7 @@ export async function markContentAsComplete(
     throw new Error("User not authenticated");
   }
 
-  const { data, error } = await supabase
-    .from("student_content_completions")
-    .upsert(
-      {
-        student_id: user.id,
-        content_item_id: contentItemId,
-        completed_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "student_id,content_item_id",
-      }
-    )
-    .select()
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data as ContentCompletion;
+  return saveContentCompletion(supabase, user.id, contentItemId);
 }
 
 /**

@@ -15,6 +15,7 @@ import {
 import { useComponentCloseTracking } from "@/hooks/useComponentCloseTracking";
 import { emitActivityEvent } from "@/lib/activity/emitter";
 import { useNavigationTracking } from "@/hooks/useNavigationTracking";
+import { submitAndComplete } from "@/lib/quizzes/submitAndComplete";
 import { createQuizSubmission } from "@/lib/queries/quizzes";
 import { markContentAsComplete } from "@/lib/queries/contentCompletions";
 import { invalidateCompletionsCache } from "@/hooks/swr";
@@ -112,10 +113,14 @@ function QuizInner({
   };
 
   const handleSubmit = async () => {
-    if (!quiz || submission) return;
-    emitQuizEvent("submit_clicked");
+    if (!quiz || isSubmitting || isComplete) return;
+    if (!contentItemId) {
+      showErrorToast("Content is unavailable. Please return to your class and reopen the quiz.");
+      return;
+    }
+    if (!submission) emitQuizEvent("submit_clicked");
     const allAnswered = displayQuestions.every((q) => answers[q.id]);
-    if (!allAnswered) {
+    if (!submission && !allAnswered) {
       showErrorToast("Please answer all questions before submitting.");
       return;
     }
@@ -126,22 +131,29 @@ function QuizInner({
     }));
 
     setIsSubmitting(true);
+    let savedSubmission = submission;
     try {
-      const created = await createQuizSubmission({
-        quiz_id: quiz.id,
-        class_id: quiz.class_id,
-        answers: payload,
+      await submitAndComplete({
+        existingSubmission: submission,
+        createSubmission: () => createQuizSubmission({
+          quiz_id: quiz.id,
+          class_id: quiz.class_id,
+          answers: payload,
+        }),
+        onSubmissionSaved: (saved) => {
+          savedSubmission = saved;
+          setSubmission(saved);
+        },
+        markComplete: () => markContentAsComplete(contentItemId),
       });
-      setSubmission(created);
+      await invalidateCompletionsCache();
       setIsComplete(true);
-      if (contentItemId) {
-        await markContentAsComplete(contentItemId);
-        await invalidateCompletionsCache();
-      }
-      showSuccessToast("Quiz submitted!");
+      showSuccessToast("Quiz completed!");
     } catch (submitErr) {
-      console.error("Error submitting quiz:", submitErr);
-      showErrorToast("Failed to submit quiz. Please try again.");
+      console.error("Error completing quiz:", submitErr);
+      showErrorToast(savedSubmission
+        ? "Your answers are saved, but completion could not be confirmed. Please retry completion."
+        : "Failed to submit quiz. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -197,6 +209,7 @@ function QuizInner({
 
             <QuizSubmissionBar
               isSubmitted={!!submission}
+              needsCompletion={!!submission && !isComplete}
               isSubmitting={isSubmitting}
               canSubmit={canSubmit}
               showPoints={showPoints}
